@@ -1,3 +1,7 @@
+-- Canonical SQL source for public.perf_summary.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION public.perf_summary(p_days integer DEFAULT 7)
 RETURNS TABLE(day date, screen text, samples bigint, p50_ms double precision, p95_ms double precision)
 LANGUAGE plpgsql

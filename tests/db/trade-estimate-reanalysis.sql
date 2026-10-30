@@ -28,15 +28,15 @@ BEGIN
   UPDATE public.league_seasons SET is_current=false WHERE id=other.season_id;
   PERFORM pg_temp.check_rules((SELECT count(*)<=25 AND count(*)>0 FROM public.get_trade_estimate_reanalysis_batch()),'work uses bounded nonempty batches');
   INSERT INTO private.work_items(kind,key,due_at,status,payload)
-    VALUES('trade-estimate','onenumber-trade-v1:'||(SELECT count(*) FROM public.trade_estimate_history WHERE formula_version='onenumber-trade-v1'),now(),'dead',
-      '{"reanalysisVersion":"onenumber-trade-v1"}'::jsonb) ON CONFLICT(kind,key) DO UPDATE SET status='dead';
+    VALUES('trade-estimate','onenumber-trade-curve-v5:'||(SELECT count(*) FROM public.trade_estimate_history WHERE formula_version='onenumber-trade-curve-v5'),now(),'dead',
+      '{"reanalysisVersion":"onenumber-trade-curve-v5"}'::jsonb) ON CONFLICT(kind,key) DO UPDATE SET status='dead';
   PERFORM public.queue_trade_estimate_reanalysis();
-  SELECT count(*) INTO before_count FROM private.work_items WHERE kind='trade-estimate' AND payload->>'reanalysisVersion'='onenumber-trade-v1';
+  SELECT count(*) INTO before_count FROM private.work_items WHERE kind='trade-estimate' AND payload->>'reanalysisVersion'='onenumber-trade-curve-v5';
   PERFORM public.queue_trade_estimate_reanalysis();
-  SELECT count(*) INTO after_count FROM private.work_items WHERE kind='trade-estimate' AND payload->>'reanalysisVersion'='onenumber-trade-v1';
+  SELECT count(*) INTO after_count FROM private.work_items WHERE kind='trade-estimate' AND payload->>'reanalysisVersion'='onenumber-trade-curve-v5';
   PERFORM pg_temp.check_rules(before_count=after_count,'queue request is idempotent');
   PERFORM pg_temp.check_rules(EXISTS(SELECT 1 FROM private.work_items WHERE kind='trade-estimate' AND status='pending'
-    AND key='reanalysis:onenumber-trade-v1:'||(SELECT count(*) FROM public.trade_estimate_history WHERE formula_version='onenumber-trade-v1')),
+    AND key='reanalysis:onenumber-trade-curve-v5:'||(SELECT count(*) FROM public.trade_estimate_history WHERE formula_version='onenumber-trade-curve-v5')),
     'new re-analysis work does not collide with retired pre-pick work');
   FOREACH v_trade IN ARRAY ids LOOP
     inputs:=public.get_trade_estimate_reanalysis_inputs(v_trade);
@@ -47,7 +47,7 @@ BEGIN
   PERFORM pg_temp.check_rules((SELECT count(*)=54 FROM public.trade_estimate_history WHERE trade_id=ANY(ids)),'every trade has both history records');
   PERFORM pg_temp.check_rules((SELECT h.snapshot->'quote'=original FROM public.trade_estimate_history h WHERE h.trade_id=ids[1] AND formula_version='original'),'original quote snapshot remains exact');
   PERFORM pg_temp.check_rules((SELECT snapshot->'estimate'->>'unavailable_reason'='Original estimate unavailable' FROM public.trade_estimate_history WHERE trade_id=ids[2] AND formula_version='original'),'original unavailable state remains exact');
-  PERFORM pg_temp.check_rules((SELECT count(*)=27 FROM public.trade_estimates e JOIN public.trade_estimate_quotes q ON q.id=e.quote_id WHERE e.trade_id=ANY(ids) AND q.model_version='onenumber-trade-v1'),'all saved estimates use the new formula');
+  PERFORM pg_temp.check_rules((SELECT count(*)=27 FROM public.trade_estimates e JOIN public.trade_estimate_quotes q ON q.id=e.quote_id WHERE e.trade_id=ANY(ids) AND q.model_version='onenumber-trade-curve-v5'),'all saved estimates use the new formula');
   PERFORM pg_temp.check_rules(public.get_trade_estimate_reanalysis_inputs(ids[1]) IS NULL,'completed input request skips replay');
   PERFORM pg_temp.check_rules((SELECT NOT EXISTS(SELECT 1 FROM public.get_trade_estimate_reanalysis_batch() x WHERE x=ANY(ids))),'completed work leaves the batch');
   PERFORM pg_temp.check_rules(NOT has_function_privilege('authenticated','public.get_trade_estimate_reanalysis_inputs(uuid,text)','EXECUTE') AND NOT has_function_privilege('anon','public.save_trade_estimate_reanalysis(uuid,jsonb,jsonb,text)','EXECUTE'),'reanalysis RPCs stay service-only');

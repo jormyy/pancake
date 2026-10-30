@@ -1,3 +1,7 @@
+-- Canonical SQL source for private.delete_projection_runs.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION private.delete_projection_runs(p_ids uuid[],p_row_budget integer DEFAULT 10000)
 RETURNS jsonb
 LANGUAGE plpgsql

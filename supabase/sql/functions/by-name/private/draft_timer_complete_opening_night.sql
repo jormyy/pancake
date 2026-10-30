@@ -1,3 +1,7 @@
+-- Canonical SQL source for private.draft_timer_complete_opening_night.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION private.draft_timer_complete_opening_night(
   p_limit int DEFAULT 100,
   p_at timestamptz DEFAULT clock_timestamp()

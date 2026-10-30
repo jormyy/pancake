@@ -1,3 +1,7 @@
+-- Canonical SQL source for private.trade_value_fantasy_averages.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION private.trade_value_fantasy_averages(p_league_id uuid,p_season_year integer,p_player_ids uuid[] DEFAULT NULL)
 RETURNS TABLE(player_id uuid,avg_fantasy_points numeric)
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' AS $$
@@ -78,4 +82,3 @@ BEGIN
     WHERE totals.season_year=p_season_year AND (p_player_ids IS NULL OR totals.player_id=ANY(p_player_ids));
 END;
 $$;
-REVOKE ALL ON FUNCTION private.trade_value_fantasy_averages(uuid,integer,uuid[]) FROM PUBLIC,anon,authenticated,service_role;

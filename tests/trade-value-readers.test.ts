@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { valueDynastyAsset, type DynastyPlayerAsset } from '../core/src/dynasty/decisionEngine'
+import { curveTradeValue, TRADE_FORMULA_VERSION } from '../core/src/dynasty/tradeScoring'
 import { displayedTradeValues, formatTradeValue } from '../lib/trade-estimates'
 import { dynastyPickBands, playerAssetFromDecisionInput, type DynastyDecisionInput, type DynastyPickValue } from '../lib/dynasty-decisions'
 import type { Trade } from '../lib/trades'
@@ -35,18 +36,42 @@ describe('stored dynasty value readers', () => {
     expect(valueDynastyAsset(context, { ...pick, valueBands: null }).values).toEqual({ overall: 0, contend: 0, rebuild: 0 })
   })
   it('prefers current trade-card values and falls back to saved asset values', () => {
-    const trade = { proposerMemberId: 'a', routedItems: [
+    const trade = { proposerMemberId: 'a', participants: [{ memberId: 'a' }, { memberId: 'b' }], routedItems: [
       { kind: 'player', playerId: 'p1', fromMemberId: 'a', toMemberId: 'b', tradeValue: 999.9 },
       { kind: 'player', playerId: 'p2', fromMemberId: 'b', toMemberId: 'a', tradeValue: null },
     ], estimate: { teams: [{ memberId: 'a', valuesSent: 100, valuesReceived: 200 }],
       assets: [{ assetId: 'p1', values: { overall: 100 } }, { assetId: 'p2', values: { overall: 200 } }] } } as unknown as Trade
-    expect(displayedTradeValues(trade, 'a')).toEqual({ valuesSent: 999.9, valuesReceived: 200 })
+    expect(displayedTradeValues(trade, 'a')).toMatchObject({ valuesSent: Number(curveTradeValue(999.9).toFixed(6)), valuesReceived: Number(curveTradeValue(200).toFixed(6)) })
     trade.routedItems[0].tradeValue = null
-    expect(displayedTradeValues(trade, 'a')).toEqual({ valuesSent: 100, valuesReceived: 200 })
+    expect(displayedTradeValues(trade, 'a')).toMatchObject({ valuesSent: Number(curveTradeValue(100).toFixed(6)), valuesReceived: Number(curveTradeValue(200).toFixed(6)) })
     trade.routedItems[0].tradeValue = 999.9
     trade.routedItems[1].tradeValue = 950.4
     trade.estimate = null
     trade.participants = [{ memberId: 'a' }] as Trade['participants']
-    expect(displayedTradeValues(trade, 'a')).toEqual({ valuesSent: 999.9, valuesReceived: 950.4 })
+    expect(displayedTradeValues(trade, 'a')).toMatchObject({ valuesSent: Number(curveTradeValue(999.9).toFixed(6)), valuesReceived: Number(curveTradeValue(950.4).toFixed(6)) })
   })
+  it('uses the published curved totals and roster effects without curving them again', () => {
+    const trade = { proposerMemberId: 'a', participants: [{ memberId: 'a' }, { memberId: 'b' }], routedItems: [
+      { kind: 'player', playerId: 'p1', fromMemberId: 'a', toMemberId: 'b', tradeValue: 999.9 },
+    ], estimate: { modelVersion: TRADE_FORMULA_VERSION, teams: [
+      { memberId: 'a', valuesSent: 741.745, valuesReceived: 600.773, rosterSlotEffect: -75, netValue: -215.972 },
+      { memberId: 'b', valuesSent: 600.773, valuesReceived: 741.745, rosterSlotEffect: 75, netValue: 215.972 },
+    ] } } as unknown as Trade
+    const result = displayedTradeValues(trade, 'a')!
+    expect(result.valuesSent).toBe(741.745)
+    expect(result.valuesReceived).toBe(600.773)
+    expect(result.comparison.winnerMemberId).toBe('b')
+    expect(result.comparison.gapPercent).toBeCloseTo(35.625830, 3)
+  })
+
+  it('applies flat roster values to a card before a current estimate is available', () => {
+    const trade = { proposerMemberId: 'a', participants: [{ memberId: 'a' }, { memberId: 'b' }], routedItems: [
+      { kind: 'player', playerId: 'luka', fromMemberId: 'a', toMemberId: 'b', tradeValue: 942 },
+      ...[698, 695, 692, 648].map((tradeValue, index) => ({ kind: 'player', playerId: `piece-${index}`, fromMemberId: 'b', toMemberId: 'a', tradeValue })),
+      { kind: 'pick', pickId: 'pick', fromMemberId: 'b', toMemberId: 'a', tradeValue: 0 },
+    ] } as unknown as Trade
+    expect(displayedTradeValues(trade, 'a')).toMatchObject({ rosterSlotEffect: -75 })
+    expect(displayedTradeValues(trade, 'b')).toMatchObject({ rosterSlotEffect: 75 })
+  })
+
 })

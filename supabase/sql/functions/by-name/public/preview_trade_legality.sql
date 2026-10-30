@@ -1,3 +1,7 @@
+-- Canonical SQL source for public.preview_trade_legality.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION public.preview_trade_legality(
   p_user_id uuid,p_league_id uuid,p_member_ids uuid[],p_items jsonb,p_plans jsonb DEFAULT '{}',p_trade_id uuid DEFAULT NULL
 )

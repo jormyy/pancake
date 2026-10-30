@@ -1,3 +1,7 @@
+import { sessionOwner } from '@/lib/session-cache-registry'
+import { useScreenView } from '@/hooks/use-screen-view'
+import { screenScope } from '@/lib/cache/screen-scope'
+import type { RosterView } from '@/lib/cache/view-types'
 import { ScreenStatusOverlay, ScreenStatusProvider } from '@/components/ui/ScreenStatusOverlay'
 import { DeferredContent } from '@/components/ui/DeferredContent'
 import { View, Text, StyleSheet } from 'react-native'
@@ -21,6 +25,8 @@ const LEAGUE_TAB_LABELS = Object.fromEntries(
 
 function LeagueScreen() {
     const screen = useLeagueScreenState()
+    const lockView = useScreenView<RosterView>(screen.tab === 'picks' && screen.current && screen.currentLeague && sessionOwner()
+        ? screenScope('roster', screen.currentLeague.id, screen.current.id, {}, sessionOwner()!) : null)
     const activePanelId = `league-panel-${screen.tab}`
     const activeTabId = `league-tab-${screen.tab}`
     const activeTabLabel = LEAGUE_TAB_LABELS[screen.tab]
@@ -113,6 +119,7 @@ function LeagueScreen() {
             return (
                 <PicksBankList
                     picks={screen.currentLeaguePicks}
+                    locks={lockView.data?.lockedAssets}
                     loading={screen.isTabLoading}
                     myMemberId={screen.current?.id}
                 />

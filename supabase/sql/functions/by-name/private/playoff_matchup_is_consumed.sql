@@ -1,3 +1,7 @@
+-- Canonical SQL source for private.playoff_matchup_is_consumed.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION private.playoff_matchup_is_consumed(p_matchup_id uuid)
 RETURNS boolean LANGUAGE sql STABLE SET search_path=public AS $$
   SELECT CASE WHEN current.playoff_round IS NULL THEN

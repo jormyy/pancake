@@ -84,13 +84,15 @@ describe('season dropdown', () => {
 
 describe('player decision summary', () => {
     beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-24T18:00:00Z')) })
-    it('renders both Hashtag point forecasts and the dynasty rank from the player view', async () => {
-        const player = { ...headerPlayer({ dynasty_rank: 21 }), five_year_points: 10, three_year_points: 12, trade_value: 999.9 }
+    it.each([[10, 12], [3.9, 4.1], [0, 0]])('renders concise forecasts %s and %s with full accessibility labels', async (fiveYear, threeYear) => {
+        const player = { ...headerPlayer({ dynasty_rank: 21 }), five_year_points: fiveYear, three_year_points: threeYear, trade_value: 999.9 }
         await render(React.createElement(PlayerHeader, { player, rosterStatus: null, leagueActive: false }))
         const labels = screen.root.findByProps({ testID: 'player-summary-line' }).findAllByType(Badge).map(node => node.props.label)
         expect(labels).toContain('Dynasty #21')
-        expect(labels).toContain('5-year points 10')
-        expect(labels).toContain('3-year points 12')
+        expect(labels).toContain(`5yr: ${fiveYear}`)
+        expect(screen.root.findByProps({ accessibilityLabel: `5-year points ${fiveYear}` }).props.label).toBe(`5yr: ${fiveYear}`)
+        expect(labels).toContain(`3yr: ${threeYear}`)
+        expect(screen.root.findByProps({ accessibilityLabel: `3-year points ${threeYear}` }).props.label).toBe(`3yr: ${threeYear}`)
         expect(labels).not.toContain('Value 999.9')
     })
 
@@ -325,3 +327,5 @@ it('keeps failed recent games recoverable and distinguishes empty and completed 
     await act(async () => screen.update(React.createElement(GameLogTable, { ...props, games: [game()] })))
     expect(text()).toContain('All games shown.')
 })
+
+vi.mock('@/lib/alert', () => ({ showAlert: vi.fn() }))

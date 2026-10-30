@@ -1,3 +1,7 @@
+-- Canonical SQL source for private.assert_nba_game_candidate.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION private.assert_nba_game_candidate(
   p_provider_id text,p_year int,p_date date,p_home text,p_away text,p_ignore uuid DEFAULT NULL
 )

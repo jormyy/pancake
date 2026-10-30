@@ -1,3 +1,7 @@
+-- Canonical SQL source for private.projection_sync_due_work.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION private.projection_sync_due_work(p_now timestamptz DEFAULT now())
 RETURNS TABLE(job_key text, period_key text, function_name text)
 LANGUAGE sql

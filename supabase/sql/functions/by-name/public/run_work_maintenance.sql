@@ -1,3 +1,7 @@
+-- Canonical SQL source for public.run_work_maintenance.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION public.run_work_maintenance(p_invocation_key uuid)
 RETURNS integer LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 DECLARE v_item private.work_items%ROWTYPE;

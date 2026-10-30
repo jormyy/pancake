@@ -1,6 +1,9 @@
+import { AssetSelectionRow } from '@/components/roster/LockedAssetNotice'
+import { useScreenView } from '@/hooks/use-screen-view'
+import { readAssetLocks, type AssetLock } from '@/lib/locked-assets'
 import { cachedScreenView, readScreenView, subscribeScreenView } from '@/lib/cache/screen-cache'
 import { screenScope } from '@/lib/cache/screen-scope'
-import type { LineupView } from '@/lib/cache/view-types'
+import type { LineupView, RosterView } from '@/lib/cache/view-types'
 import { LineupControls } from '@/components/ui/LineupControls'
 import { SectionBand } from '@/components/ui/SectionBand'
 import { holdPwaUpdate } from '@/lib/pwa-update-guard'
@@ -56,6 +59,7 @@ const StarterRow = memo(function StarterRow({
     disabled,
     readOnly,
     targetState,
+    locks,
 }: {
     slot: LineupSlot
     index: number
@@ -67,6 +71,7 @@ const StarterRow = memo(function StarterRow({
     disabled: boolean
     readOnly: boolean
     targetState: LineupMoveTargetState
+    locks: readonly AssetLock[]
 }) {
     const p = slot.player
     const isLocked = !!(p?.nbaTeam && startedTeams.has(p.nbaTeam))
@@ -77,7 +82,7 @@ const StarterRow = memo(function StarterRow({
         : null
 
     return (
-        <View><MotionPressable
+        <View><AssetSelectionRow locks={locks} component={MotionPressable}
             style={[
                 styles.slotRow,
                 index > 0 && styles.divider,
@@ -89,14 +94,14 @@ const StarterRow = memo(function StarterRow({
             disabled={disabled || isLocked || targetState === 'invalid'}
             disabledOpacity={readOnly ? 1 : undefined}
             accessibilityRole="button"
-            accessibilityLabel={p ? `${slot.slotType} ${p.displayName}` : `Empty ${slot.slotType} slot`}
+            label={p ? `${slot.slotType} ${p.displayName}` : `Empty ${slot.slotType} slot`}
             accessibilityHint={targetState === 'valid' ? `Move here to use the ${slot.slotType} slot` : undefined}
             accessibilityState={{ selected: isSelected, disabled: disabled || isLocked || targetState === 'invalid' }}
         >
             <Text style={styles.slotLabel}>{slot.slotType}</Text>
             {p ? (
                 <>
-<PlayerRowContent name={p.displayName} nbaId={p.nbaId} team={p.nbaTeam} positions={p.eligiblePositions}
+<PlayerRowContent locks={locks} name={p.displayName} nbaId={p.nbaId} team={p.nbaTeam} positions={p.eligiblePositions}
                         playerId={p.playerId} yearsExp={p.yearsExp} careerGames={p.careerGames} injuryStatus={p.injuryStatus} stats={starterMatchupLabel ?? undefined} />
                     <Text style={[styles.rowStatus, isLocked ? styles.lockedBadge : styles.moveBadge]}>
                         {isLocked ? isLive ? 'LIVE' : 'LOCK' : targetState === 'valid' ? 'MOVE' : ''}
@@ -105,7 +110,7 @@ const StarterRow = memo(function StarterRow({
             ) : (
                 <Text style={styles.emptySlot}>Empty</Text>
             )}
-        </MotionPressable></View>
+        </AssetSelectionRow></View>
     )
 })
 
@@ -121,6 +126,7 @@ const BenchRow = memo(function BenchRow({
     disabled,
     readOnly,
     targetState,
+    locks,
 }: {
     player: LineupPlayer
     index: number
@@ -132,6 +138,7 @@ const BenchRow = memo(function BenchRow({
     disabled: boolean
     readOnly: boolean
     targetState: LineupMoveTargetState
+    locks: readonly AssetLock[]
 }) {
     const isLocked = !!(player.nbaTeam && startedTeams.has(player.nbaTeam))
     const isLive = !!(player.nbaTeam && liveTeams.has(player.nbaTeam))
@@ -141,7 +148,7 @@ const BenchRow = memo(function BenchRow({
         : null
 
     return (
-        <View><MotionPressable
+        <View><AssetSelectionRow locks={locks} component={MotionPressable}
             style={[
                 styles.benchRow,
                 index > 0 && styles.divider,
@@ -153,16 +160,16 @@ const BenchRow = memo(function BenchRow({
             disabled={disabled || isLocked || targetState === 'invalid'}
             disabledOpacity={readOnly ? 1 : undefined}
             accessibilityRole="button"
-            accessibilityLabel={`Bench ${player.displayName}`}
+            label={`Bench ${player.displayName}`}
             accessibilityHint={targetState === 'valid' ? 'Move here to place the selected player on the bench' : undefined}
             accessibilityState={{ selected: isSelected, disabled: disabled || isLocked || targetState === 'invalid' }}
         >
-<PlayerRowContent name={player.displayName} nbaId={player.nbaId} team={player.nbaTeam} positions={player.eligiblePositions}
+<PlayerRowContent locks={locks} name={player.displayName} nbaId={player.nbaId} team={player.nbaTeam} positions={player.eligiblePositions}
                         playerId={player.playerId} yearsExp={player.yearsExp} careerGames={player.careerGames} injuryStatus={player.injuryStatus} stats={benchMatchupLabel ?? undefined} />
                     <Text style={[styles.rowStatus, isLocked ? styles.lockedBadge : styles.moveBadge]}>
                 {isLocked ? isLive ? 'LIVE' : 'LOCK' : targetState === 'valid' ? 'MOVE' : ''}
             </Text>
-        </MotionPressable></View>
+        </AssetSelectionRow></View>
     )
 })
 
@@ -189,6 +196,10 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
     const userId = user?.id
     const memberId = current?.id
     const leagueId = currentLeague?.id
+    const lockView = useScreenView<RosterView>(membershipValidated && userId && memberId && leagueId
+        ? screenScope('roster', leagueId, memberId, {}, userId) : null)
+    const locksFor = (player: LineupPlayer | null) => player
+        ? lockView.data?.lockedAssets?.filter(lock => lock.assetKind === 'player' && lock.assetId === player.playerId) ?? readAssetLocks(player) : []
     const leagueRevision = JSON.stringify(currentLeague)
     const timezone = resolveLeagueTimezone(currentLeague?.timezone)
     const currentDay = useLeagueDay(timezone)
@@ -652,6 +663,7 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
                         <StarterRow
                             key={`starter-${i}`}
                             slot={slot}
+                            locks={locksFor(slot.player)}
                             index={i}
                             isSelected={displayedSelection?.kind === 'starter' && displayedSelection.index === i}
                             liveTeams={liveTeams}
@@ -675,6 +687,7 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
                         <BenchRow
                             key={player.playerId}
                             player={player}
+                            locks={locksFor(player)}
                             index={i}
                             isSelected={displayedSelection?.kind === 'bench' && displayedSelection.index === i}
                             liveTeams={liveTeams}
@@ -724,7 +737,7 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
                                         style={[styles.slotRow, index > 0 && styles.divider]}
                                         accessibilityLabel={player ? `${label} ${player.displayName}` : `Empty ${label.toLowerCase()} slot`}>
                                         <Text style={styles.slotLabel}>{label}</Text>
-                                        {player ? <PlayerRowContent name={player.displayName} nbaId={player.nbaId} team={player.nbaTeam}
+                                        {player ? <PlayerRowContent locks={locksFor(player)} name={player.displayName} nbaId={player.nbaId} team={player.nbaTeam}
                                             positions={player.eligiblePositions} playerId={player.playerId} yearsExp={player.yearsExp} careerGames={player.careerGames}
                                             injuryStatus={player.injuryStatus} /> : <Text style={styles.emptySlot}>Empty {label.toLowerCase()} slot</Text>}
                                     </View></View>

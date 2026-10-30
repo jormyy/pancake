@@ -1,3 +1,7 @@
+-- Canonical SQL source for private.playoff_seed_order.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION private.playoff_seed_order(p_size bigint)
 RETURNS bigint[] LANGUAGE plpgsql IMMUTABLE SET search_path = ''
 AS $$

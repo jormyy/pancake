@@ -1,3 +1,4 @@
+import { saveLiveFeedSnapshot } from '../_shared/liveFeed.ts'
 import { gameElapsedSeconds } from '../_shared/gameProgress.ts'
 import { supabase } from '../_shared/supabase.ts'
 import { mapGameStatus } from '../_shared/nba.ts'
@@ -18,12 +19,17 @@ export async function saveScoreboardGames(games: NBAGame[], work: StoredScoreboa
   }
   for (const game of games) {
     const stored = storedGames.get(game.gameId)
-    if (!stored || stored.status === 'Final') continue
+    if (!stored || stored.status === 'Final' || game.gameStatus === 3) continue
     const status = mapGameStatus(game.gameStatus)
     const home = game.homeTeam.score ?? 0
     const away = game.awayTeam.score ?? 0
     const text = game.gameStatusText ?? ''
     if (stored.status === status && stored.home_score === home && stored.away_score === away && stored.game_status_text === text) continue
+    if (game.sourceUpdatedAt && game.gameStatus !== 3) {
+      await saveLiveFeedSnapshot(stored.id, game.gameId, { source: 'nba', source_updated_at: game.sourceUpdatedAt,
+        elapsed_seconds: gameElapsedSeconds(game), status, home_score: home, away_score: away, status_text: text })
+      continue
+    }
     const { error } = await supabase.rpc('save_live_scoreboard_atomic', {
       p_game_id: stored.id, p_provider_game_id: game.gameId, p_status: status,
       p_home_score: home, p_away_score: away, p_status_text: text,

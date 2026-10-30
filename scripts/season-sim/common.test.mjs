@@ -5,6 +5,14 @@ import path from 'node:path'
 import { assertTarget, config, configuration, dates, etDate, historicalSummary, scheduleEntries } from './common.mjs'
 import { databaseEnvironment } from './local-stack.mjs'
 
+test('the live fallback lane binds its own project, root and ports', () => {
+  const env = { SEASON_SIM_ROOT: path.join(homedir(), 'pancake-t_4ba51e0d/lanes/fable-live2'),
+    SEASON_SIM_PROJECT: 'pt4bafablelv', SEASON_SIM_PORT_PREFIX: '636' }
+  assert.equal(configuration(env).ports.api, 63621)
+  for (const changed of [{ SEASON_SIM_PROJECT: 'pt4baother' }, { SEASON_SIM_PORT_PREFIX: '637' },
+    { SEASON_SIM_ROOT: env.SEASON_SIM_ROOT + '-other' }]) assert.throws(() => configuration({ ...env, ...changed }))
+})
+
 test('an explicit lab assignment binds the simulator root, project, and port block', () => {
   const env = { PERF_LAB_LANE: 'fable-r271', PERF_LAB_PROJECT: 'pt4bafabler271', PERF_LAB_PORT_PREFIX: '612',
     SEASON_SIM_ROOT: path.join(homedir(), 'pancake-t_4ba51e0d/lanes/fable-r271'),

@@ -1,3 +1,7 @@
+-- Canonical SQL source for private.invalidate_forecast_inputs.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION private.invalidate_forecast_inputs()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 DECLARE v_history boolean:=false; v_projection boolean:=false; v_source boolean:=false;

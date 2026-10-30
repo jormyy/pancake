@@ -68,3 +68,15 @@ it.each(['healthy', 'full IR'])('omits IR placement for %s', async reason => {
     await act(async () => screen.update(React.createElement(ClaimPlayerScreen)))
     expect(screen.root.findAllByType(type('Switch'))).toHaveLength(0)
 })
+
+it.each(['trade', 'claim'] as const)('shows one %s lock icon in the claim drop picker and keeps selection disabled', async sourceKind => {
+    const locked = rosterPlayer({ assetLocks: [{ assetKind: 'player', assetId: 'player-a', sourceKind, sourceId: 'reservation-id', reason: 'Old reservation sentence with reservation-id.' }] })
+    mocks.read.mockResolvedValue([locked])
+    mocks.injury = null
+    mocks.epoch += 1
+    await act(async () => screen.update(React.createElement(ClaimPlayerScreen)))
+    const drop = screen.root.findByProps({ accessibilityLabel: 'Select Player A to drop' })
+    expect(drop.props.disabled).toBe(true)
+    expect(screen.root.findAllByProps({ accessibilityLabel: `Locked by a pending ${sourceKind === 'trade' ? 'trade' : 'waiver claim'}` })).toHaveLength(1)
+    expect(JSON.stringify(screen.toJSON())).not.toContain('reservation-id')
+})

@@ -25,8 +25,6 @@ DECLARE
   v_rows int;
   v_participant_count int;
   v_first_recipient_member_id uuid;
-  v_balance int;
-  v_faab record;
   v_champion_finalized boolean := false;
 BEGIN
   PERFORM set_config('pancake.trade_write','true',true);
@@ -236,19 +234,6 @@ BEGIN
   IF v_rows <> (SELECT count(*) FROM private.parse_multi_team_trade_items(p_items) WHERE pick_id IS NOT NULL) THEN
     RAISE EXCEPTION 'A draft pick asset is no longer owned by the expected team.';
   END IF;
-
-  FOR v_faab IN
-    SELECT from_member_id, sum(faab_amount)::int AS amount
-      FROM private.parse_multi_team_trade_items(p_items)
-     WHERE faab_amount > 0
-     GROUP BY from_member_id
-  LOOP
-    v_balance := private.available_faab_balance(p_league_id, p_league_season_id, v_faab.from_member_id);
-    IF v_balance < v_faab.amount THEN
-      RAISE EXCEPTION 'Offered FAAB exceeds a participant''s available balance.'
-        USING ERRCODE = 'P0001';
-    END IF;
-  END LOOP;
 
   SELECT member_id
     INTO v_first_recipient_member_id

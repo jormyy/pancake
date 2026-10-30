@@ -412,6 +412,12 @@
       "name": "auto_set_lineup_atomic_unchecked",
       "identityArguments": "p_member_id uuid, p_league_id uuid, p_league_season_id uuid, p_game_date date, p_assignments jsonb",
       "bodySha256": "daa6b95694d01344aec85c92fee860ef1b2104cc7dd360307120f23764f29f95"
+    },
+    {
+      "version": "20261214003300",
+      "name": "auto_set_lineup_atomic_unchecked",
+      "identityArguments": "p_member_id uuid, p_league_id uuid, p_league_season_id uuid, p_game_date date, p_assignments jsonb",
+      "bodySha256": "2da19b117a7f54d02fbeabe8cb020cad339d75e567ff49201e16f0974e795422"
     }
   ],
   "approvedMigrations": [
@@ -3013,11 +3019,74 @@
       "sha256": "4b4d0aacb09dddc9bee924479223b1467f9271d676b71f44010c51e99bb1c300"
     },
     {
+      "name": "l5c_players_response",
+      "version": "20261214002300",
+      "statementCount": 4,
+      "statementsSha256": "2fa0502e7a40734f31ef8bc00cada485dcbbf80f8069fdafdf222056d14300cc",
+      "sha256": "edfc0d88c954daced921e720f1009dbe33aab4be36fbe3cca9793a1fe6232746"
+    },
+    {
       "name": "trade_locks_drop_only",
       "version": "20261214002500",
       "statementCount": 3,
       "statementsSha256": "7881bf4961e9e66148aa56356fdbc6e9b95838a9fc5372f697c4b176cc9db5cd",
       "sha256": "97472fc2cb1dd79bfb1c9cc956625daecdeca0091d60c9ba8c859599ea581426"
+    },
+    {
+      "name": "live_fallback",
+      "version": "20261214002700",
+      "statementCount": 19,
+      "statementsSha256": "74acb3ec21c53b3927e6681056d302d644ba8fe6412a24f06fdf1c74b65aea3b",
+      "sha256": "f237159a39248c4fa7978227882272d74e739c836315ae146e00b7e6178a2a44"
+    },
+    {
+      "name": "offers_do_not_lock",
+      "version": "20261214002900",
+      "statementCount": 20,
+      "statementsSha256": "a6e2b0a61c53469ab40ce3dc0040ec08ea5a62882b4214531bc1ba1b54972e6e",
+      "sha256": "aaaa0492e40a9ff4516fe75d24e55247db243560aacd51873efdc7bab275cd10"
+    },
+    {
+      "name": "trade_value_curve",
+      "version": "20261214003100",
+      "statementCount": 17,
+      "statementsSha256": "3bfdd8c6192c748efb57079fef660287dcbfa95f33f703a4fcf82f2dd0e62918",
+      "sha256": "5f2f817df7277a4c9cc39206168210b535b6947bf49cde8b8ce099149734bf60"
+    },
+    {
+      "name": "autoset_keep_starters",
+      "version": "20261214003300",
+      "statementCount": 4,
+      "statementsSha256": "3a25945330beeb23779d7fc56e53dc834b05eadbd21b88b670db1b1948d0358d",
+      "sha256": "afddc348c6222393dff8163a99e3cd8a568822d11ee763ff9599e158b21c9635"
+    },
+    {
+      "name": "keep_live_refresh_essential",
+      "version": "20261214003500",
+      "statementCount": 18,
+      "statementsSha256": "7e30e70429a2213129419e5e383b2704d3d76a949fccca1bfccabe7b98484c19",
+      "sha256": "3f74081187c786cb1237175d7d1c176fbaf1bf7a591c041338ebc4192ef1f8c6"
+    },
+    {
+      "name": "defer_cron_candidate_scans",
+      "version": "20261214003600",
+      "statementCount": 58,
+      "statementsSha256": "8755e7efddb0b238c822b22a1c9d143013e2dc3dbc4081542cf7dbf0b3f00222",
+      "sha256": "7e817d057fd5bc274cc15603bb4c7e669694ee3ceb9aef2476ec3bf5f58239fe"
+    },
+    {
+      "name": "preserve_forecast_expiry_wakeups",
+      "version": "20261214003700",
+      "statementCount": 11,
+      "statementsSha256": "665f6056b0423fa5a8f8d5ab74ffc3006b96423674714d94488ce90f53658b17",
+      "sha256": "039cf8933af555af42e0037c31a2be259b4f70d0de936930f0fbeea37b799f01"
+    },
+    {
+      "name": "skip_deleted_forecast_scopes",
+      "version": "20261214003800",
+      "statementCount": 1,
+      "statementsSha256": "2071fa9458ab3e65bbe9ad0a8b617e313feaba89ca4a2c54ec186c53c380335f",
+      "sha256": "e721152025f709c2e8fd8311dfd48bd9d9975ae536acea70b91b5e9d406e4384"
     }
   ]
 }

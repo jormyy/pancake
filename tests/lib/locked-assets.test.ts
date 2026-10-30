@@ -1,6 +1,6 @@
 import { assertPrivateLockStack } from '../e2e/pending-asset-locks.mjs'
 import { describe, expect, it } from 'vitest'
-import { lockLink, readAssetLocks, type AssetLock } from '@/lib/locked-assets'
+import { assetLockReason, readAssetLocks, type AssetLock } from '@/lib/locked-assets'
 
 const trade: AssetLock = { assetKind: 'player', assetId: 'player', sourceKind: 'trade', sourceId: 'trade-id', reason: 'Cancel this trade.' }
 const claim: AssetLock = { ...trade, sourceKind: 'claim', sourceId: 'claim-id', reason: 'Cancel this claim.' }
@@ -14,9 +14,11 @@ describe('asset lock presentation', () => {
             expect(readAssetLocks(value)).toEqual([])
         }
     })
-    it('links each reason to its source', () => {
-        expect(lockLink(trade)).toBe('/trades?tradeId=trade-id')
-        expect(lockLink(claim)).toBe('/players?section=waivers&claimId=claim-id')
+    it('uses short reasons without source ids and collapses repeated reservations', () => {
+        expect(assetLockReason([])).toBeUndefined()
+        expect(assetLockReason([trade, trade])).toBe('Locked by a pending trade')
+        expect(assetLockReason([claim, claim])).toBe('Locked by a pending waiver claim')
+        expect(assetLockReason([trade, claim])).toBe('Locked by a pending trade and a pending waiver claim')
     })
 })
 

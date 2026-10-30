@@ -2,7 +2,8 @@
 
 ## Load shedding
 
-The dispatcher checks scheduler health before it adds or claims work.
+The dispatcher refreshes at most eight live matchup totals before checking scheduler health.
+It checks health before adding or claiming other work.
 The check reads at most forty cron rows through the existing primary key, newest first.
 It filters those rows to the last five minutes.
 Forty rows cover about ten minutes at the current three-job cadence.
@@ -15,7 +16,7 @@ Backend counts exclude the health check itself.
 | --- | --- | --- |
 | `normal` | Initial state or ten continuous healthy minutes | Existing schedule and four-worker cap |
 | `shed` | Success below 80%, average above three seconds, or unavailable health | Essential kinds only; reduced polling and waiver cadence |
-| `paused` | Success below 50% or any startup timeout | Three critical kinds; one dispatch batch every five minutes |
+| `paused` | Success below 50% or any startup timeout | Live totals every dispatch; other critical kinds every five minutes |
 
 `paused` is the paused-heavy state.
 Manual pause remains a separate control and stops all dispatch.
@@ -33,8 +34,9 @@ The essential kinds in `shed` are:
 - `process-waivers`
 - `process-trades`
 - `edge-invocation-reconcile`
+- `refresh-live-matchups`
 
-The critical kinds in `paused` are `process-waivers`, `process-trades`, and `live-poll`.
+The critical kinds in `paused` are `process-waivers`, `process-trades`, `live-poll`, and `refresh-live-matchups`.
 In `shed`, live polling enqueues on even minutes and waivers enqueue every 15 minutes.
 Skipped work keeps its due date and attempt count.
 Existing worker leases finish under their current limits.
@@ -127,3 +129,23 @@ The four-worker cap and expired-lease recovery remain in place.
 Foreground trade estimates are claimed before queued background revaluations and bypass their league pace.
 Worker completion events still publish league versions and realtime hints.
 Events alone do not rebuild standings, matchup totals, or player averages.
+# Live scores during scheduler shedding
+
+`refresh-live-matchups` remains essential during automatic shedding and pause.
+It runs before the heavy worker admission limit and consumes at most eight pending matchups.
+It counts toward the four-item dispatch batch while existing Edge leases can continue.
+Score publications coalesce in a separate pending queue.
+The refresh copies authoritative points for current matchups with NBA games started today.
+Heavy standings, averages, and trade refreshes may wait.
+The operator's worker pause still stops dispatch.
+
+Forecast invalidations enqueue scoped requests. A worker fingerprints one matchup per SQL call.
+Indexed deadlines wake future preview windows and expire old inputs.
+Pending requests make cached forecasts stale and prevent an older computation from publishing.
+Notification input changes insert a coalesced dirty marker.
+The worker opens a scan in a short transaction, then visits one member per SQL call.
+Score publishers do not lock the scan cursor while a member is scanned.
+First-scoring-day lookups stay shared within each scan.
+Chunk workers yield after 64 calls and retain their cursors for continuation.
+They pause for 100 real milliseconds before each call so consecutive chunks do not exhaust a shared CPU quota period.
+They leave one worker slot for urgent requests and wait during scheduler shedding.

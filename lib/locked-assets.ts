@@ -14,7 +14,11 @@ export function readAssetLocks(value: unknown): AssetLock[] {
         && typeof lock.reason === 'string'))
 }
 
-export function lockLink(lock: AssetLock): string {
-    return lock.sourceKind === 'trade' ? `/trades?tradeId=${encodeURIComponent(lock.sourceId)}`
-        : `/players?section=waivers&claimId=${encodeURIComponent(lock.sourceId)}`
+export function assetLockReason(locks: readonly AssetLock[]): string | undefined {
+    const trade = locks.some(lock => lock.sourceKind === 'trade')
+    const claim = locks.some(lock => lock.sourceKind === 'claim')
+    if (trade && claim) return 'Locked by a pending trade and a pending waiver claim'
+    if (trade) return 'Locked by a pending trade'
+    if (claim) return 'Locked by a pending waiver claim'
+    return undefined
 }

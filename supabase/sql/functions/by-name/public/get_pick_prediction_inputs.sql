@@ -1,3 +1,7 @@
+-- Canonical SQL source for public.get_pick_prediction_inputs.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION public.get_pick_prediction_inputs(p_league_id uuid)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 DECLARE season public.league_seasons%ROWTYPE; team_count integer; result jsonb;

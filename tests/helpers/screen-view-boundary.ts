@@ -1,10 +1,13 @@
 import { afterEach, beforeEach, vi } from 'vitest'
+import { setTimeout as afterViewChange } from 'node:timers'
 import '@/lib/supabase'
 import { clearScreenViews } from '@/lib/cache/screen-cache'
 
 const boundary = vi.hoisted(() => ({
     owner: 'account', generation: 0, online: true, focused: true, hidden: false,
     version: '1', changes: [] as { version: string; topic: string; scope: Record<string, unknown>; created_at: string }[],
+    server: null as { version: string; changes: { version: string; topic: string; scope: Record<string, unknown>; created_at: string }[] } | null,
+    checks: vi.fn(), games: vi.fn(),
     read: vi.fn<(scope: { screen: string; leagueId: string | null; memberId: string | null; params: Record<string, unknown> }) => Promise<unknown>>(),
     listeners: new Map<string, Set<(snapshot: { version: string; changes: { version: string; topic: string; scope: Record<string, unknown>; created_at: string }[] }) => void>>(),
 }))
@@ -13,11 +16,11 @@ vi.mock('@react-navigation/native', () => ({ useIsFocused: () => boundary.focuse
 vi.mock('react-native', () => ({ Platform: { OS: 'web' }, AppState: { currentState: 'active', addEventListener: () => ({ remove: () => {} }) } }))
 vi.mock('@/hooks/use-online-status', () => ({ useOnlineStatus: () => boundary.online }))
 vi.mock('@/lib/session-cache-registry', () => ({ sessionOwner: () => boundary.owner, sessionGeneration: () => boundary.generation, onSessionCachesCleared: () => {} }))
-vi.mock('@/lib/supabase', () => ({ supabase: { auth: { getSession: async () => ({ data: { session: { user: { id: boundary.owner }, access_token: 'fixture' } } }) } } }))
+vi.mock('@/lib/supabase', () => ({ supabase: { auth: { getSession: async () => ({ data: { session: { user: { id: boundary.owner }, access_token: 'fixture' } } }) }, from: () => ({ select: () => ({ eq: boundary.games }) }) } }))
 vi.mock('@/lib/league-version', () => ({
     compareLeagueVersions: (a: string, b: string) => BigInt(a) > BigInt(b) ? 1 : BigInt(a) < BigInt(b) ? -1 : 0,
     leagueVersionSnapshot: () => ({ version: boundary.version, changes: boundary.changes }),
-    readLeagueVersion: async () => ({ version: boundary.version, changes: boundary.changes }),
+    readLeagueVersion: async () => { boundary.checks(); if (boundary.server) { boundary.version = boundary.server.version; boundary.changes = boundary.server.changes }; return { version: boundary.version, changes: boundary.changes } },
     subscribeLeagueVersion: (league: string, listener: (snapshot: { version: string; changes: { version: string; topic: string; scope: Record<string, unknown>; created_at: string }[] }) => void) => {
         const listeners = boundary.listeners.get(league) ?? new Set()
         listeners.add(listener); boundary.listeners.set(league, listeners)
@@ -28,6 +31,7 @@ vi.mock('@/lib/league-version', () => ({
 beforeEach(() => {
     clearScreenViews(); boundary.listeners.clear(); boundary.owner = 'account'; boundary.generation += 1
     boundary.online = true; boundary.focused = true; boundary.hidden = false; boundary.version = '1'; boundary.changes = []
+    boundary.server = null; boundary.checks.mockClear(); boundary.games.mockReset(); boundary.games.mockResolvedValue({ data: [], error: null })
     boundary.read.mockReset()
     vi.stubGlobal('navigator', { get onLine() { return boundary.online } })
     vi.stubGlobal('window', new EventTarget())
@@ -42,10 +46,11 @@ beforeEach(() => {
 })
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers() })
 
-export function bumpView(league = 'league', topic = 'catchup', tables?: string[]) {
+export async function bumpView(league = 'league', topic = 'catchup', tables?: string[]) {
     boundary.version = String(Number(boundary.version) + 1)
     boundary.changes = [{ version: boundary.version, topic, scope: { topics: [topic], ...(tables ? { tables } : {}) }, created_at: new Date().toISOString() }]
     for (const listener of boundary.listeners.get(league) ?? []) listener({ version: boundary.version, changes: boundary.changes })
+    await new Promise(resolve => afterViewChange(resolve, 250))
 }
 
 export function held<Value>() {

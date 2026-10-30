@@ -1,3 +1,7 @@
+-- Canonical SQL source for private.notif_preference_enabled.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION private.notif_preference_enabled(p_user_id uuid, p_event text, p_category text)
 RETURNS boolean
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = ''

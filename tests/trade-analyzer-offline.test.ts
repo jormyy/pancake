@@ -4,7 +4,7 @@ import { expect, it, vi } from 'vitest'
 import TradeAnalyzer from '@/components/trades/TradeAnalyzer'
 
 const saved = vi.hoisted(() => ({ assets: [{ kind: 'player', assetId: 'player', label: 'Saved player' }], teams: [{ memberId: 'me' }] }))
-const state = vi.hoisted(() => ({ online: false, loading: false, analysis: null as unknown, retry: vi.fn() }))
+const state = vi.hoisted(() => ({ online: false, modelVersion: 'onenumber-trade-curve-v5', loading: false, analysis: null as unknown, retry: vi.fn() }))
 const composer = vi.hoisted(() => ({
     participantIds: ['me'], participantRosters: {}, participantViews: [] as { memberId: string }[], assetsReady: false, selectedAssetsAvailable: false,
     selectedParticipantIds: new Set(), buildMultiTeamItems: () => [], reset: () => {},
@@ -31,7 +31,7 @@ vi.mock('@/lib/dynasty-decisions', () => ({
 }))
 vi.mock('@/lib/persistent-cache', () => ({
     readPersistentCache: (key: string) => key === 'scope' ? { seasonYear: 2027 } : key === 'route' ? 'saved-route'
-        : key === 'snapshot' ? { analysis: saved, leagueId: 'league', memberId: 'me', participantNames: { me: 'My team' } } : null,
+        : key === 'snapshot' ? { modelVersion: state.modelVersion, analysis: saved, leagueId: 'league', memberId: 'me', participantNames: { me: 'My team' } } : null,
     writePersistentCache: vi.fn(),
 }))
 vi.mock('@/lib/trade-analyzer-session', () => ({ saveTradeAnalyzerDraft: vi.fn() }))
@@ -83,4 +83,18 @@ it('opens pending analysis and wires revalue with a visible loading state', asyn
     await act(async () => renderer.unmount())
     state.online = false
     state.analysis = null
+})
+
+
+it('does not show an offline analysis computed by the previous model', async () => {
+    state.modelVersion = 'onenumber-trade-curve-v4'
+    let renderer!: ReturnType<typeof create>
+    await act(async () => { renderer = create(React.createElement(TradeAnalyzer)) })
+    try {
+        expect(renderer.root.findAllByProps({ accessibilityLabel: 'View trade analysis' })).toHaveLength(0)
+        expect(renderer.root.findAllByType('TradeAnalysisSummary' as React.ElementType)).toHaveLength(0)
+    } finally {
+        state.modelVersion = 'onenumber-trade-curve-v5'
+        await act(async () => renderer.unmount())
+    }
 })

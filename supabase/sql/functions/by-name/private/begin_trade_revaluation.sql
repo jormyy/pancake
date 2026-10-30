@@ -1,3 +1,7 @@
+-- Canonical SQL source for private.begin_trade_revaluation.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION private.begin_trade_revaluation(p_trade_id uuid,p_model text)
 RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 DECLARE live boolean; allowed boolean;
@@ -11,4 +15,3 @@ BEGIN
   RETURN COALESCE(allowed,false);
 END;
 $$;
-REVOKE ALL ON FUNCTION private.begin_trade_revaluation(uuid,text) FROM PUBLIC,anon,authenticated,service_role;

@@ -1,3 +1,7 @@
+-- Canonical SQL source for private.recount_player_career_games.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION private.recount_player_career_games(p_player_ids uuid[])
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 DECLARE v_player public.players%ROWTYPE; v_games integer;

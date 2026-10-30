@@ -23,8 +23,10 @@ class CdnHttpError extends Error {
 }
 
 type ScoreboardPayload = {
+  meta?: { time?: unknown }
   scoreboard?: {
     games?: NBAGame[]
+    time?: string
   }
 }
 
@@ -65,15 +67,17 @@ type NBAScheduleGamePayload = {
 const CDN_ATTEMPT_TIMEOUT_MS = 20_000
 const CDN_TOTAL_TIMEOUT_MS = 45_000
 
-async function cdnGet(path: string): Promise<unknown> {
+async function cdnGet(path: string, timeoutMs?: number, onRevision?: (value: string | undefined) => void): Promise<unknown> {
   const res = await fetchWithRetry(
     `${NBA_CDN}${path}`,
-    { headers: NBA_HEADERS, signal: AbortSignal.timeout(CDN_TOTAL_TIMEOUT_MS) },
-    { attemptTimeoutMs: CDN_ATTEMPT_TIMEOUT_MS },
+    { headers: NBA_HEADERS, signal: AbortSignal.timeout(timeoutMs ?? CDN_TOTAL_TIMEOUT_MS) },
+    { attemptTimeoutMs: timeoutMs ?? CDN_ATTEMPT_TIMEOUT_MS },
   )
   if (!res.ok) {
     throw new CdnHttpError(res.status, path)
   }
+  const modified = Date.parse(res.headers.get('last-modified') ?? '')
+  onRevision?.(Number.isFinite(modified) ? new Date(modified).toISOString() : undefined)
   return await res.json()
 }
 
@@ -87,16 +91,24 @@ export function parseNBAMinutes(iso: string | null | undefined): number | null {
   return Math.round((mins + secs / 60) * 100) / 100
 }
 
-export async function fetchTodaysGames(): Promise<NBAGame[]> {
-  const data = await cdnGet('/liveData/scoreboard/todaysScoreboard_00.json') as ScoreboardPayload
+export async function fetchTodaysGames(timeoutMs?: number): Promise<NBAGame[]> {
+  let modified: string | undefined
+  const data = await cdnGet('/liveData/scoreboard/todaysScoreboard_00.json', timeoutMs, value => { modified = value }) as ScoreboardPayload
+  const time = data.meta?.time ?? data.scoreboard?.time
+  const revision = modified ?? (typeof time === 'string' && /(?:Z|[+-]\d{2}:?\d{2})$/.test(time) ? sourceTimestamp(time) : undefined)
   return (data?.scoreboard?.games ?? []).filter((game) => isRegularSeasonGameId(game.gameId))
+    .map(game => revision ? { ...game, sourceUpdatedAt: revision } : game)
 }
 
-export async function fetchBoxScore(gameId: string): Promise<NBABoxScore> {
-  const data = await cdnGet(`/liveData/boxscore/boxscore_${gameId}.json`) as BoxScorePayload
+export async function fetchBoxScore(gameId: string, timeoutMs?: number): Promise<NBABoxScore> {
+  let modified: string | undefined
+  const data = await cdnGet(`/liveData/boxscore/boxscore_${gameId}.json`, timeoutMs, value => { modified = value }) as BoxScorePayload
   if (!data.game) throw new Error(`NBA box score missing game payload for ${gameId}`)
   const revision = sourceTimestamp(data.meta?.time)
-  return revision ? { ...data.game, sourceUpdatedAt: revision } : data.game
+  const offset = data.game.gameEt?.match(/([+-]\d{2}:\d{2})$/)?.[1]
+  const explicit = typeof data.meta?.time === 'string' && /(?:Z|[+-]\d{2}:?\d{2})$/.test(data.meta.time)
+  const localTime = explicit ? revision : typeof data.meta?.time === 'string' && offset ? sourceTimestamp(data.meta.time + offset) : undefined
+  return { ...data.game, ...(revision ? { sourceUpdatedAt: revision } : {}), liveSourceUpdatedAt: localTime ?? modified }
 }
 
 export async function fetchSeasonSchedule(): Promise<NBAScheduledGame[]> {
@@ -148,6 +160,7 @@ export function mapGameStatus(s: number): string {
 }
 
 export interface NBAGame {
+  sourceUpdatedAt?: string
   period?: number
   gameClock?: string
   gameId: string
@@ -169,7 +182,12 @@ interface NBAScheduledGame {
   scheduleSeasonYear: string | null
 }
 
-interface NBABoxScore {
+export interface NBABoxScore {
+  liveSourceUpdatedAt?: string
+  liveSource?: 'nba' | 'espn'
+  livePlayerIds?: string[]
+  nbaWitnessPlayerIds?: string[]
+  gameStatusText?: string
   sourceUpdatedAt?: string
   period?: number
   gameClock?: string
@@ -181,6 +199,7 @@ interface NBABoxScore {
 }
 
 interface NBABoxScoreTeam {
+  score?: number
   teamTricode: string
   players: NBABoxScorePlayer[]
 }

@@ -1,3 +1,7 @@
+-- Canonical SQL source for private.roster_problems.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION private.roster_problems(p_league_id uuid, p_league_season_id uuid, p_member_id uuid)
 RETURNS TABLE(kind text, roster_player_id uuid, player_name text, message text)
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$

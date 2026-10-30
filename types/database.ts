@@ -7151,6 +7151,10 @@ export type Database = {
         Args: { p_revocation_hash: string; p_token: string }
         Returns: boolean
       }
+      run_scheduler_chunk: {
+        Args: { p_kind: string; p_now?: string; p_requeue?: boolean }
+        Returns: Json
+      }
       run_work_maintenance: {
         Args: { p_invocation_key: string }
         Returns: number
@@ -7177,6 +7181,14 @@ export type Database = {
           p_is_final: boolean
           p_provider_game_id: string
           p_stats: Json
+        }
+        Returns: number
+      }
+      save_live_feed_snapshot_atomic: {
+        Args: {
+          p_game_id: string
+          p_provider_game_id: string
+          p_snapshot: Json
         }
         Returns: number
       }

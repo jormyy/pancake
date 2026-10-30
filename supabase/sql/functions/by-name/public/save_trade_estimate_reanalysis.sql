@@ -1,4 +1,8 @@
-CREATE OR REPLACE FUNCTION public.save_trade_estimate_reanalysis(p_trade_id uuid,p_inputs jsonb,p_analysis jsonb,p_run text DEFAULT 'onenumber-trade-v1')
+-- Canonical SQL source for public.save_trade_estimate_reanalysis.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
+CREATE OR REPLACE FUNCTION public.save_trade_estimate_reanalysis(p_trade_id uuid,p_inputs jsonb,p_analysis jsonb,p_run text DEFAULT 'onenumber-trade-curve-v5')
 RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 DECLARE trade public.trades%ROWTYPE; quote uuid; original jsonb; terms jsonb;
 BEGIN
@@ -22,7 +26,7 @@ BEGIN
     INSERT INTO public.trade_estimate_history(trade_id,formula_version,snapshot) VALUES(p_trade_id,'original',jsonb_build_object('estimate',NULL,'quote',NULL)) ON CONFLICT DO NOTHING;
   END IF;
   INSERT INTO public.trade_estimate_quotes(league_id,league_season_id,member_id,terms,inputs,analysis,model_version,input_version,expires_at)
-    VALUES(trade.league_id,trade.league_season_id,trade.proposer_member_id,terms,p_inputs,p_analysis,'onenumber-trade-v1',p_inputs->>'inputVersion',now()) RETURNING id INTO quote;
+    VALUES(trade.league_id,trade.league_season_id,trade.proposer_member_id,terms,p_inputs,p_analysis,'onenumber-trade-curve-v5',p_inputs->>'inputVersion',now()) RETURNING id INTO quote;
   INSERT INTO public.trade_estimate_history(trade_id,formula_version,quote_id,snapshot)
     SELECT p_trade_id,p_run,q.id,to_jsonb(q) FROM public.trade_estimate_quotes q WHERE q.id=quote;
   INSERT INTO public.trade_estimates(trade_id,quote_id) VALUES(p_trade_id,quote)

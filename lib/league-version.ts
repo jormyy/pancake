@@ -77,7 +77,7 @@ export async function readLeagueVersion(leagueId: string, since = leagueVersionS
     return applyLeagueVersion(leagueId, data)
 }
 
-export function subscribeLeagueVersion(leagueId: string, listener: (snapshot: LeagueVersionSnapshot) => void): () => void {
+export function subscribeLeagueVersion(leagueId: string, listener: (snapshot: LeagueVersionSnapshot) => void, replayVersion = false): () => void {
     let group = listeners.get(leagueId)
     if (!group) { group = new Set(); listeners.set(leagueId, group) }
     group.add(listener)
@@ -86,7 +86,7 @@ export function subscribeLeagueVersion(leagueId: string, listener: (snapshot: Le
             if (change.topic === 'version' && change.version && change.changes) {
                 applyLeagueVersion(leagueId, { version: change.version, changes: change.changes })
             }
-        }))
+        }, replayVersion))
     }
     return () => {
         group.delete(listener)

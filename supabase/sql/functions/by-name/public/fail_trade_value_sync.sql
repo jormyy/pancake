@@ -1,3 +1,7 @@
+-- Canonical SQL source for public.fail_trade_value_sync.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION public.fail_trade_value_sync(p_request_id uuid,p_retry integer DEFAULT 0,p_retry_date date DEFAULT NULL,p_schedule_retry boolean DEFAULT true)
 RETURNS bigint LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 DECLARE v_date date; v_id bigint;
@@ -21,5 +25,3 @@ BEGIN
   RETURN v_id;
 END;
 $$;
-REVOKE ALL ON FUNCTION public.fail_trade_value_sync(uuid,integer,date,boolean) FROM PUBLIC,anon,authenticated;
-GRANT EXECUTE ON FUNCTION public.fail_trade_value_sync(uuid,integer,date,boolean) TO service_role;

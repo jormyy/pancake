@@ -1,4 +1,4 @@
-import { navigation } from './helpers/native-component-mocks'
+import './helpers/native-component-mocks'
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { describe, expect, it, vi } from 'vitest'
@@ -77,7 +77,7 @@ it('hides Move to IR during offseason and preserves Activate from IR', async () 
 })
 
 it('keeps player navigation and disables changes while a pending trade reserves the player', async () => {
-    const lockedItem = { ...item, assetLocks: [{ assetKind: 'player', assetId: 'player', sourceKind: 'trade', sourceId: 'trade-id', reason: 'Cancel trade trade-id first.' }] }
+    const lockedItem: RosterPlayer = { ...item, assetLocks: [{ assetKind: 'player' as const, assetId: 'player', sourceKind: 'trade' as const, sourceId: 'trade-id', reason: 'Cancel trade trade-id first.' }] }
     let renderer!: ReactTestRenderer
     await act(async () => {
         renderer = create(React.createElement(RosterPlayerItem, {
@@ -87,22 +87,26 @@ it('keeps player navigation and disables changes while a pending trade reserves 
     })
     expect(renderer.root.findByProps({ accessibilityLabel: 'Move Test Player to IR' }).props.disabled).toBe(true)
     expect(renderer.root.findByProps({ accessibilityLabel: 'Open Test Player' }).props.onLongPress).toBeUndefined()
-    expect(renderer.root.findAllByProps({ accessibilityLabel: 'Cancel trade trade-id first.' }).length).toBeGreaterThan(0)
+    expect(renderer.root.findAllByProps({ accessibilityLabel: 'Locked by a pending trade' }).length).toBeGreaterThan(0)
     await act(async () => { renderer.unmount() })
 })
 
-it('closes the sheet before opening the lock source', async () => {
-    const order: string[] = []
-    navigation.push.mockImplementation(() => { order.push('navigate') })
+it('shows one icon for several reservations and explains taps and long presses', async () => {
+    const { showAlert } = await import('@/lib/alert')
     let renderer!: ReactTestRenderer
     await act(async () => {
         renderer = create(React.createElement(LockedAssetNotice, {
-            locks: [{ assetKind: 'pick', assetId: 'pick', sourceKind: 'trade', sourceId: 'trade-id', reason: 'Cancel this trade.' }],
-            onNavigate: () => { order.push('close') },
+            locks: ['trade-id', 'another-trade'].map(sourceId => ({ assetKind: 'pick' as const, assetId: 'pick', sourceKind: 'trade' as const, sourceId, reason: 'Cancel this trade.' })),
         }))
     })
-    await act(async () => { renderer.root.findByProps({ accessibilityRole: 'link' }).props.onPress() })
-    expect(order).toEqual(['close', 'navigate'])
-    expect(navigation.push).toHaveBeenLastCalledWith('/trades?tradeId=trade-id')
+    const icon = renderer.root.findByProps({ accessibilityRole: 'button' })
+    expect(renderer.root.findAllByType('MaterialIcons' as React.ElementType)).toHaveLength(1)
+    expect(renderer.root.findAllByType('Text' as React.ElementType)).toHaveLength(0)
+    const stopPropagation = vi.fn()
+    await act(async () => { await icon.props.onPress({ stopPropagation }); await icon.props.onLongPress({ stopPropagation }) })
+    expect(stopPropagation).toHaveBeenCalledTimes(2)
+    expect(showAlert).toHaveBeenLastCalledWith('', 'Locked by a pending trade', 'info')
     await act(async () => { renderer.unmount() })
 })
+
+vi.mock('@/lib/alert', () => ({ showAlert: vi.fn() }))

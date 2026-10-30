@@ -1,3 +1,7 @@
+-- Canonical SQL source for private.league_playoff_round_plan.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION private.league_playoff_round_plan(p_league_id uuid, p_member_count int)
 RETURNS int[] LANGUAGE plpgsql STABLE SET search_path = public AS $$
 DECLARE v_league leagues%ROWTYPE; v_round_count int;

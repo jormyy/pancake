@@ -9,6 +9,8 @@ type Listener = (change: LeagueChange) => void
 const topics = new Set(['lineup', 'roster', 'score', 'game', 'stat', 'player_stats', 'inventory', 'resources', 'version'])
 const listeners = new Map<string, Set<Listener>>()
 const connected = new Set<string>()
+const versionHints = new Map<string, LeagueChange>()
+const versionHintTimes = new Map<string, number>()
 const revisions = new Map<string, Map<string, number>>()
 export type SnapshotDomain = 'roster' | 'support' | 'picks' | 'game' | 'lineup' | 'live' | 'daily'
 const snapshotTopics = { roster: ['lineup', 'roster', 'inventory', 'resources', 'game', 'stat', 'catchup'], support: ['roster', 'inventory', 'supportRaw', 'catchup'], picks: ['inventory', 'catchup'], game: ['game', 'catchup'], lineup: ['lineup', 'roster', 'catchup'], live: ['game', 'stat', 'catchup'], daily: ['resources', 'catchup'] }
@@ -47,12 +49,19 @@ export function leagueChangesConnected(leagueId: string): boolean {
     return connected.has(leagueId)
 }
 
+export function leagueVersionsConnected(leagueId: string, version: string, verifiedAt = 0): boolean {
+    const hinted = versionHints.get(leagueId)?.version
+    const age = Date.now() - Math.max(versionHintTimes.get(leagueId) ?? 0, verifiedAt)
+    return connected.has(leagueId) && hinted !== undefined && BigInt(version) >= BigInt(hinted) && age >= 0 && age < 30_000
+}
+
 export function setLeagueChangesConnected(leagueId: string, ready: boolean): void {
     if (ready) connected.add(leagueId)
-    else { if (connected.has(leagueId)) invalidateLeagueSnapshot(leagueId); connected.delete(leagueId) }
+    else { if (connected.has(leagueId)) invalidateLeagueSnapshot(leagueId); connected.delete(leagueId); versionHints.delete(leagueId); versionHintTimes.delete(leagueId) }
 }
 
 export function notifyLeagueChange(leagueId: string, change: LeagueChange): void {
+    if (change.topic === 'version' && change.version && change.changes) { versionHints.set(leagueId, change); versionHintTimes.set(leagueId, Date.now()) }
     if (change.topic !== 'inventory' || !change.details || change.details.some(detail => detail.resource !== 'activity')) {
         invalidateLeagueSnapshot(leagueId, change.topic)
     }
@@ -69,11 +78,15 @@ export function notifyLeagueChange(leagueId: string, change: LeagueChange): void
     for (const listener of listeners.get(leagueId) ?? []) listener(change)
 }
 
-export function listenForLeagueChanges(leagueId: string, listener: Listener): () => void {
+export function listenForLeagueChanges(leagueId: string, listener: Listener, replayVersion = false): () => void {
     let group = listeners.get(leagueId)
     if (!group) { group = new Set(); listeners.set(leagueId, group) }
     group.add(listener)
-    if (connected.has(leagueId)) listener({ topic: 'catchup', scopes: null })
+    if (connected.has(leagueId)) {
+        const version = replayVersion ? versionHints.get(leagueId) : undefined
+        if (version) listener(version)
+        listener({ topic: 'catchup', scopes: null })
+    }
     return () => {
         group.delete(listener)
         if (!group.size) listeners.delete(leagueId)
@@ -213,4 +226,4 @@ export function deferLeagueRefresh(read: () => unknown | Promise<unknown>, delay
     }
 }
 
-onSessionCachesCleared(() => { connected.clear(); revisions.clear(); sessionEpoch += 1 })
+onSessionCachesCleared(() => { connected.clear(); versionHints.clear(); versionHintTimes.clear(); revisions.clear(); sessionEpoch += 1 })

@@ -1,3 +1,7 @@
+-- Canonical SQL source for public.dispatch_work.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION public.dispatch_work()
 RETURNS integer LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 DECLARE v_item private.work_items%ROWTYPE; v_count integer:=0;
@@ -5,18 +9,19 @@ DECLARE v_item private.work_items%ROWTYPE; v_count integer:=0;
 BEGIN
   IF (SELECT paused FROM private.worker_controls WHERE id) THEN RETURN 0; END IF;
   IF NOT pg_try_advisory_xact_lock(hashtextextended('public.dispatch_work',0)) THEN RETURN 0; END IF;
+  v_count:=private.dispatch_live_matchup_refresh();
   v_level:=private.apply_scheduler_health(private.scheduler_health());
-  IF clock_timestamp()-v_started>=interval '2 seconds' THEN RETURN 0; END IF;
+  IF clock_timestamp()-v_started>=interval '2 seconds' THEN RETURN v_count; END IF;
   IF v_level='normal' THEN
     PERFORM private.enqueue_scheduled_work(now());
   ELSE
     IF v_level='paused' THEN
       UPDATE private.worker_controls SET scheduler_last_dispatch_at=clock_timestamp()
       WHERE id AND (scheduler_last_dispatch_at IS NULL OR scheduler_last_dispatch_at<=clock_timestamp()-interval '5 minutes');
-      IF NOT FOUND THEN RETURN 0; END IF;
-      v_kinds:=ARRAY['process-waivers','process-trades','live-poll'];
+      IF NOT FOUND THEN RETURN v_count; END IF;
+      v_kinds:=ARRAY['process-waivers','process-trades','live-poll','refresh-live-matchups'];
     ELSE
-      v_kinds:=ARRAY['live-poll','sync-scores','stats-sync','process-waivers','process-trades','edge-invocation-reconcile'];
+      v_kinds:=ARRAY['live-poll','sync-scores','stats-sync','process-waivers','process-trades','edge-invocation-reconcile','refresh-live-matchups'];
       PERFORM private.enqueue_stats_sync_dispatch(now());
       IF extract(minute FROM now())::int%5=0 AND EXISTS(SELECT 1 FROM public.edge_invocations
         WHERE reconciled_at IS NULL OR worker_status='running') THEN
@@ -36,7 +41,7 @@ BEGIN
   END IF;
   IF NOT EXISTS(SELECT 1 FROM private.work_items
     WHERE status IN ('pending','failed') AND due_at<=now()
-      OR status='running' AND lease_until<=now()) THEN RETURN 0; END IF;
+      OR status='running' AND lease_until<=now()) THEN RETURN v_count; END IF;
   LOOP
     EXIT WHEN v_count>=4 OR clock_timestamp()-v_started>=interval '2 seconds';
     IF v_level='normal' THEN

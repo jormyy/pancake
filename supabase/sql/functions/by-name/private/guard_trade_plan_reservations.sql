@@ -1,3 +1,7 @@
+-- Canonical SQL source for private.guard_trade_plan_reservations.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION private.guard_trade_plan_reservations()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE v_trade trades%ROWTYPE; v_player uuid; v_ids uuid[]; v_member uuid; lock_reason text;
@@ -21,6 +25,8 @@ BEGIN
                 AND source.recipient_member_id=v_trade.recipient_member_id)
               OR (source.id=v_trade.countered_from_trade_id AND source.recipient_member_id=v_trade.proposer_member_id
                 AND source.proposer_member_id=v_trade.recipient_member_id))))
+        AND (TG_TABLE_NAME<>'trade_items' OR locked.source_kind<>'trade'
+          OR EXISTS (SELECT 1 FROM trades reservation WHERE reservation.id=locked.source_id AND reservation.status='accepted'))
         AND ((locked.asset_kind='player' AND locked.asset_id=ANY(v_ids))
           OR (TG_TABLE_NAME='trade_items' AND locked.asset_kind='pick' AND locked.asset_id=(to_jsonb(NEW)->>'pick_id')::uuid))
       ORDER BY locked.source_kind,locked.source_id LIMIT 1;
@@ -30,7 +36,7 @@ BEGIN
     PERFORM pg_advisory_xact_lock(hashtext(v_trade.league_id::text),hashtext(v_player::text));
     IF EXISTS (SELECT 1 FROM trade_participants participant JOIN trades trade ON trade.id=participant.trade_id
       WHERE trade.league_id=v_trade.league_id AND trade.league_season_id=v_trade.league_season_id
-        AND trade.status IN ('pending','accepted') AND trade.id<>NEW.trade_id
+        AND trade.status='accepted' AND trade.id<>NEW.trade_id
         AND (v_player=ANY(participant.drop_player_ids) OR participant.roster_moves @> jsonb_build_array(jsonb_build_object('playerId',v_player::text)))) THEN
       RAISE EXCEPTION 'Player is reserved by another trade roster plan.' USING ERRCODE='PT001';
     END IF;

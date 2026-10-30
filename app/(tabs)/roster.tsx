@@ -1,5 +1,4 @@
-import { LockedAssetNotice } from '@/components/roster/LockedAssetNotice'
-import { readAssetLocks } from '@/lib/locked-assets'
+import { assetLockReason, readAssetLocks } from '@/lib/locked-assets'
 import { useScreenView } from '@/hooks/use-screen-view'
 import { rosterViewData, type RosterView } from '@/lib/cache/view-types'
 import { screenScope } from '@/lib/cache/screen-scope'
@@ -160,7 +159,7 @@ function RosterTablePlayerItem({
             >
                 <View style={styles.rosterTableSlot}><RosterSlotTag slotType={slotType} /></View>
                 <View style={styles.rosterTablePlayerCell}>
-                    <PlayerRowContent name={item.players.display_name} nbaId={item.players.nba_id} team={item.players.nba_team} positions={positions}
+                    <PlayerRowContent locks={locks} name={item.players.display_name} nbaId={item.players.nba_id} team={item.players.nba_team} positions={positions}
                         birthdate={item.players.birthdate} yearsExp={item.players.years_exp} careerGames={item.players.career_regular_season_games} injuryStatus={item.players.injury_status}
                         stats={`${fmtStat(avgFpts)} FP · ${fmtStat(stats?.avg_minutes_played)} MIN`} />
                 </View>
@@ -179,14 +178,14 @@ function RosterTablePlayerItem({
                 {section === 'taxi' ? (
                     <Pressable style={styles.tableActionButton} onPress={() => onToggleTaxi(item)} disabled={actionDisabled}
                         accessibilityRole="button" accessibilityLabel={`Activate ${item.players.display_name}`}
-                        accessibilityState={{ disabled: actionDisabled }} accessibilityHint={locks[0]?.reason}>
+                        accessibilityState={{ disabled: actionDisabled }} accessibilityHint={assetLockReason(locks)}>
                         <Text style={[styles.tableActionText, actionDisabled && styles.tableActionTextDisabled]}>Activate</Text>
                     </Pressable>
                 ) : canIR ? (
                     <Pressable style={styles.tableActionButton} onPress={() => onToggleIR(item)} disabled={actionDisabled}
                         accessibilityRole="button"
                         accessibilityLabel={`${item.is_on_ir ? 'Activate' : 'Move to IR'} ${item.players.display_name}`}
-                        accessibilityState={{ disabled: actionDisabled }} accessibilityHint={locks[0]?.reason}>
+                        accessibilityState={{ disabled: actionDisabled }} accessibilityHint={assetLockReason(locks)}>
                         <Text style={[styles.tableActionText, actionDisabled && styles.tableActionTextDisabled]}>{item.is_on_ir ? 'Activate' : 'IR'}</Text>
                     </Pressable>
                 ) : null}
@@ -201,7 +200,7 @@ function RosterTablePlayerItem({
                     <MaterialIcons name="more-horiz" size={controlSize.icon.md} color={colors.textSecondary} />
                 </Pressable>
             </View>
-        </View><LockedAssetNotice locks={locks} /></View>
+        </View></View>
     )
 }
 

@@ -1,3 +1,7 @@
+-- Canonical SQL source for public.complete_player_roster_cycle_atomic.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION public.complete_player_roster_cycle_atomic(p_espn_records jsonb,p_nba_records jsonb,p_started_at timestamptz DEFAULT now())
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 DECLARE v_records jsonb; v_source text; v_ids uuid[]:='{}'; v_released uuid[]; v_previous timestamptz; v_teams integer;

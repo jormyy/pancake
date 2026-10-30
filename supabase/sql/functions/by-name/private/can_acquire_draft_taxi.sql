@@ -1,5 +1,6 @@
 -- Canonical SQL source for private.can_acquire_draft_taxi.
--- Keep the latest migration definition identical.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
 
 CREATE OR REPLACE FUNCTION private.can_acquire_draft_taxi(p_league_id uuid,p_season_id uuid,p_member_id uuid,p_player_id uuid DEFAULT NULL,p_draft_id uuid DEFAULT NULL,p_roster_player_id uuid DEFAULT NULL)
 RETURNS boolean LANGUAGE sql STABLE SET search_path=public,private AS $$

@@ -14,7 +14,7 @@ const mocks = vi.hoisted(() => ({
     enabled: false, setEnabled: vi.fn(), showAlert: vi.fn(), handleTap: vi.fn(), setSelected: vi.fn(),
     selection: null as { kind: 'starter' | 'bench'; index: number } | null, params: {} as { playerId?: string },
 }))
-vi.mock('react-native', () => ({ useWindowDimensions: () => ({ width: 390, height: 844 }), Platform: { OS: 'ios' }, View: 'View', Text: 'Text', ScrollView: 'ScrollView', Switch: 'Switch', StyleSheet: { create: (v: unknown) => v, flatten: (v: unknown) => Object.assign({}, ...[v].flat(Infinity).filter(Boolean)) } }))
+vi.mock('react-native', () => ({ useWindowDimensions: () => ({ width: 390, height: 844 }), Platform: { OS: 'ios' }, Pressable: 'Pressable', View: 'View', Text: 'Text', ScrollView: 'ScrollView', Switch: 'Switch', StyleSheet: { create: (v: unknown) => v, flatten: (v: unknown) => Object.assign({}, ...[v].flat(Infinity).filter(Boolean)) } }))
 vi.mock('expo-router', () => ({ useLocalSearchParams: () => mocks.params, useRouter: () => ({ push: vi.fn() }) }))
 vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => mocks.context }))
 vi.mock('@/hooks/use-auth', () => ({ useAuth: () => ({ user: { id: 'user' } }) }))
@@ -115,7 +115,7 @@ it.each(['trade', 'claim'] as const)('allows starter and bench placement with a 
         expect(mocks.setSelected).not.toHaveBeenCalledWith(null)
     }
     expect(screen.root.findAllByProps({ accessibilityLabel: 'Asset locked' })).toHaveLength(0)
-    expect(JSON.stringify(screen.toJSON())).not.toContain('Locked by')
+    expect(screen.root.findAllByProps({ accessibilityLabel: `Locked by a pending ${sourceKind === 'trade' ? 'trade' : 'waiver claim'}` })).toHaveLength(2)
     const toggle = screen.root.findByType('Switch' as React.ElementType)
     expect(toggle.props.disabled).toBe(false)
     await act(async () => toggle.props.onValueChange(true))
@@ -132,7 +132,7 @@ it.each(['trade', 'claim'] as const)('preselects a reserved %s player opened fro
     expect(mocks.setSelected).toHaveBeenCalledWith({ kind: 'bench', index: 0 })
 })
 
-it('omits reservation notices from read-only IR and Taxi rows', async () => {
+it('shows reservation icons on read-only IR and Taxi rows', async () => {
     const player = { playerId: 'reserve', rosterPlayerId: 'reserve-roster', displayName: 'Reserve Player',
         position: 'PG', eligiblePositions: ['PG'], nbaTeam: null, nbaId: null, injuryStatus: null,
         assetLocks: [{ assetKind: 'player', assetId: 'reserve', sourceKind: 'trade', sourceId: 'trade', reason: 'Locked by trade' }] }
@@ -141,7 +141,7 @@ it('omits reservation notices from read-only IR and Taxi rows', async () => {
     expect(screen.root.findAllByProps({ accessibilityLabel: 'IR Reserve Player' })).toHaveLength(1)
     expect(screen.root.findAllByProps({ accessibilityLabel: 'Taxi Reserve Player' })).toHaveLength(1)
     expect(screen.root.findAllByProps({ accessibilityLabel: 'Asset locked' })).toHaveLength(0)
-    expect(JSON.stringify(screen.toJSON())).not.toContain('Locked by trade')
+    expect(screen.root.findAllByProps({ accessibilityLabel: 'Locked by a pending trade' })).toHaveLength(2)
 })
 
 it.each(['starter', 'bench'])('keeps game-time locks on a reserved %s', async (kind) => {
@@ -347,3 +347,5 @@ it('shows every configured empty starter, IR, and taxi place', async () => {
 })
 
 })
+
+vi.mock('@/hooks/use-screen-view', () => ({ useScreenView: () => ({ data: undefined }) }))

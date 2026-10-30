@@ -1,3 +1,7 @@
+-- Canonical SQL source for public.resolve_trade_value_review.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION public.resolve_trade_value_review(p_source_id text,p_player_id uuid)
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 BEGIN
@@ -21,5 +25,3 @@ BEGIN
     ON CONFLICT(league_id,topic) DO UPDATE SET revision=stored.revision+1,scopes=NULL,details=NULL,updated_at=clock_timestamp();
 END;
 $$;
-REVOKE ALL ON FUNCTION public.resolve_trade_value_review(text,uuid) FROM PUBLIC,anon;
-GRANT EXECUTE ON FUNCTION public.resolve_trade_value_review(text,uuid) TO authenticated;

@@ -45,3 +45,13 @@ Deno.test('live scores update beside a verified final box with different scorebo
     deepStrictEqual(writes, ['active-id'])
   } finally { globalThis.fetch = nativeFetch }
 })
+
+Deno.test('a Final scoreboard waits for the NBA box instead of closing an uncertified live game', async () => {
+  const nativeFetch = globalThis.fetch
+  globalThis.fetch = () => { throw new Error('The scoreboard must not write a premature Final') }
+  try {
+    await saveScoreboardGames([{ gameId: '0022600144', gameStatus: 3, gameStatusText: 'Final',
+      homeTeam: { teamTricode: 'ATL', score: 100 }, awayTeam: { teamTricode: 'CLE', score: 99 } }],
+    [{ id: 'uncertified', nba_game_id: '0022600144', status: 'InProgress', home_score: 98, away_score: 99, game_status_text: 'Q4' }])
+  } finally { globalThis.fetch = nativeFetch }
+})

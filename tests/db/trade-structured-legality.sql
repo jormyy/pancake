@@ -77,7 +77,7 @@ BEGIN
   UPDATE leagues SET taxi_slots=1,waiver_mode='faab' WHERE id=f.league_id;
   items:=jsonb_build_array(jsonb_build_object('fromMemberId',f.member_ids[1],'toMemberId',f.member_ids[2],'faabAmount',100000));
   teams:=public.preview_trade_legality(f.user_ids[1],f.league_id,f.member_ids,items,'{}');
-  PERFORM pg_temp.check_rules(teams->0->'reasons' @> '[{"rule":"budget"}]','budget is structured');
+  PERFORM pg_temp.check_rules(NOT EXISTS(SELECT 1 FROM jsonb_array_elements(teams->0->'reasons') reason WHERE reason->>'rule'='budget'),'draft offer defers budget checks to acceptance');
   UPDATE players SET years_exp=3,career_regular_season_games=65 WHERE id=p[3];
   PERFORM pg_temp.reject_rules(format('SELECT accept_trade_with_plan_atomic(%L,%L,%L,%L,%L,%L)',t,f.member_ids[2],f.user_ids[2],'{}','{}','{}'),'%TAXI%','invalid sender plan blocks acceptance');
   PERFORM pg_temp.check_rules((SELECT status='pending' FROM trades WHERE id=t),'failed acceptance saves no status change');

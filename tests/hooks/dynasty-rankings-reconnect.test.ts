@@ -3,7 +3,8 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { RetainedPanel } from '@/components/ui/RetainedPanel'
 import { notifyLeagueChange, setLeagueChangesConnected, leagueSnapshotRevision } from '@/lib/league-changes'
-import { todayET } from '@/lib/shared/dates'
+import { todayLeague } from '@/lib/timezone'
+import { leagueTimezone } from '@/lib/league-timezones'
 import { useDynastyRankings } from '@/hooks/use-dynasty-rankings'
 
 const mocks = vi.hoisted(() => ({
@@ -92,7 +93,7 @@ beforeEach(() => {
     mocks.getCurrentSeason.mockResolvedValue({ seasonYear: 2026 })
     setLeagueChangesConnected('league', true)
     notifyLeagueChange('league', { topic: 'catchup', scopes: null })
-    mocks.readPersistentCache.mockReturnValue({ inputs: [decisionRow('saved')], unmatchedRookies: [], savedAt: Date.now(), seasonYear: 2026, revision: leagueSnapshotRevision('league', 'daily'), day: todayET() })
+    mocks.readPersistentCache.mockReturnValue({ inputs: [decisionRow('saved')], unmatchedRookies: [], savedAt: Date.now(), seasonYear: 2026, revision: leagueSnapshotRevision('league', 'daily'), day: todayLeague(leagueTimezone('league')) })
     mocks.getDynastyDecisionInputs.mockResolvedValue([decisionRow('new')])
 })
 afterEach(async () => { await act(async () => { renderer?.unmount() }); renderer = undefined; vi.unstubAllGlobals() })

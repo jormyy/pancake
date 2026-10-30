@@ -1,5 +1,5 @@
-import { LockedAssetNotice } from '@/components/roster/LockedAssetNotice'
-import { readAssetLocks } from '@/lib/locked-assets'
+import { AssetSelectionRow } from '@/components/roster/LockedAssetNotice'
+import { assetLockReason, readAssetLocks } from '@/lib/locked-assets'
 import { cachedScreenView, readScreenView, subscribeScreenView } from '@/lib/cache/screen-cache'
 import { screenScope } from '@/lib/cache/screen-scope'
 import type { ClaimEditorView } from '@/lib/cache/view-types'
@@ -364,7 +364,7 @@ export default function ClaimPlayerScreen() {
         return (
             <View style={styles.claimCard}>
                 <View style={styles.claimPlayerRow}>
-                    <PlayerRowContent name={player?.display_name ?? '—'} nbaId={player?.nba_id} team={player?.nba_team}
+                    <PlayerRowContent locks={readAssetLocks(myRoster.find(row => row.players.id === player?.id))} name={player?.display_name ?? '—'} nbaId={player?.nba_id} team={player?.nba_team}
                         positions={player?.eligible_positions?.length ? player.eligible_positions : player?.position ? [player.position] : []}
                         birthdate={player?.birthdate} yearsExp={player?.years_exp} careerGames={player?.career_regular_season_games} injuryStatus={player?.injury_status} />
                 </View>
@@ -417,22 +417,22 @@ export default function ClaimPlayerScreen() {
             const isSelected = selectedDrop?.id === item.id
             const locks = readAssetLocks(item)
             return (
-                <View key={item.id}><Pressable
+                <View key={item.id}><AssetSelectionRow locks={locks}
                     style={[styles.rosterRow, index > 0 && styles.rosterRowDivider, isSelected && styles.rosterRowSelected]}
                     onPress={() => setSelectedDrop(isSelected ? null : item)}
                     accessibilityRole="button"
-                    accessibilityLabel={`Select ${item.players.display_name} to drop`}
+                    label={`Select ${item.players.display_name} to drop`}
                     accessibilityState={{ selected: isSelected, disabled: locks.length > 0 }}
                     disabled={locks.length > 0}
-                    accessibilityHint={locks[0]?.reason}
+                    accessibilityHint={assetLockReason(locks)}
                 >
-                    <PlayerRowContent name={item.players.display_name} nbaId={item.players.nba_id} team={item.players.nba_team}
+                    <PlayerRowContent locks={locks} name={item.players.display_name} nbaId={item.players.nba_id} team={item.players.nba_team}
                         positions={item.players.eligible_positions?.length ? item.players.eligible_positions : item.players.position ? [item.players.position] : []}
                         birthdate={item.players.birthdate} yearsExp={item.players.years_exp} careerGames={item.players.career_regular_season_games} injuryStatus={item.players.injury_status} />
                     <View style={[styles.check, isSelected && styles.checkSelected]}>
                         {isSelected && <MaterialIcons name="check" size={16} color={colors.onAccent} />}
                     </View>
-                </Pressable><LockedAssetNotice locks={locks} /></View>
+                </AssetSelectionRow></View>
             )
         })
     }

@@ -1,3 +1,7 @@
+-- Canonical SQL source for public.notif_set_player_watch_atomic.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION public.notif_set_player_watch_atomic(p_league_id uuid,p_player_id uuid,p_enabled boolean)
 RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path = ''
 AS $$

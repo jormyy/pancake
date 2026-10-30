@@ -28,7 +28,7 @@ BEGIN
   SELECT * INTO f FROM pg_temp.preview_fixture;
   teams:=public.preview_trade_legality(f.user_ids[1],f.league_id,f.member_ids,
     jsonb_build_array(jsonb_build_object('fromMemberId',f.member_ids[1],'toMemberId',f.member_ids[3],'faabAmount',61)));
-  PERFORM pg_temp.check_rules(teams->0->'reasons' @> '[{"rule":"budget","count":1}]','read-only preview reports reserved-budget shortages');
+  PERFORM pg_temp.check_rules(NOT EXISTS(SELECT 1 FROM jsonb_array_elements(teams->0->'reasons') reason WHERE reason->>'rule'='budget'),'offer preview defers budget enforcement to acceptance');
   PERFORM pg_temp.check_rules(private.read_available_faab_balance(f.league_id,f.season_id,f.member_ids[1])=60,
     'read balance subtracts accepted reservations');
   PERFORM pg_temp.check_rules(private.read_available_faab_balance(f.league_id,f.season_id,f.member_ids[1],f.held)=90,

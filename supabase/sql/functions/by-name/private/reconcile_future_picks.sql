@@ -1,3 +1,7 @@
+-- Canonical SQL source for private.reconcile_future_picks.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION private.reconcile_future_picks(p_league_id uuid)
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 DECLARE
@@ -43,5 +47,3 @@ BEGIN
     USING p_league_id,v_year+v_years;
 END;
 $$;
-ALTER FUNCTION private.reconcile_future_picks(uuid) OWNER TO postgres;
-REVOKE ALL ON FUNCTION private.reconcile_future_picks(uuid) FROM PUBLIC,anon,authenticated,service_role;

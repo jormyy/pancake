@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261214002500",
+  "candidateVersion": "20261214003800",
   "common": {
     "functions": [
       {
@@ -738,7 +738,7 @@
           "strict": false,
           "language": "plpgsql",
           "arguments": "p_limit integer DEFAULT 64",
-          "bodySha256": "cd09003027d514e863fc9a4f0f373d68b9ba76f4a74db6b5296d2b32702005ea",
+          "bodySha256": "144af718e5597c089487e2ae164316221480ec99f960c88ab17ce1d35615f756",
           "volatility": "v",
           "anonExecute": false,
           "publicExecute": false,
@@ -798,7 +798,7 @@
           "strict": false,
           "language": "plpgsql",
           "arguments": "p_id bigint, p_token uuid",
-          "bodySha256": "6944cb04b339ced91ccb362aa1a521fda945aa396b9db4c3cae1e44baf802a50",
+          "bodySha256": "8b0168028fe7ff615dc5c35c982fdab1338f8794aeb4fe8233818f037e6357a9",
           "volatility": "v",
           "anonExecute": false,
           "publicExecute": false,
@@ -838,7 +838,7 @@
           "strict": false,
           "language": "plpgsql",
           "arguments": "",
-          "bodySha256": "517a8366f6b62c271a5d9bea2893614c554d7b8e4e38927d1d2598f3bc83baa4",
+          "bodySha256": "e145ad917e044c7c8d947c5fba94853aa5e86a521a4a8e22f9f8e012593fe635",
           "volatility": "v",
           "anonExecute": false,
           "publicExecute": false,
@@ -1012,6 +1012,13 @@
           "functionSchema": "private"
         },
         {
+          "name": "notification_scan_rosters",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER notification_scan_rosters AFTER INSERT OR DELETE OR UPDATE ON public.roster_players FOR EACH STATEMENT EXECUTE FUNCTION private.mark_notification_scan_due()",
+          "functionName": "mark_notification_scan_due",
+          "functionSchema": "private"
+        },
+        {
           "name": "refresh_views_from_rosters",
           "enabled": "O",
           "definition": "CREATE TRIGGER refresh_views_from_rosters AFTER INSERT OR DELETE OR UPDATE ON public.roster_players FOR EACH ROW EXECUTE FUNCTION private.refresh_changed_screen_views()",
@@ -1061,7 +1068,7 @@
           "roles": [
             "authenticated"
           ],
-          "using": "(EXISTS ( SELECT 1\n   FROM league_members member\n  WHERE ((member.league_id = league_events.league_id) AND (member.user_id = uid()) AND ((league_events.kind <> 'claim.failed'::text) OR (member.id = league_events.member_id)) AND ((league_events.kind <> ALL (ARRAY['trade.sent'::text, 'trade.countered'::text, 'trade.edited'::text, 'trade.accepted'::text, 'trade.failed'::text, 'trade.rejected'::text, 'trade.withdrawn'::text, 'trade.expired'::text])) OR ((league_events.detail -> 'member_ids'::text) ? (member.id)::text) OR ((member.id)::text = ANY (ARRAY[(league_events.detail ->> 'proposer_member_id'::text), (league_events.detail ->> 'recipient_member_id'::text)]))))))",
+          "using": "(EXISTS ( SELECT 1\n   FROM league_members member\n  WHERE ((member.league_id = league_events.league_id) AND (member.user_id = auth.uid()) AND ((league_events.kind <> 'claim.failed'::text) OR (member.id = league_events.member_id)) AND ((league_events.kind <> ALL (ARRAY['trade.sent'::text, 'trade.countered'::text, 'trade.edited'::text, 'trade.accepted'::text, 'trade.failed'::text, 'trade.rejected'::text, 'trade.withdrawn'::text, 'trade.expired'::text])) OR ((league_events.detail -> 'member_ids'::text) ? (member.id)::text) OR ((member.id)::text = ANY (ARRAY[(league_events.detail ->> 'proposer_member_id'::text), (league_events.detail ->> 'recipient_member_id'::text)]))))))",
           "command": "SELECT",
           "permissive": "PERMISSIVE"
         }
@@ -2322,8 +2329,44 @@
       "sha256": "4b4d0aacb09dddc9bee924479223b1467f9271d676b71f44010c51e99bb1c300"
     },
     {
+      "filename": "20261214002300_l5c_players_response.sql",
+      "sha256": "edfc0d88c954daced921e720f1009dbe33aab4be36fbe3cca9793a1fe6232746"
+    },
+    {
       "filename": "20261214002500_trade_locks_drop_only.sql",
       "sha256": "97472fc2cb1dd79bfb1c9cc956625daecdeca0091d60c9ba8c859599ea581426"
+    },
+    {
+      "filename": "20261214002700_live_fallback.sql",
+      "sha256": "f237159a39248c4fa7978227882272d74e739c836315ae146e00b7e6178a2a44"
+    },
+    {
+      "filename": "20261214002900_offers_do_not_lock.sql",
+      "sha256": "aaaa0492e40a9ff4516fe75d24e55247db243560aacd51873efdc7bab275cd10"
+    },
+    {
+      "filename": "20261214003100_trade_value_curve.sql",
+      "sha256": "5f2f817df7277a4c9cc39206168210b535b6947bf49cde8b8ce099149734bf60"
+    },
+    {
+      "filename": "20261214003300_autoset_keep_starters.sql",
+      "sha256": "afddc348c6222393dff8163a99e3cd8a568822d11ee763ff9599e158b21c9635"
+    },
+    {
+      "filename": "20261214003500_keep_live_refresh_essential.sql",
+      "sha256": "3f74081187c786cb1237175d7d1c176fbaf1bf7a591c041338ebc4192ef1f8c6"
+    },
+    {
+      "filename": "20261214003600_defer_cron_candidate_scans.sql",
+      "sha256": "7e817d057fd5bc274cc15603bb4c7e669694ee3ceb9aef2476ec3bf5f58239fe"
+    },
+    {
+      "filename": "20261214003700_preserve_forecast_expiry_wakeups.sql",
+      "sha256": "039cf8933af555af42e0037c31a2be259b4f70d0de936930f0fbeea37b799f01"
+    },
+    {
+      "filename": "20261214003800_skip_deleted_forecast_scopes.sql",
+      "sha256": "e721152025f709c2e8fd8311dfd48bd9d9975ae536acea70b91b5e9d406e4384"
     }
   ],
   "preMigration": {

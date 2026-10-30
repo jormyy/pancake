@@ -1,4 +1,7 @@
--- Resolve absence and provider ownership under the same lock as identity merges; an ESPN omission moves a team only when his latest stored box after he was last placed there (by ESPN's listing or a stored box under that team) is of a game his team did not play (to the side that box lists him under, else to no team), and every other omitted row is held; a box player that no NBA id or name joins links to the one ESPN row on his box side whose name has the same words, only on corroborated evidence.
+-- Canonical SQL source for public.resolve_player_imports_atomic.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION public.resolve_player_imports_atomic(p_source text, p_records jsonb)
 RETURNS jsonb
 LANGUAGE plpgsql VOLATILE SECURITY DEFINER

@@ -378,7 +378,9 @@ it.skipIf(!available)('documents database-first release order for new client dep
         .match(/^## Screen refresh\n([\s\S]*?)(?=^## |$(?![\s\S]))/m)?.[1] ?? ''
     const tradeTaxiNotes = readFileSync('docs/interface-design.md', 'utf8')
         .match(/^## Trade Taxi release order\n([\s\S]*?)(?=^## |$(?![\s\S]))/m)?.[1] ?? ''
-    const notes = baseNotes.replace(/^## Release order for this release\n/m, `## Release order for this release\n${publicNotes}\n${playerReadNotes}\n${tradeReceiptNotes}\n${statsCertificationNotes}\n${refreshNotes}\n${tradeTaxiNotes}\n`)
+    const requestNotes = readFileSync('docs/perf-l5c.md', 'utf8')
+        .match(/^## L5c release order\n([\s\S]*?)(?=^## |$(?![\s\S]))/m)?.[1] ?? ''
+    const notes = baseNotes.replace(/^## Release order for this release\n/m, `## Release order for this release\n${publicNotes}\n${playerReadNotes}\n${tradeReceiptNotes}\n${statsCertificationNotes}\n${refreshNotes}\n${tradeTaxiNotes}\n${requestNotes}\n`)
     const productionHead = documentedProductionHead(notes) ?? ''
     const migrations = readdirSync('supabase/migrations').filter(file => file.endsWith('.sql')).sort()
     const newest = migrations.at(-1)!.split('_')[0]

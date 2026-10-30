@@ -1,3 +1,7 @@
+-- Canonical SQL source for public.get_score_sync_games.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION public.get_score_sync_games(p_start_date date,p_end_date date,p_season_year int DEFAULT NULL)
 RETURNS TABLE(id uuid,nba_game_id text,game_date date,season_year int,week_number int,status text,stats_synced_at timestamptz)
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$

@@ -15,7 +15,11 @@ export function configuration(env = process.env) {
   assert.match(project, /^pt4ba[a-z0-9_-]+$/, 'Use a task-local project')
   const root = env.SEASON_SIM_ROOT ?? path.join(homedir(), 'pancake-t_4ba51e0d/lanes/sim')
   assert.ok(path.isAbsolute(root), 'SEASON_SIM_ROOT must be absolute')
-  if(project==='pt4bafabledb'||path.resolve(root)===path.join(homedir(),'pancake-t_4ba51e0d/lanes/fable-timeline/db')){
+  if(project==='pt4bafablelv'||prefix==='636'||path.resolve(root)===path.join(homedir(),'pancake-t_4ba51e0d/lanes/fable-live2')){
+    assert.equal(prefix,'636','The live fallback lane uses block 636')
+    assert.equal(project,'pt4bafablelv','Block 636 belongs to the live fallback lane')
+    assert.equal(path.resolve(root),path.join(homedir(),'pancake-t_4ba51e0d/lanes/fable-live2'),'The live fallback lane uses its own root')
+  }else if(project==='pt4bafabledb'||path.resolve(root)===path.join(homedir(),'pancake-t_4ba51e0d/lanes/fable-timeline/db')){
     assert.equal(prefix,'574','The database audit uses block 574')
     assert.equal(project,'pt4bafabledb','The database audit uses its own project')
     assert.equal(path.resolve(root),path.join(homedir(),'pancake-t_4ba51e0d/lanes/fable-timeline/db'),'The database audit uses its own root')

@@ -60,9 +60,9 @@ try {
     await page.screenshot({ path: path.join(output, 'waiver-locks-390.png'), fullPage: true })
     screenshots.push('waiver-locks-390.png')
     await open(`http://127.0.0.1:59880/propose-trade?recipientMemberId=${fixture.otherMemberId}`)
-    await page.getByLabel('Asset locked', { exact: true }).first().waitFor({ timeout: 30000 })
-    assert.ok(await page.getByRole('button', { name: 'Select Anthony Edwards for trade', exact: true }).isDisabled())
-    assert.ok(await page.locator(`[id="trade-${fixture.memberId}-pick-${fixture.pickId}"]`).isDisabled())
+    await page.getByRole('button', { name: 'Select Anthony Edwards for trade', exact: true }).waitFor({ timeout: 30000 })
+    assert.equal(await page.getByRole('button', { name: 'Select Anthony Edwards for trade', exact: true }).isDisabled(), false)
+    assert.equal(await page.locator(`[id="trade-${fixture.memberId}-pick-${fixture.pickId}"]`).isDisabled(), false)
     await page.screenshot({ path: path.join(output, 'trade-locks-390.png'), fullPage: true })
     screenshots.push('trade-locks-390.png')
     if (process.argv.includes('--remaining')) {

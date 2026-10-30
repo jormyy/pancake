@@ -11,6 +11,8 @@ let staleAfterCapture = false
 let finalized = true
 let missingMax = false
 let rejectPublication = false
+let captureFailures = 0
+let captureReads = 0
 let certificateReads = 0
 let rosterReads = 0
 let publications: Record<string, unknown>[] = []
@@ -52,6 +54,8 @@ const postgrest = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, 
   } else if (table === 'standings' && select === 'week_number, member_id') {
     body = members.map(member_id => ({ week_number: 1, member_id }))
   } else if (table === 'capture_score_inputs') {
+    captureReads++
+    if (captureFailures-- > 0) return Response.json({ code: 'PT409', message: 'Game inputs are being updated. Retry this operation.' }, { status: 409 })
     if (staleAfterCapture) stale = true
     body = { 'season:fixture': String(inputRevision) }
   } else if (table === 'update_score_points_atomic') {
@@ -91,6 +95,7 @@ const postgrest = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, 
 Deno.env.set('SUPABASE_URL', `http://127.0.0.1:${(postgrest.addr as Deno.NetAddr).port}`)
 Deno.env.set('PANCAKE_SUPABASE_SECRET_KEY', 'sb_secret_test')
 const { syncScores } = await import('../_shared/syncScores.ts')
+const { withWorkContext, withLiveScoreRetries } = await import('../_shared/workContext.ts')
 
 function reset() {
   seasonEnded = false
@@ -100,6 +105,8 @@ function reset() {
   finalized = true
   missingMax = false
   rejectPublication = false
+  captureFailures = 0
+  captureReads = 0
   certificateReads = 0
   rosterReads = 0
   publications = []
@@ -109,6 +116,24 @@ function reset() {
 }
 const run = () => syncScores(league, new Date('2101-01-10T18:00:00Z'), { recoverStats: false })
 const published = () => (publications[0].p_matchups as Record<string, unknown>[])[0]
+
+Deno.test('a concurrent NBA source writer no longer turns input capture into a partial score failure', async () => {
+  reset()
+  finalized = false
+  storedHomePoints = 9
+  captureFailures = 1
+  await assert.rejects(run, /Score sync failed/)
+  reset()
+  finalized = false
+  storedHomePoints = 9
+  captureFailures = 1
+  let retries = 0
+  await withWorkContext({ signal: AbortSignal.timeout(1000), livePollHolder: league }, () =>
+    withLiveScoreRetries(run, () => { retries++ }))
+  assert.equal(retries, 1)
+  assert.ok(captureReads >= 2)
+  assert.equal(livePublications.length, 1)
+})
 
 Deno.test('a certified previous week is absent from the next live scoring plan', async () => {
   reset()

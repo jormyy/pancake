@@ -1,3 +1,7 @@
+-- Canonical SQL source for public.view_players.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION public.view_players(p_league_id uuid, p_member_id uuid, p_params jsonb DEFAULT '{}')
 RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY INVOKER SET search_path = '' AS $$
 DECLARE context jsonb; players jsonb; ownership jsonb; waivers jsonb; pending jsonb; transaction_state jsonb;
@@ -36,7 +40,9 @@ BEGIN
     p_season_year := (p_params->>'seasonYear')::integer, p_limit := page_size,
     p_offset := GREATEST(COALESCE((p_params->>'offset')::integer, 0), 0)) player;
   transaction_state := public.view_transaction_state(p_league_id, p_member_id, p_params);
-  RETURN jsonb_build_object('context', context, 'players', players, 'ownedMap', ownership, 'waiverClearsAt', waivers,
+  RETURN jsonb_build_object('context', context, 'players', players, 'ownedMap',
+    CASE WHEN p_params->>'availability'='free_agents' AND NOT (p_params ? 'includePlayerIds') THEN '{}'::jsonb ELSE ownership END,
+    'waiverClearsAt', waivers,
     'waiverIds', COALESCE((SELECT jsonb_agg(key) FROM jsonb_each(waivers)), '[]'), 'pendingClaimIds', pending,
     'transactionState', transaction_state, 'claims', public.view_claims(p_league_id, p_member_id, p_params)->'claims',
     'hasMore', jsonb_array_length(players) = page_size, 'weekDays', public.view_lineup(p_league_id, p_member_id, p_params)->'weekDays',

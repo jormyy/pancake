@@ -1,0 +1,93 @@
+{
+  "implementationCommit": "be01b7dccdb84b9b97acc55ba0337f5bf3ceae01",
+  "mainAncestor": "892b6bcabb06c8a2b99d12e58ae13d86355afb8e",
+  "nodeVersion": "22.23.3",
+  "privateDatabase": {
+    "project": "pt4bafablelv",
+    "port": 63622,
+    "migrations": 702,
+    "head": "20261214002700",
+    "backupPlayers": 2618,
+    "backupGames": 8430
+  },
+  "attestationGenerator": "node scripts/regenerate-release-history-attestations.mjs",
+  "attestations": {
+    "tests/e2e/release-history-attestations.json": "5ea75c9282ab749fa3ec3891342ae73384fa562e613af233db5ecfc9dbbca2a9",
+    "tests/e2e/db-security-catalog-attestations.json": "395f3efcd6c3e611be85ce3fb0753a402ec3e117d4043d7a3d6f44402edad5c4"
+  },
+  "securityCatalog": {
+    "command": "node tests/e2e/db-security-catalog.mjs --local --phase=post-migration --catalog-only",
+    "result": "PASS",
+    "functions": 27,
+    "triggers": 24,
+    "policies": 2,
+    "tables": 7,
+    "indexes": 9
+  },
+  "fullVitest": {
+    "command": "NODE_OPTIONS=--max-old-space-size=1024 npx vitest run --maxWorkers=2 --reporter=default --reporter=json --outputFile=tests/.live-full-vitest.json",
+    "passed": 4791,
+    "failed": 0,
+    "skipped": 48,
+    "filesPassed": 505,
+    "filesSkipped": 16
+  },
+  "quality": {
+    "command": "npm run check:quality",
+    "result": "PASS",
+    "checks": [
+      "lint:all",
+      "typecheck",
+      "typecheck:tests",
+      "typecheck:e2e",
+      "typecheck:harness-boundaries",
+      "typecheck:core",
+      "check:core-cjs",
+      "check:dead-code",
+      "check:edge-shared",
+      "check:edge-function-inventory",
+      "check:db-function-sources",
+      "check:surface-matrix",
+      "check:design-system"
+    ]
+  },
+  "seasonHarness": {
+    "command": "node --test scripts/season-sim/*.test.mjs",
+    "passed": 359,
+    "failed": 0
+  },
+  "deno": {
+    "passed": 68,
+    "steps": 4,
+    "failed": 0,
+    "ignored": 1,
+    "command": "deno test --no-lock --allow-env --allow-read --allow-net=127.0.0.1 supabase/functions/live-poll/ supabase/functions/_shared/workContext.test.ts supabase/functions/_shared/databaseRetry.test.ts supabase/functions/_shared/nbaCdnDegraded.test.ts supabase/functions/_shared/nbaLiveTimestamp.test.ts supabase/functions/_shared/syncStats.finalScore.test.ts supabase/functions/_shared/liveScoreFinalization.test.ts"
+  },
+  "sqlAssertionGroups": {
+    "passed": 5,
+    "failed": 0,
+    "files": [
+      "tests/db/live-fallback-guards.sql",
+      "tests/db/live-espn-certification.sql",
+      "tests/db/live-snapshot-order.sql"
+    ]
+  },
+  "liveReplay": {
+    "command": "node scripts/season-sim/live-fallback-mini.mjs --compare --session=capture-session-2026-10-30T01-25-29.670Z.json",
+    "result": "PASS",
+    "samples": 11,
+    "espnPrimaryP95Ms": 83014.1171875,
+    "nbaPrimaryP95Ms": 1232102.9736328125,
+    "gainMs": 1149088.8564453125,
+    "targetMet": true,
+    "pollIntervalMs": 20000,
+    "injectedNbaLagMs": 1200000,
+    "baseline": "Unmodified main 892b6bca live-poll; same recorded NBA and ESPN sources, clock and database scoring path",
+    "targetMs": 90000
+  },
+  "exclusions": [
+    "No production access, push, PR, deployment, or CI.",
+    "Configured skipped tests remain skipped.",
+    "No full historical season or browser replay was run."
+  ]
+}

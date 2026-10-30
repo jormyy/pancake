@@ -1,3 +1,7 @@
+-- Canonical SQL source for private.assert_score_calendar.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION private.assert_score_calendar(p_season_id uuid,p_week int)
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE v_year int; v_first int; v_last int; v_start date; v_end date;

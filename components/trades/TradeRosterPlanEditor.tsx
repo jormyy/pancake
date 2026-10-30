@@ -1,3 +1,4 @@
+import { readAssetLocks } from '@/lib/locked-assets'
 import { isIREligible, isTaxiEligible } from '@pancake/core'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { RosterPlayerRow, RosterSectionBand, rosterActionDisabledStyle } from '@/components/roster/RosterItems'
@@ -51,6 +52,7 @@ export function TradeRosterPlanEditor({ incoming, roster, value, onChange, disab
             const selected = selectedFor(row)
             if (selected !== section) return null
             const item: RosterPlayer = {
+                assetLocks: readAssetLocks(roster.find(item => item.players.id === row.id)),
                 id: row.id, acquired_via: 'trade', is_on_ir: selected === 'ir', is_on_taxi: selected === 'taxi',
                 players: { id: row.id, display_name: row.name, nba_team: row.player.team ?? null,
                     nba_id: row.player.nbaId ?? null, position: row.player.positions?.[0] ?? null,

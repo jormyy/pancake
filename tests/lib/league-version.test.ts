@@ -1,7 +1,7 @@
 import { beforeEach, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/shared/api', () => ({ API_URL: 'http://127.0.0.1:59121/functions/v1/api' }))
-vi.mock('@/lib/supabase', () => ({ supabase: { auth: { getSession: async () => ({ data: { session: { access_token: 'local' } } }) } } }))
+vi.mock('@/lib/supabase', () => ({ supabase: { auth: { getSession: async () => ({ data: { session: { user: { id: 'account' }, access_token: 'local' } } }) } } }))
 let versions: typeof import('@/lib/league-version')
 let stream: typeof import('@/lib/league-changes')
 let sessions: typeof import('@/lib/session-cache-registry')
@@ -40,6 +40,19 @@ it('deduplicates events across receiver resets and never lowers the applied vers
     expect(listener).toHaveBeenCalledTimes(2)
 })
 
+it('requires complete history when a screen subscribes after the version baseline arrived', () => {
+    stream.notifyLeagueChange('league', { topic: 'version', scopes: null, version: '7', changes: [change('7')] })
+    stream.setLeagueChangesConnected('league', true)
+    const listener = vi.fn()
+    const stop = versions.subscribeLeagueVersion('league', listener)
+    expect(versions.leagueVersionSnapshot('league').version).toBe('0')
+    expect(listener).not.toHaveBeenCalled()
+    stop()
+    stream.setLeagueChangesConnected('league', false)
+    versions.subscribeLeagueVersion('league', listener)
+    expect(listener).not.toHaveBeenCalled()
+})
+
 it('does not accept malformed changes or changes above their response version', () => {
     for (const value of [
         { version: '3', changes: [change('4')] },
@@ -49,6 +62,40 @@ it('does not accept malformed changes or changes above their response version', 
     ]) expect(() => versions.applyLeagueVersion('league', value)).toThrow()
     expect(versions.leagueVersionSnapshot('league').version).toBe('0')
     expect(stream.leagueChangeReceiver('league', vi.fn())({ league_id: 'league', topic: 'version', details: [{ ...change('2'), version: 'bad' }] })).toBe(false)
+})
+
+it('validates saved Players through complete history after unrelated startup hints', async () => {
+    const cache = await import('@/lib/cache/screen-cache')
+    const scope = { accountId: 'account', leagueId: 'league', screen: 'players' as const }
+    const standings = (version: string) => ({ ...change(version), topic: 'score', scope: { tables: ['standings_current'] } })
+    cache.saveScreenView(scope, { players: ['saved'] }, '5')
+    stream.notifyLeagueChange('league', { topic: 'version', scopes: null, version: '7', changes: [standings('7')] })
+    stream.setLeagueChangesConnected('league', true)
+    const stop = cache.subscribeScreenView(scope, () => {})
+    expect(cache.cachedScreenView(scope)?.dirty).toBe(false)
+    const request = vi.fn(async () => Response.json({ version: '7', changes: Array.from({ length: 7 }, (_, index) => standings(String(index + 1))) }))
+    vi.stubGlobal('fetch', request)
+    expect(await cache.readScreenView(scope)).toEqual({ players: ['saved'] })
+    expect(request).toHaveBeenCalledOnce()
+    expect(request.mock.calls[0]).toEqual(expect.arrayContaining([expect.stringContaining('/version?league=league&since=0')]))
+    expect(cache.cachedScreenView(scope)?.version).toBe('7')
+    stop()
+})
+
+it('starts an empty screen cache at the connected baseline without a version request', async () => {
+    const cache = await import('@/lib/cache/screen-cache')
+    const scope = { accountId: 'account', leagueId: 'league', screen: 'players' as const }
+    stream.notifyLeagueChange('league', { topic: 'version', scopes: null, version: '7', changes: [change('7')] })
+    stream.setLeagueChangesConnected('league', true)
+    const stop = cache.subscribeScreenView(scope, () => {})
+    const request = vi.fn(async () => Response.json({ ok: true, view: { players: ['fresh'] } }))
+    vi.stubGlobal('fetch', request)
+    expect(await cache.readScreenView(scope, { checkVersion: false })).toEqual({ players: ['fresh'] })
+    expect(cache.cachedScreenView(scope)?.version).toBe('7')
+    expect(await cache.readScreenView(scope)).toEqual({ players: ['fresh'] })
+    expect(request).toHaveBeenCalledOnce()
+    expect(request.mock.calls[0]).toEqual(expect.arrayContaining([expect.stringContaining('/views/players?')]))
+    stop()
 })
 
 it('returns the current version when an older HTTP response arrives after realtime', async () => {

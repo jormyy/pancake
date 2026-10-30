@@ -1,0 +1,110 @@
+{
+  "project": "pt4bafableol",
+  "databasePort": 63822,
+  "node": "v22.23.3",
+  "sourceCommit": "9372ca47f8ef12c143eabf67f67b0cb9c095b7d3",
+  "migrationSha256": "aaaa0492e40a9ff4516fe75d24e55247db243560aacd51873efdc7bab275cd10",
+  "baselineRejectsOverlap": true,
+  "recipes": [
+    {
+      "recipe": "offers-do-not-lock",
+      "assertions": 51,
+      "passed": true
+    },
+    {
+      "recipe": "pending-asset-locks",
+      "assertions": 47,
+      "passed": true
+    },
+    {
+      "recipe": "release2-trade-accept-capacity",
+      "assertions": 30,
+      "passed": true
+    },
+    {
+      "recipe": "rules-faab-reservations",
+      "assertions": 11,
+      "passed": true
+    },
+    {
+      "recipe": "rules-trade-rejection-notifications",
+      "assertions": 2,
+      "passed": true
+    },
+    {
+      "recipe": "rules-trade-reservation-message",
+      "assertions": 1,
+      "passed": true
+    },
+    {
+      "recipe": "rules-trade-submit-plans",
+      "assertions": 3,
+      "passed": true
+    },
+    {
+      "recipe": "server-trade-plan-acceptance",
+      "assertions": 21,
+      "passed": true
+    },
+    {
+      "recipe": "trade-identical-offers",
+      "assertions": 4,
+      "passed": true
+    },
+    {
+      "recipe": "trade-locks-drop-only",
+      "assertions": 23,
+      "passed": true
+    },
+    {
+      "recipe": "trade-plan-moves-capacity",
+      "assertions": 20,
+      "passed": true
+    },
+    {
+      "recipe": "trade-preview-read-only",
+      "assertions": 10,
+      "passed": true
+    },
+    {
+      "recipe": "trade-roster-plans",
+      "assertions": 41,
+      "passed": true
+    },
+    {
+      "recipe": "trade-structured-legality",
+      "assertions": 45,
+      "passed": true
+    }
+  ],
+  "sqlAssertions": 309,
+  "acceptanceRaces": 5,
+  "raceAssertions": 50,
+  "snapshot": {
+    "leagues": 1,
+    "players": 2618,
+    "cronJobs": 0,
+    "gameRows": 245097,
+    "pushTokens": 0,
+    "queuedHttp": 0,
+    "cronDisabled": true,
+    "raceFixtures": 0,
+    "pushSubscriptions": 0
+  },
+  "localNode": "v22.23.2",
+  "focusedVitest": {
+    "passed": 943,
+    "failed": 0,
+    "files": 14
+  },
+  "fullVitest": {
+    "runs": 1,
+    "passed": 3926,
+    "failedInitially": 852,
+    "skipped": 48,
+    "initialFailuresResolvedByFocusedRuns": true
+  },
+  "qualityPassed": true,
+  "privateStackStopped": true,
+  "transferredBackupRemoved": true
+}

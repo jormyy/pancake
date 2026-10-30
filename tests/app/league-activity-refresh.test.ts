@@ -30,3 +30,5 @@ it('wires Activity pull refresh to the current panel refresh', async () => {
         expect(refresh).toHaveBeenCalledOnce()
     } finally { await act(async () => screen.unmount()) }
 })
+
+vi.mock('@/hooks/use-screen-view', () => ({ useScreenView: () => ({ data: undefined }) }))

@@ -1,3 +1,7 @@
+-- Canonical SQL source for private.bump_score_input_revisions.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION private.bump_score_input_revisions(p_keys text[])
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE v_key text;

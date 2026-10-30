@@ -19,6 +19,7 @@ DO $$ BEGIN
   END IF;
 END $$;
 BEGIN;
+\ir scheduler-chunk-support.sql
 CREATE TEMP TABLE notif_fixture AS SELECT gen_random_uuid() AS league,gen_random_uuid() AS other_league,
   gen_random_uuid() AS season,gen_random_uuid() AS prior_season,
   gen_random_uuid() AS owner,gen_random_uuid() AS opponent,gen_random_uuid() AS outsider,
@@ -101,8 +102,8 @@ BEGIN
   PERFORM pg_temp.expect_event('owned_player_status',ARRAY[f.member],'playerId',player::text);
   INSERT INTO matchups(id,league_id,league_season_id,week_number,home_member_id,away_member_id)
     VALUES(matchup,f.league,f.season,1,f.member,f.other_member);
-  PERFORM notif_scan_due_atomic(t);
-  PERFORM notif_scan_due_atomic(t);
+  PERFORM notif_scan_due_atomic(t); PERFORM pg_temp.drain_notification_chunks(t);
+  PERFORM notif_scan_due_atomic(t); PERFORM pg_temp.drain_notification_chunks(t);
   PERFORM pg_temp.expect_event('matchup_started',ARRAY[f.member,f.other_member],'matchupId',matchup::text);
   token := capture_score_inputs(f.season,1);
   payload := jsonb_build_array(jsonb_build_object('id',matchup,'input_token',token,'home_points',10,'away_points',5,'winner_member_id',f.member));
@@ -127,8 +128,8 @@ BEGIN
   PERFORM update_league_settings_atomic(f.league,'{"allow_inactive_trades":true}');
   PERFORM pg_temp.expect_event('league_settings_changed',ARRAY[f.member,f.other_member],'leagueId',f.league::text);
   PERFORM update_league_settings_atomic(f.league,'{"allow_inactive_trades":true}');
-  PERFORM notif_scan_due_atomic('20026-02-12 16:00:00+00');
-  PERFORM notif_scan_due_atomic('20026-02-12 16:00:00+00');
+  PERFORM notif_scan_due_atomic('20026-02-12 16:00:00+00'); PERFORM pg_temp.drain_notification_chunks('20026-02-12 16:00:00+00');
+  PERFORM notif_scan_due_atomic('20026-02-12 16:00:00+00'); PERFORM pg_temp.drain_notification_chunks('20026-02-12 16:00:00+00');
   PERFORM pg_temp.expect_event('trade_deadline_approaching',ARRAY[f.member,f.other_member],'leagueSeasonId',f.season::text);
   UPDATE leagues SET status='playoffs' WHERE id=f.league;
   SELECT new_season_id INTO next_season FROM advance_season_atomic(f.league);

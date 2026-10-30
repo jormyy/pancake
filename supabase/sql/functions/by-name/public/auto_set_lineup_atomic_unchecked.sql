@@ -19,6 +19,18 @@ DECLARE
   v_invalid_player text;
   v_invalid_player_slot roster_slot_type;
   v_locked_player text;
+  v_slot record;
+  v_candidate uuid;
+  v_preserve boolean;
+  v_projections jsonb;
+  v_week_number int;
+  v_paths jsonb;
+  v_path jsonb;
+  v_seen text[];
+  v_next record;
+  v_repair_players uuid[];
+  v_repair_slots text[];
+  v_index int;
 BEGIN
   PERFORM pg_advisory_xact_lock(hashtext(p_league_id::text), hashtext(p_member_id::text));
   PERFORM pg_advisory_xact_lock(
@@ -310,6 +322,131 @@ BEGIN
   IF v_locked_player IS NOT NULL THEN
     RAISE EXCEPTION 'Lineup changes are locked after %''s game has started.', v_locked_player
       USING ERRCODE = 'P0001';
+  END IF;
+
+  SELECT COALESCE(jsonb_agg(a), '[]'::jsonb)
+    INTO p_assignments
+    FROM jsonb_array_elements(p_assignments) a
+   WHERE a->>'slot_type' <> 'BE';
+
+  IF EXISTS (
+    SELECT 1 FROM lineup_slot_templates t
+     WHERE t.league_id = p_league_id AND t.slot_type NOT IN ('BE', 'IR')
+       AND t.slot_count > (SELECT count(*) FROM jsonb_array_elements(p_assignments) a
+         WHERE a->>'slot_type' = t.slot_type::text)
+  ) THEN
+    SELECT COALESCE(jsonb_agg(jsonb_build_object('player_id', projection.player_id,
+      'projected', projection.projection_fantasy_points)), '[]'::jsonb)
+      INTO v_projections
+      FROM public.get_league_projection_rows(
+        p_league_id, (SELECT season_year FROM league_seasons WHERE id = p_league_season_id),
+        p_game_date, 'today', (SELECT array_agg(player_id) FROM roster_players
+          WHERE member_id = p_member_id AND league_id = p_league_id
+            AND league_season_id = p_league_season_id AND NOT is_on_ir AND NOT is_on_taxi),
+        1000, 0
+      ) projection;
+    SELECT COALESCE((SELECT week_number FROM season_weeks
+      WHERE season_year = (SELECT season_year FROM league_seasons WHERE id = p_league_season_id)
+        AND p_game_date BETWEEN week_start AND week_end), 1) INTO v_week_number;
+
+    FOREACH v_preserve IN ARRAY ARRAY[true, false] LOOP
+      FOR v_slot IN
+        SELECT t.slot_type, sequence.number
+          FROM lineup_slot_templates t
+          CROSS JOIN LATERAL generate_series(1, t.slot_count) sequence(number)
+         WHERE t.league_id = p_league_id AND t.slot_type NOT IN ('BE', 'IR')
+         ORDER BY array_position(ARRAY['PG','SG','SF','PF','C','G','F','UTIL'], t.slot_type::text), sequence.number
+      LOOP
+        IF (SELECT count(*) FROM jsonb_array_elements(p_assignments) a
+          WHERE a->>'slot_type' = v_slot.slot_type::text) >= v_slot.number THEN
+          CONTINUE;
+        END IF;
+        SELECT rp.player_id INTO v_candidate
+          FROM roster_players rp JOIN players p ON p.id = rp.player_id
+          LEFT JOIN weekly_lineups wl ON wl.member_id = p_member_id AND wl.league_id = p_league_id
+            AND wl.league_season_id = p_league_season_id AND wl.game_date = p_game_date
+            AND wl.player_id = rp.player_id AND wl.slot_type = v_slot.slot_type
+          LEFT JOIN jsonb_to_recordset(v_projections) projection(player_id uuid, projected numeric)
+            ON projection.player_id = rp.player_id
+         WHERE rp.member_id = p_member_id AND rp.league_id = p_league_id
+           AND rp.league_season_id = p_league_season_id AND NOT rp.is_on_ir AND NOT rp.is_on_taxi
+           AND (NOT v_preserve OR wl.id IS NOT NULL)
+           AND NOT private.lineup_game_started(rp.player_id, p_game_date)
+           AND COALESCE(NULLIF(p.eligible_positions, '{}'::text[]), ARRAY[p.position::text])
+             && public.lineup_slot_allowed_positions(v_slot.slot_type)
+           AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements(p_assignments) a
+             WHERE (a->>'player_id')::uuid = rp.player_id)
+         ORDER BY (wl.id IS NOT NULL) DESC,
+           EXISTS (SELECT 1 FROM nba_games g WHERE g.game_date = p_game_date
+             AND private.lineup_game_available(g.status, g.game_status_text)
+             AND (g.home_team = p.nba_team OR g.away_team = p.nba_team)) DESC,
+           COALESCE(projection.projected, 0) DESC, rp.player_id
+         LIMIT 1;
+        IF v_candidate IS NULL AND NOT v_preserve THEN
+          v_seen := ARRAY[v_slot.slot_type::text];
+          v_paths := jsonb_build_array(jsonb_build_object('slots', v_seen, 'players', '[]'::jsonb));
+          WHILE jsonb_array_length(v_paths) > 0 LOOP
+            v_path := v_paths->0;
+            v_paths := v_paths - 0;
+            SELECT rp.player_id INTO v_candidate
+              FROM roster_players rp JOIN players p ON p.id = rp.player_id
+              LEFT JOIN jsonb_to_recordset(v_projections) projection(player_id uuid, projected numeric)
+                ON projection.player_id = rp.player_id
+             WHERE rp.member_id = p_member_id AND rp.league_id = p_league_id
+               AND rp.league_season_id = p_league_season_id AND NOT rp.is_on_ir AND NOT rp.is_on_taxi
+               AND NOT private.lineup_game_started(rp.player_id, p_game_date)
+               AND COALESCE(NULLIF(p.eligible_positions, '{}'::text[]), ARRAY[p.position::text])
+                 && public.lineup_slot_allowed_positions((v_path->'slots'->>-1)::roster_slot_type)
+               AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements(p_assignments) a
+                 WHERE (a->>'player_id')::uuid = rp.player_id)
+             ORDER BY EXISTS (SELECT 1 FROM nba_games g WHERE g.game_date = p_game_date
+               AND private.lineup_game_available(g.status, g.game_status_text)
+               AND (g.home_team = p.nba_team OR g.away_team = p.nba_team)) DESC,
+               COALESCE(projection.projected, 0) DESC, rp.player_id
+             LIMIT 1;
+            IF v_candidate IS NOT NULL THEN
+              SELECT ARRAY(SELECT value::uuid FROM jsonb_array_elements_text(v_path->'players')) || v_candidate,
+                ARRAY(SELECT value FROM jsonb_array_elements_text(v_path->'slots'))
+                INTO v_repair_players, v_repair_slots;
+              FOR v_index IN 1..cardinality(v_repair_players) LOOP
+                SELECT COALESCE(jsonb_agg(a), '[]'::jsonb) INTO p_assignments
+                  FROM jsonb_array_elements(p_assignments) a
+                 WHERE (a->>'player_id')::uuid <> v_repair_players[v_index];
+                p_assignments := p_assignments || jsonb_build_array(jsonb_build_object(
+                  'player_id', v_repair_players[v_index], 'slot_type', v_repair_slots[v_index],
+                  'week_number', v_week_number, 'is_auto_set', true));
+              END LOOP;
+              v_candidate := NULL;
+              EXIT;
+            END IF;
+            FOR v_next IN
+              SELECT (a->>'player_id')::uuid AS player_id, a->>'slot_type' AS slot_type
+                FROM jsonb_array_elements(p_assignments) a
+                JOIN roster_players rp ON rp.player_id = (a->>'player_id')::uuid
+                  AND rp.member_id = p_member_id AND rp.league_id = p_league_id
+                  AND rp.league_season_id = p_league_season_id AND NOT rp.is_on_ir AND NOT rp.is_on_taxi
+                JOIN players p ON p.id = rp.player_id
+               WHERE NOT (a->>'slot_type' = ANY(v_seen))
+                 AND NOT private.lineup_game_started(p.id, p_game_date)
+                 AND COALESCE(NULLIF(p.eligible_positions, '{}'::text[]), ARRAY[p.position::text])
+                   && public.lineup_slot_allowed_positions((v_path->'slots'->>-1)::roster_slot_type)
+               ORDER BY a->>'slot_type', a->>'player_id'
+            LOOP
+              IF v_next.slot_type = ANY(v_seen) THEN CONTINUE; END IF;
+              v_seen := array_append(v_seen, v_next.slot_type);
+              v_paths := v_paths || jsonb_build_array(jsonb_build_object(
+                'slots', (v_path->'slots') || to_jsonb(v_next.slot_type),
+                'players', (v_path->'players') || to_jsonb(v_next.player_id)));
+            END LOOP;
+          END LOOP;
+        END IF;
+        IF v_candidate IS NOT NULL THEN
+          p_assignments := p_assignments || jsonb_build_array(jsonb_build_object(
+            'player_id', v_candidate, 'slot_type', v_slot.slot_type,
+            'week_number', v_week_number, 'is_auto_set', true));
+        END IF;
+      END LOOP;
+    END LOOP;
   END IF;
 
   DELETE FROM weekly_lineups

@@ -1,9 +1,14 @@
+-- Canonical SQL source for private.build_trade_estimate_inputs.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION private.build_trade_estimate_inputs(p_user_id uuid,p_member_id uuid,p_items jsonb,p_require_ownership boolean)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 DECLARE
   league public.leagues%ROWTYPE; season public.league_seasons%ROWTYPE; terms jsonb;
   v_item jsonb; seen text[]:='{}'; identity text; player_ids uuid[]; replacement_ids uuid[];
   player_rows jsonb; replacement_rows jsonb; player_input_rows jsonb; picks jsonb; balances jsonb; pick_values jsonb:='[]'::jsonb;
+  rosters jsonb; best_free_agent numeric;
   previous_user text:=current_setting('request.jwt.claim.sub',true); teams integer;
 BEGIN
   SELECT l.* INTO league FROM public.leagues l JOIN public.league_members m ON m.league_id=l.id
@@ -88,9 +93,29 @@ BEGIN
     INTO balances FROM public.league_members member LEFT JOIN public.faab_balances balance
     ON balance.member_id=member.id AND balance.league_season_id=season.id WHERE member.league_id=league.id
     AND member.id IN(SELECT (item->>'fromMemberId')::uuid FROM jsonb_array_elements(terms) item);
+  SELECT COALESCE(jsonb_agg(jsonb_build_object('memberId',member.id,
+    'limits',jsonb_build_object('active',league.roster_size,'ir',league.ir_slots,'taxi',league.taxi_slots),
+    'players',COALESCE((SELECT jsonb_agg(jsonb_build_object('playerId',roster.player_id,'location',
+      CASE WHEN roster.is_on_taxi THEN 'taxi' WHEN roster.is_on_ir THEN 'ir' ELSE 'active' END,
+      'tradeValue',(SELECT ranking.trade_value FROM public.dynasty_rankings ranking
+        WHERE ranking.player_id=roster.player_id AND ranking.source='onenumberhoops.com'
+        ORDER BY ranking.fetched_at DESC,ranking.source_rank,ranking.id LIMIT 1)) ORDER BY roster.player_id)
+      FROM public.roster_players roster WHERE roster.league_season_id=season.id AND roster.member_id=member.id),'[]'::jsonb))
+    ORDER BY member.id),'[]'::jsonb) INTO rosters FROM public.league_members member WHERE member.league_id=league.id
+    AND member.id IN(SELECT (item->>'fromMemberId')::uuid FROM jsonb_array_elements(terms) item
+      UNION SELECT (item->>'toMemberId')::uuid FROM jsonb_array_elements(terms) item);
+  SELECT COALESCE(max(candidate.trade_value),0) INTO best_free_agent FROM (
+    SELECT DISTINCT ON (ranking.player_id) ranking.player_id,ranking.trade_value
+    FROM public.dynasty_rankings ranking JOIN public.players player ON player.id=ranking.player_id
+    WHERE ranking.source='onenumberhoops.com' AND player.nba_team IS NOT NULL
+      AND NOT ranking.player_id=ANY(player_ids)
+      AND NOT EXISTS(SELECT 1 FROM public.roster_players roster WHERE roster.league_season_id=season.id
+        AND roster.player_id=ranking.player_id)
+    ORDER BY ranking.player_id,ranking.fetched_at DESC,ranking.source_rank,ranking.id
+  ) candidate WHERE candidate.trade_value BETWEEN 0 AND 1000;
   PERFORM set_config('request.jwt.claim.sub',COALESCE(previous_user,''),true);
   RETURN jsonb_build_object('leagueId',league.id,'seasonId',season.id,'seasonYear',season.season_year,
     'teams',teams,'rosterSize',league.roster_size,'scoringSettings',league.scoring_settings,'faabBudget',league.faab_starting_budget,
-    'terms',terms,'players',player_rows,'replacementPlayers',replacement_rows,'picks',picks,'balances',balances);
+    'rosters',rosters,'bestFreeAgentValue',best_free_agent,'terms',terms,'players',player_rows,'replacementPlayers',replacement_rows,'picks',picks,'balances',balances);
 END;
 $$;

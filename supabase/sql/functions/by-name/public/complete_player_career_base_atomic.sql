@@ -1,3 +1,7 @@
+-- Canonical SQL source for public.complete_player_career_base_atomic.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION public.complete_player_career_base_atomic(
   p_player_id uuid, p_espn_id text, p_nba_id text,
   p_base integer DEFAULT NULL, p_base_season integer DEFAULT NULL,

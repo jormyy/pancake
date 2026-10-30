@@ -1,3 +1,7 @@
+-- Canonical SQL source for public.publish_nba_schedule_atomic.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION public.publish_nba_schedule_atomic(p_season_year int,p_games jsonb,p_weeks jsonb)
 RETURNS int LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE v_games jsonb; v_weeks jsonb; v_count int; v_status_text jsonb; v_complete boolean;

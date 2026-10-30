@@ -1,3 +1,7 @@
+-- Canonical SQL source for private.read_available_faab_balance.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION private.read_available_faab_balance(
   p_league_id uuid,
   p_league_season_id uuid,
@@ -18,4 +22,3 @@ AS $$
         AND trade.status='accepted' AND item.from_member_id=p_member_id
         AND trade.id IS DISTINCT FROM p_exclude_trade_id),0);
 $$;
-REVOKE ALL ON FUNCTION private.read_available_faab_balance(uuid,uuid,uuid,uuid) FROM PUBLIC,anon,authenticated,service_role;

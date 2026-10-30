@@ -1,3 +1,7 @@
+-- Canonical SQL source for private.guard_player_stats_identity.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION private.guard_player_stats_identity()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path='' SET lock_timeout='250ms' AS $$
 DECLARE old_id uuid; old_game uuid;

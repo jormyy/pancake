@@ -12,7 +12,16 @@ RETURNS void
 LANGUAGE plpgsql
 SET search_path = public
 AS $$
+DECLARE v_faab record;
 BEGIN
+  FOR v_faab IN
+    SELECT from_member_id,sum(faab_amount)::int amount FROM trade_items
+      WHERE trade_id=p_trade_id AND faab_amount>0 GROUP BY from_member_id ORDER BY from_member_id
+  LOOP
+    IF private.available_faab_balance(p_league_id,p_league_season_id,v_faab.from_member_id,p_trade_id)<v_faab.amount THEN
+      RAISE EXCEPTION 'Trade participant no longer has enough FAAB for this trade.' USING ERRCODE='PT001';
+    END IF;
+  END LOOP;
   PERFORM private.validate_trade_rosters(p_trade_id, p_only_member_id);
   PERFORM private.assert_accepted_trade_capacity(p_league_id,p_league_season_id,participant.member_id,p_trade_id)
     FROM trade_participants participant WHERE participant.trade_id=p_trade_id

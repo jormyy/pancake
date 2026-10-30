@@ -1,3 +1,7 @@
+-- Canonical SQL source for public.assert_nba_game_unambiguous.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION public.assert_nba_game_unambiguous(p_game_id uuid)
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE v_game public.nba_games%ROWTYPE; v_year int;

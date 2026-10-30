@@ -1,3 +1,7 @@
+-- Canonical SQL source for private.lock_current_score_inputs.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION private.lock_current_score_inputs(p_season_id uuid, p_week int, p_token jsonb)
 RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 BEGIN

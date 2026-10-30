@@ -1,3 +1,7 @@
+-- Canonical SQL source for private.canonical_trade_estimate_terms.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION private.canonical_trade_estimate_terms(p_items jsonb)
 RETURNS jsonb LANGUAGE sql IMMUTABLE SET search_path = '' AS $$
   SELECT COALESCE(jsonb_agg(jsonb_build_object(

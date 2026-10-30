@@ -1,3 +1,7 @@
+-- Canonical SQL source for private.matchup_forecast_inputs_ready.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION private.matchup_forecast_inputs_ready(p_matchup_id uuid)
 RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
 WITH context AS MATERIALIZED (

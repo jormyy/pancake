@@ -1,3 +1,7 @@
+-- Canonical SQL source for public.generate_linear_draft_order.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION public.generate_linear_draft_order(p_draft_id uuid)
 RETURNS integer LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE v_draft drafts%ROWTYPE; v_last_season_id uuid; v_order_count integer;

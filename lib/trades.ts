@@ -1,3 +1,4 @@
+import { readAssetLocks, type AssetLock } from '@/lib/locked-assets'
 import type { Json } from '@/types/database'
 import { supabase } from '@/lib/supabase'
 import { apiPost, apiReadPost } from '@/lib/shared/api'
@@ -8,6 +9,11 @@ import type { TradeLegalityReason } from '@/lib/trade-legality'
 export {
     needsMemberAcceptance,
 } from '@/lib/trade-perspective'
+
+export function readTradeAssetLocks(value: unknown): AssetLock[] {
+    if (!value || typeof value !== 'object' || !('tradeLockedAssets' in value)) return []
+    return readAssetLocks({ assetLocks: value.tradeLockedAssets })
+}
 
 type TradeRosterMove = { playerId: string; destination: 'active' | 'ir' | 'taxi' }
 export type TradeRosterPlan = { taxiPlayerIds: string[]; irPlayerIds: string[]; dropPlayerIds: string[]; rosterMoves?: TradeRosterMove[] }
@@ -194,7 +200,7 @@ type TradeParticipantQueryRow = {
 }
 type TradeQueryRow = {
     trade_estimates: { unavailable_reason: string | null; quote: {
-        id: string; model_version: string; input_version: string; created_at: string; teams: TradeEstimateSummary['teams']
+        id: string; model_version: string; input_version: string; created_at: string; teams: TradeEstimateSummary['teams']; assets?: TradeEstimateSummary['assets']
     } | null } | null
     completion_failure_reason: string | null
     id: string
@@ -513,7 +519,7 @@ const TRADE_SELECT = `
             version,
             proposer_faab_amount,
             recipient_faab_amount,
-            trade_estimates ( unavailable_reason, quote:trade_estimate_quotes ( id, model_version, input_version, created_at, teams:analysis->teams ) ),
+            trade_estimates ( unavailable_reason, quote:trade_estimate_quotes ( id, model_version, input_version, created_at, teams:analysis->teams, assets:analysis->assets ) ),
             proposer:league_members!trades_proposer_member_id_fkey ( team_name ),
             recipient:league_members!trades_recipient_member_id_fkey ( team_name ),
             trade_vetos ( member_id ),
@@ -611,6 +617,7 @@ function mapTradeRow(row: TradeQueryRow, memberId: string): Trade {
             inputVersion: row.trade_estimates.quote.input_version,
             createdAt: row.trade_estimates.quote.created_at,
             teams: row.trade_estimates.quote.teams,
+            assets: row.trade_estimates.quote.assets,
         } : null,
         estimateUnavailable: row.trade_estimates?.unavailable_reason ?? null,
         id: row.id,

@@ -1,7 +1,12 @@
 BEGIN;
 SET LOCAL statement_timeout='15s';
 SET LOCAL lock_timeout='500ms';
-SET LOCAL app.supabase_url='http://127.0.0.1:1';
+\getenv concurrency_api_url SUPABASE_URL
+\if :{?concurrency_api_url}
+SELECT set_config('app.supabase_url',:'concurrency_api_url',true);
+\else
+SELECT set_config('app.supabase_url','http://127.0.0.1:1',true);
+\endif
 SET LOCAL app.edge_internal_token='worker-bound-fixture';
 DELETE FROM private.work_items;
 DO $$
@@ -24,6 +29,7 @@ BEGIN
   END LOOP;
   IF (SELECT count(*) FROM private.work_items WHERE status='succeeded')<>8 THEN RAISE EXCEPTION 'The cap loses work'; END IF;
   DELETE FROM private.work_items;
+  DELETE FROM private.live_matchup_refresh_queue;
   UPDATE private.worker_controls SET paused=false WHERE id;
   FOR n IN 1..8 LOOP
     PERFORM private.work_enqueue('process-trades','dispatch-bound-'||n,now()-interval '2 days',jsonb_build_object('worker',n));

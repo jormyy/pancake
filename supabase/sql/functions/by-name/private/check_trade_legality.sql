@@ -1,3 +1,7 @@
+-- Canonical SQL source for private.check_trade_legality.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION private.check_trade_legality(
   p_league_id uuid,p_season_id uuid,p_member_ids uuid[],p_items jsonb,p_plans jsonb,p_trade_id uuid DEFAULT NULL
 )
@@ -36,7 +40,8 @@ BEGIN
          UNION SELECT player_id FROM roster_players WHERE league_season_id=p_season_id AND member_id=v_team.id) ORDER BY p.id
     LOOP
       v_error:=NULL;
-      IF private.is_reserved_trade_asset(p_league_id,p_season_id,v_team.id,v_row.id,NULL,p_trade_id) THEN v_error:='Reserved by another trade.';
+      IF EXISTS(SELECT 1 FROM private.locked_assets(p_league_id,p_season_id,v_team.id) locked
+        WHERE locked.source_kind='trade' AND locked.asset_id=v_row.id AND locked.source_id IS DISTINCT FROM p_trade_id) THEN v_error:='Reserved by another trade.';
       ELSIF EXISTS(SELECT 1 FROM waiver_claims WHERE league_season_id=p_season_id AND member_id=v_team.id AND status='pending' AND drop_player_id=v_row.id) THEN v_error:='Reserved as a pending waiver drop.'; END IF;
       IF v_error IS NOT NULL THEN v_unavailable:=v_unavailable||jsonb_build_object(v_row.id,v_error); END IF;
       v_ir_error:=CASE WHEN v_league.ir_slots=0 THEN 'This league has no IR slots.' WHEN NOT private.is_ir_designation(v_row.injury_status) THEN 'IR requires an Out or IR designation.' END;
@@ -130,11 +135,13 @@ BEGIN
       IF v_location='active' AND v_ir_out IS NOT NULL THEN v_error:=v_error||format(' Trading %s from IR does not free a Regular slot.',v_ir_out); END IF;
       v_reasons:=v_reasons||jsonb_build_array(jsonb_build_object('memberId',v_team.id,'teamName',v_team.team_name,'rule',v_rule,'count',v_excess,'limit',v_limit,'message',v_error,'suggestedMoves',v_suggestions));
     END LOOP;
+    IF EXISTS(SELECT 1 FROM trades WHERE id=p_trade_id AND status='accepted') THEN
     SELECT COALESCE(sum((value->>'faabAmount')::int),0) INTO v_cost FROM jsonb_array_elements(p_items) WHERE value->>'fromMemberId'=v_team.id::text;
     v_available:=private.read_available_faab_balance(p_league_id,p_season_id,v_team.id,p_trade_id);
     IF v_cost>v_available THEN v_reasons:=v_reasons||jsonb_build_array(jsonb_build_object('memberId',v_team.id,'teamName',v_team.team_name,'rule','budget','count',v_cost-v_available,
       'message',format('%s: the budget is short by %s FAAB. Reduce the offered FAAB by %s.',v_team.team_name,v_cost-v_available,v_cost-v_available),
       'suggestedMoves',jsonb_build_array(jsonb_build_object('action','reduce_faab','amount',v_cost-v_available,'message',format('Reduce offered FAAB by %s.',v_cost-v_available))))); END IF;
+    END IF;
     IF EXISTS(
       WITH commitments AS (
         SELECT t.id,p.drop_player_ids,p.roster_moves FROM trades t JOIN trade_participants p ON p.trade_id=t.id

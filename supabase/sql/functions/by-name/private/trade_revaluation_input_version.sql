@@ -1,3 +1,7 @@
+-- Canonical SQL source for private.trade_revaluation_input_version.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION private.trade_revaluation_input_version(p_trade_id uuid)
 RETURNS text LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' SET plan_cache_mode = force_generic_plan AS $$
 BEGIN
@@ -46,4 +50,3 @@ BEGIN
   )::text) FROM context);
 END;
 $$;
-REVOKE ALL ON FUNCTION private.trade_revaluation_input_version(uuid) FROM PUBLIC,anon,authenticated,service_role;

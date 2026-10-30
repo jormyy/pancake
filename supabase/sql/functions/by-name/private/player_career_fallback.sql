@@ -1,3 +1,7 @@
+-- Canonical SQL source for private.player_career_fallback.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION private.player_career_fallback(p_player_id uuid, p_years_exp integer, p_season_year integer)
 RETURNS TABLE(base integer, base_season integer, source text)
 LANGUAGE sql STABLE SET search_path = '' AS $$

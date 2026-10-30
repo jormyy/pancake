@@ -63,6 +63,12 @@ export type DynastyEngineContext = {
     seasonYear: number
     scoringSettings: ScoringSettings
     replacementValue?: number
+    bestFreeAgentValue?: number
+    rosters?: {
+        memberId: string
+        limits: { active: number; ir: number; taxi: number }
+        players: { playerId: string; tradeValue: number | null; location: 'active' | 'ir' | 'taxi' }[]
+    }[]
 }
 
 export type DynastyValueRange = {
@@ -98,6 +104,7 @@ export type DynastyAssetResult = {
 }
 
 export type DynastyTradeRoute = {
+    destination?: 'active' | 'ir' | 'taxi'
     fromMemberId: string
     toMemberId: string
     asset: DynastyAsset
@@ -113,6 +120,12 @@ export type DynastyTradeTeamResult = {
     replacementEffect: number
     rosterSlotEffect: number
     impact: number
+    netValue?: number
+    adjustedValue?: number
+    gapPercent?: number
+    fair?: boolean
+    openRosterSpots?: number
+    rosterCutValue?: number
 }
 
 export type DynastyTradeAnalysis = {

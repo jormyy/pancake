@@ -164,6 +164,8 @@ BEGIN
     END IF;
   END LOOP;
 
+  PERFORM private.cancel_pending_trades_for_moved_assets(p_trade_id);
+
   FOR v_from_member, v_item_faab_amount IN
     SELECT
       item.from_member_id,

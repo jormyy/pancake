@@ -1,3 +1,7 @@
+-- Canonical SQL source for private.taxi_start_year.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION private.taxi_start_year(p_league_id uuid,p_player_id uuid,p_fallback int)
 RETURNS int LANGUAGE sql STABLE SET search_path=public AS $$
   SELECT COALESCE(min(start_year),p_fallback) FROM (

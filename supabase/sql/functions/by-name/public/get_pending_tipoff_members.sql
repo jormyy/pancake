@@ -1,3 +1,7 @@
+-- Canonical SQL source for public.get_pending_tipoff_members.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION public.get_pending_tipoff_members(
   p_tipoff_at timestamptz,p_token uuid,p_excluded_members uuid[] DEFAULT ARRAY[]::uuid[],p_limit int DEFAULT 100
 )

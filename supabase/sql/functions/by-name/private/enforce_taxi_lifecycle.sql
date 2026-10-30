@@ -1,5 +1,6 @@
 -- Canonical SQL source for private.enforce_taxi_lifecycle.
--- Keep the latest migration definition identical.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
 
 CREATE OR REPLACE FUNCTION private.enforce_taxi_lifecycle()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=public,private AS $$

@@ -20,7 +20,7 @@ vi.mock('@react-navigation/native', () => ({ useIsFocused: () => true, useFocusE
 vi.mock('@/lib/session-cache-registry', () => ({ sessionOwner: () => state.userId, sessionGeneration: () => 0, onSessionCachesCleared: (callback: () => void) => state.clears.push(callback) }))
 vi.mock('@/lib/shared/api', () => ({ API_URL: 'http://127.0.0.1:59621/functions/v1/api', apiPost: vi.fn() }))
 vi.mock('@/lib/supabase', () => ({ supabase: { auth: { getSession: async () => ({ data: { session: { user: { id: state.userId }, access_token: 'synthetic' } } }) }, from: () => { throw new Error('A screen issued a stitched table read') }, rpc: () => { throw new Error('A screen issued a stitched RPC') } } }))
-vi.mock('@/hooks/use-browser-read-activity', () => ({ useBrowserReadActivity: () => ({ active: true, revision: 0, isCurrent: () => true }) }))
+vi.mock('@/hooks/use-browser-read-activity', () => ({ browserReadsAllowed: () => true, useBrowserReadActivity: () => ({ active: true, revision: 0, isCurrent: () => true }) }))
 vi.mock('@/lib/league-changes', () => ({ listenForLeagueChanges: () => () => {}, deferLeagueRefresh: () => ({ trigger() {}, cancel() {} }) }))
 vi.mock('@/lib/rookieDraft', () => ({ subscribeToRookieDraft: () => ({}), unsubscribeFromRookieDraft: () => Promise.resolve(), processExpiredSnakePick: vi.fn(), makeSnakePick: vi.fn(), commissionerSnakePick: vi.fn(), activateRookieDraftLeague: vi.fn() }))
 vi.mock('@/hooks/use-online-status', () => ({ useOnlineStatus: () => true }))

@@ -1,3 +1,7 @@
+-- Canonical SQL source for private.guard_accepted_trade_capacity.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION private.guard_accepted_trade_capacity()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
 DECLARE v_member uuid; v_league uuid; v_season uuid;

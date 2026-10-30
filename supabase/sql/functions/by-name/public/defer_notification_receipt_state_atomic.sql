@@ -1,3 +1,7 @@
+-- Canonical SQL source for public.defer_notification_receipt_state_atomic.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION public.defer_notification_receipt_state_atomic(
   p_id uuid,
   p_claim_token uuid,

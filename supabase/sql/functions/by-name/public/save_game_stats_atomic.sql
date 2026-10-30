@@ -1,3 +1,7 @@
+-- Canonical SQL source for public.save_game_stats_atomic.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION public.save_game_stats_atomic(
   p_game_id uuid,
   p_provider_game_id text,

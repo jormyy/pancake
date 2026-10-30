@@ -1,3 +1,7 @@
+-- Canonical SQL source for private.notif_lineup_candidates_scoped.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION private.notif_lineup_candidates_scoped(p_now timestamptz,p_league_id uuid,p_member_id uuid)
 RETURNS TABLE(event_type text,league_id uuid,member_id uuid,player_id uuid,game_date date)
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = ''

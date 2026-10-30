@@ -31,7 +31,7 @@ Deno.test('late injury benches an unlocked Out starter and uses fresh projection
   assert(!result.some((row) => row.player_id === 'a') && result.some((row) => row.player_id === 'b'), 'Late Out stays in lineup.')
   assert(result.some((row) => row.player_id === 'd') && !result.some((row) => row.player_id === 'c'), 'Fresh projection does not change the starter.')
   c.players.forEach((p) => { p.injuryStatus = 'Out' })
-  assert(tipoffAssignments(c, projections).length === 0, 'An Out player fills an empty slot.')
+  assert(tipoffAssignments(c, projections).length === 2, 'Eligible zero-point fallback slots remain empty.')
 })
 
 Deno.test('staggered games preserve a locked starter declared Out and leave locked bench players benched', () => {
@@ -76,10 +76,10 @@ Deno.test('postponed games cannot supply new starters and identical retries keep
 })
 
 
-Deno.test('negative projections leave unlocked slots empty when that scores more', () => {
+Deno.test('negative projections still fill eligible starting slots', () => {
   const c = context()
   const result = tipoffAssignments(c, c.players.map((p) => ({ player_id: p.playerId, projection_fantasy_points: -10 })))
-  assert(result.length === 0, 'Negative starters reduce the best projected score.')
+  assert(result.length === 2, 'Auto-set empties eligible slots for negative projections.')
 })
 
 

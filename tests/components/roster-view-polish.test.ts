@@ -45,7 +45,7 @@ vi.mock('@/lib/realtime', () => ({ reportRealtimeCleanup: vi.fn(), subscribeToTa
 vi.mock('@/lib/lineup', () => ({ getRosterSlotPlan: async () => ({ slots: [], assignments: {} }) }))
 vi.mock('@/lib/shared/season', () => ({ getActiveSeasonId: async () => 'season' }))
 vi.mock('@/lib/league', () => ({ isTradingClosed: () => false, getMemberTransactionState: async () => memberTransactionState({ faabBalance: 100, weeklyAddLimit: 2, weeklyAddCount: 0 }) }))
-vi.mock('@/lib/format', () => ({ countLabel: String }))
+vi.mock('@/lib/format', () => ({ countLabel: String, formatPoints: String, playerHeadshotUrl: () => null }))
 vi.mock('@/components/ui', () => ({ Page: 'Page', PageHeader: 'PageHeader', Button: 'Button', usePageMetrics: () => ({ padX: 16, usableWidth: mocks.width }) }))
 vi.mock('@/components/EmptyState', () => ({ EmptyState: 'EmptyState' }))
 vi.mock('@/components/NoLeagueState', () => ({ NoLeagueState: 'NoLeagueState' }))
@@ -57,7 +57,7 @@ vi.mock('@/components/roster/RosterTrimBanner', () => ({ RosterTrimBanner: 'Rost
 vi.mock('@/components/AutoSetModal', () => ({ AutoSetModal: 'AutoSetModal' }))
 vi.mock('@/components/ActivationOverflowModal', () => ({ ActivationOverflowModal: 'ActivationOverflowModal' }))
 vi.mock('@/components/Avatar', () => ({ Avatar: 'Avatar' }))
-vi.mock('@/components/Badge', () => ({ Badge: 'Badge' }))
+vi.mock('@/components/Badge', () => ({ Badge: 'Badge', InjuryBadge: 'InjuryBadge' }))
 vi.mock('@/components/IRResolutionModal', () => ({ IRResolutionModal: 'IRResolutionModal' }))
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 let screen: ReactTestRenderer
@@ -151,4 +151,13 @@ it('separates the pending heading and each claim with shared borders', async () 
     const heading = screen.root.findAllByType('Text' as React.ElementType).find(node => JSON.stringify(node.props.children).includes('Pending claims'))!
     expect(heading.props.style).toContainEqual(expect.objectContaining({ borderTopWidth: borderWidth.thin, borderTopColor: colors.separator }))
     expect(screen.root.findByType('RosterClaimItem' as React.ElementType).parent!.props.style).toEqual(expect.objectContaining({ borderBottomWidth: borderWidth.thin, borderBottomColor: colors.separator }))
+})
+
+it('shows one lock in roster table player metadata', async () => {
+    const { rosterPlayer } = await import('@/tests/helpers/fixtures')
+    mocks.width = 1600
+    mocks.view.data!.roster = [rosterPlayer({ assetLocks: [{ assetKind: 'player', assetId: 'player-a', sourceKind: 'trade', sourceId: 'hidden-id', reason: 'Locked by trade hidden-id. Resolve the trade.' }] })]
+    await act(async () => { screen = create(React.createElement(RosterScreen)) })
+    expect(screen.root.findAllByProps({ accessibilityLabel: 'Locked by a pending trade' })).toHaveLength(1)
+    expect(screen.root.findAllByType('Text' as React.ElementType).map(node => typeof node.props.children === 'string' ? node.props.children : '').join(' ')).not.toContain('hidden-id')
 })

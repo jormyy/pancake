@@ -82,6 +82,7 @@ const applyRpcArgumentOverrides = (generated) => {
 }
 
 const generated = execFileSync('supabase', ['gen', 'types', 'typescript',
+  ...(process.env.SUPABASE_NETWORK_ID ? ['--network-id', process.env.SUPABASE_NETWORK_ID] : []),
   ...(process.env.SUPABASE_DB_URL ? ['--db-url', process.env.SUPABASE_DB_URL] : ['--local']),
 ], { encoding: 'utf8' })
 const contents = applyRpcArgumentOverrides(generated).trimEnd() + `\n\n${aliases.trim()}\n`

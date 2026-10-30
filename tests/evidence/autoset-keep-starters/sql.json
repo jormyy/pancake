@@ -1,0 +1,9 @@
+{
+  "project": "pt4bafableas",
+  "port": 64022,
+  "flexibleSlotReproduced": true,
+  "passedChecks": 11,
+  "failedChecks": 0,
+  "existingRecipesPassed": 3,
+  "attestationsRegenerated": true
+}

@@ -1,3 +1,7 @@
+-- Canonical SQL source for private.reconcile_missing_final_stats.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION private.reconcile_missing_final_stats(p_now timestamptz DEFAULT now(),p_before_date date DEFAULT NULL)
 RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path='' SET lock_timeout='250ms' SET statement_timeout='3s'

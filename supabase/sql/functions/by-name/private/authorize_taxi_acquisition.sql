@@ -1,5 +1,6 @@
 -- Canonical SQL source for private.authorize_taxi_acquisition.
--- Keep the latest migration definition identical.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
 
 CREATE OR REPLACE FUNCTION private.authorize_taxi_acquisition(
   p_league_id uuid, p_season_id uuid, p_member_id uuid, p_player_id uuid,

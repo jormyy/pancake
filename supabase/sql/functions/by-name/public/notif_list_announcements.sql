@@ -1,3 +1,7 @@
+-- Canonical SQL source for public.notif_list_announcements.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION public.notif_list_announcements(p_league_id uuid)
 RETURNS SETOF public.league_announcements LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = ''
 AS $$
