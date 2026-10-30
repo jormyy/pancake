@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261214002100",
+  "candidateVersion": "20261214002500",
   "common": {
     "functions": [
       {
@@ -2320,6 +2320,10 @@
     {
       "filename": "20261214002100_l3e_scans.sql",
       "sha256": "4b4d0aacb09dddc9bee924479223b1467f9271d676b71f44010c51e99bb1c300"
+    },
+    {
+      "filename": "20261214002500_trade_locks_drop_only.sql",
+      "sha256": "97472fc2cb1dd79bfb1c9cc956625daecdeca0091d60c9ba8c859599ea581426"
     }
   ],
   "preMigration": {

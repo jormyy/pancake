@@ -406,6 +406,12 @@
       "name": "auto_set_lineup_atomic_unchecked",
       "identityArguments": "p_member_id uuid, p_league_id uuid, p_league_season_id uuid, p_game_date date, p_assignments jsonb",
       "bodySha256": "65021629e07006c44684d5a9b3df80f47f0cf4391a1c262c0573cd79963d742e"
+    },
+    {
+      "version": "20261214002500",
+      "name": "auto_set_lineup_atomic_unchecked",
+      "identityArguments": "p_member_id uuid, p_league_id uuid, p_league_season_id uuid, p_game_date date, p_assignments jsonb",
+      "bodySha256": "daa6b95694d01344aec85c92fee860ef1b2104cc7dd360307120f23764f29f95"
     }
   ],
   "approvedMigrations": [
@@ -3005,6 +3011,13 @@
       "statementCount": 9,
       "statementsSha256": "fe7bba36c4e21f1df7d05872de427f1d7087cfc084da1f00c22c2f69da739721",
       "sha256": "4b4d0aacb09dddc9bee924479223b1467f9271d676b71f44010c51e99bb1c300"
+    },
+    {
+      "name": "trade_locks_drop_only",
+      "version": "20261214002500",
+      "statementCount": 3,
+      "statementsSha256": "7881bf4961e9e66148aa56356fdbc6e9b95838a9fc5372f697c4b176cc9db5cd",
+      "sha256": "97472fc2cb1dd79bfb1c9cc956625daecdeca0091d60c9ba8c859599ea581426"
     }
   ]
 }

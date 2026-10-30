@@ -1,5 +1,3 @@
-import { LockedAssetNotice } from '@/components/roster/LockedAssetNotice'
-import { readAssetLocks } from '@/lib/locked-assets'
 import { cachedScreenView, readScreenView, subscribeScreenView } from '@/lib/cache/screen-cache'
 import { screenScope } from '@/lib/cache/screen-scope'
 import type { LineupView } from '@/lib/cache/view-types'
@@ -71,7 +69,6 @@ const StarterRow = memo(function StarterRow({
     targetState: LineupMoveTargetState
 }) {
     const p = slot.player
-    const locks = readAssetLocks(p)
     const isLocked = !!(p?.nbaTeam && startedTeams.has(p.nbaTeam))
     const isLive = !!(p?.nbaTeam && liveTeams.has(p.nbaTeam))
     const starterMatchup = p?.nbaTeam ? teamMatchups.get(p.nbaTeam) : undefined
@@ -89,12 +86,12 @@ const StarterRow = memo(function StarterRow({
                 targetState === 'invalid' && styles.invalidTargetRow,
             ]}
             onPress={onPress}
-            disabled={disabled || locks.length > 0 || isLocked || targetState === 'invalid'}
+            disabled={disabled || isLocked || targetState === 'invalid'}
             disabledOpacity={readOnly ? 1 : undefined}
             accessibilityRole="button"
             accessibilityLabel={p ? `${slot.slotType} ${p.displayName}` : `Empty ${slot.slotType} slot`}
             accessibilityHint={targetState === 'valid' ? `Move here to use the ${slot.slotType} slot` : undefined}
-            accessibilityState={{ selected: isSelected, disabled: disabled || locks.length > 0 || isLocked || targetState === 'invalid' }}
+            accessibilityState={{ selected: isSelected, disabled: disabled || isLocked || targetState === 'invalid' }}
         >
             <Text style={styles.slotLabel}>{slot.slotType}</Text>
             {p ? (
@@ -108,7 +105,7 @@ const StarterRow = memo(function StarterRow({
             ) : (
                 <Text style={styles.emptySlot}>Empty</Text>
             )}
-        </MotionPressable><LockedAssetNotice locks={locks} /></View>
+        </MotionPressable></View>
     )
 })
 
@@ -136,7 +133,6 @@ const BenchRow = memo(function BenchRow({
     readOnly: boolean
     targetState: LineupMoveTargetState
 }) {
-    const locks = readAssetLocks(player)
     const isLocked = !!(player.nbaTeam && startedTeams.has(player.nbaTeam))
     const isLive = !!(player.nbaTeam && liveTeams.has(player.nbaTeam))
     const benchMatchup = player.nbaTeam ? teamMatchups.get(player.nbaTeam) : undefined
@@ -154,19 +150,19 @@ const BenchRow = memo(function BenchRow({
                 targetState === 'invalid' && styles.invalidTargetRow,
             ]}
             onPress={onPress}
-            disabled={disabled || locks.length > 0 || isLocked || targetState === 'invalid'}
+            disabled={disabled || isLocked || targetState === 'invalid'}
             disabledOpacity={readOnly ? 1 : undefined}
             accessibilityRole="button"
             accessibilityLabel={`Bench ${player.displayName}`}
             accessibilityHint={targetState === 'valid' ? 'Move here to place the selected player on the bench' : undefined}
-            accessibilityState={{ selected: isSelected, disabled: disabled || locks.length > 0 || isLocked || targetState === 'invalid' }}
+            accessibilityState={{ selected: isSelected, disabled: disabled || isLocked || targetState === 'invalid' }}
         >
 <PlayerRowContent name={player.displayName} nbaId={player.nbaId} team={player.nbaTeam} positions={player.eligiblePositions}
                         playerId={player.playerId} yearsExp={player.yearsExp} careerGames={player.careerGames} injuryStatus={player.injuryStatus} stats={benchMatchupLabel ?? undefined} />
                     <Text style={[styles.rowStatus, isLocked ? styles.lockedBadge : styles.moveBadge]}>
                 {isLocked ? isLive ? 'LIVE' : 'LOCK' : targetState === 'valid' ? 'MOVE' : ''}
             </Text>
-        </MotionPressable><LockedAssetNotice locks={locks} /></View>
+        </MotionPressable></View>
     )
 })
 
@@ -473,22 +469,18 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
     })
     recoverLineup.current = canRecover
 
-    const requestedLock = [...visibleStarters.flatMap(slot => slot.player ? [slot.player] : []), ...visibleBench].some(player => player.playerId === requestedPlayerId && readAssetLocks(player).length > 0)
-    const preselectedKey = requestedPlayerId && !requestedLock ? `${ownerKey}:${selectedDate}:${requestedPlayerId}` : null
+    const preselectedKey = requestedPlayerId ? `${ownerKey}:${selectedDate}:${requestedPlayerId}` : null
     const preselectionPending = Boolean(preselectedKey && preselectedKeyRef.current !== preselectedKey && !readOnly && lineupForActions)
     const requestedStarterIndex = preselectionPending ? visibleStarters.findIndex((slot) => slot.player?.playerId === requestedPlayerId) : -1
     const requestedBenchIndex = preselectionPending ? visibleBench.findIndex((player) => player.playerId === requestedPlayerId) : -1
-    const selectedPlayer = selected?.kind === 'starter' ? visibleStarters[selected.index]?.player : selected ? visibleBench[selected.index] : null
-    const selectionLocked = readAssetLocks(selectedPlayer).length > 0
-    useEffect(() => { if (selectionLocked) setSelected(null) }, [selectionLocked, setSelected])
-    const displayedSelection = selectionLocked ? null : requestedStarterIndex >= 0
+    const displayedSelection = requestedStarterIndex >= 0
         ? { kind: 'starter' as const, index: requestedStarterIndex }
         : requestedBenchIndex >= 0
             ? { kind: 'bench' as const, index: requestedBenchIndex }
             : selected
 
     useEffect(() => {
-        if (!requestedPlayerId || [...visibleStarters.flatMap(slot => slot.player ? [slot.player] : []), ...visibleBench].some(player => player.playerId === requestedPlayerId && readAssetLocks(player).length > 0) || readOnly || lineupLoading || lineupRefreshing || !lineupForActions) return
+        if (!requestedPlayerId || readOnly || lineupLoading || lineupRefreshing || !lineupForActions) return
         const preselectedKey = `${ownerKey}:${selectedDate}:${requestedPlayerId}`
         if (preselectedKeyRef.current === preselectedKey) return
         preselectedKeyRef.current = preselectedKey
@@ -599,7 +591,6 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
         )
     }
 
-    const pendingAssetLocks = [...visibleStarters.flatMap(slot => readAssetLocks(slot.player)), ...visibleBench.flatMap(readAssetLocks)]
     const rosterEmpty = visibleStarters.every((s) => !s.player) && visibleBench.length === 0
 
     return (
@@ -615,13 +606,13 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
             <View style={{ marginHorizontal: padX }} accessibilityLabel="Auto lineup">
                 <LineupControls
                     automatic={seasonOptimizerEnabled}
-                    automaticDisabled={pendingAssetLocks.length > 0 || readOnly || optimizerSaving}
+                    automaticDisabled={readOnly || optimizerSaving}
                     onAutomaticChange={(enabled) => { void (enabled ? handleEnableSeasonOptimizer() : handleDisableSeasonOptimizer()) }}
                 />
             </View>
 
             <Text style={[textStyles.meta, { paddingHorizontal: padX, paddingVertical: spacing.sm }]}>
-                Tap a player, then a slot or another player to swap. Locked players stay in place.
+                Tap a player, then a slot or another player to swap. Players whose games have started stay in place.
             </Text>
 
             {/* Day selector */}
@@ -736,7 +727,7 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
                                         {player ? <PlayerRowContent name={player.displayName} nbaId={player.nbaId} team={player.nbaTeam}
                                             positions={player.eligiblePositions} playerId={player.playerId} yearsExp={player.yearsExp} careerGames={player.careerGames}
                                             injuryStatus={player.injuryStatus} /> : <Text style={styles.emptySlot}>Empty {label.toLowerCase()} slot</Text>}
-                                    </View><LockedAssetNotice locks={readAssetLocks(player)} /></View>
+                                    </View></View>
                                 )
                             })}
                         </View>
