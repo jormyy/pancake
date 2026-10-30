@@ -91,11 +91,11 @@ type ManualRequest = {
 serveInternal('lineup-optimizer', async (req) => {
   const body: Record<string, unknown> = req.method === 'POST' ? await req.json().catch(() => ({})) : {}
   if (body.mode === 'pre_tipoff') {
-    const result = await recordSyncRun('lineup-optimizer', async () => {
+    const { batchFailed, ...result } = await recordSyncRun('lineup-optimizer', async () => {
       const outcome = await processPreTipoff(body)
-      return { result: outcome, rowsAffected: outcome.optimized, failure: outcome.failed ? outcome.errors.join('\n') : null }
+      return { result: outcome, rowsAffected: outcome.optimized, failure: outcome.batchFailed ? outcome.errors.join('\n') : null }
     }, req)
-    return Response.json({ ok: result.failed === 0, ...result }, { status: result.failed ? 500 : 200 })
+    return Response.json({ ok: !batchFailed, ...result }, { status: batchFailed ? 500 : 200 })
   }
   const manual = manualRequest(body)
   if (manual) {

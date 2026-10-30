@@ -103,7 +103,8 @@ export async function runEdgeInvocation(
 ): Promise<Response> {
   const key = request.headers.get('x-pancake-invocation-id')
   if (!key) return await handler(request)
-  const { error: startError } = await supabase.rpc('start_edge_invocation', {
+  const work = request.headers.get('x-pancake-work-id')
+  const { error: startError } = await supabase.rpc(work ? 'start_work_invocation' : 'start_edge_invocation', {
     p_invocation_key: key, p_function_name: functionName,
   }).abortSignal(AbortSignal.timeout(5000))
   if (startError) throw startError
@@ -122,14 +123,13 @@ export async function runEdgeInvocation(
     }).finally(() => { renewal = null })
     return renewal
   }
-  const heartbeat = request.headers.get('x-pancake-work-id') ? startLeaseHeartbeat(
+  const heartbeat = work ? startLeaseHeartbeat(
     async () => { await renew(); return true },
     30_000,
     () => controller.abort(new Error('Work lease lost')),
   ) : null
   let response: Response
   try {
-    if (heartbeat) await renew()
     response = await withWorkContext({ signal: controller.signal, ...(heartbeat ? { workInvocation: key, renewLease: renew } : {}) }, () => handler(request))
     if (heartbeat?.lost) throw new Error('Work lease lost')
     if (!response.ok && !invocation.failure) invocation.failure = `HTTP ${response.status}`

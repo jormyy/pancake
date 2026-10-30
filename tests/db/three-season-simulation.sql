@@ -468,7 +468,7 @@ SELECT pg_temp.checkpoint('season 1: waivers');
 -- Season 1: trades, vetoes, expiry, reservations, and pick swaps ---------------------
 CREATE TEMP TABLE sim_trades (key text PRIMARY KEY, id uuid);
 DO $$
-DECLARE i ids%ROWTYPE; v_t1 uuid; v_t2 uuid; v_t3 uuid; v_t4 uuid; v_tb uuid; v_n int;
+DECLARE i ids%ROWTYPE; v_t1 uuid; v_t2 uuid; v_t3 uuid; v_t4 uuid; v_tb uuid; v_overlap uuid; v_n int;
 BEGIN
   SELECT * INTO i FROM ids;
   PERFORM pg_temp.act_as(NULL);
@@ -487,12 +487,19 @@ BEGIN
   PERFORM public.veto_trade_atomic(v_t2, i.a1);
   PERFORM pg_temp.assert(pg_temp.trade_status(v_t2) = 'vetoed', 'member veto did not take: ' || pg_temp.trade_status(v_t2));
   PERFORM pg_temp.assert(pg_temp.owner_of(i.a, pg_temp.vet(12)) = i.a2, 'vetoed trade moved an asset');
-  -- T3 expires when its asset is dropped.
   v_t3 := public.propose_trade_atomic(i.a, pg_temp.season(i.a), i.a3, i.a1, ARRAY[pg_temp.vet(15)], ARRAY[pg_temp.vet(9)], '{}', '{}');
   PERFORM pg_temp.act_as(i.u1);
+  PERFORM pg_temp.rejected('drop a pending offer asset', pg_temp.try(format('SELECT public.drop_player_atomic(%L)', pg_temp.row_of(i.a1, pg_temp.vet(9)))), 'PA004:%Locked by trade%');
+  PERFORM pg_temp.act_as(NULL);
+  v_overlap := public.propose_trade_atomic(i.a, pg_temp.season(i.a), i.a1, i.a2, ARRAY[pg_temp.vet(9)], ARRAY[pg_temp.vet(12)], '{}', '{}');
+  PERFORM public.accept_trade_atomic(v_overlap, i.a2);
+  PERFORM pg_temp.assert(pg_temp.trade_status(v_t3) = 'withdrawn', 'acceptance did not cancel the overlapping received offer');
+  PERFORM pg_temp.assert((SELECT completion_failure_reason FROM public.trades WHERE id = v_t3) IS NOT NULL, 'cancelled offer has no reason');
+  PERFORM public.veto_trade_atomic(v_overlap, i.a3);
+  PERFORM pg_temp.assert(pg_temp.trade_status(v_overlap) = 'vetoed', 'overlapping trade veto did not release the player');
+  PERFORM pg_temp.act_as(i.u1);
   PERFORM public.drop_player_atomic(pg_temp.row_of(i.a1, pg_temp.vet(9)));
-  PERFORM pg_temp.assert(pg_temp.trade_status(v_t3) = 'expired', 'pending offer survived losing its asset: ' || pg_temp.trade_status(v_t3));
-  PERFORM pg_temp.assert((SELECT completion_failure_reason FROM public.trades WHERE id = v_t3) IS NOT NULL, 'expired offer has no reason');
+  PERFORM pg_temp.assert(pg_temp.owner_of(i.a, pg_temp.vet(9)) IS NULL, 'cancelled offer still blocked the released player');
   -- T4 swaps picks; A1's listed pick leaves the block when it changes hands.
   PERFORM pg_temp.act_as(NULL);
   v_t4 := public.propose_trade_atomic(i.a, pg_temp.season(i.a), i.a1, i.a3, '{}', '{}', ARRAY[pg_temp.pick('A1', 2099, 1)], ARRAY[pg_temp.pick('A3', 2099, 2)]);

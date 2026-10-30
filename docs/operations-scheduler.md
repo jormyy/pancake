@@ -159,3 +159,40 @@ First-scoring-day lookups stay shared within each scan.
 Chunk workers yield after 64 calls and retain their cursors for continuation.
 They pause for 100 real milliseconds before each call so consecutive chunks do not exhaust a shared CPU quota period.
 They leave one worker slot for urgent requests and wait during scheduler shedding.
+
+Cron history retention still runs hourly at :12 and respects the worker pause.
+Each call deletes at most 512 expired rows through locked tuple locations.
+Running executions with a current backend stay.
+Backlogs need multiple hourly calls; the hourly capacity is 12,288 rows per day.
+The job adds no continuation worker or Edge invocation.
+
+Leased Edge invocations use `start_work_invocation` to record startup and renew the lease together.
+Unleased invocations keep their existing startup RPC.
+The 30-second heartbeat and explicit phase renewals stay.
+Every accepted invocation keeps its start, finish, and reconciliation evidence.
+Apply migration 043 before deploying the shared invocation wrapper.
+
+Invocation reconciliation writes transport status and the settled worker outcome together.
+Young workers keep their existing grace period and transport evidence.
+The batch cap and scheduling stay the same.
+
+Trade refresh scans fingerprint all open trades in one league query.
+Only changed fingerprints or models queue valuations.
+New scans create no per-trade check jobs or continuation scans.
+Migrations 045 and 046 coalesce pending checks and duplicate scans into one full scan per season.
+The oldest scan keeps the earliest due time and loses its continuation cursor.
+Superseded rows retain a payload marker and finish as succeeded without emitting worker receipts.
+Their prior attempt counts, errors, and invocation keys stay available.
+Missing or closed scopes need no replacement scan.
+Running work, failed retry evidence, and existing revaluations stay unchanged.
+The cleanup repeats without changing rows or creating duplicate work.
+Locked pending rows remain compatible with the current worker.
+
+Refresh completion skips trade scans when their sources and model match the previous scan.
+Matching publications advance freshness without a worker.
+Input changes and temporal deadlines reopen the gate.
+Missing, dead, and older running work stay recoverable.
+The gate removes redundant maintenance receipts; source versions still publish immediately.
+Apply migration 046 before deploying the completion-call model field in `refresh-views`.
+The scheduler lane separately owns claim-order migrations 05406–05407.
+Keep its `private.work_claim` definition and regenerate attestations from the combined migration history during integration.

@@ -61,8 +61,7 @@ BEGIN
     PERFORM private.refresh_standings(queued.league_id, queued.league_season_id, queued.version);
     PERFORM private.refresh_matchup_totals(queued.league_id, queued.league_season_id, queued.version);
     PERFORM private.refresh_player_averages(queued.league_id, queued.league_season_id, queued.version);
-    PERFORM private.work_enqueue('trade-revaluation-scan',queued.league_season_id::text||':'||queued.version::text,now(),
-      jsonb_build_object('revaluationScan',true,'leagueId',queued.league_id,'seasonId',queued.league_season_id,'version',queued.version),queued.league_id);
+    PERFORM private.enqueue_trade_revaluation_scan(queued.league_season_id,queued.version,p_params->>'modelVersion');
   END IF;
   UPDATE private.screen_refresh_queue SET dirty = NOT completed, claim_token = NULL, claimed_at = NULL,
     claimed_version = NULL, last_error = NULL, available_at = CASE WHEN completed THEN available_at ELSE now() + interval '5 seconds' END WHERE league_season_id = queued.league_season_id;

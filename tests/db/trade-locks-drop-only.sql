@@ -82,6 +82,20 @@ BEGIN
     PERFORM pg_temp.reject_rules(format('UPDATE public.roster_players SET member_id=%L WHERE id=%L',f.member_ids[2],roster_ids[i]),
       'Locked by %', 'ownership guard remains '||i);
   END LOOP;
+  PERFORM set_config('request.jwt.claim.sub','',true);
+  PERFORM public.accept_trade_atomic(trade_id,f.member_ids[2]);
+  PERFORM pg_temp.check_rules((SELECT status='accepted' FROM public.trades WHERE id=trade_id), 'accepted trade reservation exists');
+  PERFORM set_config('request.jwt.claim.sub',f.user_ids[1]::text,true);
+  PERFORM pg_temp.reject_rules(format('SELECT public.drop_player_atomic(%L)',roster_ids[1]),
+    'Locked by trade %', 'accepted trade drop remains blocked');
+  PERFORM pg_temp.reject_rules(format('DELETE FROM public.roster_players WHERE id=%L',roster_ids[1]),
+    'Locked by trade %', 'accepted trade direct removal remains blocked');
+  PERFORM pg_temp.reject_rules(format('UPDATE public.roster_players SET is_on_ir=true WHERE id=%L',roster_ids[1]),
+    'Locked by trade %', 'accepted trade IR move remains blocked');
+  PERFORM pg_temp.reject_rules(format('UPDATE public.roster_players SET is_on_taxi=true WHERE id=%L',roster_ids[1]),
+    'Locked by trade %', 'accepted trade taxi move remains blocked');
+  PERFORM pg_temp.reject_rules(format('UPDATE public.roster_players SET member_id=%L WHERE id=%L',f.member_ids[2],roster_ids[1]),
+    'Locked by trade %', 'accepted trade ownership change remains blocked');
   UPDATE public.nba_games SET game_time=now()-interval '1 minute',status='InProgress' WHERE id=game_id;
   PERFORM pg_temp.reject_rules(format('SELECT public.set_player_slot_atomic(%L,%L,%L,%L,%L,''BE'',1)',f.member_ids[1],f.league_id,f.season_id,players[1],game_date),
     '%game has already started%', 'manual game-time lock remains');

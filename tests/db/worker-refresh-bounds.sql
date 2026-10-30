@@ -1,7 +1,7 @@
 BEGIN;
 \ir rules-support.sql
 DO $$
-DECLARE f record; other record; before_version bigint; claims jsonb; claim jsonb; completed jsonb; next_page jsonb;
+DECLARE f record; other record; before_version bigint; claims jsonb; claim jsonb; completed jsonb; cursor_id uuid;
 BEGIN
   SELECT * INTO f FROM pg_temp.rules_fixture(2,9592);
   SELECT * INTO other FROM pg_temp.rules_fixture(2,9593);
@@ -27,12 +27,16 @@ BEGIN
   INSERT INTO public.trades(league_id,league_season_id,proposer_member_id,recipient_member_id,status)
     SELECT f.league_id,f.season_id,f.member_ids[1],f.member_ids[2],'pending' FROM generate_series(1,21);
   PERFORM private.refresh_queue_trade_revaluations(f.season_id,(claim->>'version')::bigint,'fixture');
-  PERFORM pg_temp.check_rules((SELECT count(*)=20 FROM private.work_items WHERE kind='trade-revaluation-check' AND league_id=f.league_id),
-    'one scan queues at most twenty independent input checks');
-  SELECT payload INTO next_page FROM private.work_items WHERE kind='trade-revaluation-scan' AND payload ? 'after' AND league_id=f.league_id;
-  PERFORM private.refresh_queue_trade_revaluations(f.season_id,(claim->>'version')::bigint,'fixture',(next_page->>'after')::uuid);
-  PERFORM pg_temp.check_rules((SELECT count(*)=21 FROM private.work_items WHERE kind='trade-revaluation-check' AND league_id=f.league_id),
-    'the continuation queues the remaining trade exactly once');
+  PERFORM pg_temp.check_rules((SELECT count(*)=21 FROM private.work_items WHERE kind='trade-revaluation' AND league_id=f.league_id),
+    'one league scan queues every changed open trade');
+  PERFORM pg_temp.check_rules(NOT EXISTS(SELECT 1 FROM private.work_items WHERE kind='trade-revaluation-check' AND league_id=f.league_id),
+    'one league scan creates no independent input checks');
+  PERFORM pg_temp.check_rules(NOT EXISTS(SELECT 1 FROM private.work_items WHERE kind='trade-revaluation-scan' AND payload ? 'after' AND league_id=f.league_id),
+    'one league scan needs no continuation');
+  SELECT id INTO cursor_id FROM public.trades WHERE league_season_id=f.season_id AND status='pending' ORDER BY id LIMIT 1;
+  PERFORM private.refresh_queue_trade_revaluations(f.season_id,(claim->>'version')::bigint,'fixture',cursor_id);
+  PERFORM pg_temp.check_rules((SELECT count(*)=21 FROM private.work_items WHERE kind='trade-revaluation' AND league_id=f.league_id),
+    'a legacy continuation reuses the existing valuation keys');
 END;
 $$;
 DELETE FROM private.work_items;

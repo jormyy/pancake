@@ -71,11 +71,16 @@ Lease loss or the work deadline cancels outstanding requests and records a failu
 The next minute retries failed work and expired claims before tipoff.
 A new token fences the previous worker.
 Each team has one receipt per dispatch revision. The lineup write and receipt share one transaction.
+A member failure gets a receipt with its error. Other members continue, and the dispatch finishes successfully.
+The response retains the failed count and member errors. Those errors do not fail or retry the work item.
+Lease loss, dispatch failures, and failure-receipt write errors still fail the batch and permit recovery.
 A retry keeps its revision. A real input change starts a new revision with a new token.
 A retry skips completed teams, including after a worker loses its response.
+An unchanged revision also skips recorded member failures. New inputs allow those members to run again.
 The database checks the setting again before writing and rejects fresh unlocked Out starters.
 Existing lineup RPCs enforce roster ownership, slot counts, eligibility, and locks.
 Manual and automatic writes share the existing roster and date locks.
+Pending offers do not block starter and bench changes. Roster removals, IR and taxi moves retain their reservation guards.
 Unchanged assignments preserve row identities and timestamps.
 Dispatch tables and RPCs are service-only. Client setting permissions stay unchanged.
 

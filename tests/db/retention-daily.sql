@@ -26,7 +26,7 @@ BEGIN
   INSERT INTO public.matchups(id,league_id,league_season_id,week_number,home_member_id,away_member_id)
     VALUES(v_old_match,f.league_id,f.season_id,1,f.member_ids[1],f.member_ids[2]),
       (v_live_match,f.league_id,f.season_id,2,f.member_ids[1],f.member_ids[2]);
-  INSERT INTO private.matchup_forecast_queue(matchup_id,changed_at) VALUES(v_old_match,v_now-interval '40 days')
+  INSERT INTO private.matchup_forecast_queue(matchup_id,changed_at) VALUES(v_old_match,v_now-interval '40 days'),(v_live_match,v_now)
     ON CONFLICT(matchup_id) DO UPDATE SET changed_at=EXCLUDED.changed_at;
   INSERT INTO public.matchup_forecasts(matchup_id,league_id,input_revision,forecast,valid_until)
     VALUES(v_old_match,f.league_id,1,'{}',v_now-interval '30 days'),(v_live_match,f.league_id,1,'{}',v_now+interval '1 day');
@@ -177,7 +177,7 @@ BEGIN
     'retention summary has one row per pruned table');
   PERFORM pg_temp.check_rules(NOT has_function_privilege('authenticated','public.retention_dashboard()','EXECUTE')
     AND NOT has_function_privilege('anon','private.run_retention(timestamptz)','EXECUTE'),'retention and dashboard require backend access');
-  PERFORM pg_temp.check_rules((SELECT count(*)=1 AND bool_and(jobname='work-dispatcher' AND schedule='* * * * *' AND command LIKE '%public.dispatch_work()%') FROM cron.job WHERE jobname NOT IN ('io-hint-drain','io-cron-history-retention','public-read-retention')),'one dispatcher cron entry owns daily retention scheduling');
+  PERFORM pg_temp.check_rules((SELECT count(*)=1 AND bool_and(jobname='work-dispatcher' AND schedule='* * * * *' AND command LIKE '%public.dispatch_work()%') FROM cron.job WHERE jobname IN ('work-dispatcher','retention-prune','cleanup-trade-estimates') OR command LIKE '%private.run_retention(%'),'one dispatcher cron entry owns daily retention scheduling');
 END;
 $$;
 SELECT count(*) AS passed FROM rules_checks;

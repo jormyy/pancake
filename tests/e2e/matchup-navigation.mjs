@@ -1,18 +1,20 @@
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
 import { createClient } from '@supabase/supabase-js'
 import { chromium, devices, webkit } from 'playwright'
 
-const api = 'http://127.0.0.1:60521'
-const frontend = 'http://127.0.0.1:60590'
+const pwaLocal = process.env.PANCAKE_PWA_LOCAL === '1'
+const api = pwaLocal ? 'http://127.0.0.1:64921' : 'http://127.0.0.1:60521'
+const edge = pwaLocal ? 'http://127.0.0.1:64981' : api
+const frontend = pwaLocal ? 'http://127.0.0.1:64991' : 'http://127.0.0.1:60590'
 const date = '2026-10-26'
 const output = process.env.PANCAKE_LAYOUT_OUTPUT
 assert.ok(output)
-assert.match(await readFile('supabase/config.toml', 'utf8'), /project_id = "pt4bafabledl"/)
+assert.match(await readFile('supabase/config.toml', 'utf8'), pwaLocal ? /project_id = "pt4bafablec1"/ : /project_id = "pt4bafabledl"/)
 const stack = JSON.parse(execFileSync('supabase', ['status', '-o', 'json'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }))
 assert.equal(stack.API_URL, api)
 const admin = createClient(api, stack.SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } })
@@ -29,7 +31,7 @@ try {
     await checked(admin.from('league_members').update({ user_id: user.id }).eq('id', actorId))
     const auth = createClient(api, stack.ANON_KEY, { auth: { persistSession: false, autoRefreshToken: false } })
     const { session } = await checked(auth.auth.signInWithPassword({ email, password }))
-    const response = await fetch(`${api}/functions/v1/api/views/home?leagueId=${league}&memberId=${actorId}&params=${encodeURIComponent(JSON.stringify({ date }))}`, { headers: { Authorization: `Bearer ${session.access_token}` } })
+    const response = await fetch(`${edge}/functions/v1/api/views/home?leagueId=${league}&memberId=${actorId}&params=${encodeURIComponent(JSON.stringify({ date }))}`, { headers: { Authorization: `Bearer ${session.access_token}` } })
     assert.equal(response.ok, true)
     const { view } = await response.json()
     const own = view.leagueMatchups.find(matchup => matchup.isMine)
@@ -41,7 +43,11 @@ try {
     const context = await browser.newContext({ ...devices['iPhone 14'], viewport: { width: 390, height: 844 }, serviceWorkers: 'block' })
     await context.route('**/*', route => {
         const target = new URL(route.request().url())
-        return target.hostname === '127.0.0.1' && ['60521', '60590'].includes(target.port) || ['data:', 'blob:'].includes(target.protocol) ? route.continue() : route.abort()
+        if (pwaLocal && target.hostname === '127.0.0.1' && target.port === '64921' && target.pathname.startsWith('/functions/v1/')) {
+            target.port = '64981'
+            return route.continue({ url: target.href })
+        }
+        return target.hostname === '127.0.0.1' && [new URL(api).port, new URL(frontend).port].includes(target.port) || ['data:', 'blob:'].includes(target.protocol) ? route.continue() : route.abort()
     })
     await context.addInitScript(({ session, userId, actorId }) => {
         localStorage.setItem('sb-127-auth-token', JSON.stringify(session))
@@ -110,8 +116,11 @@ try {
     assert.deepEqual(errors, [])
     const cli = path.resolve('node_modules/.bin/agent-browser')
     const browserSession = `matchup-nav-${randomUUID()}`
+    const config = path.join(output, 'agent-browser-config.json')
+    if (pwaLocal) await writeFile(config, '{}\n')
+    const cliOptions = pwaLocal ? ['--config', config, '--headed', 'false', '--profile', path.join(output, 'automation-profile'), '--proxy', 'http://127.0.0.1:64988', '--proxy-bypass', '<-loopback>'] : []
     const run = args => {
-        try { return execFileSync(cli, ['--session', browserSession, ...args], { encoding: 'utf8', timeout: 60000, stdio: ['ignore', 'pipe', 'pipe'] }) }
+        try { return execFileSync(cli, [...cliOptions, '--session', browserSession, ...args], { encoding: 'utf8', timeout: 60000, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, ...(pwaLocal ? { AGENT_BROWSER_AUTO_CONNECT: 'false' } : {}) } }) }
         catch { throw new Error(`agent-browser action failed: ${args[0]}`) }
     }
     const read = () => JSON.parse(run(['eval', `(() => ({url:location.href, heading:Array.from(document.querySelectorAll('[data-testid="matchup-score-card"]')).at(-1)?.textContent, day:Array.from(document.querySelectorAll('[data-testid="matchup-score-card"]')).at(-1)?.parentElement?.querySelector('[aria-current="date"]')?.getAttribute('aria-label'), selected:Array.from(document.querySelectorAll('[data-testid="other-matchups"]')).at(-1)?.querySelector('[aria-current="true"]')?.getAttribute('aria-label'), first:Array.from(document.querySelectorAll('[data-testid="other-matchups"]')).at(-1)?.querySelector('[role="button"]')?.getAttribute('aria-label')}))()`]))
@@ -196,6 +205,7 @@ try {
             await delay(200)
         }
         assert.ok(!sessions.includes(browserSession))
+        if (pwaLocal) await rm(path.join(output, 'automation-profile'), { recursive: true, force: true })
     }
     await writeFile(path.join(output, 'navigation-evidence.json'), JSON.stringify({ records, errors, order: ordered.map(matchup => ({ id: matchup.id, label: label(matchup) })) }, null, 2))
     console.log(`PASS: ${ordered.length} matchups at 320/390/768, both wrap directions, date preservation, own-card return, and agent-browser screenshots`)
@@ -207,6 +217,10 @@ try {
     throw error
 } finally {
     await browser?.close()
-    execFileSync('psql', ['postgresql://postgres:postgres@127.0.0.1:60522/postgres', '-X', '-v', 'ON_ERROR_STOP=1', '-c', `SET session_replication_role=replica; UPDATE public.league_members SET user_id='${actor.user_id}' WHERE id='${actorId}';`], { stdio: 'ignore' })
+    const restore = `SET session_replication_role=replica; UPDATE public.league_members SET user_id='${actor.user_id}' WHERE id='${actorId}';`
+    if (pwaLocal) {
+        const { sql } = await import('./pwa-live-game/database.mjs')
+        await sql(restore)
+    } else execFileSync('psql', ['postgresql://postgres:postgres@127.0.0.1:60522/postgres', '-X', '-v', 'ON_ERROR_STOP=1', '-c', restore], { stdio: 'ignore' })
     await checked(admin.auth.admin.deleteUser(user.id))
 }

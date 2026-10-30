@@ -106,7 +106,9 @@ function draftState(): DraftState {
 
 
 const notify = async () => {
-    await act(async () => { mocks.channels.at(-1)!.on.mock.calls[0][2]() })
+    await act(async () => { mocks.channels.at(-1)!.on.mock.calls[0][2]({
+        payload: { schema: 'public', table: 'nominations', eventType: 'UPDATE', new: {}, old: {} },
+    }) })
 }
 
 it('admits a sustained bid stream within 500 ms', async () => {

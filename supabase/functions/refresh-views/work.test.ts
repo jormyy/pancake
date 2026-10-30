@@ -17,11 +17,12 @@ const backend = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, as
 Deno.env.set('SUPABASE_URL', `http://127.0.0.1:${(backend.addr as Deno.NetAddr).port}`)
 Deno.env.set('PANCAKE_SUPABASE_SECRET_KEY', 'sb_secret_refresh_fixture')
 const { refreshViews } = await import('./work.ts')
+const { DYNASTY_TRADE_MODEL_VERSION } = await import('../_shared/dynastyEngine.ts')
 
 Deno.test('screens publish without reading or waiting for any trade', async () => {
   const output = await refreshViews()
   assert.deepEqual(output.result, { completed: 1, failures: [] })
-  assert.deepEqual(calls.at(-1), { p_league_id: leagueId, p_params: { seasonId, version: 12, claimToken, operation: 'complete' } })
+  assert.deepEqual(calls.at(-1), { p_league_id: leagueId, p_params: { seasonId, version: 12, claimToken, operation: 'complete', modelVersion: DYNASTY_TRADE_MODEL_VERSION } })
 })
 
 Deno.test('stale screen claims are not counted as successful', async () => {

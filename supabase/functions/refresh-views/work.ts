@@ -1,5 +1,6 @@
 import { renewCurrentWorkLease } from '../_shared/workContext.ts'
 import { supabase } from '../_shared/supabase.ts'
+import { DYNASTY_TRADE_MODEL_VERSION } from '../_shared/dynastyEngine.ts'
 
 type RefreshClaim = {
   leagueId: string
@@ -21,7 +22,7 @@ export async function refreshViews() {
       await renewCurrentWorkLease()
       const { data: saved, error: saveError } = await supabase.rpc('view_refresh_work', {
         p_league_id: claim.leagueId,
-        p_params: { ...params, operation: 'complete' },
+        p_params: { ...params, operation: 'complete', modelVersion: DYNASTY_TRADE_MODEL_VERSION },
       })
       if (saveError) throw saveError
       if (saved) completed++

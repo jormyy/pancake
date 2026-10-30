@@ -2306,6 +2306,7 @@ export type Database = {
       lineup_tipoff_members: {
         Row: {
           completed_at: string
+          error: string | null
           input_revision: number
           league_id: string
           league_season_id: string
@@ -2314,6 +2315,7 @@ export type Database = {
         }
         Insert: {
           completed_at?: string
+          error?: string | null
           input_revision?: number
           league_id: string
           league_season_id: string
@@ -2322,6 +2324,7 @@ export type Database = {
         }
         Update: {
           completed_at?: string
+          error?: string | null
           input_revision?: number
           league_id?: string
           league_season_id?: string
@@ -6978,6 +6981,17 @@ export type Database = {
         }
         Returns: boolean
       }
+      record_pre_tipoff_lineup_failure: {
+        Args: {
+          p_error: string
+          p_league_id: string
+          p_league_season_id: string
+          p_member_id: string
+          p_tipoff_at: string
+          p_token: string
+        }
+        Returns: undefined
+      }
       refresh_player_search_caches: { Args: never; Returns: undefined }
       register_push_token_atomic: {
         Args: { p_revocation_hash: string; p_token: string; p_user_id: string }
@@ -7386,6 +7400,10 @@ export type Database = {
           p_timer_expiry_behavior?: string
         }
         Returns: Json
+      }
+      start_work_invocation: {
+        Args: { p_function_name: string; p_invocation_key: string }
+        Returns: string
       }
       stop_draft_atomic: {
         Args: { p_actor_user_id?: string; p_draft_id: string }

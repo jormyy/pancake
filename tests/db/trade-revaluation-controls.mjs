@@ -8,9 +8,9 @@ const recipe = name => readFileSync(`tests/db/${name}.sql`, 'utf8').replace(/^BE
 export const revaluationControlCases = () => [
   {
     name: 'closed trades',
-    original: source('private/refresh_queue_trade_revaluations'),
-    definition: source('private/refresh_queue_trade_revaluations').replace("AND t.status IN ('pending','accepted')", ''),
-    recipe: 'trade-revaluation-scope', expected: 'only pending and accepted trades get individual work',
+    original: source('private/trade_revaluation_input_versions'),
+    definition: source('private/trade_revaluation_input_versions').replace("AND trade.status IN ('pending','accepted')", ''),
+    recipe: 'trade-revaluation-batch', expected: 'closed trades are excluded',
   },
   {
     name: 'stale fingerprints',
@@ -33,7 +33,7 @@ export const revaluationControlCases = () => [
   {
     name: 'source revisions',
     original: source('private/trade_revaluation_input_version'),
-    definition: source('private/trade_revaluation_input_version').replace(/AS \$\$[\s\S]*?\$\$;/, () => "AS $$ SELECT 'constant'::text; $$;"),
+    definition: source('private/trade_revaluation_input_version').replace('LANGUAGE plpgsql','LANGUAGE sql').replace(/AS \$\$[\s\S]*?\$\$;/, () => "AS $$ SELECT 'constant'::text; $$;"),
     recipe: 'trade-revaluation-fast', expected: 'player metadata changes the version',
   },
   {
@@ -47,7 +47,9 @@ function runRevaluationControls() {
   const url = new URL(process.env.SUPABASE_DB_URL ?? '')
   if (url.hostname !== '127.0.0.1' || url.port !== (process.env.PANCAKE_TEST_DB_PORT ?? '61522')) throw new Error('Use the private revaluation database')
   for (const test of revaluationControlCases()) {
-  const sql = `BEGIN;\n${test.definition}\n${recipe(test.recipe)}`.replace('\\ir rules-support.sql', () => readFileSync('tests/db/rules-support.sql', 'utf8'))
+  const sql = `BEGIN;\n${test.definition}\n${recipe(test.recipe)}`
+    .replace('\\ir rules-support.sql', () => readFileSync('tests/db/rules-support.sql', 'utf8'))
+    .replace('\\ir perf-l4-trade-batch-fixture.sql', () => readFileSync('tests/db/perf-l4-trade-batch-fixture.sql', 'utf8'))
   const result = spawnSync('psql', [url.href, '-Xq', '-v', 'ON_ERROR_STOP=1', '-f', '-'], { input: sql, encoding: 'utf8' })
   if (result.status === 0 || !result.stderr.includes(`FAIL: ${test.expected}`)) throw new Error(`${test.name}: control failed unexpectedly\n${result.stderr}`)
   console.log(`Rejected broken control: ${test.name}`)

@@ -25,6 +25,7 @@ export function useLiveViewRecovery(scope: ScreenScope | null, value: unknown, e
     const external = Boolean(source?.context?.today && source.selectedDate !== source.context.today && source.weekDays?.some(day => day.isToday && day.hasGames))
     const dayKey = external && key ? JSON.stringify([scope!.accountId, scope!.leagueId, source?.context?.today]) : null
     const [slate, setSlate] = useState<{ key: string; games: Game[] } | null>(null)
+    const verificationFailed = useRef(false)
     const slateReady = slate?.key === dayKey
     const games = external ? slateReady ? slate!.games : [] : source?.todaysGames ?? []
     const signature = JSON.stringify(games.map(game => [game.id, game.status, game.game_time, game.game_status_text]))
@@ -61,9 +62,10 @@ export function useLiveViewRecovery(scope: ScreenScope | null, value: unknown, e
             checking = true
             try {
                 await revalidateScreenVersion(latest.current.scope!)
+                if (allowed()) verificationFailed.current = false
                 if (allowed()) await loadSlate()
             } catch (error) {
-                if (allowed()) console.error('Could not verify the live matchup.', error)
+                if (allowed()) { verificationFailed.current = true; console.error('Could not verify the live matchup.', error) }
             } finally { checking = false; schedule() }
         }
         const resume = () => {
@@ -93,4 +95,5 @@ export function useLiveViewRecovery(scope: ScreenScope | null, value: unknown, e
             if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', resume)
         }
     }, [key, enabled, generation, signature, dayKey, slateReady])
+    return verificationFailed
 }

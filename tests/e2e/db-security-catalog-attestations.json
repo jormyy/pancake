@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261214005409",
+  "candidateVersion": "20261214005500",
   "common": {
     "functions": [
       {
@@ -698,7 +698,7 @@
           "strict": false,
           "language": "plpgsql",
           "arguments": "",
-          "bodySha256": "9e88b93f37decc28399e26f46a0691bf3aef92923662d80795f5bd2c7d482b6b",
+          "bodySha256": "0f8f5bfb1520526649073800b946c60847f7734d3c92c397108a5886bcfb54cc",
           "volatility": "v",
           "anonExecute": false,
           "publicExecute": false,
@@ -981,6 +981,13 @@
           "enabled": "O",
           "definition": "CREATE TRIGGER attach_submitted_trade_estimate AFTER INSERT ON public.trade_estimate_quotes FOR EACH ROW EXECUTE FUNCTION private.attach_submitted_trade_estimate()",
           "functionName": "attach_submitted_trade_estimate",
+          "functionSchema": "private"
+        },
+        {
+          "name": "broadcast_live_change",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER broadcast_live_change AFTER INSERT OR DELETE OR UPDATE ON public.roster_players FOR EACH ROW EXECUTE FUNCTION private.broadcast_live_change()",
+          "functionName": "broadcast_live_change",
           "functionSchema": "private"
         },
         {
@@ -2373,8 +2380,36 @@
       "sha256": "6b6e8ad675d8d35379c25848541d65a4cff5a09b351a96e33b529df4eafcdbf7"
     },
     {
+      "filename": "20261214004000_live_broadcast.sql",
+      "sha256": "791b6a574e7682b3b867ae63a3717cf98a01f8b89a15d27a1b12546a6413da6a"
+    },
+    {
+      "filename": "20261214004010_coalesce_live_hints.sql",
+      "sha256": "ee10ee1820fb6501cb5a7e094ebbc82f384ba9ce207ab2d99bbeb529130746cc"
+    },
+    {
       "filename": "20261214004100_skip_fresh_screen_statistics.sql",
       "sha256": "b48de4d7f54ac024986c460fb75dfc590518d0b4ff685be96ffc9fd009888462"
+    },
+    {
+      "filename": "20261214004200_bound_cron_history_batches.sql",
+      "sha256": "3584a45646187951ddaee0105b5a1d5f249d3a42df5fd31dd5513aac0d32c7d5"
+    },
+    {
+      "filename": "20261214004300_start_work_invocation.sql",
+      "sha256": "ef8146d44999a5da3fdfff98f8bf721da7f56bc355cbf7975982c333708370c3"
+    },
+    {
+      "filename": "20261214004400_coalesce_invocation_reconciliation.sql",
+      "sha256": "6b51f68213d09edebe7d55fc13ea2272cc45563b275d0282f6e69129ad5a8b97"
+    },
+    {
+      "filename": "20261214004500_batch_trade_refresh_checks.sql",
+      "sha256": "2c1ceeb34184d788a301a3ade895f7cd822cd72386024e9e942b6b45d42977b1"
+    },
+    {
+      "filename": "20261214004600_gate_unchanged_trade_scans.sql",
+      "sha256": "86d1bc4210f4ca2db754159567afb25e88689e64885a3a9bd825263811f4c2f5"
     },
     {
       "filename": "20261214005000_trade_action_reservations.sql",
@@ -2443,6 +2478,10 @@
     {
       "filename": "20261214005409_notification_scan_safeupdate.sql",
       "sha256": "d87161cc2a27a866b8e1f158c2a48ffea7d80e6ba6a8fd215ba1717291deae0b"
+    },
+    {
+      "filename": "20261214005500_pre_tipoff_member_failures.sql",
+      "sha256": "88dd02c60544fdbd09166f736b8d774e46bdc90afc555bb7ec79d3ec7c945d2f"
     }
   ],
   "preMigration": {
