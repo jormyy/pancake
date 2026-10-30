@@ -15,12 +15,12 @@ Deno.test('waiver processing leaves result notifications to the database trigger
   globalThis.fetch = async (input, init) => {
     const request = new Request(input, init)
     const url = new URL(request.url)
-    if (url.pathname.endsWith('/process_due_waiver_claims_atomic')) return Response.json(batches++ === 0 ? [
-      { claim_id: 'won', member_id: 'member', player_id: 'player', status: 'succeeded', processed: true },
-      { claim_id: 'lost', member_id: 'member', player_id: 'player', status: 'failed_priority', failure_reason: 'Higher priority', processed: true },
-      { claim_id: 'full', member_id: 'member', player_id: 'player', status: 'failed_roster', processed: true },
-      { claim_id: 'cancelled', member_id: 'member', player_id: 'player', status: 'cancelled', processed: true },
-    ] : [])
+    if (url.pathname.endsWith('/process_due_waiver_claims_atomic')) {
+      assert.equal(url.searchParams.get('select'), 'processed')
+      return Response.json(batches++ === 0 ? [
+        { processed: true }, { processed: true }, { processed: true }, { processed: true }, { processed: false },
+      ] : [])
+    }
     if (url.pathname.endsWith('/count_due_waiver_claims')) return Response.json(0)
     if (url.pathname.endsWith('/players')) return Response.json([{ id: 'player', display_name: 'Player' }])
     if (url.pathname.endsWith('/notification_outbox')) {

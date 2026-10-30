@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261214003900",
+  "candidateVersion": "20261214005302",
   "common": {
     "functions": [
       {
@@ -2371,6 +2371,38 @@
     {
       "filename": "20261214003900_screens_after_211.sql",
       "sha256": "6b6e8ad675d8d35379c25848541d65a4cff5a09b351a96e33b529df4eafcdbf7"
+    },
+    {
+      "filename": "20261214004100_skip_fresh_screen_statistics.sql",
+      "sha256": "b48de4d7f54ac024986c460fb75dfc590518d0b4ff685be96ffc9fd009888462"
+    },
+    {
+      "filename": "20261214005000_trade_action_reservations.sql",
+      "sha256": "bdea33f4bc6419bd32110ec329d72dad193411c4fd2e45192d48b6431c0b5e8c"
+    },
+    {
+      "filename": "20261214005001_trade_reanalysis_averages.sql",
+      "sha256": "a78ae4fa6755112cc045d2d82f3c75b7b48adc41875372cede60d05e896e64d1"
+    },
+    {
+      "filename": "20261214005100_roster_action_game_locks.sql",
+      "sha256": "94feea8d49e5d7627ffa324d8c500a8033faf520915333e7041b6afb53562c03"
+    },
+    {
+      "filename": "20261214005200_lineup_fallback_stored_rows.sql",
+      "sha256": "7192508964a532c619346aaed64127cc88dfb7cb3748fdb43448aa91f0f81573"
+    },
+    {
+      "filename": "20261214005300_batched_dynasty_rankings.sql",
+      "sha256": "da49e8e2e760d524e9b0bf6aa39e83c62b01bd486bfd906b1ac2e766190516a9"
+    },
+    {
+      "filename": "20261214005301_delete_unarmed_timer_writes.sql",
+      "sha256": "c7ba1d153e020cff101ea8a1678a3bb8637ff1166a716948b53b3a32301689b9"
+    },
+    {
+      "filename": "20261214005302_shared_visible_games.sql",
+      "sha256": "198ebf801a748563adde7ec98837075fe2a5dfff83bb04b332a79e245a959ebc"
     }
   ],
   "preMigration": {

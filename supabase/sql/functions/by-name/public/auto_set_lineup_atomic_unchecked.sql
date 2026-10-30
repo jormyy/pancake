@@ -361,11 +361,15 @@ BEGIN
           WHERE a->>'slot_type' = v_slot.slot_type::text) >= v_slot.number THEN
           CONTINUE;
         END IF;
+        WITH stored AS MATERIALIZED (
+          SELECT id, player_id FROM weekly_lineups
+           WHERE member_id = p_member_id AND league_id = p_league_id
+             AND league_season_id = p_league_season_id AND game_date = p_game_date
+             AND slot_type = v_slot.slot_type
+        )
         SELECT rp.player_id INTO v_candidate
           FROM roster_players rp JOIN players p ON p.id = rp.player_id
-          LEFT JOIN weekly_lineups wl ON wl.member_id = p_member_id AND wl.league_id = p_league_id
-            AND wl.league_season_id = p_league_season_id AND wl.game_date = p_game_date
-            AND wl.player_id = rp.player_id AND wl.slot_type = v_slot.slot_type
+          LEFT JOIN stored wl ON wl.player_id = rp.player_id
           LEFT JOIN jsonb_to_recordset(v_projections) projection(player_id uuid, projected numeric)
             ON projection.player_id = rp.player_id
          WHERE rp.member_id = p_member_id AND rp.league_id = p_league_id

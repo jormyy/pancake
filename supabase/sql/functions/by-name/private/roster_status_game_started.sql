@@ -8,21 +8,32 @@ LANGUAGE sql
 STABLE
 SET search_path = public
 AS $$
-  WITH participation AS (
-    SELECT game_id FROM player_game_stats WHERE player_id = p_player_id
-    UNION
-    SELECT game_id FROM private.player_game_memberships WHERE player_id = p_player_id
-  ), slate AS (
+  WITH slate AS (
     SELECT (now() AT TIME ZONE 'America/New_York')::date AS today
+  ), recent_games AS MATERIALIZED (
+    SELECT game.id, game.game_date, game.home_team, game.away_team,
+      game.status, game.game_time, game.started_at
+    FROM nba_games game CROSS JOIN slate
+    WHERE game.game_date IN (slate.today - 1, slate.today)
+  ), participation AS (
+    SELECT game.id AS game_id
+    FROM recent_games game
+    WHERE EXISTS (
+      SELECT 1 FROM player_game_stats stats
+      WHERE stats.player_id = p_player_id AND stats.game_id = game.id
+    ) OR EXISTS (
+      SELECT 1 FROM private.player_game_memberships membership
+      WHERE membership.player_id = p_player_id AND membership.game_id = game.id
+    )
   )
   SELECT EXISTS (
     SELECT 1
       FROM players AS p
-      JOIN nba_games AS g ON (
+      JOIN recent_games AS g ON (
         ((g.home_team = p.nba_team OR g.away_team = p.nba_team)
           AND NOT EXISTS (
             SELECT 1 FROM participation AS observed
-            JOIN nba_games AS actual ON actual.id = observed.game_id
+            JOIN recent_games AS actual ON actual.id = observed.game_id
             WHERE actual.game_date = g.game_date
           ))
         OR EXISTS (

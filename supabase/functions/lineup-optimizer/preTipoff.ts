@@ -111,7 +111,7 @@ export async function processPreTipoff(body: Record<string, unknown>) {
               const projections = playerIds.length ? await supabase.rpc('get_league_projection_rows', {
                 p_league_id: setting.league_id, p_season_year: context.seasonYear, p_game_date: date,
                 p_view: 'today', p_player_ids: playerIds, p_limit: playerIds.length, p_offset: 0,
-              }) : { data: [], error: null }
+              }).select('player_id,projection_fantasy_points') : { data: [], error: null }
               if (projections.error) throw projections.error
               const { data: changed, error: applyError } = await supabase.rpc('apply_pre_tipoff_lineup', {
                 p_tipoff_at: tipoffAt, p_token: token, p_league_id: setting.league_id,

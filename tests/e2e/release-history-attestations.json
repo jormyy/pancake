@@ -418,6 +418,12 @@
       "name": "auto_set_lineup_atomic_unchecked",
       "identityArguments": "p_member_id uuid, p_league_id uuid, p_league_season_id uuid, p_game_date date, p_assignments jsonb",
       "bodySha256": "2da19b117a7f54d02fbeabe8cb020cad339d75e567ff49201e16f0974e795422"
+    },
+    {
+      "version": "20261214005200",
+      "name": "auto_set_lineup_atomic_unchecked",
+      "identityArguments": "p_member_id uuid, p_league_id uuid, p_league_season_id uuid, p_game_date date, p_assignments jsonb",
+      "bodySha256": "59d18d18027a6e13ff1f1ada91d44cfbd5975ca05ec550dbc96a541b757728d3"
     }
   ],
   "approvedMigrations": [
@@ -3094,6 +3100,62 @@
       "statementCount": 9,
       "statementsSha256": "7e28fd21811deccd5b368e132fbc538e0cdc47ca6df8f5323e80f2167e750bec",
       "sha256": "6b6e8ad675d8d35379c25848541d65a4cff5a09b351a96e33b529df4eafcdbf7"
+    },
+    {
+      "name": "skip_fresh_screen_statistics",
+      "version": "20261214004100",
+      "statementCount": 1,
+      "statementsSha256": "4976b30478b424bc4d1262353beefdbcacbb46ccc94c5f63df01cd88fb84a606",
+      "sha256": "b48de4d7f54ac024986c460fb75dfc590518d0b4ff685be96ffc9fd009888462"
+    },
+    {
+      "name": "trade_action_reservations",
+      "version": "20261214005000",
+      "statementCount": 1,
+      "statementsSha256": "17bbab08af2790ee0d8063945d7725a6eb5a0dc08e7cf543de33602940d12e15",
+      "sha256": "bdea33f4bc6419bd32110ec329d72dad193411c4fd2e45192d48b6431c0b5e8c"
+    },
+    {
+      "name": "trade_reanalysis_averages",
+      "version": "20261214005001",
+      "statementCount": 1,
+      "statementsSha256": "732992dfdb87aa200aa989e0fbc2416e44415f7ea4141c749336b550d6d5e255",
+      "sha256": "a78ae4fa6755112cc045d2d82f3c75b7b48adc41875372cede60d05e896e64d1"
+    },
+    {
+      "name": "roster_action_game_locks",
+      "version": "20261214005100",
+      "statementCount": 3,
+      "statementsSha256": "2f95aca4b478dfc58107d7950907e15234d3bbb8672dc3b25562797dee790197",
+      "sha256": "94feea8d49e5d7627ffa324d8c500a8033faf520915333e7041b6afb53562c03"
+    },
+    {
+      "name": "lineup_fallback_stored_rows",
+      "version": "20261214005200",
+      "statementCount": 1,
+      "statementsSha256": "d7cb5016c58f17076c89bf5440a9c9424977f9bd268d59c19aec1b53b0962208",
+      "sha256": "7192508964a532c619346aaed64127cc88dfb7cb3748fdb43448aa91f0f81573"
+    },
+    {
+      "name": "batched_dynasty_rankings",
+      "version": "20261214005300",
+      "statementCount": 3,
+      "statementsSha256": "ff8bd9b56f1eee08b65266c41e549628726f27baed2600ac5a5064105decb159",
+      "sha256": "da49e8e2e760d524e9b0bf6aa39e83c62b01bd486bfd906b1ac2e766190516a9"
+    },
+    {
+      "name": "delete_unarmed_timer_writes",
+      "version": "20261214005301",
+      "statementCount": 3,
+      "statementsSha256": "ac470a3bd2723a9a256e307f79539194683c0f2a0265b7b658a330ed1a382903",
+      "sha256": "c7ba1d153e020cff101ea8a1678a3bb8637ff1166a716948b53b3a32301689b9"
+    },
+    {
+      "name": "shared_visible_games",
+      "version": "20261214005302",
+      "statementCount": 3,
+      "statementsSha256": "c49cdb32c7c57180abd38786a3281ccf63a83f0b7dad81a5be80ad35d023bb42",
+      "sha256": "198ebf801a748563adde7ec98837075fe2a5dfff83bb04b332a79e245a959ebc"
     }
   ]
 }

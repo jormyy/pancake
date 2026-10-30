@@ -2,7 +2,8 @@ import type { SupabaseClient } from 'npm:@supabase/supabase-js@2.98.0'
 import type { Database } from '../_shared/database.ts'
 import type { OptimizerSetting } from './settings.ts'
 
-type ProjectionRow = Database['public']['Functions']['get_league_projection_rows']['Returns'][number]
+type ProjectionRow = Pick<Database['public']['Functions']['get_league_projection_rows']['Returns'][number],
+  'player_id' | 'projection_fantasy_points' | 'projection_source' | 'projection_source_label' | 'projection_view'>
 type ProjectionContext = { date: string; seasonYear: number }
 const PAGE_SIZE = 1000
 
@@ -37,7 +38,7 @@ export function createScheduledProjectionLoader(client: SupabaseClient<Database>
         p_league_id: setting.league_id, p_season_year: context.seasonYear,
         p_game_date: context.date, p_view: 'today', p_player_ids: chunk,
         p_limit: chunk.length, p_offset: 0,
-      })
+      }).select('player_id,projection_fantasy_points,projection_source,projection_source_label,projection_view')
       if (error) throw error
       rows.push(...data)
     }

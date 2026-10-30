@@ -312,7 +312,7 @@ function validateDraftPicks(picks: NBADraftPick[]): NBADraftPick[] {
 async function verifySyncedDraftBoard(picks: NBADraftPick[]): Promise<void> {
   const { data, error } = await supabase
     .from('players')
-    .select('id, display_name, nba_draft_number')
+    .select('nba_draft_number')
     .eq('years_exp', 0)
     .not('nba_draft_number', 'is', null)
     .order('nba_draft_number', { ascending: true })

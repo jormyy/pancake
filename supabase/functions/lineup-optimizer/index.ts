@@ -408,7 +408,7 @@ async function autoSetMemberDate(
         p_player_ids: playerIds,
         p_limit: Math.min(Math.max(playerIds.length, 1), 1000),
         p_offset: 0,
-      }),
+      }).select('player_id,projection_fantasy_points,projection_source,projection_source_label,projection_view'),
       supabase
         .from('weekly_lineups')
         .select('player_id, slot_type, is_auto_set, week_number, players(nba_team)')

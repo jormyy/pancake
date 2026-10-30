@@ -42,6 +42,12 @@ BEGIN
       AND coefficient.value::numeric <> round(coefficient.value::numeric, 2)
   ) INTO v_needs_rounding;
   RETURN QUERY
+  WITH today_games AS MATERIALIZED (
+    SELECT g.id, g.home_team, g.away_team, g.status, g.game_time, g.started_at
+    FROM public.nba_games g
+    WHERE g.game_date = (now() AT TIME ZONE 'America/New_York')::date
+      AND g.season_year = p_season_year AND g.nba_game_id LIKE '002%'
+  )
   SELECT p.id, COALESCE(to_jsonb(t) - 'player_id' - 'season_year', '{}'::jsonb),
     CASE WHEN v_needs_rounding THEN (
       SELECT round(avg(fp.fantasy_points), 2)
@@ -54,10 +60,8 @@ BEGIN
   LEFT JOIN analytics.player_season_totals t ON t.player_id = p.id AND t.season_year = p_season_year
   LEFT JOIN LATERAL (
     SELECT g.status, g.game_time, g.started_at
-    FROM public.nba_games g
-    WHERE g.game_date = (now() AT TIME ZONE 'America/New_York')::date
-      AND g.season_year = p_season_year AND g.nba_game_id LIKE '002%'
-      AND p.nba_team IN (g.home_team, g.away_team)
+    FROM today_games g
+    WHERE p.nba_team IN (g.home_team, g.away_team)
     ORDER BY g.game_time NULLS LAST, g.id LIMIT 1
   ) game ON true
   WHERE p.id = ANY(p_player_ids);

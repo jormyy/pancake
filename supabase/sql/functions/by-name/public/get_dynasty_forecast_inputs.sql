@@ -80,6 +80,24 @@ candidate_ids AS (
     ) AS requested
    WHERE p_player_ids IS NOT NULL
 ),
+candidate_players AS MATERIALIZED (
+  SELECT player.id, player.display_name, player.first_name, player.last_name,
+    player.nba_team, player.position, player.eligible_positions, player.injury_status,
+    player.years_exp, player.headshot_url, player.nba_id, candidate.sort_rank
+  FROM candidate_ids AS candidate
+  JOIN public.players AS player ON player.id = candidate.player_id
+  WHERE COALESCE(trim(p_query), '') = ''
+     OR player.display_name ILIKE '%' || trim(p_query) || '%'
+),
+latest_rankings AS MATERIALIZED (
+  SELECT DISTINCT ON (ranking.player_id, ranking.source)
+    ranking.player_id, ranking.id, ranking.source_rank, ranking.rank_change,
+    ranking.age, ranking.source, ranking.fetched_at, ranking.trade_value
+  FROM candidate_players AS player
+  JOIN public.dynasty_rankings AS ranking ON ranking.player_id = player.id
+  WHERE ranking.source IN ('hashtagbasketball.com', 'hashtagbasketball.com/points-3', 'hashtagbasketball.com/rookie')
+  ORDER BY ranking.player_id, ranking.source, ranking.fetched_at DESC, ranking.source_rank, ranking.id
+),
 bounded_players AS (
   SELECT
     player.id,
@@ -100,35 +118,14 @@ bounded_players AS (
     five_year.source AS ranking_source,
     five_year.fetched_at AS ranking_fetched_at,
     five_year.trade_value
-  FROM candidate_ids AS candidate
-  JOIN public.players AS player ON player.id = candidate.player_id
-  LEFT JOIN LATERAL (
-    SELECT ranking.id, ranking.source_rank, ranking.rank_change, ranking.age, ranking.source, ranking.fetched_at, ranking.trade_value
-      FROM public.dynasty_rankings AS ranking
-     WHERE ranking.player_id = player.id
-       AND ranking.source = 'hashtagbasketball.com'
-     ORDER BY ranking.fetched_at DESC, ranking.source_rank, ranking.id
-     LIMIT 1
-  ) AS five_year ON true
-  LEFT JOIN LATERAL (
-    SELECT ranking.source_rank
-      FROM public.dynasty_rankings AS ranking
-     WHERE ranking.player_id = player.id
-       AND ranking.source = 'hashtagbasketball.com/points-3'
-     ORDER BY ranking.fetched_at DESC, ranking.source_rank, ranking.id
-     LIMIT 1
-  ) AS three_year ON true
-  LEFT JOIN LATERAL (
-    SELECT ranking.source_rank
-      FROM public.dynasty_rankings AS ranking
-     WHERE ranking.player_id = player.id
-       AND ranking.source = 'hashtagbasketball.com/rookie'
-     ORDER BY ranking.fetched_at DESC, ranking.source_rank, ranking.id
-     LIMIT 1
-  ) AS rookie ON true
-  WHERE COALESCE(trim(p_query), '') = ''
-     OR player.display_name ILIKE '%' || trim(p_query) || '%'
-  ORDER BY candidate.sort_rank NULLS LAST, player.display_name, player.id
+  FROM candidate_players AS player
+  LEFT JOIN latest_rankings AS five_year
+    ON five_year.player_id = player.id AND five_year.source = 'hashtagbasketball.com'
+  LEFT JOIN latest_rankings AS three_year
+    ON three_year.player_id = player.id AND three_year.source = 'hashtagbasketball.com/points-3'
+  LEFT JOIN latest_rankings AS rookie
+    ON rookie.player_id = player.id AND rookie.source = 'hashtagbasketball.com/rookie'
+  ORDER BY player.sort_rank NULLS LAST, player.display_name, player.id
   LIMIT LEAST(GREATEST(COALESCE(p_limit, 600), 1), 1000)
   OFFSET GREATEST(COALESCE(p_offset, 0), 0)
 ),

@@ -102,6 +102,16 @@ An overall timeout cancels this job without cancelling dispatch.
 The function returns each target, elapsed milliseconds, and its result.
 An advisory lock prevents overlapping manual calls.
 
+Migration 041 checks statistics before sampling each target.
+It uses the table's analyze threshold plus its scale factor times estimated rows.
+Missing table options fall back to PostgreSQL's global settings.
+It includes partition children and changes pending in the current transaction.
+Never-analyzed relations and invalid row estimates still require sampling.
+Fresh targets return `status: fresh` and perform no ANALYZE.
+The independent daily cron keeps its existing schedule and statement budget.
+
+Run `tests/db/statistics-freshness.sql` for threshold, partition, empty-table, and retired-work checks.
+
 The old `analyze-screen-table` work kind is retired.
 The migration marks its pending, failed, and running rows dead and clears their leases.
 Enqueue and claim reject retired work; direct execution also retires a stale lease.
