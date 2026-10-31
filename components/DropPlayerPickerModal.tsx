@@ -4,7 +4,7 @@ import { PlayerRowContent } from '@/components/player/PlayerRowContent'
 import { View, Text, StyleSheet } from 'react-native'
 import { useMemo } from 'react'
 import type { RosterPlayer } from '@/lib/roster'
-import { orderRosterOptions, rosterSlotLabel } from '@/lib/player-roster-options'
+import { groupRosterOptions, orderRosterOptions, rosterSlotLabel } from '@/lib/player-roster-options'
 import { colors, spacing, table, textStyles } from '@/constants/tokens'
 
 
@@ -26,7 +26,7 @@ type Props = {
 }
 
 export function DropPlayerPickerModal({ visible, title, roster, dropping, onDrop, onCancel, irMoveCandidates = [], onMoveToIR, onAdd, onAddToTaxi, destinations }: Props) {
-    const dropOptions = useMemo(() => orderRosterOptions(roster), [roster])
+    const dropGroups = useMemo(() => groupRosterOptions(orderRosterOptions(roster)), [roster])
     const irOptions = useMemo(() => orderRosterOptions(irMoveCandidates), [irMoveCandidates])
     const close = () => {
         if (dropping === null) onCancel()
@@ -51,8 +51,10 @@ export function DropPlayerPickerModal({ visible, title, roster, dropping, onDrop
                     ))}
                 </View>
             ) : null}
-            <View style={styles.list}>
-                {dropOptions.map((rp) => {
+            {dropGroups.map(group => <View key={group.label} style={styles.group}>
+                <Text accessibilityRole="header" style={styles.groupLabel}>{group.label}</Text>
+                <View style={styles.list}>
+                {group.players.map((rp) => {
                     const p = rp.players
                     const available = destinations?.(rp)
 
@@ -77,7 +79,8 @@ export function DropPlayerPickerModal({ visible, title, roster, dropping, onDrop
                         </View>
                     )
                 })}
-            </View>
+                </View>
+            </View>)}
 
         </Sheet>
     )
@@ -86,6 +89,8 @@ export function DropPlayerPickerModal({ visible, title, roster, dropping, onDrop
 const styles = StyleSheet.create({
     meta: { ...textStyles.meta },
     subtitle: { ...textStyles.body, marginBottom: spacing.md },
+    group: { marginTop: spacing.md, gap: spacing.xs },
+    groupLabel: { ...textStyles.sectionLabel },
     list: { borderTopWidth: 1, borderTopColor: colors.separator },
     row: {
         flexDirection: 'row',
