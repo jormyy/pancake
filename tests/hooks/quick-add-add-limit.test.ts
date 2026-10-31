@@ -155,3 +155,18 @@ describe('useQuickAdd roster gate errors', () => {
         expect(mocks.addOrRequestDrop).not.toHaveBeenCalled()
     })
 })
+
+it.each(['taxi', 'ir'] as const)('opens a claim with the selected drop and freed %s destination', async destination => {
+    const drop = rosterPlayer({ id: 'inactive-drop', is_on_taxi: destination === 'taxi', is_on_ir: destination === 'ir' })
+    drop.players = { ...drop.players, id: 'inactive-player', years_exp: 0, career_regular_season_games: 0, injury_status: 'Out' }
+    const incoming = { ...player, years_exp: 0, career_regular_season_games: 0, injury_status: 'Out' }
+    mocks.loadGate.mockResolvedValue({ roster: [ownRosterPlayer, drop], ineligible: [], taxiExitIds: new Set() })
+    mocks.dropAndAdd.mockResolvedValue(undefined)
+    const probe = await mount(null, { rosterSize: 1, taxiSlots: 1, irSlots: 1 })
+    await act(async () => probe.latest.setDropPickerPlayer(incoming))
+    await act(async () => probe.latest.handleDropAndAdd(drop, destination))
+    expect(mocks.claim).toHaveBeenCalledExactlyOnceWith(incoming, { dropPlayerId: 'inactive-player', destination })
+    expect(mocks.dropAndAdd).not.toHaveBeenCalled()
+    expect(probe.latest.dropPickerPlayer).toBeNull()
+    expect(probe.onChanged).not.toHaveBeenCalled()
+})

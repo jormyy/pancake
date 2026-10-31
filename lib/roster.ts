@@ -193,27 +193,6 @@ export async function addFreeAgent(
     })
 }
 
-export async function dropAndAddFreeAgent(
-    rosterPlayerId: string,
-    memberId: string,
-    leagueId: string,
-    playerId: string,
-): Promise<void> {
-    return withPwaMutation('dropAndAddFreeAgent', async () => {
-        const { error } = await supabase.rpc('drop_and_add_free_agent_atomic', {
-            p_roster_player_id: rosterPlayerId,
-            p_member_id: memberId,
-            p_league_id: leagueId,
-            p_player_id: playerId,
-        })
-
-        if (error) {
-            if (error.code === '23505') throw rpcError(error, 'This player is already on a roster.')
-            throw rpcError(error)
-        }
-    })
-}
-
 export async function dropPlayer(rosterPlayerId: string, expectedLeagueSeasonId?: string, rookieDraftId?: string): Promise<void> {
     return withPwaMutation('dropPlayer', async () => {
         assertMutationOnline()

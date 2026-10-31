@@ -1,7 +1,6 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import { PlayerRow } from '@/lib/players'
 import {
-    dropAndAddFreeAgent,
     toggleIR,
     dropPlayer,
     RosterPlayer,
@@ -9,7 +8,7 @@ import {
 import { addFreeAgentOrRequestDrop, loadRosterAddGate, resolveRosterAddIRConflict } from '@/lib/roster-add-flow'
 import { useAddLimitGate } from '@/hooks/use-add-limit-gate'
 import { isIREligible, isTaxiEligible } from '@pancake/core'
-import { canAddToIR, hasOpenIRSlot, reportPickupError } from '@/lib/pickup'
+import { canAddToIR, hasOpenIRSlot, pickupDestinations, reportPickupError, type PickupDestination } from '@/lib/pickup'
 import { showAlert, showSuccess } from '@/lib/alert'
 import { getErrorMessage } from '@/lib/shared/errors'
 import type { MemberTransactionState } from '@/lib/league'
@@ -17,6 +16,8 @@ import { getRosterProblems } from '@/lib/roster-problems'
 
 /** What a pickup needs to know about its player. */
 type QuickAddPlayer = Pick<PlayerRow, 'id' | 'display_name'> & { injury_status?: string | null; years_exp?: number | null; career_regular_season_games?: number | null }
+
+export type PickupClaimSelection = { dropPlayerId: string; destination: PickupDestination }
 
 type PickupAction = 'add' | 'claim'
 
@@ -40,7 +41,7 @@ type QuickAddOptions = {
     onChanged: () => void
     transactionState?: MemberTransactionState | null
     /** Opens the claim flow: for a claim once IR is clear, or when the server says an added player is still on waivers. */
-    onClaimInstead?: (player: QuickAddPlayer) => void
+    onClaimInstead?: (player: QuickAddPlayer, selection?: PickupClaimSelection) => void
 }
 
 export function useQuickAdd({
@@ -152,7 +153,8 @@ export function useQuickAdd({
             if (!isCurrent(generation, identity)) return
             if (result.status === 'roster_full') {
                 setOpenIR(allowIR && hasOpenIRSlot(roster, irSlots))
-                setMyRoster(result.activeRoster)
+                setMyRoster(result.roster)
+                setPlacementRoster(roster)
                 setDropPickerPlayer(player)
                 return
             }
@@ -175,7 +177,7 @@ export function useQuickAdd({
         if (!canTaxi) { await addFreeAgent(player, lid, roster); return }
         const active = roster.filter(row => !row.is_on_ir && !row.is_on_taxi)
         setPlacementRoster(roster)
-        setMyRoster(active.length >= rosterSize ? active : [])
+        setMyRoster(active.length >= rosterSize ? roster : [])
         setDropPickerPlayer(player)
         setOpenIR(allowIR && hasOpenIRSlot(roster, irSlots))
     }, [allowIR, irSlots, taxiSlots, rosterSize, addFreeAgent])
@@ -221,7 +223,7 @@ export function useQuickAdd({
         if (roster) onClaimInstead?.(player)
     }, [memberId, leagueId, checkIR, onClaimInstead])
 
-    const handleDropAndAdd = useCallback(async (rosterPlayer: RosterPlayer) => {
+    const handleDropAndAdd = useCallback(async (rosterPlayer: RosterPlayer, destination: PickupDestination = 'active') => {
         if (!memberId || !dropPickerPlayer || !leagueId || activeOwnerRef.current !== ownerIdentity || pendingDropAndAdd.current) return
         if (explainBlock()) {
             setDropPickerPlayer(null)
@@ -234,18 +236,21 @@ export function useQuickAdd({
         pendingDropAndAdd.current = token
         setDropping(rosterPlayer.id)
         try {
-            if (!await checkIR(dropPickerPlayer, leagueId, 'add', rosterPlayer.id)) return
-            await dropAndAddFreeAgent(rosterPlayer.id, memberId, leagueId, dropPickerPlayer.id)
-            if (!isCurrent(generation, identity)) return
+            const roster = await checkIR(dropPickerPlayer, leagueId, 'claim', rosterPlayer.id)
+            if (!roster || !isCurrent(generation, identity)) return
+            if (!pickupDestinations(dropPickerPlayer, roster, { rosterSize, taxiSlots, irSlots, allowIR }, taxiExits.current, rosterPlayer)[destination]) {
+                showAlert('Select destination', 'This drop does not free space for an eligible pickup in that slot.')
+                return
+            }
+            onClaimInstead?.(dropPickerPlayer, { dropPlayerId: rosterPlayer.players.id, destination })
             setDropPickerPlayer(null)
-            onChanged()
         } catch (e) {
             if (isCurrent(generation, identity)) report(e, dropPickerPlayer)
         } finally {
             if (pendingDropAndAdd.current === token) pendingDropAndAdd.current = null
             if (isCurrent(generation, identity)) setDropping(null)
         }
-    }, [memberId, leagueId, ownerIdentity, dropPickerPlayer, checkIR, onChanged, isCurrent, explainBlock, report])
+    }, [memberId, leagueId, ownerIdentity, dropPickerPlayer, checkIR, isCurrent, explainBlock, report, rosterSize, taxiSlots, irSlots, allowIR, onClaimInstead])
 
     const handleMoveToIRAndAdd = useCallback(async (rosterPlayer: RosterPlayer) => {
         if (!memberId || !leagueId || !dropPickerPlayer || pendingDropAndAdd.current || !ownsState || activeOwnerRef.current !== ownerIdentity) return
@@ -347,12 +352,15 @@ export function useQuickAdd({
         handleAdd,
         handleClaim,
         handleDropAndAdd,
+        dropDestinations: (drop: RosterPlayer) => dropPickerPlayer
+            ? pickupDestinations(dropPickerPlayer, placementRoster, { rosterSize, taxiSlots, irSlots, allowIR }, taxiExits.current, drop)
+            : { active: false, taxi: false, ir: false },
         handleMoveToIRAndAdd,
-        irMoveCandidates: ownsState && openIR ? myRoster.filter(player => isIREligible(player.players.injury_status)) : [],
+        irMoveCandidates: ownsState && openIR ? myRoster.filter(player => !player.is_on_ir && !player.is_on_taxi && isIREligible(player.players.injury_status)) : [],
         handleIRActivate,
         handleDropAndIRActivate,
     }), [
-        ownsState, openIR, taxiAvailable, placementRoster, rosterSize, handlePlacement, handleResolutionChange, adding, dropPickerPlayer, myRoster, dropping, irModal, addBlockedReason,
+        ownsState, openIR, taxiAvailable, placementRoster, rosterSize, taxiSlots, irSlots, allowIR, handlePlacement, handleResolutionChange, adding, dropPickerPlayer, myRoster, dropping, irModal, addBlockedReason,
         handleAdd, handleClaim, handleDropAndAdd, handleMoveToIRAndAdd, handleIRActivate, handleDropAndIRActivate,
     ])
 }

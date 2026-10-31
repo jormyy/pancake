@@ -7,7 +7,7 @@ CREATE OR REPLACE FUNCTION private.validate_waiver_claim_drop_player(
   p_league_season_id uuid,
   p_member_id uuid,
   p_drop_player_id uuid,
-  p_missing_message text DEFAULT 'Drop player must be on your active roster.'
+  p_missing_message text DEFAULT 'Drop player must be on your roster.'
 )
 RETURNS TABLE (
   roster_player_id uuid,
@@ -33,8 +33,6 @@ BEGIN
      AND rp.league_id = p_league_id
      AND rp.league_season_id = p_league_season_id
      AND rp.player_id = p_drop_player_id
-     AND rp.is_on_ir = false
-     AND rp.is_on_taxi = false
    FOR UPDATE;
 
   IF NOT FOUND THEN

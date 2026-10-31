@@ -25,6 +25,8 @@ DECLARE
   v_active_count int;
   v_projected_active_count int;
   v_drop_roster_id uuid;
+  v_drop_slot text;
+  v_drop_released boolean;
   v_max_priority int;
   v_failure text;
   v_lock_player_id uuid;
@@ -262,7 +264,10 @@ BEGIN
       v_roster_size := v_league.roster_size;
 
       SELECT string_agg(problem.message,' ' ORDER BY problem.kind,problem.player_name,problem.roster_player_id)
-        INTO v_ineligible FROM private.roster_problems(v_claim.league_id,v_claim.league_season_id,v_claim.member_id) problem;
+        INTO v_ineligible FROM private.roster_problems(v_claim.league_id,v_claim.league_season_id,v_claim.member_id) problem
+        LEFT JOIN roster_players chosen ON chosen.id=problem.roster_player_id
+          AND chosen.player_id=v_claim.drop_player_id AND v_claim.drop_roster_slot IN ('taxi','ir')
+       WHERE chosen.id IS NULL;
       IF v_ineligible IS NOT NULL THEN
         RETURN QUERY SELECT * FROM private.fail_waiver_claim(
           v_claim.id,v_claim.league_id,v_claim.league_season_id,v_claim.member_id,v_claim.player_id,
@@ -271,7 +276,34 @@ BEGIN
         RETURN;
       END IF;
 
+      v_drop_roster_id := NULL;
+      v_drop_released := false;
+      IF v_claim.drop_roster_slot IN ('taxi','ir') THEN
+        SELECT validation.roster_player_id, validation.failure_reason
+          INTO v_drop_roster_id, v_failure
+          FROM private.validate_waiver_claim_drop_player(
+            v_claim.league_id,v_claim.league_season_id,v_claim.member_id,v_claim.drop_player_id,
+            'Drop player is no longer on this roster.') validation;
+        IF v_claim.drop_player_id IS NULL OR v_drop_roster_id IS NULL OR v_failure IS NOT NULL THEN
+          RAISE EXCEPTION '%',COALESCE(v_failure,'Drop player is no longer on this roster.') USING ERRCODE='PA008';
+        END IF;
+        SELECT CASE WHEN is_on_taxi THEN 'taxi' WHEN is_on_ir THEN 'ir' ELSE 'active' END INTO v_drop_slot
+          FROM roster_players WHERE id=v_drop_roster_id;
+        IF v_drop_slot<>v_claim.drop_roster_slot THEN
+          RAISE EXCEPTION 'Drop player is no longer in the selected roster slot.' USING ERRCODE='PA008';
+        END IF;
+        UPDATE waiver_claims SET status='succeeded',processed_at=now(),failure_reason=NULL WHERE id=v_claim.id;
+        UPDATE waiver_claims AS sibling SET status='cancelled',processed_at=now(),
+          failure_reason='The selected drop player was used by another successful waiver claim.'
+          WHERE sibling.league_id=v_claim.league_id AND sibling.league_season_id=v_claim.league_season_id
+            AND sibling.member_id=v_claim.member_id AND sibling.status='pending' AND sibling.drop_player_id=v_claim.drop_player_id;
+        PERFORM private.release_roster_player_to_waivers(v_drop_roster_id,v_claim.league_id,v_claim.league_season_id,
+          v_claim.member_id,v_claim.drop_player_id,'waiver_drop',v_claim.id);
+        v_drop_released := true;
+      END IF;
+
       v_to_ir := false;
+      v_ir_failure := NULL;
       IF v_claim.to_ir THEN
         SELECT private.is_ir_designation(injury_status) INTO v_ir_eligible
           FROM players WHERE id = v_claim.player_id FOR SHARE;
@@ -298,6 +330,10 @@ BEGIN
         END;
       END IF;
 
+      IF v_drop_released AND ((v_claim.to_ir AND NOT v_to_ir) OR (v_claim.to_taxi AND NOT v_to_taxi)) THEN
+        RAISE EXCEPTION '%',COALESCE(v_ir_failure,v_taxi_failure,'The selected destination is unavailable.') USING ERRCODE='PA008';
+      END IF;
+
       SELECT count(*)
         INTO v_active_count
         FROM roster_players AS rp
@@ -307,7 +343,7 @@ BEGIN
          AND rp.is_on_ir = false
          AND rp.is_on_taxi = false;
 
-      v_projected_active_count := v_active_count + CASE WHEN v_to_ir OR v_to_taxi THEN 0 ELSE 1 END - CASE WHEN v_claim.drop_player_id IS NULL OR v_to_ir OR v_to_taxi THEN 0 ELSE 1 END;
+      v_projected_active_count := v_active_count + CASE WHEN v_to_ir OR v_to_taxi THEN 0 ELSE 1 END - CASE WHEN v_claim.drop_player_id IS NULL OR v_drop_released OR v_to_ir OR v_to_taxi THEN 0 ELSE 1 END;
 
       IF NOT v_to_ir AND NOT v_to_taxi AND v_projected_active_count > COALESCE(v_roster_size, 20) THEN
         v_failure := CASE
@@ -316,6 +352,9 @@ BEGIN
           WHEN v_claim.drop_player_id IS NULL THEN 'Roster full and no drop player specified.'
           ELSE 'Waiver claim would leave your active roster over the limit.'
         END;
+        IF v_drop_released THEN
+          RAISE EXCEPTION '%',v_failure USING ERRCODE='PA008';
+        END IF;
         RETURN QUERY SELECT * FROM private.fail_waiver_claim(
           v_claim.id,
           v_claim.league_id,
@@ -328,7 +367,7 @@ BEGIN
         RETURN;
       END IF;
 
-      IF v_claim.drop_player_id IS NOT NULL AND NOT v_to_ir AND NOT v_to_taxi THEN
+      IF v_claim.drop_player_id IS NOT NULL AND NOT v_drop_released AND NOT v_to_ir AND NOT v_to_taxi THEN
         SELECT validation.roster_player_id, validation.failure_reason
           INTO v_drop_roster_id, v_failure
           FROM private.validate_waiver_claim_drop_player(
@@ -339,6 +378,9 @@ BEGIN
             'Drop player is no longer on this active roster.'
           ) AS validation;
 
+        IF v_failure IS NULL AND EXISTS(SELECT 1 FROM roster_players WHERE id=v_drop_roster_id AND (is_on_ir OR is_on_taxi)) THEN
+          v_failure := 'Drop player is no longer on this active roster.';
+        END IF;
         IF v_failure IS NOT NULL THEN
           RETURN QUERY SELECT * FROM private.fail_waiver_claim(
             v_claim.id,
@@ -362,7 +404,7 @@ BEGIN
              failure_reason = NULL
        WHERE id = v_claim.id;
 
-      IF v_drop_roster_id IS NOT NULL THEN
+      IF v_drop_roster_id IS NOT NULL AND NOT v_drop_released THEN
         UPDATE waiver_claims AS sibling SET status='cancelled', processed_at=now(),
           failure_reason='The selected drop player was used by another successful waiver claim.'
           WHERE sibling.league_id=v_claim.league_id AND sibling.league_season_id=v_claim.league_season_id
@@ -515,7 +557,10 @@ BEGIN
       SELECT true, failed.id, failed.member_id, failed.player_id, failed.status, failed.failure_reason
         FROM failed;
       RETURN;
-    EXCEPTION WHEN SQLSTATE 'PA008' OR SQLSTATE 'PT001' OR SQLSTATE 'PT409' THEN
+    EXCEPTION WHEN SQLSTATE 'PA008' OR SQLSTATE 'PT001' OR SQLSTATE 'PT409' OR SQLSTATE 'PA004' THEN
+      IF SQLSTATE='PA004' AND COALESCE(v_claim.drop_roster_slot,'active') NOT IN ('taxi','ir') THEN
+        RAISE;
+      END IF;
       RETURN QUERY SELECT * FROM private.fail_waiver_claim(
         v_claim.id,
         v_claim.league_id,

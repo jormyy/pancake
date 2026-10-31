@@ -82,3 +82,16 @@ it.each(['trade', 'claim'] as const)('keeps the drop action disabled with its pe
     expect(screen.root.findAllByProps({ accessibilityLabel: `Locked by a pending ${sourceKind === 'trade' ? 'trade' : 'waiver claim'}` })).toHaveLength(1)
     expect(JSON.stringify(screen.toJSON())).not.toContain('Cancel it to drop this player.')
 })
+
+it('labels Taxi drops and offers replacement when Active cannot accept the pickup', async () => {
+    const drop = vi.fn()
+    await act(async () => { screen = create(React.createElement(DropPlayerPickerModal, {
+        visible: true, title: 'Add', roster: [taxi], dropping: null, onDrop: drop, onCancel: vi.fn(),
+        destinations: () => ({ active: false, taxi: true, ir: false }),
+    })) })
+    expect(JSON.stringify(screen.toJSON())).toContain('Taxi')
+    const buttons = screen.root.findAllByType('Pressable' as React.ElementType)
+    expect(buttons.find(node => node.props.accessibilityLabel === 'Drop Taxi A')!.props.disabled).toBe(true)
+    await act(async () => buttons.find(node => node.props.accessibilityLabel === 'Drop Taxi A and add to Taxi')!.props.onPress())
+    expect(drop).toHaveBeenCalledExactlyOnceWith(taxi, 'taxi')
+})

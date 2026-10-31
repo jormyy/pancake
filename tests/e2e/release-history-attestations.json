@@ -3310,6 +3310,13 @@
       "statementCount": 2,
       "statementsSha256": "8e0133c5a9526a4e65c0dd7d52d481162d5870871ec1406d9479b3f3273c653f",
       "sha256": "c4ea8ba1151f69e19f4cfc62304151201285a10bd4f409167c2ecafaaa261ee4"
+    },
+    {
+      "name": "inactive_pickup_drops",
+      "version": "20261214006000",
+      "statementCount": 11,
+      "statementsSha256": "1845716b7b8e7290b450884a65e5622c762fc002687a70e3f37a001aac7ef948",
+      "sha256": "5f121f10a54e9b06be49905073d004586b9f79ef8ce38b334cbda6a78ac20352"
     }
   ]
 }

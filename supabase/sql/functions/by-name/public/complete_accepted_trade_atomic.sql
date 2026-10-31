@@ -227,6 +227,7 @@ BEGIN
            processed_at = now(),
            drop_player_id = NULL
      WHERE claim.status = 'pending'
+       AND COALESCE(claim.drop_roster_slot,'active')='active'
        AND claim.league_id = v_trade.league_id
        AND claim.league_season_id = v_trade.league_season_id
        AND EXISTS (
@@ -247,6 +248,7 @@ BEGIN
   UPDATE waiver_claims AS claim
      SET drop_player_id = NULL
    WHERE claim.status = 'pending'
+     AND COALESCE(claim.drop_roster_slot,'active')='active'
      AND claim.league_id = v_trade.league_id
      AND claim.league_season_id = v_trade.league_season_id
      AND EXISTS (

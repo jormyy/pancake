@@ -1,9 +1,10 @@
+import type { PickupDestination } from '@/lib/pickup'
 import { readAssetLocks } from '@/lib/locked-assets'
 import { PlayerRowContent } from '@/components/player/PlayerRowContent'
 import { View, Text, StyleSheet } from 'react-native'
 import { useMemo } from 'react'
 import type { RosterPlayer } from '@/lib/roster'
-import { orderRosterOptions } from '@/lib/player-roster-options'
+import { orderRosterOptions, rosterSlotLabel } from '@/lib/player-roster-options'
 import { colors, spacing, table, textStyles } from '@/constants/tokens'
 
 
@@ -15,7 +16,8 @@ type Props = {
     title: string
     roster: RosterPlayer[]
     dropping: string | null
-    onDrop: (rp: RosterPlayer) => void
+    onDrop: (rp: RosterPlayer, destination?: PickupDestination) => void
+    destinations?: (rp: RosterPlayer) => Record<PickupDestination, boolean>
     irMoveCandidates?: RosterPlayer[]
     onMoveToIR?: (rp: RosterPlayer) => void
     onAdd?: () => void
@@ -23,7 +25,7 @@ type Props = {
     onCancel: () => void
 }
 
-export function DropPlayerPickerModal({ visible, title, roster, dropping, onDrop, onCancel, irMoveCandidates = [], onMoveToIR, onAdd, onAddToTaxi }: Props) {
+export function DropPlayerPickerModal({ visible, title, roster, dropping, onDrop, onCancel, irMoveCandidates = [], onMoveToIR, onAdd, onAddToTaxi, destinations }: Props) {
     const dropOptions = useMemo(() => orderRosterOptions(roster), [roster])
     const irOptions = useMemo(() => orderRosterOptions(irMoveCandidates), [irMoveCandidates])
     const close = () => {
@@ -52,21 +54,26 @@ export function DropPlayerPickerModal({ visible, title, roster, dropping, onDrop
             <View style={styles.list}>
                 {dropOptions.map((rp) => {
                     const p = rp.players
+                    const available = destinations?.(rp)
 
                     return (
                         <View key={rp.id} style={styles.row}>
                             <PlayerRowContent locks={readAssetLocks(rp)} name={p.display_name} nbaId={p.nba_id} team={p.nba_team}
                                 positions={p.eligible_positions?.length ? p.eligible_positions : p.position ? [p.position] : []}
-                                birthdate={p.birthdate} yearsExp={p.years_exp} careerGames={p.career_regular_season_games} injuryStatus={p.injury_status} />
+                                birthdate={p.birthdate} yearsExp={p.years_exp} careerGames={p.career_regular_season_games} injuryStatus={p.injury_status} metadata={<Text style={styles.meta}>{rosterSlotLabel(rp)}</Text>} />
                             <Button
                                 title="Drop"
                                 size="sm"
                                 variant="outline"
                                 onPress={() => onDrop(rp)}
-                                disabled={dropping !== null}
+                                disabled={dropping !== null || available?.active === false}
                                 loading={dropping === rp.id}
                                 accessibilityLabel={`Drop ${p.display_name}`}
                             />
+                            {rp.is_on_taxi && available?.taxi ? <Button title="Replace in Taxi" size="sm" onPress={() => onDrop(rp,'taxi')}
+                                disabled={dropping !== null} accessibilityLabel={`Drop ${p.display_name} and add to Taxi`} /> : null}
+                            {rp.is_on_ir && available?.ir ? <Button title="Replace in IR" size="sm" onPress={() => onDrop(rp,'ir')}
+                                disabled={dropping !== null} accessibilityLabel={`Drop ${p.display_name} and add to IR`} /> : null}
                         </View>
                     )
                 })}
@@ -77,6 +84,7 @@ export function DropPlayerPickerModal({ visible, title, roster, dropping, onDrop
 }
 
 const styles = StyleSheet.create({
+    meta: { ...textStyles.meta },
     subtitle: { ...textStyles.body, marginBottom: spacing.md },
     list: { borderTopWidth: 1, borderTopColor: colors.separator },
     row: {
