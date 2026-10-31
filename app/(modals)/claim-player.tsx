@@ -4,7 +4,7 @@ import { cachedScreenView, readScreenView, subscribeScreenView } from '@/lib/cac
 import { screenScope } from '@/lib/cache/screen-scope'
 import type { ClaimEditorView } from '@/lib/cache/view-types'
 import { clearEditorDraft, readEditorDraft, saveEditorDraft } from '@/lib/editor-draft'
-import { rosterSlotLabel } from '@/lib/player-roster-options'
+import { groupRosterOptions, rosterSlotLabel } from '@/lib/player-roster-options'
 import { isClaimDraft } from '@/lib/claim-draft'
 
 import { holdPwaUpdate } from '@/lib/pwa-update-guard'
@@ -422,13 +422,16 @@ export default function ClaimPlayerScreen() {
                         {compactDropMode ? 'DROP A PLAYER FOR CLAIM' : needsDrop ? 'DROP A PLAYER (required)' : 'DROP A PLAYER (optional)'}
                     </Text>
                                     </View>
-                <View style={styles.rosterList}>{renderRosterDropRows()}</View>
+                {groupRosterOptions(myRoster).map(group => <View key={group.label} style={styles.dropGroup}>
+                    <Text accessibilityRole="header" style={styles.dropGroupLabel}>{group.label}</Text>
+                    <View style={styles.rosterList}>{renderRosterDropRows(group.players)}</View>
+                </View>)}
             </View>
         )
     }
 
-    function renderRosterDropRows() {
-        return myRoster.map((item, index) => {
+    function renderRosterDropRows(rows: RosterPlayer[]) {
+        return rows.map((item, index) => {
             const isSelected = selectedDrop?.id === item.id
             const locks = readAssetLocks(item).filter(lock => lock.sourceId !== claimId)
             return (
@@ -616,6 +619,8 @@ const styles = StyleSheet.create({
 
     dropSection: { gap: spacing.md },
     dropHeading: { gap: spacing.xs },
+    dropGroup: { gap: spacing.xs },
+    dropGroupLabel: { ...textStyles.sectionLabel },
     sectionTitle: { ...textStyles.sectionLabel, textTransform: 'none' as const },
     rosterList: {
         borderWidth: 1,

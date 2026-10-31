@@ -30,3 +30,17 @@ it('keeps drop and IR choices in the same order when roster rows arrive in anoth
 })
 
 vi.mock('@/lib/shared/api', () => ({ API_URL: 'http://127.0.0.1:54321/functions/v1/api' }))
+
+it('separates drop choices into Roster, IR and Taxi and hides empty sections', async () => {
+    const make = (id: string, name: string, slot: { is_on_ir?: boolean; is_on_taxi?: boolean }) => rosterPlayer({ id, ...slot, players: { ...rosterPlayer().players, display_name: name } })
+    const roster = [make('t', 'Taxi Tim', { is_on_taxi: true }), make('i', 'Injured Ian', { is_on_ir: true }), make('a', 'Active Amy', {})]
+    const props = { visible: true, title: 'Add a player', roster, dropping: null, onDrop: vi.fn(), onCancel: vi.fn() }
+    const sections = () => screen.root.findAll(node => node.props.accessibilityRole === 'header' && node.type === ('Text' as React.ElementType))
+        .map(node => node.props.children)
+    const drops = () => screen.root.findAllByType('Button' as React.ElementType).map(node => node.props.accessibilityLabel)
+    await act(async () => { screen = create(React.createElement(DropPlayerPickerModal, props)) })
+    expect(sections()).toEqual(['Roster', 'IR', 'Taxi'])
+    expect(drops()).toEqual(['Drop Active Amy', 'Drop Injured Ian', 'Drop Taxi Tim'])
+    await act(async () => screen.update(React.createElement(DropPlayerPickerModal, { ...props, roster: [roster[2]] })))
+    expect(sections()).toEqual(['Roster'])
+})
