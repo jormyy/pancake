@@ -6,6 +6,14 @@ CREATE OR REPLACE FUNCTION private.maintain_player_season_totals()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 DECLARE v_rows text; v_player uuid; v_years integer[];
 BEGIN
+  IF TG_OP='INSERT' THEN
+    IF NOT EXISTS(SELECT 1 FROM totals_new_rows) THEN RETURN NULL; END IF;
+  ELSIF TG_OP='DELETE' THEN
+    IF NOT EXISTS(SELECT 1 FROM totals_old_rows) THEN RETURN NULL; END IF;
+  ELSIF NOT EXISTS(SELECT 1 FROM totals_new_rows n FULL JOIN totals_old_rows o USING(id)
+    WHERE n.id IS NULL OR o.id IS NULL OR (to_jsonb(n)-'updated_at') IS DISTINCT FROM (to_jsonb(o)-'updated_at')) THEN
+    RETURN NULL;
+  END IF;
   IF TG_OP='INSERT' THEN v_rows := 'SELECT n.*,1 AS sign FROM totals_new_rows n';
   ELSIF TG_OP='DELETE' THEN v_rows := 'SELECT o.*,-1 AS sign FROM totals_old_rows o';
   ELSE v_rows := $rows$SELECT n.*,1 AS sign FROM totals_new_rows n LEFT JOIN totals_old_rows o USING(id)

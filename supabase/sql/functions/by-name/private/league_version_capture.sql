@@ -15,6 +15,16 @@ BEGIN
   IF TG_TABLE_NAME='nba_games' THEN
     ignored := ignored||ARRAY['live_stats_elapsed_seconds','live_scoreboard_elapsed_seconds','stats_synced_at'];
   END IF;
+  IF TG_OP='INSERT' THEN
+    IF NOT EXISTS(SELECT 1 FROM version_new_rows) THEN RETURN NULL; END IF;
+  ELSIF TG_OP='DELETE' THEN
+    IF NOT EXISTS(SELECT 1 FROM version_old_rows) THEN RETURN NULL; END IF;
+  ELSIF NOT EXISTS(
+      (SELECT to_jsonb(n)-ignored FROM version_new_rows n EXCEPT SELECT to_jsonb(o)-ignored FROM version_old_rows o)
+      UNION ALL
+      (SELECT to_jsonb(o)-ignored FROM version_old_rows o EXCEPT SELECT to_jsonb(n)-ignored FROM version_new_rows n)) THEN
+    RETURN NULL;
+  END IF;
   IF TG_OP='INSERT' THEN changed_sql := 'SELECT to_jsonb(n) AS data FROM version_new_rows n';
   ELSIF TG_OP='DELETE' THEN changed_sql := 'SELECT to_jsonb(o) AS data FROM version_old_rows o';
   ELSE

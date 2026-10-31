@@ -9,6 +9,7 @@ DECLARE v_item private.work_items%ROWTYPE; v_count integer:=0;
 BEGIN
   IF (SELECT paused FROM private.worker_controls WHERE id) THEN RETURN 0; END IF;
   IF NOT pg_try_advisory_xact_lock(hashtextextended('public.dispatch_work',0)) THEN RETURN 0; END IF;
+  PERFORM private.release_stalled_live_poll();
   v_count:=private.dispatch_live_matchup_refresh();
   v_level:=private.apply_scheduler_health(private.scheduler_health());
   IF clock_timestamp()-v_started>=interval '2 seconds' THEN RETURN v_count; END IF;

@@ -3317,6 +3317,20 @@
       "statementCount": 11,
       "statementsSha256": "1845716b7b8e7290b450884a65e5622c762fc002687a70e3f37a001aac7ef948",
       "sha256": "5f121f10a54e9b06be49905073d004586b9f79ef8ce38b334cbda6a78ac20352"
+    },
+    {
+      "name": "live_poll_stalled_retry",
+      "version": "20261214006100",
+      "statementCount": 3,
+      "statementsSha256": "84afa2aa080b63f456f4b7791eb4180c28bf55cd0ca9fa1b819eabc732554aa1",
+      "sha256": "5daec33a3101b5dda2d349c32bdcce2add65a1f4fbbb224383f8557651e3ae5e"
+    },
+    {
+      "name": "skip_empty_statement_triggers",
+      "version": "20261214006200",
+      "statementCount": 3,
+      "statementsSha256": "680f4d068f82e0de0ed369ff5923cf816b1dcd5b9304a182f107a063b77f3d18",
+      "sha256": "4c16a82af69531f310ca7f7dd3d37af9a4ccd6c3c45757fbf30878c6913d3b85"
     }
   ]
 }

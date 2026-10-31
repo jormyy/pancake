@@ -239,6 +239,7 @@
     "private.refresh_trade_values(uuid,uuid,bigint,jsonb)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.regular_season_matchup_payload(uuid,uuid,integer)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.release_roster_player_to_waivers(uuid,uuid,uuid,uuid,uuid,text,uuid,uuid,text)": {"acl":["PUBLIC|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},
+    "private.release_stalled_live_poll()": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.repair_player_game_teams(uuid)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.replace_multi_team_trade_offer(uuid,uuid,uuid,text,uuid[],jsonb,text,timestamp with time zone)": {"acl":["PUBLIC|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.replace_trade_offer(uuid,uuid,uuid,text,uuid[],uuid[],uuid[],uuid[],text,timestamp with time zone,integer,integer)": {"acl":["PUBLIC|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},

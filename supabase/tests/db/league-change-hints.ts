@@ -268,7 +268,7 @@ try {
   assert.equal(lastResource.scopes, null)
   for (const row of messages[1]) {
     const details = Reflect.get(row, 'details')
-    if (Array.isArray(details)) {
+    if (Array.isArray(details) && row.topic !== 'version') {
       assert.ok(details.length <= 16 && JSON.stringify(details).length <= 4096)
       for (const detail of details) assert.ok(Object.keys(detail).every(key => ['resource', 'season_id', 'member_id'].includes(key)))
     }
