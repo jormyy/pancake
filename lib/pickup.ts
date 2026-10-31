@@ -4,6 +4,7 @@ import type { RosterOccupancy, RosterPlayer } from '@/lib/roster'
 import type { MemberTransactionState } from '@/lib/league'
 import { confirmAction, showAlert } from '@/lib/alert'
 import { RULE_CODES, errorCode, getErrorMessage } from '@/lib/shared/errors'
+import { getRosterProblems, type RosterProblem } from '@/lib/roster-problems'
 
 export type AddLimitSource = Pick<MemberTransactionState, 'weeklyAddLimit' | 'weeklyAddCount' | 'addLimitResetsAt' | 'addLimitMessage' | 'addLimitResetsLabel'>
 
@@ -115,4 +116,8 @@ export function pickupDestinations(
             && isTaxiEligible(player.years_exp ?? null, player.career_regular_season_games ?? null) && !taxiExits.has(player.id),
         ir: limits.allowIR && canAddToIR(player.injury_status, remaining, limits.irSlots),
     }
+}
+
+export function claimRosterProblems(roster: RosterPlayer[], rosterSize: number, drop?: RosterPlayer | null): RosterProblem[] {
+    return getRosterProblems(roster, rosterSize).filter(problem => !problem.player || problem.player.id !== drop?.id)
 }

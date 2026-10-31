@@ -2,7 +2,7 @@
 
 ## Release 2.14.6
 
-The production head is `20261214005900`, with 741 migrations at main `7fdaf684` (release 2.14.5).
+The supplied production head is `20261214005900`, with 741 migrations at main `7fdaf684` (release 2.14.5).
 Release 2.14.6 adds one migration. The candidate contains 742 migrations through `20261214006000`.
 
 | Migration | Change |
@@ -15,6 +15,10 @@ A Taxi or IR drop does not free Active capacity.
 A drop lost in a completed trade stays on its pending claim and fails with the existing invalid-drop result and notification.
 Rejected processing rolls back roster, slot, add-count, and budget writes before recording the normal failed-claim outcome.
 PA004 lock errors still propagate for Active-drop and no-drop claims, as on main.
+No game state blocks or fails a claim with a Taxi or IR drop. Claims run at league midnight, so they take effect the next day.
+Started lineup rows stay in place when the drop is released. Ownership, slot, and reservation checks remain.
+A claim can drop the illegal Taxi or IR player it cures. Any other roster problem still blocks with PA003, PA005, or PA009.
+The migration also redefines `create_waiver_claim_atomic`, `edit_waiver_claim_atomic`, and `prevent_pending_waiver_claim_with_ineligible_ir`. Their arguments and the private helpers do not change.
 
 The frontend and SQL ship in one commit. Existing RPC arguments and the free-agent RPC surface remain unchanged.
 The new frontend submits inactive drops through the existing claim RPC, which older SQL rejects before writing a claim.
@@ -181,7 +185,12 @@ The [trade curve report](../docs/trade-curve.md) records the real trades, roster
 
 ## Release order for this release
 
-The supplied production head is `20261214005800`, with 740 migrations.
+The supplied production head is `20261214005900`, with 741 migrations.
+Apply `20261214006000_inactive_pickup_drops.sql`, then merge the frontend. Edge source is unchanged.
+
+### Historical release 2.14.5 order
+
+The production head was `20261214005800`, with 740 migrations.
 Apply `20261214005900_bounded_first_screens.sql`, then merge the frontend. Edge source is unchanged.
 
 ### Historical release 2.14.4 order

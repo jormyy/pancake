@@ -95,3 +95,12 @@ it('offers full IR after selecting its own IR drop and keeps the selection visib
     await act(async () => submit().props.onPress())
     expect(mocks.claim).toHaveBeenCalledWith('member', 'league', 'target', 'ir-player', { bidAmount: 0, toIr: true })
 })
+it('allows a claim whose chosen drop is the healthy IR player', async () => {
+    const healed = rosterPlayer({ id: 'ir-row', is_on_ir: true })
+    healed.players = { ...healed.players, id: 'ir-player', display_name: 'Healthy IR', injury_status: null }
+    mocks.read.mockResolvedValue([healed]); mocks.epoch += 1
+    await act(async () => screen.update(React.createElement(ClaimPlayerScreen)))
+    await act(async () => screen.root.findAllByType(type('Pressable')).find(node => node.props.accessibilityLabel === 'Select Healthy IR to drop')!.props.onPress())
+    await act(async () => submit().props.onPress())
+    expect(mocks.claim).toHaveBeenCalledExactlyOnceWith('member', 'league', 'target', 'ir-player', expect.any(Object))
+})

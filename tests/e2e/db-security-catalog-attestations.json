@@ -898,7 +898,7 @@
           "strict": false,
           "language": "plpgsql",
           "arguments": "p_claim_id uuid, p_member_id uuid, p_user_id uuid, p_drop_player_id uuid DEFAULT NULL::uuid, p_bid_amount integer DEFAULT 0, p_claim_order integer DEFAULT NULL::integer, p_to_ir boolean DEFAULT NULL::boolean, p_to_taxi boolean DEFAULT NULL::boolean",
-          "bodySha256": "a2c7cd00742ed7da1e9e58287ee0f3b3b14dae24f34db82b0c666de896c04857",
+          "bodySha256": "a7d5c29e28cd4aac1bda9e7c3c73b0d63ee2b55894217af6c0d8ea49108707c2",
           "volatility": "v",
           "anonExecute": false,
           "publicExecute": false,
@@ -2521,7 +2521,7 @@
     },
     {
       "filename": "20261214006000_inactive_pickup_drops.sql",
-      "sha256": "48d8ec30fa688622e1b7e9e1a190a36a3b9d6ced4bd430a527a4941671dc7ac8"
+      "sha256": "5f121f10a54e9b06be49905073d004586b9f79ef8ce38b334cbda6a78ac20352"
     }
   ],
   "preMigration": {

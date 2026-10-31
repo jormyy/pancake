@@ -48,15 +48,14 @@ AS $$
 DECLARE
   v_roster_player_id uuid;
   lock_reason text;
-  v_inactive boolean;
 BEGIN
   IF p_drop_player_id IS NULL THEN
     RETURN QUERY SELECT NULL::uuid, NULL::text;
     RETURN;
   END IF;
 
-  SELECT rp.id, rp.is_on_ir OR rp.is_on_taxi
-    INTO v_roster_player_id, v_inactive
+  SELECT rp.id
+    INTO v_roster_player_id
     FROM roster_players AS rp
    WHERE rp.member_id = p_member_id
      AND rp.league_id = p_league_id
@@ -73,17 +72,6 @@ BEGIN
     WHERE locked.source_kind='trade' AND locked.asset_id=p_drop_player_id ORDER BY locked.source_id LIMIT 1;
   IF lock_reason IS NOT NULL THEN
     RETURN QUERY SELECT v_roster_player_id, lock_reason;
-    RETURN;
-  END IF;
-
-  IF v_inactive AND (private.roster_status_game_started(p_drop_player_id) OR EXISTS (
-    SELECT 1 FROM weekly_lineups lineup
-     WHERE lineup.league_id=p_league_id AND lineup.league_season_id=p_league_season_id
-       AND lineup.member_id=p_member_id AND lineup.player_id=p_drop_player_id
-       AND lineup.game_date >= (now() AT TIME ZONE 'America/New_York')::date
-       AND private.lineup_game_started(p_drop_player_id,lineup.game_date)
-  )) THEN
-    RETURN QUERY SELECT v_roster_player_id, 'This player''s game has already started. The drop is locked for this slate.'::text;
     RETURN;
   END IF;
 
@@ -879,7 +867,10 @@ BEGIN
       v_roster_size := v_league.roster_size;
 
       SELECT string_agg(problem.message,' ' ORDER BY problem.kind,problem.player_name,problem.roster_player_id)
-        INTO v_ineligible FROM private.roster_problems(v_claim.league_id,v_claim.league_season_id,v_claim.member_id) problem;
+        INTO v_ineligible FROM private.roster_problems(v_claim.league_id,v_claim.league_season_id,v_claim.member_id) problem
+        LEFT JOIN roster_players chosen ON chosen.id=problem.roster_player_id
+          AND chosen.player_id=v_claim.drop_player_id AND v_claim.drop_roster_slot IN ('taxi','ir')
+       WHERE chosen.id IS NULL;
       IF v_ineligible IS NOT NULL THEN
         RETURN QUERY SELECT * FROM private.fail_waiver_claim(
           v_claim.id,v_claim.league_id,v_claim.league_season_id,v_claim.member_id,v_claim.player_id,
@@ -895,9 +886,9 @@ BEGIN
           INTO v_drop_roster_id, v_failure
           FROM private.validate_waiver_claim_drop_player(
             v_claim.league_id,v_claim.league_season_id,v_claim.member_id,v_claim.drop_player_id,
-            'Drop player is no longer on this active roster.') validation;
+            'Drop player is no longer on this roster.') validation;
         IF v_claim.drop_player_id IS NULL OR v_drop_roster_id IS NULL OR v_failure IS NOT NULL THEN
-          RAISE EXCEPTION '%',COALESCE(v_failure,'Drop player is no longer on this active roster.') USING ERRCODE='PA008';
+          RAISE EXCEPTION '%',COALESCE(v_failure,'Drop player is no longer on this roster.') USING ERRCODE='PA008';
         END IF;
         SELECT CASE WHEN is_on_taxi THEN 'taxi' WHEN is_on_ir THEN 'ir' ELSE 'active' END INTO v_drop_slot
           FROM roster_players WHERE id=v_drop_roster_id;
@@ -1189,6 +1180,456 @@ BEGIN
       CONTINUE;
     END;
   END LOOP;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION private.prevent_pending_waiver_claim_with_ineligible_ir()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, private AS $$
+DECLARE
+  v_problem_kind text;
+  v_problem_message text;
+BEGIN
+  IF NEW.status = 'pending'::waiver_claim_status THEN
+    PERFORM pg_advisory_xact_lock(hashtext(NEW.league_id::text),hashtext(NEW.member_id::text));
+    SELECT problem.kind,string_agg(problem.message,' ' ORDER BY problem.player_name,problem.roster_player_id)
+      INTO v_problem_kind,v_problem_message
+      FROM private.roster_problems(NEW.league_id,NEW.league_season_id,NEW.member_id) problem
+      LEFT JOIN roster_players chosen ON chosen.id=problem.roster_player_id AND chosen.player_id=NEW.drop_player_id
+     WHERE chosen.id IS NULL
+     GROUP BY problem.kind ORDER BY CASE problem.kind WHEN 'ir' THEN 1 WHEN 'taxi' THEN 2 ELSE 3 END LIMIT 1;
+    IF v_problem_kind IS NOT NULL THEN
+      RAISE EXCEPTION '%',v_problem_message USING ERRCODE=CASE v_problem_kind WHEN 'ir' THEN 'PA005' WHEN 'taxi' THEN 'PA009' ELSE 'PA003' END;
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.create_waiver_claim_atomic(
+  p_league_id uuid,
+  p_member_id uuid,
+  p_player_id uuid,
+  p_drop_player_id uuid DEFAULT NULL,
+  p_user_id uuid DEFAULT NULL,
+  p_bid_amount int DEFAULT 0,
+  p_claim_order int DEFAULT NULL,
+  p_to_ir boolean DEFAULT false,
+  p_to_taxi boolean DEFAULT false
+)
+RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  __request_context jsonb;
+  __request_result uuid;
+BEGIN
+  __request_context := private.request_begin('public.create_waiver_claim_atomic', jsonb_build_array(p_league_id, p_member_id, p_player_id, p_drop_player_id, p_user_id, p_bid_amount, p_claim_order, p_to_ir, p_to_taxi), NULL, NULL);
+  IF (__request_context->>'replay')::boolean THEN RETURN (__request_context->>'result')::uuid; END IF;
+  <<request_write>>
+DECLARE
+  v_league leagues%ROWTYPE;
+  v_season_id uuid;
+  v_priority int;
+  v_waiver_log waiver_wire_log%ROWTYPE;
+  v_claim_id uuid;
+  v_lock_player_id uuid;
+  v_drop_failure text;
+  v_bid_amount int := COALESCE(p_bid_amount, 0);
+  v_claim_order int;
+  v_balance int;
+  v_run_date date;
+  v_run_at timestamptz;
+  v_problem_kind text;
+  v_problem_message text;
+BEGIN
+  IF p_to_ir AND p_to_taxi THEN
+    RAISE EXCEPTION 'Choose IR or taxi, not both.' USING ERRCODE='P0001';
+  END IF;
+  IF v_bid_amount < 0 THEN
+    RAISE EXCEPTION 'FAAB bid must be a non-negative integer.'
+      USING ERRCODE = '22023';
+  END IF;
+
+  PERFORM 1
+    FROM league_members
+   WHERE id = p_member_id
+     AND league_id = p_league_id
+     AND (p_user_id IS NULL OR user_id = p_user_id);
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Access denied'
+      USING ERRCODE = '42501';
+  END IF;
+
+  SELECT id
+    INTO v_season_id
+    FROM league_seasons
+   WHERE league_id = p_league_id
+     AND is_current = true
+   LIMIT 1;
+
+  IF v_season_id IS NULL THEN
+    RAISE EXCEPTION 'No active season found.'
+      USING ERRCODE = 'P0001';
+  END IF;
+
+  PERFORM pg_advisory_xact_lock(hashtext(p_league_id::text), hashtext(v_season_id::text));
+
+  SELECT priority
+    INTO v_priority
+    FROM waiver_priorities
+   WHERE member_id = p_member_id
+     AND league_season_id = v_season_id
+   FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'No waiver priority found for your team.'
+      USING ERRCODE = 'P0001';
+  END IF;
+
+  PERFORM pg_advisory_xact_lock(hashtext(p_league_id::text), hashtext(p_member_id::text));
+
+  FOR v_lock_player_id IN
+    SELECT DISTINCT pid
+      FROM unnest(ARRAY[p_player_id, p_drop_player_id]::uuid[]) AS t(pid)
+     WHERE pid IS NOT NULL
+     ORDER BY pid ASC
+  LOOP
+    PERFORM pg_advisory_xact_lock(hashtext(p_league_id::text), hashtext(v_lock_player_id::text));
+  END LOOP;
+
+  SELECT *
+    INTO v_league
+    FROM leagues
+   WHERE id = p_league_id
+   FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'League not found.'
+      USING ERRCODE = 'P0002';
+  END IF;
+
+  IF v_league.status NOT IN ('active'::league_status, 'playoffs'::league_status, 'offseason'::league_status) THEN
+    RAISE EXCEPTION 'Waiver claims require an active or playoff season.'
+      USING ERRCODE = 'P0001';
+  END IF;
+
+  PERFORM 1
+    FROM league_seasons
+   WHERE id = v_season_id
+     AND is_current = true
+   FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'No active season found.'
+      USING ERRCODE = 'P0001';
+  END IF;
+
+  SELECT problem.kind,string_agg(problem.message,' ' ORDER BY problem.player_name,problem.roster_player_id)
+    INTO v_problem_kind,v_problem_message
+    FROM private.roster_problems(p_league_id,v_season_id,p_member_id) problem
+    LEFT JOIN roster_players chosen ON chosen.id=problem.roster_player_id AND chosen.player_id=p_drop_player_id
+   WHERE chosen.id IS NULL
+   GROUP BY problem.kind ORDER BY CASE problem.kind WHEN 'ir' THEN 1 WHEN 'taxi' THEN 2 ELSE 3 END LIMIT 1;
+  IF v_problem_kind IS NOT NULL THEN
+    RAISE EXCEPTION '%',v_problem_message USING ERRCODE=CASE v_problem_kind WHEN 'ir' THEN 'PA005' WHEN 'taxi' THEN 'PA009' ELSE 'PA003' END;
+  END IF;
+
+  PERFORM private.assert_weekly_add_available(p_league_id, v_season_id, p_member_id);
+
+  IF v_league.waiver_mode = 'rolling' THEN
+    v_bid_amount := 0;
+  ELSE
+    v_balance := private.available_faab_balance(p_league_id, v_season_id, p_member_id);
+    IF v_bid_amount > v_balance THEN
+      RAISE EXCEPTION 'FAAB bid exceeds your available balance.'
+        USING ERRCODE = 'P0001';
+    END IF;
+  END IF;
+
+  SELECT *
+    INTO v_waiver_log
+    FROM waiver_wire_log
+   WHERE league_id = p_league_id
+     AND league_season_id = v_season_id
+     AND player_id = p_player_id
+     AND cleared_at IS NULL
+   ORDER BY clears_at DESC
+   LIMIT 1
+   FOR UPDATE;
+
+  IF EXISTS (SELECT 1 FROM roster_players WHERE league_id=p_league_id AND league_season_id=v_season_id AND player_id=p_player_id) THEN
+    RAISE EXCEPTION 'This player is already on a roster.' USING ERRCODE = 'P0001';
+  END IF;
+
+  IF p_drop_player_id IS NOT NULL THEN
+    SELECT validation.failure_reason
+      INTO v_drop_failure
+      FROM private.validate_waiver_claim_drop_player(
+        p_league_id,
+        v_season_id,
+        p_member_id,
+        p_drop_player_id
+      ) AS validation;
+
+    IF v_drop_failure IS NOT NULL THEN
+      RAISE EXCEPTION '%', v_drop_failure
+        USING ERRCODE = 'P0001';
+    END IF;
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+      FROM waiver_claims
+     WHERE member_id = p_member_id
+       AND league_season_id = v_season_id
+       AND player_id = p_player_id
+       AND status = 'pending'
+     FOR UPDATE
+  ) THEN
+    RAISE EXCEPTION 'You already have a pending claim for this player.'
+      USING ERRCODE = 'P0001';
+  END IF;
+
+  SELECT COALESCE(p_claim_order, max(claim_order) + 1, 1)
+    INTO v_claim_order
+    FROM waiver_claims
+   WHERE member_id = p_member_id
+     AND league_season_id = v_season_id
+     AND status = 'pending';
+
+  v_run_date := (greatest(v_waiver_log.clears_at, now()) AT TIME ZONE coalesce(v_league.timezone, 'America/Los_Angeles'))::date;
+  v_run_at := v_run_date::timestamp AT TIME ZONE coalesce(v_league.timezone, 'America/Los_Angeles');
+  IF v_run_at <= now() OR v_run_at < v_waiver_log.clears_at THEN
+    v_run_date := v_run_date + 1;
+  END IF;
+
+  INSERT INTO waiver_claims (
+    league_id,
+    league_season_id,
+    member_id,
+    player_id,
+    drop_player_id,
+    priority_at_submission,
+    process_date,
+    bid_amount,
+    claim_order,
+    to_ir,
+    to_taxi
+  )
+  VALUES (
+    p_league_id,
+    v_season_id,
+    p_member_id,
+    p_player_id,
+    p_drop_player_id,
+    v_priority,
+    v_run_date,
+    v_bid_amount,
+    v_claim_order,
+    COALESCE(p_to_ir, false),
+    COALESCE(p_to_taxi, false)
+  )
+  RETURNING id INTO v_claim_id;
+
+  __request_result := v_claim_id; EXIT request_write;
+END request_write;
+  PERFORM private.request_finish(__request_context, to_jsonb(__request_result));
+  RETURN __request_result;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.edit_waiver_claim_atomic(
+  p_claim_id uuid,
+  p_member_id uuid,
+  p_user_id uuid,
+  p_drop_player_id uuid DEFAULT NULL,
+  p_bid_amount int DEFAULT 0,
+  p_claim_order int DEFAULT NULL,
+  p_to_ir boolean DEFAULT NULL,
+  p_to_taxi boolean DEFAULT NULL
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  __request_context jsonb;
+BEGIN
+  __request_context := private.request_begin('public.edit_waiver_claim_atomic', jsonb_build_array(p_claim_id, p_member_id, p_user_id, p_drop_player_id, p_bid_amount, p_claim_order, p_to_ir, p_to_taxi), NULL, NULL);
+  IF (__request_context->>'replay')::boolean THEN RETURN; END IF;
+  <<request_write>>
+DECLARE
+  v_claim waiver_claims%ROWTYPE;
+  v_league leagues%ROWTYPE;
+  v_bid_amount int := COALESCE(p_bid_amount, 0);
+  v_balance int;
+  v_drop_failure text;
+  v_lock_player_id uuid;
+  v_problem_kind text;
+  v_problem_message text;
+BEGIN
+  IF v_bid_amount < 0 THEN
+    RAISE EXCEPTION 'FAAB bid must be a non-negative integer.'
+      USING ERRCODE = '22023';
+  END IF;
+
+  SELECT *
+    INTO v_claim
+    FROM waiver_claims
+   WHERE id = p_claim_id
+     AND member_id = p_member_id
+     AND status = 'pending';
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Pending waiver claim not found.'
+      USING ERRCODE = 'P0002';
+  END IF;
+
+  PERFORM 1
+    FROM league_members
+   WHERE id = p_member_id
+     AND league_id = v_claim.league_id
+     AND user_id = p_user_id;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Access denied.'
+      USING ERRCODE = '42501';
+  END IF;
+
+  PERFORM pg_advisory_xact_lock(hashtext(v_claim.league_id::text), hashtext(v_claim.league_season_id::text));
+
+  -- Use the roster writers' lock order before any claim or league row lock.
+  PERFORM pg_advisory_xact_lock(hashtext(v_claim.league_id::text), hashtext(p_member_id::text));
+  FOR v_lock_player_id IN
+    SELECT DISTINCT player_id
+      FROM unnest(ARRAY[v_claim.player_id, v_claim.drop_player_id, p_drop_player_id]) AS players(player_id)
+     WHERE player_id IS NOT NULL
+     ORDER BY player_id
+  LOOP
+    PERFORM pg_advisory_xact_lock(hashtext(v_claim.league_id::text), hashtext(v_lock_player_id::text));
+  END LOOP;
+
+  SELECT *
+    INTO v_claim
+    FROM waiver_claims
+   WHERE id = p_claim_id
+     AND member_id = p_member_id
+     AND status = 'pending'
+   FOR UPDATE;
+
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Pending waiver claim not found.'
+      USING ERRCODE = 'P0002';
+  END IF;
+
+  PERFORM 1
+    FROM league_members
+   WHERE id = p_member_id
+     AND league_id = v_claim.league_id
+     AND user_id = p_user_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Access denied.' USING ERRCODE = '42501';
+  END IF;
+
+  SELECT *
+    INTO v_league
+    FROM leagues
+   WHERE id = v_claim.league_id
+   FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'League not found.'
+      USING ERRCODE = 'P0002';
+  END IF;
+
+  -- Like create_waiver_claim_atomic, edits require eligible league/season state
+  -- and add capacity. An uncleared waiver entry stays editable until processing,
+  -- even after clears_at; a processed entry no longer accepts edits.
+  IF v_league.status NOT IN ('active'::league_status, 'playoffs'::league_status, 'offseason'::league_status) THEN
+    RAISE EXCEPTION 'Waiver claims require an active, playoff, or offseason league.'
+      USING ERRCODE = 'P0001';
+  END IF;
+
+  PERFORM 1
+    FROM league_seasons
+   WHERE id = v_claim.league_season_id
+     AND is_current = true;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'No active season found.'
+      USING ERRCODE = 'P0001';
+  END IF;
+
+  SELECT problem.kind,string_agg(problem.message,' ' ORDER BY problem.player_name,problem.roster_player_id)
+    INTO v_problem_kind,v_problem_message
+    FROM private.roster_problems(v_claim.league_id,v_claim.league_season_id,p_member_id) problem
+    LEFT JOIN roster_players chosen ON chosen.id=problem.roster_player_id AND chosen.player_id=p_drop_player_id
+   WHERE chosen.id IS NULL
+   GROUP BY problem.kind ORDER BY CASE problem.kind WHEN 'ir' THEN 1 WHEN 'taxi' THEN 2 ELSE 3 END LIMIT 1;
+  IF v_problem_kind IS NOT NULL THEN
+    RAISE EXCEPTION '%',v_problem_message USING ERRCODE=CASE v_problem_kind WHEN 'ir' THEN 'PA005' WHEN 'taxi' THEN 'PA009' ELSE 'PA003' END;
+  END IF;
+
+  PERFORM private.assert_weekly_add_available(v_claim.league_id, v_claim.league_season_id, p_member_id);
+
+  IF (v_claim.process_date + time '00:00') AT TIME ZONE coalesce(v_league.timezone, 'America/Los_Angeles') <= now() THEN
+    RAISE EXCEPTION 'The claim cutoff has passed. Wait for the scheduled result.' USING ERRCODE='P0001';
+  END IF;
+  IF EXISTS (SELECT 1 FROM roster_players WHERE league_id=v_claim.league_id AND league_season_id=v_claim.league_season_id AND player_id=v_claim.player_id) THEN
+    RAISE EXCEPTION 'This player is already on a roster.' USING ERRCODE='P0001';
+  END IF;
+
+  IF p_drop_player_id IS NOT NULL AND p_drop_player_id = v_claim.player_id THEN
+    RAISE EXCEPTION 'You cannot drop the player you are claiming.'
+      USING ERRCODE = '22023';
+  END IF;
+
+  IF v_league.waiver_mode = 'rolling' THEN
+    v_bid_amount := 0;
+  ELSE
+    v_balance := private.available_faab_balance(v_claim.league_id, v_claim.league_season_id, p_member_id);
+    IF v_bid_amount > v_balance THEN
+      RAISE EXCEPTION 'FAAB bid exceeds your available balance.'
+        USING ERRCODE = 'P0001';
+    END IF;
+  END IF;
+
+  IF p_drop_player_id IS NOT NULL THEN
+    SELECT validation.failure_reason
+      INTO v_drop_failure
+      FROM private.validate_waiver_claim_drop_player(
+        v_claim.league_id,
+        v_claim.league_season_id,
+        p_member_id,
+        p_drop_player_id
+      ) AS validation;
+
+    IF v_drop_failure IS NOT NULL THEN
+      RAISE EXCEPTION '%', v_drop_failure
+        USING ERRCODE = 'P0001';
+    END IF;
+  END IF;
+
+  IF COALESCE(p_to_ir,v_claim.to_ir) AND COALESCE(p_to_taxi,v_claim.to_taxi) THEN
+    RAISE EXCEPTION 'Choose IR or taxi, not both.' USING ERRCODE='P0001';
+  END IF;
+
+  UPDATE waiver_claims
+     SET to_ir = COALESCE(p_to_ir, to_ir),
+         to_taxi = COALESCE(p_to_taxi, to_taxi),
+         drop_player_id = p_drop_player_id,
+         bid_amount = v_bid_amount,
+         claim_order = COALESCE(p_claim_order, claim_order),
+         submitted_at = now()
+   WHERE id = p_claim_id;
+END request_write;
+  PERFORM private.request_finish(__request_context, 'null'::jsonb);
+  RETURN;
 END;
 $$;
 

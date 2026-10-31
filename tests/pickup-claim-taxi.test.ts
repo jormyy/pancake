@@ -178,3 +178,41 @@ it('keeps a missing prefilled drop blocked across retries', async () => {
     await act(async () => submit().props.onPress())
     expect(mocks.claim).not.toHaveBeenCalled()
 })
+
+it('allows a claim whose chosen drop is the only illegal player', async () => {
+    const taxi = rosterPlayer({ id: 'taxi-row', is_on_taxi: true })
+    taxi.players = { ...taxi.players, id: 'taxi-player', display_name: 'Taxi Drop', years_exp: 2, career_regular_season_games: 65 }
+    mocks.read.mockResolvedValue([rosterPlayer(), taxi]); mocks.epoch += 1
+    await act(async () => screen.update(React.createElement(ClaimPlayerScreen)))
+    await act(async () => screen.root.findAllByType(type('Pressable')).find(node => node.props.accessibilityLabel === 'Select Taxi Drop to drop')!.props.onPress())
+    await act(async () => submit().props.onPress())
+    await act(async () => { await vi.dynamicImportSettled() })
+    expect(screen.root.findAllByType('IRResolutionModal' as React.ElementType)).toHaveLength(0)
+    expect(mocks.claim).toHaveBeenCalledExactlyOnceWith('member', 'league', 'target', 'taxi-player', expect.any(Object))
+})
+
+it('still opens roster resolution when another player is illegal', async () => {
+    const taxi = rosterPlayer({ id: 'taxi-row', is_on_taxi: true })
+    taxi.players = { ...taxi.players, id: 'taxi-player', display_name: 'Taxi Drop', years_exp: 2, career_regular_season_games: 65 }
+    const ir = rosterPlayer({ id: 'ir-row', is_on_ir: true })
+    ir.players = { ...ir.players, id: 'ir-player', display_name: 'Healthy IR', injury_status: null }
+    mocks.read.mockResolvedValue([taxi, ir]); mocks.size = 2; mocks.epoch += 1
+    await act(async () => screen.update(React.createElement(ClaimPlayerScreen)))
+    await act(async () => screen.root.findAllByType(type('Pressable')).find(node => node.props.accessibilityLabel === 'Select Taxi Drop to drop')!.props.onPress())
+    await act(async () => submit().props.onPress())
+    await act(async () => { await vi.dynamicImportSettled() })
+    expect(mocks.claim).not.toHaveBeenCalled()
+    expect(screen.root.findByType('IRResolutionModal' as React.ElementType).props.ineligibleIR).toEqual([taxi, ir])
+})
+
+it('keeps the active limit problem when the chosen drop is Active', async () => {
+    const extra = rosterPlayer({ id: 'extra-row' })
+    extra.players = { ...extra.players, id: 'extra-player', display_name: 'Extra Active' }
+    mocks.read.mockResolvedValue([rosterPlayer(), extra]); mocks.games = 65; mocks.epoch += 1
+    await act(async () => screen.update(React.createElement(ClaimPlayerScreen)))
+    await act(async () => screen.root.findAllByType(type('Pressable')).find(node => node.props.accessibilityLabel === 'Select Extra Active to drop')!.props.onPress())
+    await act(async () => submit().props.onPress())
+    await act(async () => { await vi.dynamicImportSettled() })
+    expect(mocks.claim).not.toHaveBeenCalled()
+    expect(screen.root.findAllByType('IRResolutionModal' as React.ElementType)).toHaveLength(1)
+})

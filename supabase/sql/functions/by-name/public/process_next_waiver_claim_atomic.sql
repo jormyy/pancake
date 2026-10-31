@@ -264,7 +264,10 @@ BEGIN
       v_roster_size := v_league.roster_size;
 
       SELECT string_agg(problem.message,' ' ORDER BY problem.kind,problem.player_name,problem.roster_player_id)
-        INTO v_ineligible FROM private.roster_problems(v_claim.league_id,v_claim.league_season_id,v_claim.member_id) problem;
+        INTO v_ineligible FROM private.roster_problems(v_claim.league_id,v_claim.league_season_id,v_claim.member_id) problem
+        LEFT JOIN roster_players chosen ON chosen.id=problem.roster_player_id
+          AND chosen.player_id=v_claim.drop_player_id AND v_claim.drop_roster_slot IN ('taxi','ir')
+       WHERE chosen.id IS NULL;
       IF v_ineligible IS NOT NULL THEN
         RETURN QUERY SELECT * FROM private.fail_waiver_claim(
           v_claim.id,v_claim.league_id,v_claim.league_season_id,v_claim.member_id,v_claim.player_id,
@@ -280,9 +283,9 @@ BEGIN
           INTO v_drop_roster_id, v_failure
           FROM private.validate_waiver_claim_drop_player(
             v_claim.league_id,v_claim.league_season_id,v_claim.member_id,v_claim.drop_player_id,
-            'Drop player is no longer on this active roster.') validation;
+            'Drop player is no longer on this roster.') validation;
         IF v_claim.drop_player_id IS NULL OR v_drop_roster_id IS NULL OR v_failure IS NOT NULL THEN
-          RAISE EXCEPTION '%',COALESCE(v_failure,'Drop player is no longer on this active roster.') USING ERRCODE='PA008';
+          RAISE EXCEPTION '%',COALESCE(v_failure,'Drop player is no longer on this roster.') USING ERRCODE='PA008';
         END IF;
         SELECT CASE WHEN is_on_taxi THEN 'taxi' WHEN is_on_ir THEN 'ir' ELSE 'active' END INTO v_drop_slot
           FROM roster_players WHERE id=v_drop_roster_id;

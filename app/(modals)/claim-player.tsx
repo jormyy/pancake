@@ -37,7 +37,7 @@ import { getPlayer } from '@/lib/players'
 import { claimProcessDateLabel, claimProcessTimeLabel, submitWaiverClaim, editWaiverClaim, scheduledClaimLabel } from '@/lib/waivers'
 import { type MemberTransactionState } from '@/lib/league'
 
-import { addLimitSummary, pickupDestinations, reportPickupError } from '@/lib/pickup'
+import { addLimitSummary, claimRosterProblems, pickupDestinations, reportPickupError } from '@/lib/pickup'
 import { blockedActionProps } from '@/lib/a11y'
 import { useAddLimitGate } from '@/hooks/use-add-limit-gate'
 import { colors, controlSize, fontFamily, fontSize, fontWeight, layout, radii, spacing, table, textStyles, uiColors } from '@/constants/tokens'
@@ -236,7 +236,10 @@ export default function ClaimPlayerScreen() {
         if (loading || !player || loadError) return
         if (balanceUnknown) return
         if (explainBlock()) return
-        if (online && !await rosterLegality.check(myRoster)) return
+        if (online && claimRosterProblems(myRoster, rosterSize, selectedDrop).length > 0) {
+            await rosterLegality.check(myRoster)
+            return
+        }
         if (placementBlocked) {
             showAlert('Select destination', 'This drop does not free an Active slot. Choose an eligible destination.')
             return
