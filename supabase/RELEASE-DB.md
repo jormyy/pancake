@@ -24,6 +24,13 @@ The frontend and SQL ship in one commit. Existing RPC arguments and the free-age
 The new frontend submits inactive drops through the existing claim RPC, which older SQL rejects before writing a claim.
 Old frontends retain Active-drop placement and fallback behavior against the new SQL.
 All pickups still require scheduled claims. Immediate adds remain blocked in every league state.
+## Game-night performance
+
+Each migration below ships alone. Apply them in order. The baseline is main `7fdaf684` with 741 migrations through `20261214005900`.
+
+| Migration | Change | Deploy order |
+| --- | --- | --- |
+| `20261214006100_live_poll_stalled_retry.sql` | Retries a live-poll item on the next dispatcher minute when its worker never started or stopped renewing its lease. | Database only. |
 
 ## Release 2.14.5
 
