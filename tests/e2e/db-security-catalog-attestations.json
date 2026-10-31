@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261214006000",
+  "candidateVersion": "20261214006200",
   "common": {
     "functions": [
       {
@@ -858,7 +858,7 @@
           "strict": false,
           "language": "plpgsql",
           "arguments": "",
-          "bodySha256": "e145ad917e044c7c8d947c5fba94853aa5e86a521a4a8e22f9f8e012593fe635",
+          "bodySha256": "abba2fc6b82a624d67f4c1ca0fd6a0c630c33c08a75c70676b3a49975527cc1c",
           "volatility": "v",
           "anonExecute": false,
           "publicExecute": false,
@@ -2522,6 +2522,14 @@
     {
       "filename": "20261214006000_inactive_pickup_drops.sql",
       "sha256": "5f121f10a54e9b06be49905073d004586b9f79ef8ce38b334cbda6a78ac20352"
+    },
+    {
+      "filename": "20261214006100_live_poll_stalled_retry.sql",
+      "sha256": "5daec33a3101b5dda2d349c32bdcce2add65a1f4fbbb224383f8557651e3ae5e"
+    },
+    {
+      "filename": "20261214006200_skip_empty_statement_triggers.sql",
+      "sha256": "4c16a82af69531f310ca7f7dd3d37af9a4ccd6c3c45757fbf30878c6913d3b85"
     }
   ],
   "preMigration": {

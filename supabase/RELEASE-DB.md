@@ -24,10 +24,10 @@ The frontend and SQL ship in one commit. Existing RPC arguments and the free-age
 The new frontend submits inactive drops through the existing claim RPC, which older SQL rejects before writing a claim.
 Old frontends retain Active-drop placement and fallback behavior against the new SQL.
 All pickups still require scheduled claims. Immediate adds remain blocked in every league state.
-## Game-night performance
+## Release 2.14.7: game-night performance
 
-The supplied production head is `20261214005900`, with 741 migrations at main `7fdaf684` (release 2.14.5).
-Release 2.14.6 adds two migrations. The candidate contains 743 migrations through `20261214006200`.
+The supplied production head is `20261214006000`, with 742 migrations at main `3fcecace` (release 2.14.6).
+Release 2.14.7 adds two migrations. The candidate contains 744 migrations through `20261214006200`.
 
 | Migration | Change | Deploy order |
 | --- | --- | --- |
