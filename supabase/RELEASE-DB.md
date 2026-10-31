@@ -26,7 +26,8 @@ Old frontends retain Active-drop placement and fallback behavior against the new
 All pickups still require scheduled claims. Immediate adds remain blocked in every league state.
 ## Game-night performance
 
-Each migration below ships alone. Apply them in order. The baseline is main `7fdaf684` with 741 migrations through `20261214005900`.
+The supplied production head is `20261214005900`, with 741 migrations at main `7fdaf684` (release 2.14.5).
+Release 2.14.6 adds two migrations. The candidate contains 743 migrations through `20261214006200`.
 
 | Migration | Change | Deploy order |
 | --- | --- | --- |
@@ -199,6 +200,11 @@ Apply `20261214006000_inactive_pickup_drops.sql`, then merge the frontend. Edge 
 ### Historical release 2.14.5 order
 
 The production head was `20261214005800`, with 740 migrations.
+Apply `20261214006100_live_poll_stalled_retry.sql`, then `20261214006200_skip_empty_statement_triggers.sql`. Edge and frontend source are unchanged.
+
+### Historical release 2.14.5 order
+
+The supplied production head was `20261214005800`, with 740 migrations.
 Apply `20261214005900_bounded_first_screens.sql`, then merge the frontend. Edge source is unchanged.
 
 ### Historical release 2.14.4 order
