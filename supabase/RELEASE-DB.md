@@ -31,6 +31,7 @@ Each migration below ships alone. Apply them in order. The baseline is main `7fd
 | Migration | Change | Deploy order |
 | --- | --- | --- |
 | `20261214006100_live_poll_stalled_retry.sql` | Retries a live-poll item on the next dispatcher minute when its worker never started or stopped renewing its lease. | Database only. |
+| `20261214006200_skip_empty_statement_triggers.sql` | Stops three statement triggers before dynamic SQL when no row changed. | Database only. |
 
 ## Release 2.14.5
 

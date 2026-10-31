@@ -11,6 +11,14 @@ BEGIN
   IF TG_TABLE_NAME='nba_games' THEN
     v_ignored := v_ignored || ARRAY['live_stats_elapsed_seconds','live_scoreboard_elapsed_seconds'];
   END IF;
+  IF TG_OP='INSERT' THEN
+    IF NOT EXISTS(SELECT 1 FROM new_rows) THEN RETURN NULL; END IF;
+  ELSIF TG_OP='DELETE' THEN
+    IF NOT EXISTS(SELECT 1 FROM old_rows) THEN RETURN NULL; END IF;
+  ELSIF NOT EXISTS(SELECT 1 FROM new_rows n JOIN old_rows o USING(id)
+    WHERE (to_jsonb(n)-v_ignored) IS DISTINCT FROM (to_jsonb(o)-v_ignored)) THEN
+    RETURN NULL;
+  END IF;
   IF TG_OP='INSERT' THEN v_rows := 'SELECT * FROM new_rows';
   ELSIF TG_OP='DELETE' THEN v_rows := 'SELECT * FROM old_rows';
   ELSE
