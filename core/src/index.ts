@@ -1,6 +1,8 @@
 // Scoring
 export { calculateFantasyPoints, roundFantasyPoints, snakeToStatLine } from './scoring/formula'
 export type { StatLine, ScoringSettings } from './scoring/types'
+export { overlayLiveScores, liveLineStats } from './live/overlay'
+export type { LiveSnapshot, LiveLine, PublicLiveGame, SavedLiveMatchup, SavedLivePlayer, PublicLiveStats } from './live/overlay'
 
 // Season
 export { currentSeasonYear } from './season/year'
