@@ -184,7 +184,7 @@
     "scripts/season-sim/sql-session-fixture.mjs",
     "tests/db/league-actions{,-stack,-report,-metrics.test}.mjs",
     "api/live/*.ts",
-    "scripts/bench/game-night/{architecture-series,held-out-series,cleanup,edge,provider-check,public-server,regressions,regrade,run,runtime-check,series,settings-series,verify,verify-phone-history,verify-settings}.{mjs,ts}"
+    "scripts/bench/game-night/{architecture-series,negative-controls,held-out-series,cleanup,edge,provider-check,public-server,regressions,regrade,run,runtime-check,series,settings-series,verify,verify-phone-history,verify-settings}.{mjs,ts}"
   ],
   "project": [
     "**/*.{js,mjs,ts,tsx}"

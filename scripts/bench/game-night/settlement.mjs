@@ -1,6 +1,14 @@
 import assert from 'node:assert/strict'
 import { groupStatements, statementDeltas } from './measure.mjs'
 
+export function settlementBudget({publicLive=false,ingestionOff=false,skipSettlement=false,fault=undefined,broken=false}) {
+  if(skipSettlement) {
+    assert.ok(!broken && typeof fault==='string' && fault.length>0,'Only a named negative quality control may omit settlement')
+    return 0
+  }
+  return ingestionOff?0:publicLive?1920000:180000
+}
+
 export function settlementCosts(start,end) {
   const seconds=(Date.parse(end.at)-Date.parse(start.at))/1000
   assert.ok(seconds>=0,'Settlement clock moves backward')

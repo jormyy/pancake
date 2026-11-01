@@ -13,7 +13,7 @@ import { startPhones } from './phones.mjs'
 import { phoneGrade } from './phone-grade.mjs'
 import { checkpointGrade } from './checkpoint-grade.mjs'
 import { projectBudget } from './budget.mjs'
-import { settlementCosts } from './settlement.mjs'
+import { settlementBudget, settlementCosts } from './settlement.mjs'
 import { resourceGrade } from './resource-grade.mjs'
 import { counters, fantasyAt, finalCheck, finalGameCheck, graderVersion, groupStatements, percentile, readFantasy, readScores, snapshot, statementDeltas, workCheck } from './measure.mjs'
 
@@ -48,7 +48,8 @@ export async function prepare(stack, slate, label) {
   return { feed, shape, anchor }
 }
 
-export async function runWindow(stack, slate, { label, memoryMiB, seconds = slate.windowSeconds, warmup = 120, ingestionOff = false, broken = false }) {
+export async function runWindow(stack, slate, { label, memoryMiB, seconds = slate.windowSeconds, warmup = 120, ingestionOff = false, broken = false, skipSettlement = false }) {
+  const settlementLimit=settlementBudget({publicLive:stack.liveArchitecture,ingestionOff,skipSettlement,fault:stack.qualityOptions?.fault,broken})
   const harness = Object.fromEntries(await Promise.all((await readdir(directory)).filter(file => !file.startsWith('.')).map(async file => [file, digest(await readFile(path.join(directory, file)))])))
   for (const file of ['server/live/handler.ts','server/live/snapshot.ts','core/cjs/index.js','core/cjs/scoring/formula.js','core/cjs/live/overlay.js','core/cjs/live/poll.js','core/cjs/live/codec.js','core/cjs/live/recovery.js',
     'vitest.config.ts','tests/live-phone-recovery.test.ts',
@@ -164,10 +165,10 @@ export async function runWindow(stack, slate, { label, memoryMiB, seconds = slat
     const publicAfter = publicFeed ? await publicFeed.health() : null
     const realtimeAfter = await fetch(`http://127.0.0.1:${stack.ports.edge}/health`).then(response => response.json())
     let settlementSeconds = 0
-    let settlementStopped = ingestionOff ? 'ingestion-off control' : null
+    let settlementStopped = skipSettlement ? 'negative quality control; final settlement omitted and acceptance prohibited' : ingestionOff ? 'ingestion-off control' : null
     if (!ingestionOff) {
       const settlementStarted = Date.now()
-      while (Date.now()-settlementStarted < (stack.liveArchitecture?1920000:180000)) {
+      while (Date.now()-settlementStarted < settlementLimit) {
         await observeFinals(await readScores(stack),Date.now())
         if(finalGameChecks.some(row=>!row.passed)){settlementStopped='official final missed its quality deadline';break}
         if ((await finalCheck(stack,slate,seconds)).passed) break
@@ -238,7 +239,7 @@ export async function runWindow(stack, slate, { label, memoryMiB, seconds = slat
       drainSeconds: (Date.now() - drainStarted) / 1000,
       scoreFreshness: { p50Ms: percentile(freshness.map(row => row.milliseconds), .5), p95Ms: percentile(freshness.map(row => row.milliseconds), .95), samples: freshness.length, resolutionMs: 5000, observations: freshness, fantasyP50Ms: percentile(fantasyFreshness, .5), fantasyP95Ms: percentile(fantasyFreshness, .95), fantasySamples: fantasyFreshness.length },
       finalState: check, controlBefore, settlementSeconds, settlementStopped, postWindowCosts:settlementCosts(after,qualityState), publicFeed:publicResults,phones:phoneResults,phoneBehavior,actionResults, failures, deadWorkItems: failures.jobs.filter(row => row.status === 'dead'),
-      passed: resources.hostMemory.passed && check.passed && work.passed && (!phoneResults || phoneResults.passed) && (!actionResults || actionResults.passed) && !Object.values(failures).some(rows => rows.length) && last.events.oom_kill === first.events.oom_kill,
+      passed: !skipSettlement && resources.hostMemory.passed && check.passed && work.passed && (!phoneResults || phoneResults.passed) && (!actionResults || actionResults.passed) && !Object.values(failures).some(rows => rows.length) && last.events.oom_kill === first.events.oom_kill,
       control: broken ? 'delete one stored final stat' : ingestionOff ? 'live ingestion disabled at worker boundary' : stack.qualityOptions?.fault ?? null,
       processSamples, contextSamples, observations: samples, feedRequests: prepared.feed.requests, before, after }
     if (stack.qualityEnabled) {

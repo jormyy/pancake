@@ -1,11 +1,20 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { settlementCosts } from './settlement.mjs'
+import { settlementBudget, settlementCosts } from './settlement.mjs'
 
 const snapshot=(second,wal,sessions,calls)=>({at:new Date(second*1000).toISOString(),
   wal:{wal_bytes:String(wal)},database:{sessions},storage:{databaseBytes:100+second},
   statementInfo:{stats_reset:'fixed'},statements:[{queryid:'1',userid:'1',dbid:'1',toplevel:true,
     query:'select public.get_live_checkpoint_inputs($1)',calls,total_exec_time:calls*100,wal_bytes:'0'}]})
+
+test('successful runs always allow normal settlement and only named negative controls can omit it',()=>{
+  assert.equal(settlementBudget({}),180000)
+  assert.equal(settlementBudget({publicLive:true}),1920000)
+  assert.equal(settlementBudget({ingestionOff:true}),0)
+  assert.equal(settlementBudget({skipSettlement:true,fault:'phone-final'}),0)
+  assert.throws(()=>settlementBudget({skipSettlement:true}))
+  assert.throws(()=>settlementBudget({skipSettlement:true,fault:'phone-final',broken:true}))
+})
 
 test('checkpoint settlement is measured separately from the timed snapshot',()=>{
   const start=snapshot(10,100,3,5),end=snapshot(70,300,7,8)
