@@ -8,7 +8,7 @@ PostgreSQL owns authorization, roster legality, scoring, and committed state.
 Screen loaders read one complete JSON view through `GET /views/<screen>`.
 The Edge API forwards the user's bearer token to member-scoped SQL reads.
 Most routes call one view function.
-Other-matchup views combine authorized reads on the server.
+Other-matchup views use the selected member and date with the same authorization checks.
 The response is `{ ok, view }`.
 The browser restores Maps and Sets from JSON without extra reads.
 Authentication, league selection, and the shared change stream have separate reads.
@@ -73,6 +73,14 @@ Offline screens retain saved data and show an offline notice.
 The service worker caches public files separately from private screen data.
 See [loading](instant-loading.md) and [PWA behavior](pwa-live-data.md).
 
+## Live scores
+
+A public Vercel snapshot supplies compact NBA lines every 30 seconds to visible live screens.
+Phones apply the shared scoring formula to their saved authorized lineup and official-score basis.
+Postgres imports status transitions, finals, corrections, and 30-minute checkpoints.
+Final results and all actions remain server-owned.
+See [live scores](live-scores.md) for stale behavior, rollback, hosted settings, and local results.
+
 ## Stored results and background refresh
 
 `standings_current`, `matchup_totals`, `player_season_averages`, and `trade_value_cache` store screen results.
@@ -87,7 +95,7 @@ Trade publication freshness lives separately from the analysis JSON.
 Changed result fields publish a new league version.
 Refresh timestamps alone do not publish another version or restart refresh work.
 Views expose stale state while work remains pending.
-Trade values expire within ten minutes.
+Trade analysis at creation stays immediate; later re-analysis follows the nightly schedule.
 
 ## Idempotent writes
 
@@ -133,35 +141,29 @@ Trade event and screen publication can run after the trade write commits.
 
 The `matchup-forecast` worker computes shared forecasts outside screen loads.
 It prepares bounded player histories and projection inputs before reading the forecast context.
-Stored season totals update projection inputs when statistics change.
+Stored season totals update projection inputs at game end and on final corrections.
 Revision tokens reject old results.
-Expiry is the next known tipoff or six hours.
+Win odds update every 30 minutes during games and once at matchup end.
+Outside those windows, input changes remain pending without repeated computation.
 See [trade estimates](trade-estimates.md) and [matchup forecasts](matchup-forecasts.md).
 
 ## Scheduled work
 
-One SQL dispatcher owns the application work queue.
-`work-dispatcher` calls `public.dispatch_work()` each minute.
-Two maintenance cron entries drain hints every 30 seconds and prune cron history hourly.
-Old per-job Edge cron dispatchers are removed.
-
-The dispatcher checks the operator pause before enqueueing or claiming work.
-It claims one item at a time, with at most eight claims and eight active workers.
-It starts no new item after two seconds.
-The cron command sets a five-second statement budget and a 250 ms lock budget.
-Service-role statements have a three-second budget and a 250 ms lock budget.
+One SQL dispatcher owns the application work queue and runs every minute.
+It also drains hints; hourly history cleanup and daily statistics use separate cron entries.
+It checks the operator pause before enqueueing or claiming work.
+At most four workers are active, and one call admits at most 32 items within two seconds.
+Live work takes the first available slot before queued background work.
+The cron command has a five-second statement budget and a 250 ms lock budget.
 An advisory lock skips overlapping dispatch runs.
 
-Claims grant five-minute work leases.
-Workers renew every 30 seconds and at explicit work phases.
+Work leases last five minutes; live ingestion has its separate 90-second lease.
+Live work heartbeats every 120 seconds, with live-lease renewal every 60 seconds.
+Other workers heartbeat every 30 seconds and at explicit phases.
 Lease loss stops further writes.
-Retries back off from one minute to a fifteen-minute cap.
-The third failed attempt becomes dead work.
-Value-source failures use up to four separate retries, each 30 minutes later.
-The retry RPC releases the daily claim and preserves the source error.
-Successful daily values queue pick predictions before versioned trade re-analysis.
-The former ranking work kind and hourly gate are removed.
-Individual game and forecast claims retain their own ownership checks.
+Retries back off from one minute to a fifteen-minute cap; the third failed attempt becomes dead work.
+Value-source retries retain their separate bounded policy.
+The [scheduler guide](operations-scheduler.md) owns the complete schedule and recovery rules.
 
 `work_dashboard()` shows due, running, failed, and dead work.
 `set_worker_paused(true, reason)` stops new scheduled work.

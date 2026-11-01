@@ -194,174 +194,29 @@ The [trade curve report](../docs/trade-curve.md) records the real trades, roster
 
 ## Release order for this release
 
-The supplied production head is `20261214006200`, from the recorded 2.14.7 release. This lab does not verify hosted state.
-The local candidate ends at `20261214007500`. Database, then Edge, then merge the frontend.
-Apply the pending migrations through `20261214007500` only during a separately approved release.
-Deploy the public snapshot route with database mode selected before enabling `LIVE_SNAPSHOT_BASE_URL` on the workers.
-The new route and worker must share the same server-side switch. Enable public mode after both are ready.
-Keep database mode available for rollback. It retains the previous live save path.
-This work performs no release, and the release attestations remain unchanged.
-
-### Historical release 2.14.5 order
-
-The production head was `20261214005800`, with 740 migrations.
-Apply `20261214006100_live_poll_stalled_retry.sql`, then `20261214006200_skip_empty_statement_triggers.sql`. Edge and frontend source are unchanged.
-
-### Historical release 2.14.5 order
-
-The supplied production head was `20261214005800`, with 740 migrations.
-Apply `20261214005900_bounded_first_screens.sql`, then merge the frontend. Edge source is unchanged.
-
-### Historical release 2.14.4 order
-
-From production head `20261214005700`, apply `20261214005800_league_trade_history.sql`, then merge the frontend.
-
-### Historical release 2.14.3 order
-
-From production head `20261214005600`, deploy Edge first, then apply `20261214005700_trade_curve_no_flat_roster_value.sql`, then merge the frontend.
-The old worker cannot process a v6 reanalysis job, so Edge must lead.
-
-### Historical release 2.14.1 order
-
-From production head `20261214005500`, apply `20261214005600_perf_beacon_screens.sql`, then deploy Edge, then merge the frontend.
-The beacon route and the client send the new screen names only after the database accepts them.
-
-### Historical release 2.14 order
-
-From production head `20261214005409`, the eight Release 2.14 migrations applied with `--include-all` through `20261214005500_pre_tipoff_member_failures.sql`.
+The supplied production head is `20261214006200`, from the recorded 2.14.7 release.
+This lab does not verify hosted state.
+The local candidate ends at `20261214007500`.
 Database, then Edge, then merge the frontend.
-Migration 04300 precedes the shared startup wrapper; 04600 precedes the `refresh-views` model field; 05500 precedes `lineup-optimizer`.
-The private ordered upgrade and fresh reset produce identical catalogs.
+Apply pending migrations through `20261214007500` only during the separately authorized release.
+Do not regenerate attestations until the reviewed release source is ready.
 
-### Historical release 2.11 rollout
+Deploy compatible database and Edge code before enabling public snapshots.
+The route lives beside the static Vercel export; merging the frontend triggers its automatic deployment.
+Set worker `LIVE_SNAPSHOT_BASE_URL` only after the public route passes its checks.
+The Vercel `LIVE_SCORES_OFF` variable and Supabase worker secret are independent controls.
+There is no access to the Vercel account for this change.
+Unsetting the Supabase secret restores ordinary worker ingestion on new invocations, but phones remain in public mode.
+Returning phones to database mode requires a client deployment or a Vercel configuration change.
+A revert merge uses the automatic frontend deployment; matching workers must also be deployed or have the secret unset.
+Keep compatible database functions for old clients, checkpoints, finals, corrections, and rollback.
+Do not reverse data migrations as part of the frontend revert.
+See [rollback and hosted settings](../docs/live-scores.md#rollback) for exact effects and commands.
 
-The table below records earlier migrations already included in the supplied production head.
-For an older baseline, deploy the release 2.11 `refresh-views` worker before migrations 035–037.
-The earlier notification versions require `--include-all` when absent from that older history.
-
-| Migration | Change |
-| --- | --- |
-| `20261214000300_bound_notification_season_scan.sql` | Bounds season notification candidates before recipient joins. |
-| `20261214000400_gate_idle_lineup_notifications.sql` | Skips impossible idle lineup notification scans. |
-| `20261214000600_reuse_notification_insert_plan.sql` | Reuses the notification insert plan. |
-| `20261214000900_refresh_queue_contention.sql` | Keeps completion events out of screen invalidation. |
-| `20261214001100_trade_preview_read_only.sql` | Keeps trade preview FAAB checks read only. |
-| `20261214001300_trade_analyzer_revalue.sql` | Enables saved trade revaluation and renews validated cache leases. |
-| `20261214001400_pace_trade_revaluation_work.sql` | Paces background revaluations behind screen work. |
-| `20261214001500_matchup_forecast_inputs.sql` | Reuses unchanged forecasts and prepares dates once per matchup. |
-| `20261214001700_ingest_identity_noop.sql` | Avoids unchanged identity and stat writes. |
-| `20261214001900_l4d_background_cost.sql` | Bounds pick predictions and skips unchanged game-day writes. |
-| `20261214002100_l3e_scans.sql` | Narrows projection and work scans and indexes internal identity reads. |
-| `20261214002300_l5c_players_response.sql` | Omits unused ownership entries from ordinary free-agent responses. |
-| `20261214002500_trade_locks_drop_only.sql` | Lets trade- and claim-reserved players change lineup slots; drops stay blocked. |
-| `20261214002700_live_fallback.sql` | Orders live source snapshots and records ESPN or NBA provenance. |
-| `20261214002900_offers_do_not_lock.sql` | Allows overlapping pending offers and cancels conflicts when a trade is accepted. |
-| `20261214003100_trade_value_curve.sql` | Curves trade packages at exponent 5, values net roster spots at 25, and queues model v5 once. |
-| `20261214003300_autoset_keep_starters.sql` | Retains omitted starters and fills eligible slots during auto-set. |
-| `20261214003500_keep_live_refresh_essential.sql` | Refreshes live matchup totals during scheduler shedding, in chunks of eight. |
-| `20261214003600_defer_cron_candidate_scans.sql` | Moves forecast input fingerprints and notification candidates into bounded worker chunks. |
-| `20261214003700_preserve_forecast_expiry_wakeups.sql` | Wakes early cache expiries through an indexed worker queue. |
-| `20261214003800_skip_deleted_forecast_scopes.sql` | Skips deleted forecast scopes during league cascades. |
-| `20261214003900_screens_after_211.sql` | Bounds fallback-stat reads and cached trade JSON reads after screen authorization. |
-
-Apply `20261214002700_live_fallback.sql`, then deploy `live-poll` after tonight's games.
-ESPN is the primary live source. NBA supplies each game's fallback and all official final statistics.
-The nightly `daily-stat-corrections` and morning `missing-final-stats` jobs keep their existing NBA paths.
-NBA certification replaces differing live values, including when its final revision predates a live source timestamp.
-Live ESPN cannot mark a game Final, set `stats_synced_at`, or create a certified revision.
-
-The changed RPCs are `public.save_live_game_stats_atomic`, `public.save_live_scoreboard_atomic`, and `public.save_live_feed_snapshot_atomic`.
-Their canonical sources are in `supabase/sql/functions/by-name/public/`.
-The first two retain their signatures. The new RPC adds source timestamps without changing generated client contracts.
-`private.live_feed_state` protects source ordering per game and tracks players witnessed by NBA live data.
-`private.live_nba_witnesses` and `private.reconcile_espn_live_stats` support live provenance.
-The versioned NBA final save removes provisional ESPN-only rows inside its existing transaction, then stores the complete NBA box.
-The original NBA certification function and correction jobs are unchanged.
-Rows previously witnessed by NBA remain covered by the existing completeness guard.
-Failed certification rolls back provisional cleanup.
-The first stats snapshot adds one indexed read of that game's existing player rows; later ticks reuse the stored witness list.
-`private.live_feed_audit` records the source, revision time, progress, and changed row count for each changed snapshot.
-Duplicate snapshots add no audit entries. Legacy NBA writes retain an unknown source revision and a known write time.
-Audit rows follow their game's lifetime.
-The live scoreboard waits for the NBA final box and certified stats before closing a game.
-A scoreboard that reaches Final before its box no longer starts a 30-minute final-stats backoff.
-
-Each live tick requests one ESPN scoreboard, then summaries only for matched live games.
-Failed ESPN requests back off for 20, 40, 80, then 120 seconds in the worker.
-Inconsistent snapshots use a 10-second cooldown and retry on the next 20-second tick.
-This leaves room for request timing differences and prevents transient header differences from compounding into minutes of delay.
-Backoff resets after success. A new worker starts with a fresh backoff state.
-NBA requests and ESPN requests are bounded at 2.5 seconds, including response bodies.
-Live NBA box timestamps use their explicit timezone or the game's ET offset; object modification time is the fallback.
-Official NBA revision timestamps keep their existing representation.
-Live ESPN identities use one small batched read. Missing or ambiguous links use NBA for that game.
-An indexed game-state read occurs inside the existing live save transaction.
-Score-input source-lock conflicts retry only the failed RPC, up to three times, within the live tick deadline.
-Failed inputs log the game, league season, week, RPC, and SQL code.
-
-The private replay uses project `pt4bafablelv` and block `636xx`.
-Run `node scripts/season-sim/live-fallback-mini.mjs --compare --session=<recorded-session-file>` in that lane's mini checkout.
-The comparison executes this branch and the unmodified `892b6bca` live poll against the same recorded sources.
-The replay measures scoring-play wall clocks through database matchup publication and checks totals with the season score oracle.
-
-The measured result is in [the recorded comparison](../tests/fixtures/live-espn/evidence/espn-primary-comparison.json).
-On 11 point changes from two live games, ESPN primary reached 83.01 seconds p95; the release NBA poll reached 20 minutes 32.10 seconds with 20 minutes of injected NBA lag.
-The measured reduction is 19 minutes 9.09 seconds.
-Matchup oracle, source timeout recovery, request limits, and identity-read limits passed.
-The accepted latency target is under 90 seconds, allowing for ESPN summary freshness. The measured 83.01-second result meets that target.
-The replay enforces this target and exits unsuccessfully when it fails.
-`--measure-only` records a diagnostic comparison without enforcing the latency target.
-Recorded ESPN summaries contain header and player-score differences; these require the per-game NBA fallback.
-One player stat change took 68.79 seconds just to appear in the recorded summary, before database publication.
-The release keeps the recorded public ESPN endpoints and rejects inconsistent snapshots.
-This sample covers one live window, rather than a full historical season or production behavior.
-
-Release readiness includes `origin/main` at `892b6bca`, which is already an ancestor of this branch.
-The release-history and security-catalog attestations were regenerated on a fresh private database with all 702 migrations through `20261214002700`.
-The local read-only security catalog passed against that database.
-Full Vitest passed: 4791 tests, zero failures, and 48 skipped; 505 files passed and 16 were skipped.
-Regenerating the contracts resolved the earlier release and attestation failures.
-`npm run check:quality` passed, including application, test, E2E, harness-boundary, and core typechecks.
-The season harness passed 359 tests. Deno passed 68 tests with four steps and one ignored test.
-Five SQL assertion groups passed on the migrated private database.
-The recorded live comparison passed the accepted under-90-second target.
-Commands and results are in [the release-readiness record](../tests/fixtures/live-espn/evidence/release-readiness.json).
-
-The partial score-sync failure was reproduced with the NBA source lock returning `PT409` from `capture_score_inputs`.
-A bounded retry of that input publishes healthy scores without repeating the provider reads.
-NBA CDN timeouts were also reproduced and recover through ESPN.
-The restored backup's score sync passes in isolation.
-Historical aggregate logs omit the exact failed game inputs, so their complete original cause remains unverified.
-
-For the game-night safety package, deploy the updated `refresh-views` Edge worker first.
-Then apply migrations 035, 036, and 037.
-The new worker also accepts the existing refresh and trade payloads.
-Migration 036 introduces the chunk payloads and their service-only RPC.
-Migration 035 can run with the existing worker.
-This package does not require the pending trade-scan migrations 026–028.
-
-`20261214001100_trade_preview_read_only.sql` can ship alone.
-It preserves locking checks for trade writes and waiver claims.
-Its standalone source commit is `1c07b175d19a2cbb049d9e4315851f15e3a3974b`.
-
-Existing in-flight revaluations drain before another revaluation starts for the same league.
-The pace permits one new background revaluation per league per minute.
-Foreground trade estimates retain priority and bypass that pace.
-The pacing migration preserves urgent schedules and invocation outcomes.
-It needs no Edge or frontend release.
-
-Apply `20261214001500_matchup_forecast_inputs.sql` for matchup input fingerprints and shared preparation.
-Unchanged inputs keep forecast work clean. Unchanged expiry renews the existing result.
-The existing forecast worker accepts the completed empty date list.
-The [L4b measurements](../docs/perf-l4b.md) record the private backup comparison.
-
-The contention repair follows `20261214000700_future_pick_years.sql`.
-This repair changes one database trigger function and needs no Edge or frontend deployment.
-Activity events still publish one league version per transaction.
-They do not invalidate derived standings, matchup totals, player averages, or trade values.
-Mixed transactions with source-data changes still queue a refresh.
-This removes the queue-row request from worker completion and preserves its idempotent receipt.
-The concurrency recipe holds a refresh transaction open while another connection completes a worker.
+The lab uses 32 MB shared buffers and PostgREST pool two.
+Hosted acceptance, restart completion, compression, billing, and production capacity remain rollout checks.
+No production deployment or hosted configuration change occurs in the lab.
+The historical release records below describe earlier revisions, not the current schedule or performance result.
 
 ## Release 2.7 trade input order
 

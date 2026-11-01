@@ -23,6 +23,9 @@ Dynasty fantasy basketball, built for your iPhone.
 Expo Router, React Native Web, and TypeScript power the client.
 Supabase provides Auth, Realtime, PostgreSQL, and Deno Edge Functions.
 PostgreSQL enforces league rules; `core/` shares calculations across runtimes.
+A public Vercel snapshot supplies live lines without user data or Supabase reads.
+Phones overlay those lines on saved official scores; finals remain server-owned.
+See [live scores and rollback](docs/live-scores.md).
 Home opens the matchup.
 League groups Standings, Activity, Picks, Draft, Bracket, and Settings.
 Trades groups Offers, Block, History, and Analyzer.
@@ -68,7 +71,8 @@ Run focused checks while developing; regenerate release evidence for the reviewe
 ## Production releases
 
 Database, then Edge, then merge the frontend.
-Release 2.4 includes 608 migrations through `20261116000500`.
+The current candidate includes migrations through `20261214007500`.
+The release guide distinguishes the supplied production head from local verification.
 Follow the ordered [database release steps](supabase/RELEASE-DB.md) before merging.
 Local builds do not fetch production assets by default.
 Use a verified local predecessor for local update checks.

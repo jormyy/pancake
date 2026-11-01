@@ -69,7 +69,12 @@ Refresh metadata causes no version bump.
 Publication hints do not restart the background refresh.
 Missing change ranges require a fresh view.
 Foreground and reconnect checks use the version endpoint.
-The screen loaders add no unchanged-data polling timer.
+Live Home screens add a version recovery check: ten minutes with fresh public data, 20 seconds in stale or database mode.
+An unchanged version does not reload the view.
+Visible live screens poll public snapshots every 30 seconds; hidden screens stop.
+A snapshot older than two minutes shows saved scores with a stale state.
+Past-day views and official finals retain stored results.
+See [live scores](live-scores.md) for cache behavior and separate phone/worker rollback.
 Draft countdowns continue to update local display time.
 
 Account changes clear private views and reject late responses.

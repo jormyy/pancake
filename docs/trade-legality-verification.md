@@ -31,7 +31,7 @@ Cancellation preserves both rosters and releases player, pick, drop, move, and F
 The same assets and plans can then be offered again.
 Early execution and execution after cancellation both fail.
 
-Run this focused proof on the private mini stack:
+Run this focused proof on an isolated local stack:
 
 ```sh
 psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/trade-incoming-destinations.sql
@@ -48,41 +48,41 @@ npx vitest run tests/trade-accept-legality.test.ts tests/trade-roster-plan.test.
 
 | Step | Screenshot at 390 pixels |
 | --- | --- |
-| Sender saves all four choices | [Sender plan](/tmp/fable-c2-evidence/acceptance/ir-01-sender-plan.png) |
-| Acceptance needs one Regular slot | [Blocked preview](/tmp/fable-c2-evidence/acceptance/ir-02-accept-needs-placement.png) |
-| Acceptor assigns the incoming player to IR | [IR choice](/tmp/fable-c2-evidence/acceptance/ir-04-incoming-slot-ready.png) |
-| Both plans wait for review | [Review window](/tmp/fable-c2-evidence/acceptance/ir-05-review-window.png) |
-| Incoming player lands in IR | [Recipient roster](/tmp/fable-c2-evidence/acceptance/ir-06-incoming-slot-executed.png) |
-| Sender's incoming and retained players land in IR | [Sender IR roster](/tmp/fable-c2-evidence/acceptance/ir-07-sender-moves-executed.png) |
-| Sender's retained taxi move executes | [Sender taxi roster](/tmp/fable-c2-evidence/acceptance/ir-08-sender-taxi-executed.png) |
+| Sender saves all four choices | Sender plan (external capture) |
+| Acceptance needs one Regular slot | Blocked preview (external capture) |
+| Acceptor assigns the incoming player to IR | IR choice (external capture) |
+| Both plans wait for review | Review window (external capture) |
+| Incoming player lands in IR | Recipient roster (external capture) |
+| Sender's incoming and retained players land in IR | Sender IR roster (external capture) |
+| Sender's retained taxi move executes | Sender taxi roster (external capture) |
 
 ### Taxi acceptance states
 
 | Step | Screenshot at 390 pixels |
 | --- | --- |
-| Sender saves all four choices | [Sender plan](/tmp/fable-c2-evidence/acceptance/taxi-01-sender-plan.png) |
-| Acceptance needs one Regular slot | [Blocked preview](/tmp/fable-c2-evidence/acceptance/taxi-02-accept-needs-placement.png) |
-| Acceptor assigns the incoming player to taxi | [Taxi choice](/tmp/fable-c2-evidence/acceptance/taxi-04-incoming-slot-ready.png) |
-| Both plans wait for review | [Review window](/tmp/fable-c2-evidence/acceptance/taxi-05-review-window.png) |
-| Incoming player lands on taxi | [Recipient roster](/tmp/fable-c2-evidence/acceptance/taxi-06-incoming-slot-executed.png) |
-| Sender's retained IR move executes | [Sender IR roster](/tmp/fable-c2-evidence/acceptance/taxi-07-sender-moves-executed.png) |
-| Sender's incoming and retained players land on taxi | [Sender taxi roster](/tmp/fable-c2-evidence/acceptance/taxi-08-sender-taxi-executed.png) |
+| Sender saves all four choices | Sender plan (external capture) |
+| Acceptance needs one Regular slot | Blocked preview (external capture) |
+| Acceptor assigns the incoming player to taxi | Taxi choice (external capture) |
+| Both plans wait for review | Review window (external capture) |
+| Incoming player lands on taxi | Recipient roster (external capture) |
+| Sender's retained IR move executes | Sender IR roster (external capture) |
+| Sender's incoming and retained players land on taxi | Sender taxi roster (external capture) |
 
 ### Eligibility and cancellation states
 
 | Step | Screenshot at 390 pixels |
 | --- | --- |
-| Sender saves the plan | [Sender plan](/tmp/fable-c2-evidence/acceptance/cancel-01-sender-plan.png) |
-| Acceptance needs one Regular slot | [Blocked preview](/tmp/fable-c2-evidence/acceptance/cancel-02-accept-needs-placement.png) |
-| Ineligible IR and taxi choices show SQL explanations | [Disabled choices](/tmp/fable-c2-evidence/acceptance/cancel-03-ineligible-ir-and-taxi.png) |
-| Restored eligibility permits IR | [Legal preview](/tmp/fable-c2-evidence/acceptance/cancel-04-incoming-slot-ready.png) |
-| Both plans wait for review | [Review window](/tmp/fable-c2-evidence/acceptance/cancel-05-review-window.png) |
-| Proposer confirms cancellation | [Confirmation](/tmp/fable-c2-evidence/acceptance/cancel-cancel-confirmation.png) |
-| Cancellation succeeds before the list refreshes | [Saved cancellation](/tmp/fable-c2-evidence/acceptance/cancel-cancellation-saved.png) |
-| Proposer cancels during review | [Withdrawn trade](/tmp/fable-c2-evidence/acceptance/cancel-06-cancelled-during-review.png) |
-| Sender retains the planned drop and unmoved players | [Sender roster](/tmp/fable-c2-evidence/acceptance/cancel-07-sender-moves-unapplied.png) |
-| Recipient keeps the original roster | [Recipient roster](/tmp/fable-c2-evidence/acceptance/cancel-08-recipient-unchanged.png) |
-| The same assets and plans can be offered again | [Released terms](/tmp/fable-c2-evidence/acceptance/cancel-09-released-terms-reoffered.png) |
+| Sender saves the plan | Sender plan (external capture) |
+| Acceptance needs one Regular slot | Blocked preview (external capture) |
+| Ineligible IR and taxi choices show SQL explanations | Disabled choices (external capture) |
+| Restored eligibility permits IR | Legal preview (external capture) |
+| Both plans wait for review | Review window (external capture) |
+| Proposer confirms cancellation | Confirmation (external capture) |
+| Cancellation succeeds before the list refreshes | Saved cancellation (external capture) |
+| Proposer cancels during review | Withdrawn trade (external capture) |
+| Sender retains the planned drop and unmoved players | Sender roster (external capture) |
+| Recipient keeps the original roster | Recipient roster (external capture) |
+| The same assets and plans can be offered again | Released terms (external capture) |
 
 The WebKit run uses a 390 by 844 phone viewport and captures 25 states.
 The cancellation test opens History directly after login.
@@ -150,13 +150,13 @@ node tests/e2e/trade-legality-browser.mjs
 
 ## Screenshots
 
-- [Invalid submission with the draft intact](/tmp/fable-c2-evidence/01-invalid-submit-draft-intact.png)
-- [Sender's saved plan](/tmp/fable-c2-evidence/02-sender-plan-ready.png)
-- [IR problem during acceptance](/tmp/fable-c2-evidence/03-accept-needs-ir-fix.png)
-- [Repaired acceptance preview](/tmp/fable-c2-evidence/04-accept-plan-ready.png)
-- [Accepted trade waiting for review](/tmp/fable-c2-evidence/05-accepted-awaiting-review.png)
-- [Execution needs attention](/tmp/fable-c2-evidence/06-execution-held.png)
-- [Resulting roster](/tmp/fable-c2-evidence/07-executed-roster.png)
-- [Incoming player assigned to taxi](/tmp/fable-c2-evidence/08-incoming-taxi-destination.png)
+- Invalid submission with the draft intact (external capture)
+- Sender's saved plan (external capture)
+- IR problem during acceptance (external capture)
+- Repaired acceptance preview (external capture)
+- Accepted trade waiting for review (external capture)
+- Execution needs attention (external capture)
+- Resulting roster (external capture)
+- Incoming player assigned to taxi (external capture)
 
-- [Retained and incoming taxi players after execution](/tmp/fable-c2-evidence/09-retained-and-incoming-taxi-executed.png)
+- Retained and incoming taxi players after execution (external capture)
