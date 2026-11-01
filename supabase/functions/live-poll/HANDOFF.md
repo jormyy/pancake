@@ -32,3 +32,5 @@ The current checks include the thirty-minute checkpoint, public-source fallbacks
 Run the current local replay through `node scripts/bench/game-night/run.mjs --help`. It owns unique ports and a disposable loopback stack. Use `verify-phone-history.mjs` for the real ten-phone correction check. The runner stops its own stack after completion.
 
 The complete performance series and held-out result remain required. Functional tests establish no swap gain. No production or deployed validation occurs in this work.
+
+Queued live ingestion takes the first available worker slot before older asynchronous jobs. The dispatcher still admits at most four active workers and thirty-two claims per call. Explicit pause and reduced-health rules stay active. The live-priority SQL test fails before this change and passes in normal and degraded modes afterward. Short-work, concurrency, health, and background-fairness checks pass.

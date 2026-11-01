@@ -59,7 +59,7 @@ BEGIN
         SELECT id FROM private.work_items WHERE status IN ('pending','failed') AND due_at<=now()
           AND kind=ANY(v_kinds)
           AND (SELECT count(*) FROM private.work_items WHERE status='running' AND lease_until>clock_timestamp())<4
-        ORDER BY due_at,id LIMIT 1 FOR UPDATE SKIP LOCKED
+        ORDER BY CASE WHEN kind='live-poll' THEN 0 ELSE 1 END,due_at,id LIMIT 1 FOR UPDATE SKIP LOCKED
       )
       UPDATE private.work_items item SET status='running',attempts=attempts+1,
         lease_token=gen_random_uuid(),lease_until=clock_timestamp()+interval '5 minutes',invocation_key=NULL
