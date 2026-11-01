@@ -4,6 +4,7 @@ BEGIN;
 CREATE TEMP TABLE forecast_gate_fixture AS SELECT * FROM pg_temp.rules_fixture(2,9592);
 INSERT INTO public.season_weeks(season_year,week_number,week_start,week_end)
 VALUES(9592,1,current_date,current_date+6);
+INSERT INTO public.nba_games(nba_game_id,season_year,week_number,game_date,game_time,home_team,away_team,status) VALUES('002forecast-9592',9592,1,current_date,now()-interval '1 hour','BOS','LAL','InProgress');
 CREATE TEMP TABLE forecast_gate_matchup AS
 WITH added AS (
   INSERT INTO public.matchups(league_id,league_season_id,week_number,home_member_id,away_member_id)

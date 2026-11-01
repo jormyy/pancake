@@ -10,7 +10,7 @@ BEGIN
       (players[2], 'Search', 'Two', 'C', ARRAY['C'], 'OTH', 'Out', 4),
       (players[3], 'Search', 'DNP', 'SF', ARRAY['SF'], 'VST', 'GTD', 1);
   INSERT INTO public.nba_games(id, nba_game_id, season_year, week_number, game_date, home_team, away_team, status)
-    VALUES(game, '002screen-search', public.current_season_year_et(), 1, (now() AT TIME ZONE 'America/New_York')::date, 'VST', 'OTH', 'InProgress');
+    VALUES(game, '002screen-search', public.current_season_year_et(), 1, (now() AT TIME ZONE 'America/New_York')::date, 'VST', 'OTH', 'Final');
   INSERT INTO public.player_game_stats(player_id, game_id, season_year, week_number, points, rebounds, minutes_played, did_not_play)
     VALUES(players[1], game, public.current_season_year_et(), 1, 20, 5, 20, false),
       (players[2], game, public.current_season_year_et(), 1, 11, 10, 25, false),

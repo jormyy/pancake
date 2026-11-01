@@ -8,6 +8,8 @@ BEGIN
   INSERT INTO players(id,first_name,last_name,position,eligible_positions) VALUES(p,'Free','Agent','PG',ARRAY['PG']);
   INSERT INTO nba_games(id,nba_game_id,season_year,week_number,game_date,home_team,away_team,status) VALUES(g,'002live-hint',2096,1,current_date,'HNT','OTH','InProgress');
   INSERT INTO player_game_stats(player_id,game_id,season_year,week_number,points,minutes_played) VALUES(p,g,2096,1,20,12.5);
+  IF EXISTS(SELECT 1 FROM private.player_stats_hint_pending WHERE league_id=l) THEN RAISE EXCEPTION 'Live stat inserts update season totals before the final'; END IF;
+  UPDATE nba_games SET status='Final' WHERE id=g;
   IF NOT EXISTS(SELECT 1 FROM private.player_stats_hint_pending WHERE league_id=l) THEN RAISE EXCEPTION 'Free-agent stats do not queue a league hint'; END IF;
   PERFORM private.flush_player_stats_hints();
   SELECT revision INTO v_revision FROM league_change_hints WHERE league_id=l AND topic='score';
@@ -16,7 +18,7 @@ BEGIN
   PERFORM private.flush_player_stats_hints();
   IF (SELECT revision FROM league_change_hints WHERE league_id=l AND topic='score')<>v_revision THEN RAISE EXCEPTION 'Stats hints exceed the minute throttle'; END IF;
   IF NOT EXISTS(SELECT 1 FROM private.player_stats_hint_pending WHERE league_id=l) THEN RAISE EXCEPTION 'Throttle loses the final changed stats'; END IF;
-  UPDATE league_change_hints SET updated_at=clock_timestamp()-interval '61 seconds' WHERE league_id=l AND topic='score';
+  UPDATE league_change_hints SET updated_at=clock_timestamp()-interval '121 seconds' WHERE league_id=l AND topic='score';
   PERFORM private.flush_player_stats_hints();
   IF (SELECT revision FROM league_change_hints WHERE league_id=l AND topic='score')<>v_revision+1
     OR EXISTS(SELECT 1 FROM private.player_stats_hint_pending WHERE league_id=l) THEN RAISE EXCEPTION 'Final changed stats do not flush after the throttle'; END IF;

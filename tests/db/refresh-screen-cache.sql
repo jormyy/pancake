@@ -72,7 +72,7 @@ BEGIN
   PERFORM pg_temp.check_rules((SELECT NOT dirty FROM private.screen_refresh_queue WHERE league_season_id = f.season_id), 'successful refresh clears pending work');
   UPDATE public.leagues SET scoring_settings = '{"points":2}' WHERE id = f.league_id;
   PERFORM pg_temp.check_rules((SELECT dirty FROM private.screen_refresh_queue WHERE league_season_id = f.season_id), 'scoring changes queue work');
-  UPDATE private.screen_refresh_queue SET claim_token = gen_random_uuid(), claimed_at = now() - interval '4 minutes' WHERE league_season_id = f.season_id;
+  UPDATE private.screen_refresh_queue SET available_at=now(), claim_token = gen_random_uuid(), claimed_at = now() - interval '4 minutes' WHERE league_season_id = f.season_id;
   PERFORM pg_temp.check_rules(EXISTS(SELECT 1 FROM jsonb_array_elements(public.view_refresh_work()) item WHERE item->>'seasonId' = f.season_id::text), 'expired lease is reclaimable');
 END;
 $$;

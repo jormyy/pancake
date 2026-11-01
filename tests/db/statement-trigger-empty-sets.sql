@@ -17,7 +17,7 @@ BEGIN
   SELECT * INTO fixture FROM pg_temp.rules_fixture(1,9651,'active');
   INSERT INTO public.players(id,first_name,last_name) VALUES(v_player,'Empty','Set');
   INSERT INTO public.nba_games(id,nba_game_id,game_date,season_year,week_number,home_team,away_team,status,home_score,away_score)
-    VALUES(v_game,'0029910651','2026-01-15',9651,1,'BOS','MIA','InProgress',10,8);
+    VALUES(v_game,'0029910651','2026-01-15',9651,1,'BOS','MIA','Final',10,8);
   INSERT INTO public.player_game_stats(player_id,game_id,season_year,week_number,points,did_not_play)
     VALUES(v_player,v_game,9651,1,10,false) RETURNING id INTO v_stat;
   IF (SELECT points FROM analytics.player_season_totals WHERE player_id=v_player AND season_year=9651) IS DISTINCT FROM 10 THEN

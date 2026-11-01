@@ -18,15 +18,15 @@ BEGIN
   PERFORM pg_temp.check_rules(NOT (profile->'player' ? 'trade_value') AND profile ? 'lines','legacy profile keeps game lines separate from calculator values');
   EXECUTE 'RESET ROLE';
   DELETE FROM private.work_items;
-  PERFORM private.enqueue_scheduled_work('2026-06-20 11:00 UTC');
-  PERFORM pg_temp.check_rules(NOT EXISTS(SELECT 1 FROM private.work_items WHERE kind='sync-trade-values'),'trade values wait until seven-fifteen Eastern');
-  PERFORM private.enqueue_scheduled_work('2026-06-20 11:15 UTC');
+  PERFORM private.enqueue_scheduled_work('2026-06-20 07:59 UTC');
+  PERFORM pg_temp.check_rules(NOT EXISTS(SELECT 1 FROM private.work_items WHERE kind='sync-trade-values'),'trade values wait until four Eastern');
+  PERFORM private.enqueue_scheduled_work('2026-06-20 08:00 UTC');
   PERFORM pg_temp.check_rules((SELECT count(*)=1 FROM private.work_items WHERE kind='sync-trade-values'),'trade values retain their daily schedule');
   PERFORM pg_temp.check_rules(EXISTS(SELECT 1 FROM private.work_items WHERE kind='process-waivers'
     AND payload->>'timezone'='America/Los_Angeles' AND payload->>'date'='2026-06-20'
     AND due_at='2026-06-20 07:00 UTC'::timestamptz),'waivers retain league-local midnight beside trade values');
   UPDATE private.work_items SET status='succeeded',lease_token=NULL,lease_until=NULL;
-  PERFORM private.enqueue_scheduled_work('2026-06-20 11:30 UTC');
+  PERFORM private.enqueue_scheduled_work('2026-06-20 08:30 UTC');
   PERFORM pg_temp.check_rules((SELECT count(*)=1 FROM private.work_items WHERE kind='sync-trade-values'),'trade values enqueue once per Eastern day');
 END;
 $$;

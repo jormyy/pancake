@@ -37,14 +37,14 @@ BEGIN
   PERFORM private.enqueue_daily('sync-players',6,0,'2026-01-14 23:59 America/New_York');
   PERFORM pg_temp.check_rules(pg_temp.queued('sync-players')=1,'players catch up once per ET day');
   DELETE FROM private.work_items;
-  PERFORM private.enqueue_rankings('2026-01-12 06:59:59 America/New_York');
-  PERFORM pg_temp.check_rules(pg_temp.queued('sync-rankings')=0,'rankings wait until Monday seven ET');
-  PERFORM private.enqueue_rankings('2026-01-13 08:00 America/New_York');
+  PERFORM private.enqueue_rankings('2026-01-12 03:59:59 America/New_York');
+  PERFORM pg_temp.check_rules(pg_temp.queued('sync-rankings')=0,'rankings wait until four ET');
+  PERFORM private.enqueue_rankings('2026-01-13 04:00 America/New_York');
   PERFORM pg_temp.finished();
-  PERFORM private.enqueue_rankings('2026-01-14 08:00 America/New_York');
-  PERFORM pg_temp.check_rules(pg_temp.queued('sync-rankings')=3,'rankings catch up once per ISO week and view');
-  PERFORM private.enqueue_rankings('2026-01-19 07:00 America/New_York');
-  PERFORM pg_temp.check_rules(pg_temp.queued('sync-rankings')=6,'rankings enqueue all three next-week views');
+  PERFORM private.enqueue_rankings('2026-01-13 05:00 America/New_York');
+  PERFORM pg_temp.check_rules(pg_temp.queued('sync-rankings')=3,'rankings run once per day and view');
+  PERFORM private.enqueue_rankings('2026-01-14 04:00 America/New_York');
+  PERFORM pg_temp.check_rules(pg_temp.queued('sync-rankings')=6,'rankings enqueue all three next-day views');
   PERFORM pg_temp.check_rules(EXISTS(SELECT 1 FROM private.work_kinds WHERE kind='sync-rankings' AND function_name='sync-rankings'),'Hashtag work targets its worker');
   PERFORM pg_temp.check_rules(NOT pg_temp.scheduled('2026-01-20 08:59 UTC','sync-rankings'),'rankings wait for the hour');
   PERFORM pg_temp.check_rules(pg_temp.scheduled('2026-01-20 09:00 UTC','sync-rankings'),'rankings wake each hour');
@@ -61,15 +61,15 @@ BEGIN
   DELETE FROM private.work_items;
   INSERT INTO public.nba_games(nba_game_id,season_year,week_number,game_date,home_team,away_team,status,game_time)
   VALUES('002injuryqueue',9541,1,v_day,'QX','QY','Scheduled',(v_day+time '22:00') AT TIME ZONE 'America/New_York');
-  FOREACH v_ref IN ARRAY ARRAY[(v_day+time '10:59') AT TIME ZONE 'America/New_York',(v_day+time '11:00') AT TIME ZONE 'America/New_York',(v_day+time '11:01') AT TIME ZONE 'America/New_York',(v_day+time '11:15') AT TIME ZONE 'America/New_York'] LOOP
+  FOREACH v_ref IN ARRAY ARRAY[(v_day+time '19:59') AT TIME ZONE 'America/New_York',(v_day+time '20:00') AT TIME ZONE 'America/New_York',(v_day+time '20:01') AT TIME ZONE 'America/New_York',(v_day+time '20:15') AT TIME ZONE 'America/New_York'] LOOP
     PERFORM private.enqueue_player_injuries(v_ref); PERFORM pg_temp.finished();
   END LOOP;
-  PERFORM pg_temp.check_rules(pg_temp.queued('player-injuries')=3,'injuries switch hourly to quarter-hour at eleven ET');
+  PERFORM pg_temp.check_rules(pg_temp.queued('player-injuries')=3,'injuries switch to quarter-hour two hours before the first tipoff');
   DELETE FROM private.work_items;
   FOREACH v_ref IN ARRAY ARRAY[(v_day+1+time '08:00') AT TIME ZONE 'America/New_York',(v_day+1+time '08:15') AT TIME ZONE 'America/New_York',(v_day+1+time '09:00') AT TIME ZONE 'America/New_York',(v_day+1+time '23:00') AT TIME ZONE 'America/New_York',(v_day+1+time '01:00') AT TIME ZONE 'America/New_York',(v_day+1+time '02:00') AT TIME ZONE 'America/New_York',(v_day+1+time '03:00') AT TIME ZONE 'America/New_York'] LOOP
     PERFORM private.enqueue_player_injuries(v_ref); PERFORM pg_temp.finished();
   END LOOP;
-  PERFORM pg_temp.check_rules(pg_temp.queued('player-injuries')=5,'injuries retain off-day and overnight hours');
+  PERFORM pg_temp.check_rules(pg_temp.queued('player-injuries')=1,'injuries run once on an off day');
   PERFORM pg_temp.check_rules(pg_temp.scheduled('2026-06-20 13:00:07 UTC','sync-draft-order'),'June draft window retains delayed cron seconds');
   PERFORM pg_temp.check_rules(NOT pg_temp.scheduled('2026-06-19 13:00 UTC','sync-draft-order'),'June draft window excludes earlier days');
   PERFORM pg_temp.check_rules(pg_temp.scheduled('2026-07-15 13:00 UTC','sync-draft-order'),'July draft window includes fifteen');
@@ -90,9 +90,8 @@ BEGIN
   UPDATE public.edge_invocations SET worker_status='succeeded';
   PERFORM pg_temp.check_rules(NOT pg_temp.scheduled('2026-06-20 13:15 UTC','edge-invocation-reconcile'),'completed invocations do not enqueue reconciliation');
   PERFORM pg_temp.check_rules(NOT pg_temp.scheduled('2026-06-20 13:00 UTC','player-stats-hints'),'score hints avoid leased queue work');
-  PERFORM pg_temp.check_rules(NOT EXISTS(SELECT 1 FROM private.work_items WHERE kind='league-inventory-hint-drain'),'inventory hints avoid leased queue work');
-  PERFORM pg_temp.check_rules(EXISTS(SELECT 1 FROM cron.job WHERE jobname='io-hint-drain' AND schedule='* * * * *'
-    AND command LIKE '%private.flush_player_stats_hints()%' AND command LIKE '%private.flush_league_inventory_hints(1000)%'),'direct hint drains retain their minute cadence');
+  PERFORM pg_temp.check_rules(EXISTS(SELECT 1 FROM private.work_kinds WHERE kind='league-inventory-hint-drain' AND retired_at IS NULL),'inventory hint recovery remains available');
+  PERFORM pg_temp.check_rules(NOT EXISTS(SELECT 1 FROM cron.job WHERE jobname='io-hint-drain'),'hint work uses the shared dispatcher');
   PERFORM pg_temp.check_rules(NOT pg_temp.scheduled('2026-06-20 10:00 UTC','sync-schedule'),'schedule retains its five-minute offset');
   PERFORM pg_temp.check_rules(pg_temp.scheduled('2026-06-20 10:05 UTC','sync-schedule'),'schedule starts at six-oh-five ET');
   DELETE FROM private.work_items;

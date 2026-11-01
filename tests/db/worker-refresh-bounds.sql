@@ -27,7 +27,7 @@ BEGIN
   INSERT INTO public.trades(league_id,league_season_id,proposer_member_id,recipient_member_id,status)
     SELECT f.league_id,f.season_id,f.member_ids[1],f.member_ids[2],'pending' FROM generate_series(1,21);
   PERFORM private.refresh_queue_trade_revaluations(f.season_id,(claim->>'version')::bigint,'fixture');
-  PERFORM pg_temp.check_rules((SELECT count(*)=21 FROM private.work_items WHERE kind='trade-revaluation' AND league_id=f.league_id),
+  PERFORM pg_temp.check_rules((SELECT count(*)=21 FROM private.work_items WHERE kind='trade-revaluation' AND league_id=f.league_id AND key LIKE '%:fixture:latest'),
     'one league scan queues every changed open trade');
   PERFORM pg_temp.check_rules(NOT EXISTS(SELECT 1 FROM private.work_items WHERE kind='trade-revaluation-check' AND league_id=f.league_id),
     'one league scan creates no independent input checks');
@@ -35,7 +35,7 @@ BEGIN
     'one league scan needs no continuation');
   SELECT id INTO cursor_id FROM public.trades WHERE league_season_id=f.season_id AND status='pending' ORDER BY id LIMIT 1;
   PERFORM private.refresh_queue_trade_revaluations(f.season_id,(claim->>'version')::bigint,'fixture',cursor_id);
-  PERFORM pg_temp.check_rules((SELECT count(*)=21 FROM private.work_items WHERE kind='trade-revaluation' AND league_id=f.league_id),
+  PERFORM pg_temp.check_rules((SELECT count(*)=21 FROM private.work_items WHERE kind='trade-revaluation' AND league_id=f.league_id AND key LIKE '%:fixture:latest'),
     'a legacy continuation reuses the existing valuation keys');
 END;
 $$;
