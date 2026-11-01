@@ -12,7 +12,15 @@ BEGIN
   CREATE TRIGGER home_version_scope AFTER UPDATE ON pg_temp.standings_current
     REFERENCING NEW TABLE AS version_new_rows OLD TABLE AS version_old_rows
     FOR EACH STATEMENT EXECUTE FUNCTION private.league_version_capture('score','league');
+  CREATE TRIGGER home_version_insert AFTER INSERT ON pg_temp.standings_current
+    REFERENCING NEW TABLE AS version_new_rows
+    FOR EACH STATEMENT EXECUTE FUNCTION private.league_version_capture('score','league');
+  PERFORM set_config('pancake.home_changes','{}',true);
   INSERT INTO pg_temp.standings_current VALUES(gen_random_uuid(),f.league_id,f.season_id,f.member_ids[1],0,0,0);
+  SET CONSTRAINTS ALL IMMEDIATE;
+  SELECT scope INTO change FROM public.league_changes WHERE league_id=f.league_id ORDER BY version DESC LIMIT 1;
+  PERFORM pg_temp.check_rules(change->'homeChanged'='false'::jsonb,'new zero standings do not invalidate Home');
+  SET CONSTRAINTS ALL DEFERRED;
   PERFORM set_config('pancake.home_changes','{}',true);
   UPDATE pg_temp.standings_current SET points_for=100;
   SET CONSTRAINTS ALL IMMEDIATE;

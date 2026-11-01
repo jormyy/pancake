@@ -26,8 +26,11 @@ BEGIN
     RETURN NULL;
   END IF;
   IF TG_TABLE_NAME='standings_current' THEN
-    home_changed:=true;
-    IF TG_OP='UPDATE' THEN
+    IF TG_OP='INSERT' THEN
+      SELECT EXISTS(SELECT 1 FROM version_new_rows WHERE COALESCE(wins,0)<>0 OR COALESCE(losses,0)<>0) INTO home_changed;
+    ELSIF TG_OP='DELETE' THEN
+      SELECT EXISTS(SELECT 1 FROM version_old_rows WHERE COALESCE(wins,0)<>0 OR COALESCE(losses,0)<>0) INTO home_changed;
+    ELSE
       SELECT EXISTS(
         (SELECT jsonb_build_array(n.member_id,n.league_season_id,n.wins,n.losses) FROM version_new_rows n
           EXCEPT SELECT jsonb_build_array(o.member_id,o.league_season_id,o.wins,o.losses) FROM version_old_rows o)
