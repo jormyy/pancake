@@ -4,6 +4,7 @@ import { createLivePoller, fetchLiveSnapshot, overlayLiveScores, nextLiveRecover
 import { id, loopback } from './common.mjs'
 import { userToken } from './quality.mjs'
 import { scoreMessage } from './quality-grade.mjs'
+import { advancePhoneVersion, phoneChange } from './phone-read.mjs'
 
 export async function startPhones(stack, publicFeed) {
   loopback(stack.api,[stack.ports.api])
@@ -17,7 +18,7 @@ export async function startPhones(stack, publicFeed) {
     const client = createClient(stack.api,stack.keys.ANON_KEY,{auth:{autoRefreshToken:false,persistSession:false}})
     await client.realtime.setAuth(token)
     const phone = { index, client, view:null, snapshot:null, visible:true, online:true, ready:false, pending:false,
-      loading:null, poller:null, channel:null, error:null, broadcasts:0, timer:null,recoveryTimer:null,recoveryKey:'' }
+      loading:null, poller:null, channel:null, error:null, broadcasts:0, timer:null,recoveryTimer:null,recoveryKey:'',version:'0' }
     phones.push(phone)
     const render = () => {
       if (!phone.view || closed) return
@@ -42,14 +43,17 @@ export async function startPhones(stack, publicFeed) {
       phone.recoveryTimer=setTimeout(async()=>{
         const at=Date.now()
         try {
-          const version=encodeURIComponent(String(phone.view?.context?.version ?? 0))
+          const version=encodeURIComponent(phone.version)
           const response=await fetch(`http://127.0.0.1:${stack.ports.edge}/functions/v1/api/version?league=${id(1)}&since=${version}`,
             {headers:{authorization:`Bearer ${token}`},signal:AbortSignal.timeout(10000)})
           const body=await response.text()
           reads.push({kind:'version',phone:index,at,done:Date.now(),status:response.status,bytes:Buffer.byteLength(body)})
           assert.ok(response.ok,`Phone ${index} cannot check its screen version`)
           const value=JSON.parse(body)
-          if(String(value.version)!==String(phone.view?.context?.version))await phone.refresh()
+          if(BigInt(value.version)>BigInt(phone.version)) {
+            phone.version=advancePhoneVersion(phone.version,value.version)
+            await phone.refresh()
+          }
         } catch(error) {phone.error=error.message}
         finally {scheduleRecovery()}
       },delay)
@@ -82,13 +86,16 @@ export async function startPhones(stack, publicFeed) {
         do {
           phone.pending=false
           const at=Date.now()
-          const response=await fetch(`${stack.api}/rest/v1/rpc/view_home`,{method:'POST',headers:{apikey:stack.keys.ANON_KEY,
-            authorization:`Bearer ${token}`,'content-type':'application/json'},
-            body:JSON.stringify({p_league_id:id(1),p_member_id:id(200+index),p_params:{date}}),signal:AbortSignal.timeout(10000)})
+          const query=new URLSearchParams({leagueId:id(1),memberId:id(200+index),params:JSON.stringify({date})})
+          const response=await fetch(`http://127.0.0.1:${stack.ports.edge}/functions/v1/api/views/home?${query}`,
+            {headers:{authorization:`Bearer ${token}`},signal:AbortSignal.timeout(10000)})
           const body=await response.text()
           reads.push({kind:'home',phone:index,at,done:Date.now(),status:response.status,bytes:Buffer.byteLength(body)})
           assert.ok(response.ok,`Phone ${index} cannot read its authorized home (${response.status})`)
-          phone.view=JSON.parse(body)
+          const result=JSON.parse(body)
+          assert.ok(result.ok && result.view,`Phone ${index} received an invalid screen response`)
+          phone.view=result.view
+          phone.version=advancePhoneVersion(phone.version,phone.view.context?.version)
           phone.ready=true
           render();updatePoll();updateRecovery()
         } while(phone.pending && !closed)
@@ -98,8 +105,10 @@ export async function startPhones(stack, publicFeed) {
     phone.channel=client.channel(`l1:league:${id(1)}`,{config:{private:true}}).on('broadcast',{event:'change'},message=>{
       const score=scoreMessage(message)
       messages.push({phone:index,at:Date.now(),bytes:Buffer.byteLength(JSON.stringify(message)),score})
-      if(score){
-        phone.broadcasts++
+      if(score)phone.broadcasts++
+      const change=phoneChange(message,id(1))
+      phone.version=advancePhoneVersion(phone.version,change.version)
+      if(change.refresh){
         clearTimeout(phone.timer)
         phone.timer=setTimeout(()=>{void phone.refresh()},200)
       }
