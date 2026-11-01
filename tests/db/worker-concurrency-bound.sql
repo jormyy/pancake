@@ -34,6 +34,8 @@ BEGIN
   FOR n IN 1..8 LOOP
     PERFORM private.work_enqueue('process-trades','dispatch-bound-'||n,now()-interval '2 days',jsonb_build_object('worker',n));
   END LOOP;
+  CREATE OR REPLACE FUNCTION private.enqueue_scheduled_work(p_now timestamptz DEFAULT now())
+  RETURNS void LANGUAGE plpgsql AS $fn$ BEGIN RETURN; END; $fn$;
   claimed:=public.dispatch_work();
   IF claimed<>4 THEN RAISE EXCEPTION 'A dispatch minute starts % workers instead of four',claimed; END IF;
   IF (SELECT count(*) FROM private.work_items WHERE status='running')<>4 THEN RAISE EXCEPTION 'Dispatch exceeds its concurrent limit'; END IF;
