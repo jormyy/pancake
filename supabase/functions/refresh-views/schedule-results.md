@@ -65,9 +65,9 @@ git diff --check
 
 The host's older psql does not support `\getenv`. For two existing tests, the runner substitutes the supplied loopback values in memory before execution. It does not edit those test files.
 
-The broader catalog check fails on 27 ACL differences in unchanged functions. For example, the local `get_matchup_forecast` grants service-role execution while the manifest omits that grant. This migration changes none of those grants. All function definitions match after restoring the baseline definitions used during iteration. No release manifest or attestation changes.
+A later clean-stack audit finds zero permission mismatches at the requested earlier commit and at the current schema. The reported 27 differences do not reproduce. The catalog adds only the required owner-only entries for new functions. No release attestation changes.
 
-Swap, production behavior, and HTTP service integration remain unmeasured. The full suite and the separate game-night lab are not run.
+The current game-night lab verifies real HTTP workers, actions, and broadcasts separately. Repeated swap measurements and the final full-suite run remain pending. No production behavior is measured.
 
 # Changed files
 
