@@ -4,7 +4,7 @@ SET LOCAL app.edge_internal_token='live-score-view';
 \ir rules-support.sql
 DO $$
 DECLARE f record; player_a uuid:=gen_random_uuid(); player_b uuid:=gen_random_uuid(); bench uuid:=gen_random_uuid(); game uuid:=gen_random_uuid();
-  own_match uuid:=gen_random_uuid(); other_match uuid:=gen_random_uuid(); result jsonb; basis jsonb;
+  past_game uuid:=gen_random_uuid(); own_match uuid:=gen_random_uuid(); other_match uuid:=gen_random_uuid(); result jsonb; basis jsonb;
   day date:=(now() AT TIME ZONE 'America/Los_Angeles')::date;
 BEGIN
   SELECT * INTO f FROM pg_temp.rules_fixture(4,9568);
@@ -41,8 +41,18 @@ BEGIN
   UPDATE public.nba_games SET status='Final',stats_synced_at=now() WHERE id=game;
   SELECT value INTO basis FROM jsonb_array_elements(public.view_home(f.league_id,f.member_ids[1])->'liveBasis') WHERE value->>'id'=other_match::text;
   PERFORM pg_temp.check_rules((basis->>'ready')::boolean AND basis->'players' @> '[{"nbaId":"101","final":true}]','saved final ignores cached live lines');
-  result:=public.view_home(f.league_id,f.member_ids[1],jsonb_build_object('date',day-1));
+  INSERT INTO public.nba_games(id,nba_game_id,season_year,week_number,game_date,home_team,away_team,status,stats_synced_at)
+    VALUES(past_game,'002live-score-past',9568,1,day-1,'BOS','NYK','Final',now());
+  INSERT INTO public.player_game_stats(player_id,game_id,season_year,week_number,points,minutes_played)
+    VALUES(player_a,past_game,9568,1,22,20);
+  INSERT INTO public.weekly_lineups(league_id,league_season_id,member_id,player_id,game_date,slot_type)
+    VALUES(f.league_id,f.season_id,f.member_ids[3],player_a,day-1,'PG');
+  UPDATE public.matchups SET home_points=34 WHERE id=other_match;
+  result:=public.view_home(f.league_id,f.member_ids[1],jsonb_build_object('date',day-1,'matchupId',other_match));
   PERFORM pg_temp.check_rules(result->'liveBasis'='[]','past-day view uses only official stats');
+  PERFORM pg_temp.check_rules((result->'liveStats'->(player_a::text)->>'points')::integer=22,'past-day stats come from the saved official game');
+  result:=public.view_player(f.league_id,f.member_ids[1],jsonb_build_object('playerId',player_a,'seasonYear',9568));
+  PERFORM pg_temp.check_rules(EXISTS(SELECT 1 FROM jsonb_array_elements(result->'gameLog') line WHERE line->>'nbaGameId'=past_game::text AND (line->>'points')::integer=22 AND NOT (line->>'live')::boolean),'past player game log comes from official stats');
   PERFORM pg_temp.reject_rules(format('SELECT public.view_home(%L,%L,%L)',f.league_id,f.member_ids[1],jsonb_build_object('matchupId',gen_random_uuid())), 'This matchup is not available.','unavailable matchup is rejected');
   PERFORM pg_temp.reject_rules(format('SELECT public.view_home(%L,%L)',f.league_id,f.member_ids[3]),'This screen is not available.','viewer identity remains authorized');
   PERFORM pg_temp.check_rules(NOT has_function_privilege('authenticated','private.live_score_basis(uuid,uuid,integer,date,uuid)','EXECUTE'),'private basis cannot bypass view authorization');
