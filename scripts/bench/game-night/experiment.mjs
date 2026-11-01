@@ -164,14 +164,20 @@ export async function runWindow(stack, slate, { label, memoryMiB, seconds = slat
     const checkpointAfter = stack.liveArchitecture ? await checkpoints() : null
     const publicAfter = publicFeed ? await publicFeed.health() : null
     const realtimeAfter = await fetch(`http://127.0.0.1:${stack.ports.edge}/health`).then(response => response.json())
+    console.log(`${label}: timed anon refaults=${resourceGrade(samples).primary.value.toFixed(1)}/s; awaiting final-state and worker checks.`)
     let settlementSeconds = 0
     let settlementStopped = skipSettlement ? 'negative quality control; final settlement omitted and acceptance prohibited' : ingestionOff ? 'ingestion-off control' : null
     if (!ingestionOff) {
       const settlementStarted = Date.now()
+      let nextSettlementLog = settlementStarted + 60000
       while (Date.now()-settlementStarted < settlementLimit) {
         await observeFinals(await readScores(stack),Date.now())
         if(finalGameChecks.some(row=>!row.passed)){settlementStopped='official final missed its quality deadline';break}
         if ((await finalCheck(stack,slate,seconds)).passed) break
+        if(Date.now()>=nextSettlementLog) {
+          console.log(`${label}: awaiting scheduled settlement after ${Math.round((Date.now()-settlementStarted)/1000)} seconds.`)
+          nextSettlementLog=Date.now()+60000
+        }
         await delay(5000)
       }
       settlementSeconds = (Date.now()-settlementStarted)/1000
