@@ -4,7 +4,8 @@ Run `node scripts/bench/game-night/run.mjs --help` for usage.
 Run `node scripts/bench/game-night/run.mjs --quality --policy --pool 2 --evidence PATH` for one training replay.
 Use `--phase all` only for the original calibration and baseline workflow.
 Use `--phase baseline` to repeat baselines with existing calibration and control evidence.
-Run `node --test scripts/bench/game-night/lab.test.mjs` for focused harness checks.
+Run `node --test scripts/bench/game-night/*.test.mjs` for focused harness checks.
+Use `cleanup.mjs --evidence PATH --project RECORDED_PROJECT` to stop an interrupted stack. The recorded identity must match.
 
 Evidence defaults to `/Users/michaelchen/Documents/pancake-half-gig/evidence/`.
 The runner creates its own project, ports, containers, and synthetic rows.
@@ -82,8 +83,19 @@ Add `--public-live --quality --policy --pool 2` to a training replay for the new
 
 Phones run the shared overlay, polling, and recovery code. They read real authorized home views and subscribe to real Realtime broadcasts. Reports count only timed broadcasts and requests. The report includes phone freshness, final fixture agreement, public-cache work, payload size, response time, calculation time, and home-read cost.
 
-Grader v4 requires due recovery checkpoints, final transitions, saved rows, worker starts, origin reads, and phone polls inside the window. Stored-score freshness remains a separate reported measure. Phone freshness supplies the live-screen quality gate. The feed holds its final window state while scheduled checkpoints settle outside measured counters. The unchanged final-state check then compares every fixture stat and score.
+Grader v6 requires due recovery checkpoints, final transitions, saved rows, worker starts, origin reads, and phone polls inside the window. Stored-score freshness remains a separate reported measure. Phone freshness supplies the live-screen quality gate. The feed holds its final window state while scheduled checkpoints settle outside measured counters. The unchanged final-state check then compares every fixture stat and score.
 
 Phone recovery tests run before each phone replay with a controlled clock. They exercise the real route, cache, poller, and overlay. Full-stack phone controls use `phone-final` and `phone-stale`. The former alters one simulated display; the latter supplies an expired response to one phone. Neither changes product code. `--phase controls` also runs the original dropped-stat and ingestion-off controls.
 
-Projected budgets extrapolate the peak window to ten phones, six hours nightly, thirty nights. They show local-route CPU assumptions, cache-region bounds, observed API-body transfer, Realtime delivery, database size, memory, and block IO. A value above half its allowance carries an explicit risk flag. The production IO reference is an observed baseline, not a Free-plan quota.
+Projected budgets extrapolate the peak window to ten phones, six hours nightly, thirty nights. They show local-route CPU assumptions, cache-region bounds, observed API-body transfer, Realtime delivery, database size, memory, and block IO. A value above half its allowance carries an explicit risk flag. The 250 disk operations per second limit is the documented Nano sustained baseline, not a monthly quota.
+
+
+The Docker event watcher rejects any foreign container start during warmup or measurement, including starts between five-second samples. A 325-millisecond control demonstrates that detection. Existing foreign containers also invalidate a run.
+
+The dropped-stat control first requires a valid unmodified final state and real timed work. The ingestion-off control must save no live rows while cron still runs. A definitive missed-final deadline can stop settling early; that run remains failed. Passing runs still wait for their scheduled thirty-minute checkpoint.
+
+The local cache models Vercel's lack of server-side `stale-if-error` support. The route supplies a bounded in-memory last-good response without changing its source timestamp. Cold instances fall back to an uncached error and saved phone scores.
+
+The dispatcher permits 32 completed or admitted work items within its two-second budget. The existing four-active-worker cap remains. Completed SQL jobs no longer postpone live ingestion by consuming the whole four-claim budget.
+
+Use `verify-phone-history.mjs --evidence PATH` to verify official corrections on ten authenticated phones. Run `architecture-series.mjs` only after the settings comparison succeeds. Both measurement series keep the source, fixture, cap, and runtime configuration fixed.
