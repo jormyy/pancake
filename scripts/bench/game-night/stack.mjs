@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict'
-import { cp, mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import net from 'node:net'
 import path from 'node:path'
 import { randomBytes, randomInt } from 'node:crypto'
 import { command, delay, digest, json, loopback, quote, readJson, repository } from './common.mjs'
 import { createSqlSession } from '../../season-sim/sql-session.mjs'
+import { copyMigrations } from './migration-files.mjs'
 
 async function freePorts() {
   const first = randomInt(1900, 2350) * 20
@@ -42,7 +43,7 @@ export async function stopRecordedStack(evidence, expectedProject) {
   await removeStack(evidence, project, [`${project}-rest:local`])
 }
 
-export async function startStack(evidence, { sourceRoot = repository, profileMemory = false, sharedBuffers } = {}) {
+export async function startStack(evidence, { sourceRoot = repository, profileMemory = false, sharedBuffers, migrationOverlays = [] } = {}) {
   if (sharedBuffers != null) assert.match(sharedBuffers, /^[1-9][0-9]*(kB|MB|GB)$/)
   const project = `pancake-game-night-${randomBytes(5).toString('hex')}`
   const base = await freePorts()
@@ -57,7 +58,7 @@ export async function startStack(evidence, { sourceRoot = repository, profileMem
     .replace(/env\([^)]+\)/g, '').replace(/(\[db.seed\][\s\S]*?enabled = )true/, '$1false')
     .replace(/(\[db.migrations\][\s\S]*?enabled = )true/, '$1false')
   await writeFile(path.join(workdir, 'supabase/config.toml'), config)
-  await cp(path.join(sourceRoot, 'supabase/migrations'), path.join(workdir, 'supabase/migrations'), { recursive: true })
+  const migrationFiles=await copyMigrations(path.join(sourceRoot,'supabase/migrations'),path.join(workdir,'supabase/migrations'),migrationOverlays)
   const container = `supabase_db_${project}`
   const cli = args => command('supabase', [...args, '--workdir', workdir], { file: path.join(evidence, `setup-${args[0]}.log`) })
   const owned = async name => {
@@ -136,9 +137,10 @@ export async function startStack(evidence, { sourceRoot = repository, profileMem
     const cron = JSON.parse(await sql("SELECT json_agg(r ORDER BY jobname) FROM (SELECT jobname,schedule,command,active FROM cron.job) r"))
     assert.ok(cron.some(row => row.jobname.includes('dispatch')), 'Real dispatcher cron is missing')
     assert.ok(cron.every(row => !/https?:\/\/[^\s']*supabase\.co/.test(row.command)), 'Cron contains a remote endpoint')
-    const migrations = await readdir(path.join(sourceRoot, 'supabase/migrations'))
-    const hashes = Object.fromEntries(await Promise.all(migrations.filter(file => file.endsWith('.sql')).sort().map(async file => [file, digest(await readFile(path.join(sourceRoot, 'supabase/migrations', file)))])))
-    const metadata = { project, ports, source: (await command('git', ['rev-parse', 'HEAD'], { cwd: sourceRoot })).stdout.trim(), sourceRoot, migrations: hashes, cron, settings: { sharedBuffers: sharedBuffers ?? null }, clock: 'native real time; no SQL clock replacement', network: 'Database HTTP guard and loopback relay; Edge fetch guard and Deno allow-net', host: JSON.parse((await command('docker', ['info', '--format', '{{json .}}'])).stdout) }
+    const hashes=migrationFiles.hashes
+    const sourceBase=(await command('git',['rev-parse','HEAD'],{cwd:sourceRoot})).stdout.trim()
+    const overlayHash=Object.keys(migrationFiles.added).length ? digest(JSON.stringify(migrationFiles.added)) : null
+    const metadata = { project, ports, source: overlayHash ? `${sourceBase}+migrations:${overlayHash.slice(0,12)}` : sourceBase, sourceBase, migrationOverlays:migrationFiles.added, sourceRoot, migrations: hashes, cron, settings: { sharedBuffers: sharedBuffers ?? null }, clock: 'native real time; no SQL clock replacement', network: 'Database HTTP guard and loopback relay; Edge fetch guard and Deno allow-net', host: JSON.parse((await command('docker', ['info', '--format', '{{json .}}'])).stdout) }
     metadata.host = Object.fromEntries(['NCPU', 'MemTotal', 'KernelVersion', 'CgroupVersion', 'OperatingSystem'].map(key => [key, metadata.host[key]]))
     await json(path.join(evidence, 'environment.json'), metadata)
     await json(path.join(evidence, 'database-healthcheck.json'), (await owned(container)).healthcheck)

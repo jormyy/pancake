@@ -12,6 +12,7 @@ const { values } = parseArgs({ options: {
   evidence: { type: 'string', default: '/Users/michaelchen/Documents/pancake-half-gig/evidence-climb/settings-series' },
   baseline: { type: 'string', default: path.resolve(repository, '../half-gig-baseline') },
   candidate: { type: 'string', default: repository },
+  migration: { type: 'string', multiple: true },
 } })
 const slate = await readJson(path.join(directory, 'training.json'))
 const baselines = [], candidates = []
@@ -25,7 +26,7 @@ for (const [variant, number] of [['baseline',1],['settings',1],['settings',2],['
   const label = `${variant}-${number}`
   let stack
   try {
-    stack = await startStack(path.join(values.evidence, label), { sourceRoot: variant === 'baseline' ? values.baseline : values.candidate })
+    stack = await startStack(path.join(values.evidence, label), { sourceRoot: variant === 'baseline' ? values.baseline : values.candidate, migrationOverlays: variant === 'settings' ? values.migration ?? [] : [] })
     stack.qualityEnabled = true
     stack.policyChecks = variant === 'settings'
     stack.qualityOptions = { ...(baselines.length >= 3 ? { limits: actionLimits(baselines) } : {}) }
