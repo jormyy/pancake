@@ -56,7 +56,7 @@ export async function startFeed(stack, slate, anchor) {
     const url = new URL(request.url, `http://127.0.0.1:${stack.ports.feed}`)
     const seconds = Math.max(0, Math.min(stopped, (Date.now() - started) / 1000))
     const games = stateAt(slate, seconds)
-    const revisionTime = new Date(Number.isFinite(started) ? started + Math.max(0, (Math.max(...games.map(game => game.revision)) - 1) * 20 + 10) * 1000 : Date.now()).toISOString()
+    const revisionTime = new Date(Number.isFinite(stopped) ? Date.now() : Number.isFinite(started) ? started + Math.max(0, (Math.max(...games.map(game => game.revision)) - 1) * 20 + 10) * 1000 : Date.now()).toISOString()
     const make = game => ({ gameId: game.nba_game_id, gameStatus: game.gameStatus, gameStatusText: game.gameStatusText, period: game.period, gameClock: game.gameClock, gameEt: anchor,
       homeTeam: game.homeTeam, awayTeam: game.awayTeam })
     let body, status = 200
@@ -69,13 +69,14 @@ export async function startFeed(stack, slate, anchor) {
     else if (url.pathname === '/injuries') body = { injuries: [{ id: '27', injuries: [{ status: 'Out', athlete: { id: '800600', displayName: 'Synthetic Player 600', firstName: 'Synthetic', lastName: 'Player 600', team: { abbreviation: 'WAS' }, position: { abbreviation: 'C' }, experience: { years: 14 } } }] }] }
     else if (url.pathname.endsWith('/scheduleLeagueV2_1.json')) body = { leagueSchedule: { seasonYear: '2026-27', gameDates: [] } }
     else { body = { error: 'No synthetic provider fixture', path: url.pathname }; status = 404 }
-    requests.push({ at: Date.now(), path: url.pathname, status, revision: Math.max(...games.map(game => game.revision)) })
+    const encoded=JSON.stringify(body)
+    requests.push({ bytes:Buffer.byteLength(encoded), at: Date.now(), path: url.pathname, status, revision: Math.max(...games.map(game => game.revision)) })
     response.writeHead(status, { 'content-type': 'application/json' })
-    response.end(JSON.stringify(body))
+    response.end(encoded)
   })
   await new Promise(resolve => server.listen(stack.ports.feed, '127.0.0.1', resolve))
   let closing
-  return { requests, changes, start(at) { started = at }, freeze(seconds) { stopped = seconds }, close: () => closing ??= new Promise(resolve => server.close(resolve)) }
+  return { origin: `http://127.0.0.1:${server.address().port}`, requests, changes, start(at) { started = at }, freeze(seconds) { stopped = seconds }, close: () => closing ??= new Promise(resolve => server.close(resolve)) }
 }
 
 export async function seedSlate(stack, slate, anchor) {

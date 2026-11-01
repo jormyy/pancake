@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFile } from 'node:fs/promises'
 import { loopback } from './common.mjs'
-import { stateAt, validateSlate } from './fixture.mjs'
+import { stateAt, validateSlate, startFeed } from './fixture.mjs'
 import { groupStatements, statementDeltas, workCheck } from './measure.mjs'
 import { distribution } from './summary.mjs'
 import { qualityGrade, scoreMessage } from './quality-grade.mjs'
@@ -118,4 +118,19 @@ test('a paired comparison rejects host activity, changed fixtures, and changed c
     change(changed[0])
     assert.throws(() => compareSeries(baseline, changed))
   }
+})
+
+
+test('settlement republishes the fixed slate without inventing new stat changes',async()=>{
+  const slate=JSON.parse(await readFile(new URL('./training.json',import.meta.url),'utf8'))
+  const feed=await startFeed({ports:{feed:0}},slate,new Date().toISOString())
+  try {
+    feed.start(Date.now()-600000)
+    feed.freeze(240)
+    const first=await fetch(feed.origin+'/static/json/liveData/scoreboard/todaysScoreboard_00.json').then(r=>r.json())
+    assert.ok(Date.now()-Date.parse(first.meta.time)<1000)
+    assert.deepEqual(first.scoreboard.games.map(game=>game.homeTeam),stateAt(slate,240).map(game=>game.homeTeam))
+    const second=await fetch(feed.origin+'/static/json/liveData/scoreboard/todaysScoreboard_00.json').then(r=>r.json())
+    assert.deepEqual(second.scoreboard.games,first.scoreboard.games)
+  }finally {await feed.close()}
 })

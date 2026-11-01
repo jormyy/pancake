@@ -217,6 +217,7 @@ export async function runWindow(stack, slate, { label, memoryMiB, seconds = slat
       cronRunsPerMinute: cron.length / minutes, cron, workerRunsPerHourByKind: Object.fromEntries(Object.entries(runs).map(([kind, count]) => [kind, count / minutes * 60])),
       workerCounts: runs, workCounts: work, connectionsByClient: connectionSamples,
       edgeRequestCount:edgeRequests.length,edgeRequests,
+      providerTransfer:{source:'synthetic provider response bodies inside the timed window',requests:prepared.feed.requests.filter(row=>row.at>=started && row.at<ended),bytes:prepared.feed.requests.filter(row=>row.at>=started && row.at<ended).reduce((sum,row)=>sum+row.bytes,0)},
       workerDataTransfer: {source:'API response bodies observed by the local Edge runtime; no header or TLS bytes',
         requests:(realtimeAfter.transfers ?? []).filter(row=>row.at>=started && row.at<ended)},
       realtime: { subscribed: realtimeBefore.realtimeStatus === 'SUBSCRIBED', messages: realtimeAfter.realtimeMessages - realtimeBefore.realtimeMessages, scoreMessages: realtimeAfter.realtimeScoreMessages - realtimeBefore.realtimeScoreMessages, clientCount: 1 },
