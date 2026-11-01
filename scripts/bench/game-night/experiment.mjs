@@ -1,15 +1,20 @@
 import assert from 'node:assert/strict'
 import { readFile, readdir } from 'node:fs/promises'
 import path from 'node:path'
-import { command, delay, digest, directory, id, json, readJson } from './common.mjs'
+import { command, delay, digest, directory, id, json, readJson, repository } from './common.mjs'
 import { seedSlate, startFeed, stateAt, validateSlate } from './fixture.mjs'
 import { startWorkers } from './workers.mjs'
 import { memoryContexts, processMemory } from './process-memory.mjs'
 import { prepareActions, startActions } from './quality.mjs'
 import { qualityGrade } from './quality-grade.mjs'
+import { startPublicFeed } from './public-runtime.mjs'
+import { startPhones } from './phones.mjs'
+import { phoneGrade } from './phone-grade.mjs'
+import { checkpointGrade } from './checkpoint-grade.mjs'
+import { projectBudget } from './budget.mjs'
 import { counters, fantasyAt, finalCheck, graderVersion, groupStatements, percentile, readFantasy, readScores, snapshot, statementDeltas, workCheck } from './measure.mjs'
 
-async function prepare(stack, slate, label) {
+export async function prepare(stack, slate, label) {
   await stack.sql("ALTER SYSTEM SET cron.launch_active_jobs='off'; SELECT pg_reload_conf();")
   await command('docker', ['update', '--memory=512m', '--memory-swap=1536m', stack.container])
   await stack.sql(await readFile(path.join(directory, 'seed.sql'), 'utf8'))
@@ -42,13 +47,29 @@ async function prepare(stack, slate, label) {
 
 export async function runWindow(stack, slate, { label, memoryMiB, seconds = slate.windowSeconds, warmup = 120, ingestionOff = false, broken = false }) {
   const harness = Object.fromEntries(await Promise.all((await readdir(directory)).filter(file => !file.startsWith('.')).map(async file => [file, digest(await readFile(path.join(directory, file)))])))
+  for (const file of ['server/live/handler.ts','server/live/snapshot.ts','core/cjs/index.js','core/cjs/scoring/formula.js','core/cjs/live/overlay.js','core/cjs/live/poll.js','core/cjs/live/codec.js','core/cjs/live/recovery.js',
+    'vitest.config.ts','tests/live-phone-recovery.test.ts',
+    'supabase/functions/_shared/nba.ts','supabase/functions/_shared/workContext.ts','supabase/functions/_shared/sourceEnvironment.ts',
+    'supabase/functions/_shared/liveSourceChoice.ts','supabase/functions/live-poll/espn.ts']) {
+    harness[`source:${file}`] = digest(await readFile(path.resolve(directory,'../../..',file)))
+  }
   await json(path.join(stack.evidence, `${label}-harness.json`), harness)
+  let phoneBehavior = null
+  if(stack.phoneLab) {
+    const file=path.join(stack.evidence,`${label}-phone-behavior.json`)
+    await command(process.execPath,[path.join(repository,'node_modules/vitest/vitest.mjs'),'run','tests/live-phone-recovery.test.ts','--reporter=json',`--outputFile=${file}`])
+    const result=await readJson(file)
+    phoneBehavior={passed:result.success && result.numPassedTests===3,tests:result.numPassedTests,clock:'controlled clock; real route, cache, poller, and overlay',file}
+    assert.ok(phoneBehavior.passed,'Phone recovery behavior fails before replay')
+  }
   console.log(`${label}: preparing synthetic data.`)
   const prepared = await prepare(stack, slate, label)
-  let workers
-  stack.setRuntimeClose(async () => { await workers?.close(); await prepared.feed.close() })
+  let workers, publicFeed, phones
+  stack.setRuntimeClose(async () => { await workers?.close(); await phones?.close(); await publicFeed?.close(); await prepared.feed.close() })
   try {
+    if (stack.phoneLab) publicFeed = await startPublicFeed(stack,label)
     workers = await startWorkers(stack, label, ingestionOff)
+    if (stack.phoneLab) phones = await startPhones(stack,publicFeed)
     await command('docker', ['update', `--memory=${memoryMiB}m`, '--memory-swap=1536m', stack.container])
     await stack.sql("ALTER SYSTEM SET cron.launch_active_jobs='on'; SELECT pg_reload_conf();")
     const warmupMs = seconds < 120 ? warmup * 1000 : (Math.floor(Date.now() / 120000) + 1) * 120000 + 115000 - Date.now()
@@ -65,6 +86,9 @@ export async function runWindow(stack, slate, { label, memoryMiB, seconds = slat
     await delay(Math.max(0, readyAt - Date.now()))
     const realtimeBefore = await fetch(`http://127.0.0.1:${stack.ports.edge}/health`).then(response => response.json())
     const before = await snapshot(stack)
+    const checkpoints = () => stack.sql("SELECT coalesce(json_agg(row),'[]') FROM (SELECT game.id,game.status,state.checkpoint_at FROM public.nba_games game LEFT JOIN private.live_poll_game_state state ON state.game_id=game.id WHERE game.nba_game_id LIKE '00299%')row").then(JSON.parse)
+    const checkpointBefore = stack.liveArchitecture ? await checkpoints() : null
+    const publicBefore = publicFeed ? await publicFeed.health() : null
     const databaseSettings = JSON.parse(await stack.sql("SELECT jsonb_object_agg(name,jsonb_build_object('value',setting,'unit',unit,'source',source,'pendingRestart',pending_restart)) FROM pg_settings WHERE name IN('shared_buffers','wal_buffers','work_mem','hash_mem_multiplier','maintenance_work_mem','autovacuum_work_mem','max_connections','autovacuum_max_workers','checkpoint_timeout','max_wal_size','min_wal_size','huge_pages','jit')"))
     const samples = [await counters(stack)]
     const processSamples = [await processMemory(stack)]
@@ -115,7 +139,18 @@ export async function runWindow(stack, slate, { label, memoryMiB, seconds = slat
     prepared.feed.freeze(seconds)
     if (stack.qualityOptions?.fault?.split(',').includes('forecastDelivery')) await stack.sql(`DELETE FROM public.matchup_forecasts WHERE matchup_id=(SELECT id FROM public.matchups WHERE league_id='${id(1)}' AND week_number=2 ORDER BY id LIMIT 1)`)
     const after = await snapshot(stack)
+    const checkpointAfter = stack.liveArchitecture ? await checkpoints() : null
+    const publicAfter = publicFeed ? await publicFeed.health() : null
     const realtimeAfter = await fetch(`http://127.0.0.1:${stack.ports.edge}/health`).then(response => response.json())
+    let settlementSeconds = 0
+    if (stack.liveArchitecture) {
+      const settlementStarted = Date.now()
+      while (Date.now()-settlementStarted < 420000) {
+        if ((await finalCheck(stack,slate,seconds)).passed) break
+        await delay(5000)
+      }
+      settlementSeconds = (Date.now()-settlementStarted)/1000
+    }
     await stack.sql("ALTER SYSTEM SET cron.launch_active_jobs='off'; SELECT pg_reload_conf();")
     const drainStarted = Date.now()
     let health
@@ -125,8 +160,11 @@ export async function runWindow(stack, slate, { label, memoryMiB, seconds = slat
       await delay(1000)
     } while (Date.now() - drainStarted < 125000)
     assert.equal(health.active, 0, 'Real workers do not drain before cleanup')
+    const qualityState = stack.liveArchitecture ? await snapshot(stack) : after
     if (broken) await stack.sql(`DELETE FROM public.player_game_stats WHERE game_id='${id(800003)}' AND player_id='${id(1081)}';`)
     const check = await finalCheck(stack, slate, seconds)
+    await phones?.refresh()
+    const phoneResults = phones ? phoneGrade({ slate,started,ended,renders:phones.renders,phones:phones.snapshot(),requests:phones.requests,reads:phones.reads,messages:phones.messages }) : null
     const actionResults = actions ? await actions.done : null
     const minutes = (ended - started) / 60000
     const statements = statementDeltas(before.statements, after.statements)
@@ -136,32 +174,47 @@ export async function runWindow(stack, slate, { label, memoryMiB, seconds = slat
     const inWindow = value => startOf(value) >= started && startOf(value) < ended
     const cron = after.cron.filter(row => inWindow(row.start_time))
     const invocations = after.invocations.filter(row => inWindow(row.worker_started_at))
+    const edgeRequests = (await readFile(workers.receipts,'utf8')).trim().split('\n').filter(Boolean).map(JSON.parse)
+      .filter(row=>row.start>=started && row.start<ended)
     const runs = Object.fromEntries([...new Set(invocations.map(row => row.kind))].map(kind => [kind, invocations.filter(row => row.kind === kind).length]))
-    const work = workCheck({ statements, observedScoreChanges, workerStarts: invocations.length, cronRuns: cron.length, minutes })
+    let work = workCheck({ statements, observedScoreChanges, workerStarts: invocations.length, cronRuns: cron.length, minutes })
+    const publicResults = publicAfter ? {requests:publicAfter.counters.requests-publicBefore.counters.requests,
+      origins:publicAfter.records.filter(row=>row.at>=started && row.at<ended),memory:publicAfter.memory,
+      bodyBytes:publicAfter.records.filter(row=>row.at>=started && row.at<ended).map(row=>row.bytes)} : null
+    if (stack.liveArchitecture) work = checkpointGrade({slate,before:checkpointBefore,after:checkpointAfter,started,ended,
+      intervalMs:300000,work,origins:publicResults.origins.length,phonePolls:phoneResults.pollCount})
     const first = samples[0], last = samples.at(-1)
     const elapsed = (last.at - first.at) / 1000
-    const failures = { cron: cron.filter(row => row.status === 'failed'), jobs: after.work.filter(row => ['failed','dead'].includes(row.status)), workers: after.invocations.filter(row => row.worker_status === 'failed') }
-    const report = { version: 1, grader: { version: graderVersion, sha256: harness['measure.mjs'] }, harnessSha256: digest(JSON.stringify(harness)), label, slate: slate.name, fixtureSha256: harness[`${slate.name}.json`], source: stack.metadata.source,
+    const failures = { cron: qualityState.cron.filter(row => row.status === 'failed'), jobs: qualityState.work.filter(row => ['failed','dead'].includes(row.status)), workers: qualityState.invocations.filter(row => row.worker_status === 'failed') }
+    const report = { version: 1, grader: { version: stack.liveArchitecture ? 'game-night-v4' : graderVersion, sha256: digest(JSON.stringify([harness['measure.mjs'],harness['checkpoint-grade.mjs'],harness['phone-grade.mjs']])) }, harnessSha256: digest(JSON.stringify(harness)), label, slate: slate.name, fixtureSha256: harness[`${slate.name}.json`], source: stack.metadata.source,
       startedAt: new Date(started).toISOString(), endedAt: new Date(ended).toISOString(), seconds: (ended - started) / 1000, warmupSeconds: warmupMs / 1000, memoryMiB, databaseSettings, runtimeConfiguration: stack.runtimeConfiguration ?? {},
       shape: prepared.shape, clock: 'native real time; fixture changes every 20 seconds; no accelerated jobs', observer: 'Seeding session closes before warmup; the measurement session keeps no seed plans',
       swap: { source: 'Linux Docker VM /proc/vmstat pswpin/pswpout; global to the VM, not per-cgroup', pageBytes: 4096, inPagesPerSecond: (last.vm.pswpin - first.vm.pswpin) / elapsed, outPagesPerSecond: (last.vm.pswpout - first.vm.pswpout) / elapsed, available: last.swaps.length > 0, cgroupSwapPeakBytes: Math.max(...samples.map(row => row.swapCurrent)), foreignContainerActivityObserved: samples.some(row => row.foreignContainers.length > 0), cgroupAnonRefaultsPerSecond: (last.cgroup.workingset_refault_anon - first.cgroup.workingset_refault_anon) / elapsed },
       memory: { cgroupAnonPeakBytes: Math.max(...samples.map(row => row.cgroup.anon)), cgroupShmemPeakBytes: Math.max(...samples.map(row => row.cgroup.shmem)), sampleIntervalSeconds: 5, containerLifetimePeakBytes: last.peak, oomKills: (last.events.oom_kill ?? 0) - (first.events.oom_kill ?? 0), majorFaults: last.cgroup.pgmajfault - first.cgroup.pgmajfault },
+      diskIo: {source:'database cgroup io.stat, summed device counters',readsPerSecond:(last.io.rios-first.io.rios)/elapsed,writesPerSecond:(last.io.wios-first.io.wios)/elapsed,
+        readBytesPerSecond:(last.io.rbytes-first.io.rbytes)/elapsed,writeBytesPerSecond:(last.io.wbytes-first.io.wbytes)/elapsed},
       statementExecSecondsPerMinuteByFunction: functions, statements, functionCounters: { before: before.functions, after: after.functions },
       walBytesPerMinute: (Number(after.wal.wal_bytes) - Number(before.wal.wal_bytes)) / minutes,
       newSessionsPerMinute: (Number(after.database.sessions) - Number(before.database.sessions)) / minutes,
       cronRunsPerMinute: cron.length / minutes, cron, workerRunsPerHourByKind: Object.fromEntries(Object.entries(runs).map(([kind, count]) => [kind, count / minutes * 60])),
       workerCounts: runs, workCounts: work, connectionsByClient: connectionSamples,
+      edgeRequestCount:edgeRequests.length,edgeRequests,
+      workerDataTransfer: {source:'API response bodies observed by the local Edge runtime; no header or TLS bytes',
+        requests:(realtimeAfter.transfers ?? []).filter(row=>row.at>=started && row.at<ended)},
       realtime: { subscribed: realtimeBefore.realtimeStatus === 'SUBSCRIBED', messages: realtimeAfter.realtimeMessages - realtimeBefore.realtimeMessages, scoreMessages: realtimeAfter.realtimeScoreMessages - realtimeBefore.realtimeScoreMessages, clientCount: 1 },
       drainSeconds: (Date.now() - drainStarted) / 1000,
       scoreFreshness: { p50Ms: percentile(freshness.map(row => row.milliseconds), .5), p95Ms: percentile(freshness.map(row => row.milliseconds), .95), samples: freshness.length, resolutionMs: 5000, observations: freshness, fantasyP50Ms: percentile(fantasyFreshness, .5), fantasyP95Ms: percentile(fantasyFreshness, .95), fantasySamples: fantasyFreshness.length },
-      finalState: check, actionResults, failures, deadWorkItems: failures.jobs.filter(row => row.status === 'dead'),
-      passed: check.passed && work.passed && (!actionResults || actionResults.passed) && !Object.values(failures).some(rows => rows.length) && last.events.oom_kill === first.events.oom_kill,
+      finalState: check, settlementSeconds, publicFeed:publicResults,phones:phoneResults,phoneBehavior,actionResults, failures, deadWorkItems: failures.jobs.filter(row => row.status === 'dead'),
+      passed: check.passed && work.passed && (!phoneResults || phoneResults.passed) && (!actionResults || actionResults.passed) && !Object.values(failures).some(rows => rows.length) && last.events.oom_kill === first.events.oom_kill,
       control: broken ? 'delete one stored final stat' : ingestionOff ? 'live ingestion disabled at worker boundary' : stack.qualityOptions?.fault ?? null,
       processSamples, contextSamples, observations: samples, feedRequests: prepared.feed.requests, before, after }
     if (stack.qualityEnabled) {
-      report.quality = qualityGrade({ actions: actionResults, freshness: report.scoreFreshness, realtime: report.realtime, policies, liveForecasts: after.liveForecasts, observedAt: ended, requireLimits: Boolean(stack.qualityOptions?.limits), requirePolicies: Boolean(stack.policyChecks) })
+      const freshness = stack.liveArchitecture ? phoneResults.gates.freshness : report.scoreFreshness
+      report.quality = qualityGrade({ actions: actionResults, freshness, realtime: report.realtime, policies, liveForecasts: after.liveForecasts, observedAt: ended, requireLimits: Boolean(stack.qualityOptions?.limits), requirePolicies: Boolean(stack.policyChecks) })
+      report.quality.gates.scoreFreshness.source = stack.liveArchitecture ? 'ten phones' : 'stored scores'
       report.passed &&= report.quality.passed
     }
+    report.projectedBudget = projectBudget(report)
     await json(path.join(stack.evidence, `${label}.json`), report)
     console.log(`${label}: final=${check.passed}, work=${work.passed}, swap=${report.swap.inPagesPerSecond.toFixed(1)}/${report.swap.outPagesPerSecond.toFixed(1)} pages/s.`)
     return report
@@ -171,6 +224,8 @@ export async function runWindow(stack, slate, { label, memoryMiB, seconds = slat
   } finally {
     await stack.sql("ALTER SYSTEM SET cron.launch_active_jobs='off'; SELECT pg_reload_conf();").catch(() => {})
     await workers?.close()
+    await phones?.close()
+    await publicFeed?.close()
     await prepared.feed.close()
     stack.setRuntimeClose(null)
   }

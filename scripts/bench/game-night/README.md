@@ -73,3 +73,17 @@ Worker routing, network guards, and persistent observation follow `scripts/seaso
 
 The frozen contract sets the bar. Reports distinguish product changes from local runtime settings.
 The principles used here freeze the bar, prove the gates can fail, and report measurement limits.
+
+## Public live-score architecture
+
+Run `node scripts/bench/game-night/runtime-check.mjs` for a fixed-state integration check. It connects ten authenticated subscribers and proves that the server switch selects both worker paths. It does not collect a swap comparison.
+
+Add `--public-live --quality --policy --pool 2` to a training replay for the new architecture. Add `--phones` when running the original checkout for its paired reference. The public route runs separately with only public-feed configuration. Its network permission allows only the local feed and listener. It receives no Supabase keys.
+
+Phones run the shared overlay, polling, and recovery code. They read real authorized home views and subscribe to real Realtime broadcasts. Reports count only timed broadcasts and requests. The report includes phone freshness, final fixture agreement, public-cache work, payload size, response time, calculation time, and home-read cost.
+
+Grader v4 requires due recovery checkpoints, final transitions, saved rows, worker starts, origin reads, and phone polls inside the window. Stored-score freshness remains a separate reported measure. Phone freshness supplies the live-screen quality gate. The feed holds its final window state while scheduled checkpoints settle outside measured counters. The unchanged final-state check then compares every fixture stat and score.
+
+Phone recovery tests run before each phone replay with a controlled clock. They exercise the real route, cache, poller, and overlay. Full-stack phone controls use `phone-final` and `phone-stale`. The former alters one simulated display; the latter supplies an expired response to one phone. Neither changes product code. `--phase controls` also runs the original dropped-stat and ingestion-off controls.
+
+Projected budgets extrapolate the peak window to ten phones, six hours nightly, thirty nights. They show local-route CPU assumptions, cache-region bounds, observed API-body transfer, Realtime delivery, database size, memory, and block IO. A value above half its allowance carries an explicit risk flag. The production IO reference is an observed baseline, not a Free-plan quota.

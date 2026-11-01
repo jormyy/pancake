@@ -15,7 +15,7 @@ export function userToken(stack, userId) {
 export async function prepareActions(stack) {
   await stack.sql(`UPDATE auth.users SET instance_id='00000000-0000-0000-0000-000000000000',
     confirmation_token='',recovery_token='',email_change_token_new='',email_change='',email_change_token_current='',reauthentication_token=''
-    WHERE id IN(game_night.id(109),game_night.id(110));
+    WHERE id IN(SELECT game_night.id(100+n) FROM generate_series(1,10)n);
     BEGIN; SET LOCAL session_replication_role=replica;
     UPDATE public.roster_players SET player_id=game_night.id(CASE player_id
       WHEN game_night.id(1199) THEN 1501 WHEN game_night.id(1200) THEN 1502

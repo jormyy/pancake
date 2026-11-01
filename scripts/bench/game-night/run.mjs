@@ -5,7 +5,7 @@ import { defaultEvidence, json, repository } from './common.mjs'
 import { startStack } from './stack.mjs'
 import { configurePool } from './pool.mjs'
 
-const { values } = parseArgs({ options: { help: { type: 'boolean', short: 'h' }, evidence: { type: 'string', default: defaultEvidence }, phase: { type: 'string', default: 'run' }, source: { type: 'string', default: repository }, label: { type: 'string', default: 'run' }, 'profile-memory': { type: 'boolean', default: false }, pool: { type: 'string' }, 'pool-lifetime': { type: 'string' }, 'pool-idle': { type: 'string' }, quality: { type: 'boolean', default: false }, policy: { type: 'boolean', default: false }, limits: { type: 'string' }, fault: { type: 'string' }, 'post-tests': { type: 'boolean', default: false }, 'shared-buffers': { type: 'string' }, 'training-result': { type: 'string' } } })
+const { values } = parseArgs({ options: { help: { type: 'boolean', short: 'h' }, evidence: { type: 'string', default: defaultEvidence }, phase: { type: 'string', default: 'run' }, source: { type: 'string', default: repository }, label: { type: 'string', default: 'run' }, 'profile-memory': { type: 'boolean', default: false }, pool: { type: 'string' }, 'pool-lifetime': { type: 'string' }, 'pool-idle': { type: 'string' }, quality: { type: 'boolean', default: false }, phones: { type: 'boolean', default: false }, 'public-live': { type: 'boolean', default: false }, policy: { type: 'boolean', default: false }, limits: { type: 'string' }, fault: { type: 'string' }, 'post-tests': { type: 'boolean', default: false }, 'shared-buffers': { type: 'string' }, 'training-result': { type: 'string' } } })
 if (values.help) {
   console.log(`Usage: node scripts/bench/game-night/run.mjs [options]
   --phase run           One training replay at 192 MiB (default)
@@ -18,6 +18,8 @@ if (values.help) {
   --evidence PATH       Evidence directory outside the repository
   --label NAME          Single replay report name
   --quality             Run real authenticated actions and score-broadcast gates
+  --phones              Run ten subscribed phones against the shared cache
+  --public-live         Use public live scores and database checkpoints; implies --phones
   --policy              Check approved injury and forecast schedules during warmup
   --limits PATH         Frozen baseline action latency limits in JSON
   --shared-buffers SIZE  Override and restart the local database before migration
@@ -45,7 +47,9 @@ The disposable loopback-only stack always stops. No production data is used.`)
     }
     console.log('Starting the disposable local stack.')
     stack = await startStack(evidence, { sourceRoot: path.resolve(values.source), profileMemory: values['profile-memory'], sharedBuffers: values['shared-buffers'] })
-    stack.qualityEnabled = values.quality
+    stack.phoneLab = values.phones || values['public-live']
+    stack.liveArchitecture = values['public-live']
+    stack.qualityEnabled = values.quality || stack.phoneLab
     stack.policyChecks = values.policy
     stack.qualityOptions = { fault: values.fault }
     if (values.limits) { const { readJson } = await import('./common.mjs'); stack.qualityOptions.limits = await readJson(values.limits) }
@@ -62,11 +66,18 @@ The disposable loopback-only stack always stops. No production data is used.`)
           assert.equal(broken.finalState.passed, false, 'The broken final stat must fail')
           const off = await runWindow(stack, slate, { label: 'control-ingestion-off', memoryMiB: 192, ingestionOff: true, seconds: 120 })
           assert.equal(off.workCounts.passed, false, 'Disabled ingestion must fail the work check')
-          if (values.quality) {
+          if (stack.qualityEnabled) {
             assert.ok(stack.qualityOptions.limits, 'Frozen action limits are required for negative quality controls')
             stack.qualityOptions.fault = 'slow-actions,realtimeScores,forecastDelivery'
             const bad = await runWindow(stack, slate, { label: 'control-quality', memoryMiB: 192 })
             for (const name of ['rosterMove','lineupSave','tradeOffer','tradeAccept','waiverResult','realtimeScores','forecastDelivery']) assert.equal(bad.quality.gates[name].passed, false, `${name} must reject its broken control`)
+          }
+          if(stack.phoneLab) {
+            for(const [fault,gate] of [['phone-final','finalScores'],['phone-stale','freshness']]) {
+              stack.qualityOptions.fault=fault
+              const bad=await runWindow(stack,slate,{label:`control-${fault}`,memoryMiB:192})
+              assert.equal(bad.phones.gates[gate].passed,false,`${fault} must fail the phone gate`)
+            }
           }
         }
       } else if (values.phase === 'held-out') {
@@ -77,12 +88,13 @@ The disposable loopback-only stack always stops. No production data is used.`)
       } else await experiment(stack, values.phase)
       if (values['post-tests']) {
         const results = []
-        for (const name of ['io-write-reductions.sql','statistics-maintenance.sql']) {
+        for (const name of ['io-write-reductions.sql','statistics-maintenance.sql',...(stack.liveArchitecture ? ['live-checkpoints.sql','live-score-view.sql','view-screen-parity.sql'] : [])]) {
           const result = await stack.sqlFile(path.join(repository, 'tests/db', name), { allowFailure: true, output: path.join(evidence, `${name}.log`) })
           results.push({ name, exitCode: result.code })
         }
         await json(path.join(evidence, 'focused-tests.json'), results)
         console.log(JSON.stringify({ focusedTests: results }))
+        assert.ok(results.every(result=>result.exitCode===0),'Focused SQL checks must pass')
       }
     }
   } catch (error) {

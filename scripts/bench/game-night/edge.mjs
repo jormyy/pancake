@@ -1,16 +1,24 @@
 import assert from 'node:assert/strict'
+import { Buffer } from 'node:buffer'
 import { appendFileSync, readdirSync, existsSync } from 'node:fs'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { scoreMessage } from './quality-grade.mjs'
 
 const config = JSON.parse(Deno.env.get('GAME_NIGHT_CONFIG'))
-const ports = [config.api, config.db, config.edge, config.feed].map(String)
+const ports = [config.api, config.db, config.edge, config.feed, config.public].filter(Boolean).map(String)
 const nativeFetch = globalThis.fetch
-globalThis.fetch = (input, init) => {
+const transfers = []
+globalThis.fetch = async (input, init) => {
   const url = new URL(input instanceof Request ? input.url : input)
   assert.ok(['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname) && ports.includes(url.port), `Blocked outbound host: ${url.hostname}:${url.port}`)
-  return nativeFetch(input, { ...init, redirect: 'error' })
+  const at=Date.now()
+  const response=await nativeFetch(input, { ...init, redirect: 'error' })
+  if(url.port===String(config.api)) {
+    const body=await response.clone().arrayBuffer()
+    transfers.push({at,path:url.pathname,requestBytes:typeof init?.body==='string' ? Buffer.byteLength(init.body) : 0,responseBytes:body.byteLength})
+  }
+  return response
 }
 const nativeServe = Deno.serve
 const descriptor = Object.getOwnPropertyDescriptor(Deno, 'serve')
@@ -36,7 +44,7 @@ let realtimeStatus = 'starting'
 realtimeChannel.subscribe(status => { realtimeStatus = status })
 nativeServe({ hostname: '0.0.0.0', port: config.edge }, async request => {
   const url = new URL(request.url)
-  if (url.pathname === '/health') return Response.json({ active, functions: [...handlers.keys()], realtimeStatus, realtimeMessages, realtimeScoreMessages })
+  if (url.pathname === '/health') return Response.json({ active, functions: [...handlers.keys()], realtimeStatus, realtimeMessages, realtimeScoreMessages, transfers })
   const name = url.pathname.split('/')[3]
   if (name !== 'api' && request.headers.get('x-internal-function-token') !== Deno.env.get('PANCAKE_EDGE_INTERNAL_TOKEN')) return new Response('Forbidden', { status: 403 })
   const handler = handlers.get(name)

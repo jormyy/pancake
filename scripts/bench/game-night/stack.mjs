@@ -46,7 +46,7 @@ export async function startStack(evidence, { sourceRoot = repository, profileMem
   if (sharedBuffers != null) assert.match(sharedBuffers, /^[1-9][0-9]*(kB|MB|GB)$/)
   const project = `pancake-game-night-${randomBytes(5).toString('hex')}`
   const base = await freePorts()
-  const ports = { api: base, db: base + 1, shadow: base + 2, studio: base + 3, mail: base + 4, pool: base + 5, analytics: base + 6, inspector: base + 7, edge: base + 8, feed: base + 9 }
+  const ports = { api: base, db: base + 1, shadow: base + 2, studio: base + 3, mail: base + 4, pool: base + 5, analytics: base + 6, inspector: base + 7, edge: base + 8, feed: base + 9, public: base + 10 }
   const workdir = path.join(evidence, 'runtime', project)
   await mkdir(path.join(workdir, 'supabase'), { recursive: true, mode: 0o700 })
   let config = await readFile(path.join(sourceRoot, 'supabase/config.toml'), 'utf8')
