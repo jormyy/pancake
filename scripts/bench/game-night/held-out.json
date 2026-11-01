@@ -1,0 +1,22 @@
+{
+  "name": "held-out",
+  "seed": 130363,
+  "windowStartMinute": 1140,
+  "windowSeconds": 240,
+  "changeEverySeconds": 20,
+  "changeOffsetSeconds": 10,
+  "games": [
+    {"number": 1, "home": "ATL", "away": "BOS", "startMinute": 960, "durationMinutes": 135},
+    {"number": 2, "home": "BKN", "away": "CHA", "startMinute": 990, "durationMinutes": 145},
+    {"number": 3, "home": "CHI", "away": "CLE", "startMinute": 1020, "durationMinutes": 122},
+    {"number": 4, "home": "DAL", "away": "DEN", "startMinute": 1050, "durationMinutes": 135},
+    {"number": 5, "home": "DET", "away": "GSW", "startMinute": 1080, "durationMinutes": 135},
+    {"number": 6, "home": "HOU", "away": "IND", "startMinute": 1080, "durationMinutes": 135},
+    {"number": 7, "home": "LAC", "away": "LAL", "startMinute": 1110, "durationMinutes": 135},
+    {"number": 8, "home": "MEM", "away": "MIA", "startMinute": 1110, "durationMinutes": 135},
+    {"number": 9, "home": "MIL", "away": "MIN", "startMinute": 1110, "durationMinutes": 135},
+    {"number": 10, "home": "NOP", "away": "NYK", "startMinute": 1140, "durationMinutes": 135},
+    {"number": 11, "home": "OKC", "away": "ORL", "startMinute": 1140, "durationMinutes": 135},
+    {"number": 12, "home": "PHI", "away": "PHX", "startMinute": 1140, "durationMinutes": 135}
+  ]
+}

@@ -1,0 +1,200 @@
+import assert from 'node:assert/strict'
+import { readFile, readdir } from 'node:fs/promises'
+import path from 'node:path'
+import { command, delay, digest, directory, id, json, readJson, repository } from './common.mjs'
+import { seedSlate, startFeed, stateAt, validateSlate } from './fixture.mjs'
+import { startWorkers } from './workers.mjs'
+import { counters, fantasyAt, finalCheck, groupStatements, percentile, readFantasy, readScores, snapshot, statementDeltas, workCheck } from './measure.mjs'
+
+async function prepare(stack, slate, label) {
+  await stack.sql("ALTER SYSTEM SET cron.launch_active_jobs='off'; SELECT pg_reload_conf();")
+  await command('docker', ['update', '--memory=512m', '--memory-swap=1536m', stack.container])
+  await stack.sql(await readFile(path.join(directory, 'seed.sql'), 'utf8'))
+  const migration = await readFile(path.join(repository, 'supabase/migrations/20261024100002_live_player_season_totals.sql'), 'utf8')
+  await stack.sql(migration.match(/INSERT INTO analytics\.player_season_totals[\s\S]*?;/)[0])
+  await stack.sql("UPDATE private.worker_controls SET paused=false,scheduler_level='normal',scheduler_checked_at=NULL,scheduler_healthy_since=NULL,scheduler_last_dispatch_at=NULL,scheduler_health=NULL; TRUNCATE private.scheduler_health_log; UPDATE public.scheduler_health_hint SET level='normal';")
+  const anchor = new Date().toISOString()
+  await seedSlate(stack, slate, anchor)
+  await stack.sql(await readFile(path.join(directory, 'history.sql'), 'utf8'))
+  for (let batch = 0; batch < 100; batch++) {
+    if (Number(await stack.sql('SELECT pg_database_size(current_database())')) >= 263000000) break
+    await stack.sql(`INSERT INTO public.league_activity(league_id,league_season_id,actor_member_id,event_type,title,body,created_at)
+      SELECT game_night.id(1),game_night.id(2),game_night.id(201),'game-night-fixture','Synthetic historical event '||n,
+      (SELECT string_agg(md5(n::text||':'||k::text),'') FROM generate_series(1,40)k),now()-interval '180 days'-n*interval '1 minute'
+      FROM generate_series(${batch * 1000 + 1},${batch * 1000 + 1000})n;`)
+  }
+  await stack.sql('ANALYZE public.player_game_stats; ANALYZE analytics.player_season_totals; ANALYZE public.league_activity;')
+  await stack.sql('SELECT extensions.pg_stat_statements_reset();')
+  const shape = JSON.parse(await stack.sql("SELECT json_build_object('players',(SELECT count(*) FROM public.players),'teams',(SELECT count(*) FROM public.league_members),'stats',(SELECT count(*) FROM public.player_game_stats),'databaseBytes',pg_database_size(current_database()),'tables',(SELECT json_agg(t) FROM (SELECT schemaname,relname,pg_total_relation_size(relid) bytes,n_live_tup FROM pg_stat_user_tables ORDER BY pg_total_relation_size(relid) DESC LIMIT 25)t))"))
+  assert.equal(Number(shape.players), 2600)
+  assert.equal(Number(shape.teams), 10)
+  assert.equal(Number(shape.stats), 246000)
+  shape.priorProviderWork = JSON.parse(await stack.sql("SELECT coalesce(json_agg(w),'[]') FROM (SELECT kind,key,status,payload FROM private.work_items WHERE payload->>'gameNightSyntheticHistory'='true')w"))
+  await json(path.join(stack.evidence, `${label}-shape.json`), shape)
+  const feed = await startFeed(stack, slate, anchor)
+  return { feed, shape, anchor }
+}
+
+export async function runWindow(stack, slate, { label, memoryMiB, seconds = slate.windowSeconds, warmup = 120, ingestionOff = false, broken = false }) {
+  console.log(`${label}: preparing synthetic data.`)
+  const prepared = await prepare(stack, slate, label)
+  let workers
+  stack.setRuntimeClose(async () => { await workers?.close(); await prepared.feed.close() })
+  try {
+    workers = await startWorkers(stack, label, ingestionOff)
+    await command('docker', ['update', `--memory=${memoryMiB}m`, '--memory-swap=1536m', stack.container])
+    await stack.sql("ALTER SYSTEM SET cron.launch_active_jobs='on'; SELECT pg_reload_conf();")
+    const warmupMs = seconds < 120 ? warmup * 1000 : (Math.floor(Date.now() / 120000) + 1) * 120000 + 115000 - Date.now()
+    console.log(`${label}: warming the real scheduled workers for ${Math.round(warmupMs / 1000)} seconds.`)
+    await delay(warmupMs)
+    const realtimeBefore = await fetch(`http://127.0.0.1:${stack.ports.edge}/health`).then(response => response.json())
+    const before = await snapshot(stack)
+    const samples = [await counters(stack)]
+    const started = Date.now()
+    prepared.feed.start(started)
+    const freshness = []
+    const fantasyFreshness = []
+    const seenFantasy = new Set()
+    const seen = new Set()
+    let observedScoreChanges = 0
+    let lastScores = await readScores(stack)
+    const connectionSamples = []
+    console.log(`${label}: measuring ${seconds} real seconds at ${memoryMiB} MiB.`)
+    while (Date.now() < started + seconds * 1000) {
+      await delay(Math.min(5000, Math.max(1, started + seconds * 1000 - Date.now())))
+      const sample = await counters(stack)
+      samples.push(sample)
+      const scores = await readScores(stack)
+      const elapsed = (Date.now() - started) / 1000
+      const fantasy = await readFantasy(stack)
+      const revision = Math.max(...stateAt(slate, elapsed).map(game => game.revision))
+      for (const expected of fantasyAt(slate, elapsed)) {
+        const actual = fantasy.find(row => row.home_member_id === expected.home_member_id)
+        const key = `${expected.home_member_id}:${revision}`
+        if (revision > 0 && !seenFantasy.has(key) && Number(actual?.home_points) === expected.home_points && Number(actual?.away_points) === expected.away_points) {
+          fantasyFreshness.push(Date.now() - (started + (10 + (revision - 1) * 20) * 1000))
+          seenFantasy.add(key)
+        }
+      }
+      for (const expected of stateAt(slate, elapsed)) {
+        const actual = scores.find(row => row.id === expected.id)
+        const previous = lastScores.find(row => row.id === expected.id)
+        if (actual && previous && (actual.home_score !== previous.home_score || actual.away_score !== previous.away_score)) observedScoreChanges++
+        const key = `${expected.id}:${expected.revision}`
+        if (expected.revision > 0 && !seen.has(key) && actual?.home_score === expected.homeTeam.score && actual?.away_score === expected.awayTeam.score) {
+          freshness.push({ game: expected.nba_game_id, revision: expected.revision, milliseconds: Date.now() - (started + (10 + (expected.revision - 1) * 20) * 1000) })
+          seen.add(key)
+        }
+      }
+      lastScores = scores
+      connectionSamples.push({ at: Date.now(), clients: JSON.parse(await stack.sql("SELECT coalesce(json_agg(c),'[]') FROM (SELECT application_name,usename,client_addr::text,backend_type,count(*) FROM pg_stat_activity GROUP BY 1,2,3,4)c")) })
+    }
+    const ended = Date.now()
+    prepared.feed.freeze(seconds)
+    const after = await snapshot(stack)
+    const realtimeAfter = await fetch(`http://127.0.0.1:${stack.ports.edge}/health`).then(response => response.json())
+    await stack.sql("ALTER SYSTEM SET cron.launch_active_jobs='off'; SELECT pg_reload_conf();")
+    const drainStarted = Date.now()
+    let health
+    do {
+      health = await fetch(`http://127.0.0.1:${stack.ports.edge}/health`).then(response => response.json())
+      if (!health.active) break
+      await delay(1000)
+    } while (Date.now() - drainStarted < 125000)
+    assert.equal(health.active, 0, 'Real workers do not drain before cleanup')
+    if (broken) await stack.sql(`DELETE FROM public.player_game_stats WHERE game_id='${id(800003)}' AND player_id='${id(1081)}';`)
+    const check = await finalCheck(stack, slate, seconds)
+    const minutes = (ended - started) / 60000
+    const statements = statementDeltas(before.statements, after.statements)
+    assert.equal(before.statementInfo.stats_reset, after.statementInfo.stats_reset, 'Statement counters reset during the window')
+    const functions = groupStatements(statements, minutes)
+    const startOf = value => Date.parse(value)
+    const inWindow = value => startOf(value) >= started && startOf(value) < ended
+    const cron = after.cron.filter(row => inWindow(row.start_time))
+    const invocations = after.invocations.filter(row => inWindow(row.worker_started_at))
+    const runs = Object.fromEntries([...new Set(invocations.map(row => row.kind))].map(kind => [kind, invocations.filter(row => row.kind === kind).length]))
+    const work = workCheck({ statements, observedScoreChanges, workerStarts: invocations.length, cronRuns: cron.length, minutes })
+    const first = samples[0], last = samples.at(-1)
+    const elapsed = (last.at - first.at) / 1000
+    const failures = { cron: cron.filter(row => row.status === 'failed'), jobs: after.work.filter(row => ['failed','dead'].includes(row.status)), workers: after.invocations.filter(row => row.worker_status === 'failed') }
+    const report = { version: 1, label, slate: slate.name, fixtureSha256: digest(await readFile(path.join(directory, `${slate.name}.json`))), source: stack.metadata.source,
+      startedAt: new Date(started).toISOString(), endedAt: new Date(ended).toISOString(), seconds: (ended - started) / 1000, warmupSeconds: warmupMs / 1000, memoryMiB,
+      shape: prepared.shape, clock: 'native real time; fixture changes every 20 seconds; no accelerated jobs',
+      swap: { source: 'Linux Docker VM /proc/vmstat pswpin/pswpout; global to the VM, not per-cgroup', pageBytes: 4096, inPagesPerSecond: (last.vm.pswpin - first.vm.pswpin) / elapsed, outPagesPerSecond: (last.vm.pswpout - first.vm.pswpout) / elapsed, available: last.swaps.length > 0, cgroupSwapPeakBytes: Math.max(...samples.map(row => row.swapCurrent)), foreignContainerActivityObserved: samples.some(row => row.foreignContainers.length > 0), cgroupAnonRefaultsPerSecond: (last.cgroup.workingset_refault_anon - first.cgroup.workingset_refault_anon) / elapsed },
+      memory: { cgroupAnonPeakBytes: Math.max(...samples.map(row => row.cgroup.anon)), cgroupShmemPeakBytes: Math.max(...samples.map(row => row.cgroup.shmem)), sampleIntervalSeconds: 5, containerLifetimePeakBytes: last.peak, oomKills: (last.events.oom_kill ?? 0) - (first.events.oom_kill ?? 0), majorFaults: last.cgroup.pgmajfault - first.cgroup.pgmajfault },
+      statementExecSecondsPerMinuteByFunction: functions, statements, functionCounters: { before: before.functions, after: after.functions },
+      walBytesPerMinute: (Number(after.wal.wal_bytes) - Number(before.wal.wal_bytes)) / minutes,
+      newSessionsPerMinute: (Number(after.database.sessions) - Number(before.database.sessions)) / minutes,
+      cronRunsPerMinute: cron.length / minutes, cron, workerRunsPerHourByKind: Object.fromEntries(Object.entries(runs).map(([kind, count]) => [kind, count / minutes * 60])),
+      workerCounts: runs, workCounts: work, connectionsByClient: connectionSamples,
+      realtime: { subscribed: realtimeBefore.realtimeStatus === 'SUBSCRIBED', messages: realtimeAfter.realtimeMessages - realtimeBefore.realtimeMessages, clientCount: 1 },
+      drainSeconds: (Date.now() - drainStarted) / 1000,
+      scoreFreshness: { p50Ms: percentile(freshness.map(row => row.milliseconds), .5), p95Ms: percentile(freshness.map(row => row.milliseconds), .95), samples: freshness.length, resolutionMs: 5000, observations: freshness, fantasyP50Ms: percentile(fantasyFreshness, .5), fantasyP95Ms: percentile(fantasyFreshness, .95), fantasySamples: fantasyFreshness.length },
+      finalState: check, failures, deadWorkItems: failures.jobs.filter(row => row.status === 'dead'),
+      passed: check.passed && work.passed && !Object.values(failures).some(rows => rows.length) && last.events.oom_kill === first.events.oom_kill,
+      control: broken ? 'delete one stored final stat' : ingestionOff ? 'live ingestion disabled at worker boundary' : null,
+      observations: samples, feedRequests: prepared.feed.requests, before, after }
+    await json(path.join(stack.evidence, `${label}.json`), report)
+    console.log(`${label}: final=${check.passed}, work=${work.passed}, swap=${report.swap.inPagesPerSecond.toFixed(1)}/${report.swap.outPagesPerSecond.toFixed(1)} pages/s.`)
+    return report
+  } catch (error) {
+    await json(path.join(stack.evidence, `${label}.json`), { label, memoryMiB, passed: false, error: error.message, at: new Date().toISOString() })
+    throw error
+  } finally {
+    await stack.sql("ALTER SYSTEM SET cron.launch_active_jobs='off'; SELECT pg_reload_conf();").catch(() => {})
+    await workers?.close()
+    await prepared.feed.close()
+    stack.setRuntimeClose(null)
+  }
+}
+
+export async function experiment(stack, phase = 'all') {
+  const files = (await readdir(directory)).sort()
+  await json(path.join(stack.evidence, 'harness.json'), { files: Object.fromEntries(await Promise.all(files.map(async file => [file, digest(await readFile(path.join(directory, file)))]))), source: stack.metadata.source })
+  const training = await readJson(path.join(directory, 'training.json'))
+  validateSlate(training)
+  if (phase === 'smoke') return runWindow(stack, training, { label: 'smoke', memoryMiB: 512, seconds: 40, warmup: 125 })
+  if (phase === 'baseline') {
+    const calibration = await readJson(path.join(stack.evidence, 'calibration.json'))
+    const broken = await readJson(path.join(stack.evidence, 'control-broken-final.json'))
+    const off = await readJson(path.join(stack.evidence, 'control-ingestion-off.json'))
+    assert.equal(broken.finalState.passed, false)
+    assert.equal(off.workCounts.passed, false)
+    return baselineSeries(stack, training, calibration.selectedMemoryMiB)
+  }
+  const calibration = []
+  for (const memoryMiB of [384, 192, 96, 64]) {
+    const report = await runWindow(stack, training, { label: `calibration-${memoryMiB}`, memoryMiB, seconds: 120 })
+    calibration.push(report)
+    if (report.swap.inPagesPerSecond >= 600 && report.swap.inPagesPerSecond <= 1400 && report.swap.outPagesPerSecond >= 600 && report.swap.outPagesPerSecond <= 1400) break
+  }
+  const healthy = calibration.filter(report => report.workCounts.passed && !report.memory.oomKills && !Object.values(report.failures).some(rows => rows.length))
+  assert.ok(healthy.length, 'No calibration run performs real work without errors')
+  const error = report => Math.abs(report.swap.inPagesPerSecond - 1000) + Math.abs(report.swap.outPagesPerSecond - 1000)
+  const swapping = healthy.filter(report => report.swap.cgroupSwapPeakBytes > 0)
+  const chosen = [...(swapping.length ? swapping : healthy)].sort((a, b) => error(a) - error(b))[0]
+  const nearTarget = error(chosen) <= 800 && !chosen.swap.foreignContainerActivityObserved
+  await json(path.join(stack.evidence, 'calibration.json'), { target: { inPagesPerSecond: 1000, outPagesPerSecond: 1000 }, selectedMemoryMiB: chosen.memoryMiB, nearTarget, rateMatch: error(chosen) <= 800, runs: calibration.map(report => ({ label: report.label, memoryMiB: report.memoryMiB, swap: report.swap, work: report.workCounts, failures: report.failures })), limitation: nearTarget ? null : 'The host cannot show isolated production-equivalent swap traffic at the tested caps. VM counters include other containers. Use cgroup anonymous refaults, major faults, swap occupancy, and memory peaks as the closest per-database measures. Keep VM swap rates as contextual evidence.' })
+  const broken = await runWindow(stack, training, { label: 'control-broken-final', memoryMiB: chosen.memoryMiB, broken: true })
+  assert.equal(broken.finalState.passed, false, 'Broken final stat must fail')
+  const off = await runWindow(stack, training, { label: 'control-ingestion-off', memoryMiB: chosen.memoryMiB, ingestionOff: true, seconds: 120 })
+  assert.equal(off.workCounts.passed, false, 'Disabled ingestion must fail the work gate')
+  return baselineSeries(stack, training, chosen.memoryMiB)
+}
+
+async function baselineSeries(stack, training, memoryMiB) {
+  const baselines = []
+  for (let n = 1; n <= 3; n++) {
+    const report = await runWindow(stack, training, { label: `baseline-${n}`, memoryMiB })
+    assert.ok(report.passed, `Baseline ${n} fails its quality bar`)
+    baselines.push(report)
+  }
+  const { summarize, hypotheses } = await import('./summary.mjs')
+  const summary = summarize(baselines)
+  await json(path.join(stack.evidence, 'baseline-summary.json'), summary)
+  await hypotheses(stack.evidence, summary)
+  const heldout = await readJson(path.join(directory, 'held-out.json'))
+  validateSlate(heldout)
+  const heldoutReport = await runWindow(stack, heldout, { label: 'held-out-baseline', memoryMiB })
+  assert.ok(heldoutReport.passed, 'Held-out baseline fails its quality bar')
+}
