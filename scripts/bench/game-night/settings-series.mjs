@@ -2,11 +2,12 @@ import assert from 'node:assert/strict'
 import path from 'node:path'
 import { parseArgs } from 'node:util'
 import { appendFile } from 'node:fs/promises'
-import { command, delay, directory, json, readJson, repository } from './common.mjs'
+import { directory, json, readJson, repository } from './common.mjs'
 import { startStack } from './stack.mjs'
 import { configurePool } from './pool.mjs'
 import { runWindow } from './experiment.mjs'
 import { actionLimits, compareSeries } from './series.mjs'
+import { isolatedReplay } from './isolated-series.mjs'
 
 const { values } = parseArgs({ options: {
   evidence: { type: 'string', default: '/Users/michaelchen/Documents/pancake-half-gig/evidence-climb/settings-series' },
@@ -16,29 +17,28 @@ const { values } = parseArgs({ options: {
 } })
 const slate = await readJson(path.join(directory, 'training.json'))
 const baselines = [], candidates = []
+let activeStack
+for(const signal of ['SIGINT','SIGTERM'])process.once(signal,async()=>{
+  try {await activeStack?.stop()}finally {process.exit(signal==='SIGINT'?130:143)}
+})
 for (const [variant, number] of [['baseline',1],['settings',1],['settings',2],['baseline',2],['baseline',3],['settings',3]]) {
-  let quietSince = Date.now()
-  console.log('Waiting for sixty quiet seconds before the next measured run.')
-  while (Date.now() - quietSince < 60000) {
-    if ((await command('docker', ['ps','-q'])).stdout.trim()) quietSince = Date.now()
-    await delay(5000)
-  }
   const label = `${variant}-${number}`
-  let stack
-  try {
-    stack = await startStack(path.join(values.evidence, label), { sourceRoot: variant === 'baseline' ? values.baseline : values.candidate, migrationOverlays: variant === 'settings' ? values.migration ?? [] : [] })
-    stack.qualityEnabled = true
-    stack.policyChecks = variant === 'settings'
-    stack.qualityOptions = { ...(baselines.length >= 3 ? { limits: actionLimits(baselines) } : {}) }
-    stack.runtimeConfiguration = { postgrest: await configurePool(stack, variant === 'settings' ? { connections: 2 } : {}) }
-    const report = await runWindow(stack, slate, { label, memoryMiB: 192 })
-    await json(path.join(values.evidence, `${label}.json`), report)
-    assert.ok(report.passed, `${label} fails a quality gate`)
-    assert.equal(report.swap.foreignContainerActivityObserved, false, `${label} overlaps other Docker work`)
-    const series = variant === 'baseline' ? baselines : candidates
-    series.push(report)
-    console.log(`${label} complete; ${baselines.length} baseline and ${candidates.length} settings runs accepted.`)
-  } finally { await stack?.stop() }
+  const report=await isolatedReplay(async attempt=>{
+    let stack
+    try {
+      stack = activeStack = await startStack(path.join(values.evidence, `${label}-attempt-${attempt}`), { sourceRoot: variant === 'baseline' ? values.baseline : values.candidate, migrationOverlays: variant === 'settings' ? values.migration ?? [] : [] })
+      stack.qualityEnabled = true
+      stack.policyChecks = variant === 'settings'
+      stack.qualityOptions = { ...(baselines.length >= 3 ? { limits: actionLimits(baselines) } : {}) }
+      stack.runtimeConfiguration = { postgrest: await configurePool(stack, variant === 'settings' ? { connections: 2 } : {}) }
+      const report = await runWindow(stack, slate, { label, memoryMiB: 192 })
+      return report
+    } finally {await stack?.stop();activeStack=null}
+  })
+  await json(path.join(values.evidence,`${label}.json`),report)
+  assert.ok(report.passed,`${label} fails a quality gate`)
+  ;(variant==='baseline'?baselines:candidates).push(report)
+  console.log(`${label} complete; ${baselines.length} baseline and ${candidates.length} candidate runs accepted.`)
 }
 const comparison = compareSeries(baselines, candidates)
 assert.ok(comparison.quality, 'Settings regress an action or schedule gate')
