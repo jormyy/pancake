@@ -14,4 +14,12 @@ test('monthly budget uses all Edge requests and identifies the fixed database-si
   assert.equal(budget.supabase.database.fraction,0.53)
   assert.equal(budget.supabase.database.riskOverHalf,true)
   assert.equal(budget.supabase.diskIo.value,30)
+  assert.equal(budget.vercelWithinHalfLimits,true)
+  report.publicFeed.requests=1000
+  report.phones.viewBytes=3000000
+  report.diskIo.readsPerSecond=300
+  const over=projectBudget(report)
+  assert.equal(over.vercelWithinHalfLimits,false)
+  assert.equal(over.supabaseWithinLimits,false)
+  for(const name of ['Vercel requests','Supabase transfer','Supabase diskIo'])assert.ok(over.namedRisks.some(risk=>risk.includes(name)))
 })

@@ -17,7 +17,7 @@ export function projectBudget(report) {
   const memoryHours=source.reduce((sum,value)=>sum+value.milliseconds,0)/3600000*scale*2
   const workerBytes=(report.workerDataTransfer?.requests ?? []).reduce((sum,value)=>sum+value.responseBytes,0)
   const deliveries=phones.messages.length
-  return {
+  const budget={
     basis:{phones:10,hoursPerNight:6,nights:30,peakWindowHeldConstant:true,cacheRegionsUpperBound:11,
       assumptions:['Vercel CPU and duration use the local fake-feed route, not deployed billing measurements.',
         'The upper cache bound permits one independent region per phone and worker.',
@@ -46,4 +46,11 @@ export function projectBudget(report) {
     namedRisks:[...(report.shape.databaseBytes>250e6?['Database size and retention: the fixed fixture exceeds half the 500 MB Free allowance. Timed allocation includes reusable pages and must not be extrapolated linearly as permanent row growth. Successful-job and broadcast retention stay bounded; official stats and results stay protected.']:[])],
     observedBroadcasts:{deliveries},
   }
+  budget.vercelWithinHalfLimits=Object.values(budget.vercel).filter(value=>value && typeof value==='object').every(value=>value.fraction<=.5)
+  budget.supabaseWithinLimits=Object.values(budget.supabase).every(value=>value.fraction<=1)
+  budget.namedRisks.push(...Object.entries(budget.supabase).filter(([name,value])=>name!=='database' && value.riskOverHalf)
+    .map(([name,value])=>`Supabase ${name}: ${Math.round(value.fraction*1000)/10}% of the Free limit under the stated peak-window projection.`))
+  budget.namedRisks.push(...Object.entries(budget.vercel).filter(([,value])=>value && typeof value==='object' && value.riskOverHalf)
+    .map(([name,value])=>`Vercel ${name}: ${Math.round(value.fraction*1000)/10}% of the Hobby limit exceeds the approved half-limit budget.`))
+  return budget
 }
