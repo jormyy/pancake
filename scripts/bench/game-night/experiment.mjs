@@ -1,3 +1,4 @@
+import { watchDocker } from './docker-watch.mjs'
 import assert from 'node:assert/strict'
 import { readFile, readdir } from 'node:fs/promises'
 import path from 'node:path'
@@ -64,12 +65,13 @@ export async function runWindow(stack, slate, { label, memoryMiB, seconds = slat
   }
   console.log(`${label}: preparing synthetic data.`)
   const prepared = await prepare(stack, slate, label)
-  let workers, publicFeed, phones
+  let workers, publicFeed, phones, dockerWatch
   stack.setRuntimeClose(async () => { await workers?.close(); await phones?.close(); await publicFeed?.close(); await prepared.feed.close() })
   try {
     if (stack.phoneLab) publicFeed = await startPublicFeed(stack,label)
     workers = await startWorkers(stack, label, ingestionOff)
     if (stack.phoneLab) phones = await startPhones(stack,publicFeed)
+    dockerWatch=await watchDocker(stack.project)
     await command('docker', ['update', `--memory=${memoryMiB}m`, '--memory-swap=1536m', stack.container])
     await stack.sql("ALTER SYSTEM SET cron.launch_active_jobs='on'; SELECT pg_reload_conf();")
     const warmupMs = seconds < 120 ? warmup * 1000 : (Math.floor(Date.now() / 120000) + 1) * 120000 + 115000 - Date.now()
@@ -150,6 +152,8 @@ export async function runWindow(stack, slate, { label, memoryMiB, seconds = slat
       connectionSamples.push({ at: Date.now(), clients: JSON.parse(await stack.sql("SELECT coalesce(json_agg(c),'[]') FROM (SELECT application_name,usename,client_addr::text,backend_type,count(*) FROM pg_stat_activity GROUP BY 1,2,3,4)c")) })
     }
     const ended = Date.now()
+    const containerWatch=dockerWatch.result(ended)
+    await dockerWatch.close()
     prepared.feed.freeze(seconds)
     if (stack.qualityOptions?.fault?.split(',').includes('forecastDelivery')) await stack.sql(`DELETE FROM public.matchup_forecasts WHERE matchup_id=(SELECT id FROM public.matchups WHERE league_id='${id(1)}' AND week_number=2 ORDER BY id LIMIT 1)`)
     const after = await snapshot(stack)
@@ -207,7 +211,8 @@ export async function runWindow(stack, slate, { label, memoryMiB, seconds = slat
     const report = { version: 1, grader: { version: stack.liveArchitecture ? 'game-night-v5' : graderVersion, sha256: digest(JSON.stringify([harness['measure.mjs'],harness['checkpoint-grade.mjs'],harness['phone-grade.mjs']])) }, harnessSha256: digest(JSON.stringify(harness)), label, slate: slate.name, fixtureSha256: harness[`${slate.name}.json`], source: stack.metadata.source,
       startedAt: new Date(started).toISOString(), endedAt: new Date(ended).toISOString(), seconds: (ended - started) / 1000, warmupSeconds: warmupMs / 1000, memoryMiB, databaseSettings, runtimeConfiguration: stack.runtimeConfiguration ?? {},
       shape: prepared.shape, databaseGrowth:{before:before.storage,after:after.storage,bytes:after.storage.databaseBytes-before.storage.databaseBytes,bytesPerMinute:(after.storage.databaseBytes-before.storage.databaseBytes)/minutes,scope:'timed real PostgreSQL database growth; includes index and reusable-page allocation, not only new user rows'}, clock: 'native real time; fixture changes every 20 seconds; no accelerated jobs', observer: 'Seeding session closes before warmup; the measurement session keeps no seed plans',
-      swap: { source: 'Linux Docker VM /proc/vmstat pswpin/pswpout; global to the VM, not per-cgroup', pageBytes: 4096, inPagesPerSecond: (last.vm.pswpin - first.vm.pswpin) / elapsed, outPagesPerSecond: (last.vm.pswpout - first.vm.pswpout) / elapsed, available: last.swaps.length > 0, cgroupSwapPeakBytes: Math.max(...samples.map(row => row.swapCurrent)), foreignContainerActivityObserved: samples.some(row => row.foreignContainers.length > 0), cgroupAnonRefaultsPerSecond: (last.cgroup.workingset_refault_anon - first.cgroup.workingset_refault_anon) / elapsed },
+      swap: { source: 'Linux Docker VM /proc/vmstat pswpin/pswpout; global to the VM, not per-cgroup', pageBytes: 4096, inPagesPerSecond: (last.vm.pswpin - first.vm.pswpin) / elapsed, outPagesPerSecond: (last.vm.pswpout - first.vm.pswpout) / elapsed, available: last.swaps.length > 0, cgroupSwapPeakBytes: Math.max(...samples.map(row => row.swapCurrent)), foreignContainerActivityObserved: containerWatch.initial.length>0 || containerWatch.events.length>0 || samples.some(row => row.foreignContainers.length > 0), cgroupAnonRefaultsPerSecond: (last.cgroup.workingset_refault_anon - first.cgroup.workingset_refault_anon) / elapsed },
+      containerWatch,
       memory: { cgroupAnonPeakBytes: Math.max(...samples.map(row => row.cgroup.anon)), cgroupShmemPeakBytes: Math.max(...samples.map(row => row.cgroup.shmem)), sampleIntervalSeconds: 5, containerLifetimePeakBytes: last.peak, oomKills: (last.events.oom_kill ?? 0) - (first.events.oom_kill ?? 0), majorFaults: last.cgroup.pgmajfault - first.cgroup.pgmajfault },
       diskIo: {source:'database cgroup io.stat, summed device counters',readsPerSecond:(last.io.rios-first.io.rios)/elapsed,writesPerSecond:(last.io.wios-first.io.wios)/elapsed,
         readBytesPerSecond:(last.io.rbytes-first.io.rbytes)/elapsed,writeBytesPerSecond:(last.io.wbytes-first.io.wbytes)/elapsed},
@@ -224,7 +229,7 @@ export async function runWindow(stack, slate, { label, memoryMiB, seconds = slat
       drainSeconds: (Date.now() - drainStarted) / 1000,
       scoreFreshness: { p50Ms: percentile(freshness.map(row => row.milliseconds), .5), p95Ms: percentile(freshness.map(row => row.milliseconds), .95), samples: freshness.length, resolutionMs: 5000, observations: freshness, fantasyP50Ms: percentile(fantasyFreshness, .5), fantasyP95Ms: percentile(fantasyFreshness, .95), fantasySamples: fantasyFreshness.length },
       finalState: check, settlementSeconds, publicFeed:publicResults,phones:phoneResults,phoneBehavior,actionResults, failures, deadWorkItems: failures.jobs.filter(row => row.status === 'dead'),
-      passed: check.passed && work.passed && (!phoneResults || phoneResults.passed) && (!actionResults || actionResults.passed) && !Object.values(failures).some(rows => rows.length) && last.events.oom_kill === first.events.oom_kill,
+      passed: containerWatch.passed && check.passed && work.passed && (!phoneResults || phoneResults.passed) && (!actionResults || actionResults.passed) && !Object.values(failures).some(rows => rows.length) && last.events.oom_kill === first.events.oom_kill,
       control: broken ? 'delete one stored final stat' : ingestionOff ? 'live ingestion disabled at worker boundary' : stack.qualityOptions?.fault ?? null,
       processSamples, contextSamples, observations: samples, feedRequests: prepared.feed.requests, before, after }
     if (stack.qualityEnabled) {
@@ -241,6 +246,7 @@ export async function runWindow(stack, slate, { label, memoryMiB, seconds = slat
     await json(path.join(stack.evidence, `${label}.json`), { label, memoryMiB, passed: false, error: error.message, at: new Date().toISOString() })
     throw error
   } finally {
+    await dockerWatch?.close()
     await stack.sql("ALTER SYSTEM SET cron.launch_active_jobs='off'; SELECT pg_reload_conf();").catch(() => {})
     await workers?.close()
     await phones?.close()
