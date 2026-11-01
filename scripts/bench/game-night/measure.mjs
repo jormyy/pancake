@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { command, id } from './common.mjs'
+import { command, id, quote } from './common.mjs'
 import { stateAt } from './fixture.mjs'
 
 export const graderVersion = 'game-night-v3'
@@ -69,7 +69,7 @@ export function groupStatements(rows, minutes) {
 export const percentile = (values, fraction) => values.length ? [...values].sort((a, b) => a - b)[Math.min(values.length - 1, Math.ceil(values.length * fraction) - 1)] : null
 
 export async function readScores(stack) {
-  return JSON.parse(await stack.sql("SELECT coalesce(json_agg(g),'[]') FROM (SELECT id,home_score,away_score,status FROM public.nba_games WHERE nba_game_id LIKE '00299%')g"))
+  return JSON.parse(await stack.sql("SELECT coalesce(json_agg(g),'[]') FROM (SELECT id,home_score,away_score,status,stats_synced_at FROM public.nba_games WHERE nba_game_id LIKE '00299%')g"))
 }
 
 export function fantasyAt(slate, seconds) {
@@ -84,11 +84,8 @@ export async function readFantasy(stack) {
 
 const fields = { points: 'points', rebounds: 'reboundsTotal', offensive_rebounds: 'reboundsOffensive', defensive_rebounds: 'reboundsDefensive', assists: 'assists', steals: 'steals', blocks: 'blocks', turnovers: 'turnovers', personal_fouls: 'foulsPersonal', field_goals_made: 'fieldGoalsMade', field_goals_attempted: 'fieldGoalsAttempted', three_pointers_made: 'threePointersMade', three_pointers_attempted: 'threePointersAttempted', free_throws_made: 'freeThrowsMade', free_throws_attempted: 'freeThrowsAttempted', plus_minus: 'plusMinusPoints' }
 
-export async function finalCheck(stack, slate, seconds) {
-  const scores = await readScores(stack)
-  const stats = JSON.parse(await stack.sql("SELECT coalesce(json_agg(s),'[]') FROM public.player_game_stats s JOIN public.nba_games g ON g.id=s.game_id WHERE g.nba_game_id LIKE '00299%'"))
+function compareGames(expected,scores,stats) {
   const failures = []
-  const expected = stateAt(slate, seconds)
   for (const game of expected) {
     const actual = scores.find(row => row.id === game.id)
     for (const [key, value] of Object.entries({ home_score: game.homeTeam.score, away_score: game.awayTeam.score, status: game.gameStatus === 3 ? 'Final' : 'InProgress' })) if (actual?.[key] !== value) failures.push({ game: game.nba_game_id, field: key, expected: value, actual: actual?.[key] ?? null })
@@ -101,6 +98,24 @@ export async function finalCheck(stack, slate, seconds) {
     }
   }
   if (stats.length !== expected.length * 24) failures.push({ field: 'statRowCount', expected: expected.length * 24, actual: stats.length })
+  return failures
+}
+
+export async function finalGameCheck(stack,slate,seconds,gameIds) {
+  assert.ok(gameIds.length>0)
+  const expected=stateAt(slate,seconds).filter(game=>gameIds.includes(game.id))
+  assert.ok(expected.length===gameIds.length && expected.every(game=>game.gameStatus===3))
+  const scores=await readScores(stack)
+  const stats=JSON.parse(await stack.sql(`SELECT coalesce(json_agg(s),'[]') FROM public.player_game_stats s WHERE s.game_id IN (${gameIds.map(quote).join(',')})`))
+  const failures=compareGames(expected,scores,stats)
+  return {passed:failures.length===0,games:expected.length,statRows:stats.length,failures}
+}
+
+export async function finalCheck(stack, slate, seconds) {
+  const scores = await readScores(stack)
+  const stats = JSON.parse(await stack.sql("SELECT coalesce(json_agg(s),'[]') FROM public.player_game_stats s JOIN public.nba_games g ON g.id=s.game_id WHERE g.nba_game_id LIKE '00299%'"))
+  const expected = stateAt(slate, seconds)
+  const failures = compareGames(expected,scores,stats)
   const fantasy = await readFantasy(stack)
   for (const expected of fantasyAt(slate, seconds)) {
     const actual = fantasy.find(row => row.home_member_id === expected.home_member_id && row.away_member_id === expected.away_member_id)

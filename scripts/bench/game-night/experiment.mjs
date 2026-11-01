@@ -12,7 +12,7 @@ import { startPhones } from './phones.mjs'
 import { phoneGrade } from './phone-grade.mjs'
 import { checkpointGrade } from './checkpoint-grade.mjs'
 import { projectBudget } from './budget.mjs'
-import { counters, fantasyAt, finalCheck, graderVersion, groupStatements, percentile, readFantasy, readScores, snapshot, statementDeltas, workCheck } from './measure.mjs'
+import { counters, fantasyAt, finalCheck, finalGameCheck, graderVersion, groupStatements, percentile, readFantasy, readScores, snapshot, statementDeltas, workCheck } from './measure.mjs'
 
 export async function prepare(stack, slate, label) {
   await stack.sql("ALTER SYSTEM SET cron.launch_active_jobs='off'; SELECT pg_reload_conf();")
@@ -102,6 +102,19 @@ export async function runWindow(stack, slate, { label, memoryMiB, seconds = slat
     const seen = new Set()
     let observedScoreChanges = 0
     let lastScores = await readScores(stack)
+    const finalGameChecks=[]
+    const observeFinals=async(scores,at)=>{
+      if(!stack.phoneLab)return
+      const elapsed=(at-started)/1000
+      for(const game of stateAt(slate,elapsed).filter(game=>game.gameStatus===3)) {
+        if(finalGameChecks.some(check=>check.gameId===game.id))continue
+        const actual=scores.find(row=>row.id===game.id)
+        if(actual?.status!=='Final' || !actual.stats_synced_at)continue
+        const expectedAt=started+Math.max(0,(game.startMinute+game.durationMinutes-slate.windowStartMinute)*60000)
+        const check=await finalGameCheck(stack,slate,elapsed,[game.id])
+        finalGameChecks.push({gameId:game.id,expectedAt,observedAt:at,passed:check.passed && at-expectedAt<=45000,check})
+      }
+    }
     const connectionSamples = []
     console.log(`${label}: measuring ${seconds} real seconds at ${memoryMiB} MiB.`)
     while (Date.now() < started + seconds * 1000) {
@@ -111,6 +124,7 @@ export async function runWindow(stack, slate, { label, memoryMiB, seconds = slat
       processSamples.push(await processMemory(stack))
       if (stack.profileMemory && processSamples.length % 12 === 0) contextSamples.push(await memoryContexts(stack))
       const scores = await readScores(stack)
+      await observeFinals(scores,Date.now())
       const elapsed = (Date.now() - started) / 1000
       const fantasy = await readFantasy(stack)
       const revision = Math.max(...stateAt(slate, elapsed).map(game => game.revision))
@@ -146,6 +160,7 @@ export async function runWindow(stack, slate, { label, memoryMiB, seconds = slat
     if (stack.liveArchitecture) {
       const settlementStarted = Date.now()
       while (Date.now()-settlementStarted < 1920000) {
+        await observeFinals(await readScores(stack),Date.now())
         if ((await finalCheck(stack,slate,seconds)).passed) break
         await delay(5000)
       }
@@ -163,8 +178,11 @@ export async function runWindow(stack, slate, { label, memoryMiB, seconds = slat
     const qualityState = stack.liveArchitecture ? await snapshot(stack) : after
     if (broken) await stack.sql(`DELETE FROM public.player_game_stats WHERE game_id='${id(800003)}' AND player_id='${id(1081)}';`)
     const check = await finalCheck(stack, slate, seconds)
+    await observeFinals(await readScores(stack),Date.now())
     await phones?.refresh()
-    const phoneResults = phones ? phoneGrade({ slate,started,ended,renders:phones.renders,phones:phones.snapshot(),requests:phones.requests,reads:phones.reads,messages:phones.messages }) : null
+    const phoneResults = phones ? phoneGrade({ slate,started,ended,renders:phones.renders,phones:phones.snapshot(),requests:phones.requests,reads:phones.reads,messages:phones.messages,
+      frames:phones.frames,finalGameChecks,architecture:Boolean(stack.liveArchitecture) }) : null
+    if(phones)await json(path.join(stack.evidence,`${label}-phone-frames.json`),phones.frames)
     const actionResults = actions ? await actions.done : null
     const minutes = (ended - started) / 60000
     const statements = statementDeltas(before.statements, after.statements)
@@ -186,7 +204,7 @@ export async function runWindow(stack, slate, { label, memoryMiB, seconds = slat
     const first = samples[0], last = samples.at(-1)
     const elapsed = (last.at - first.at) / 1000
     const failures = { cron: qualityState.cron.filter(row => row.status === 'failed'), jobs: qualityState.work.filter(row => ['failed','dead'].includes(row.status)), workers: qualityState.invocations.filter(row => row.worker_status === 'failed') }
-    const report = { version: 1, grader: { version: stack.liveArchitecture ? 'game-night-v4' : graderVersion, sha256: digest(JSON.stringify([harness['measure.mjs'],harness['checkpoint-grade.mjs'],harness['phone-grade.mjs']])) }, harnessSha256: digest(JSON.stringify(harness)), label, slate: slate.name, fixtureSha256: harness[`${slate.name}.json`], source: stack.metadata.source,
+    const report = { version: 1, grader: { version: stack.liveArchitecture ? 'game-night-v5' : graderVersion, sha256: digest(JSON.stringify([harness['measure.mjs'],harness['checkpoint-grade.mjs'],harness['phone-grade.mjs']])) }, harnessSha256: digest(JSON.stringify(harness)), label, slate: slate.name, fixtureSha256: harness[`${slate.name}.json`], source: stack.metadata.source,
       startedAt: new Date(started).toISOString(), endedAt: new Date(ended).toISOString(), seconds: (ended - started) / 1000, warmupSeconds: warmupMs / 1000, memoryMiB, databaseSettings, runtimeConfiguration: stack.runtimeConfiguration ?? {},
       shape: prepared.shape, clock: 'native real time; fixture changes every 20 seconds; no accelerated jobs', observer: 'Seeding session closes before warmup; the measurement session keeps no seed plans',
       swap: { source: 'Linux Docker VM /proc/vmstat pswpin/pswpout; global to the VM, not per-cgroup', pageBytes: 4096, inPagesPerSecond: (last.vm.pswpin - first.vm.pswpin) / elapsed, outPagesPerSecond: (last.vm.pswpout - first.vm.pswpout) / elapsed, available: last.swaps.length > 0, cgroupSwapPeakBytes: Math.max(...samples.map(row => row.swapCurrent)), foreignContainerActivityObserved: samples.some(row => row.foreignContainers.length > 0), cgroupAnonRefaultsPerSecond: (last.cgroup.workingset_refault_anon - first.cgroup.workingset_refault_anon) / elapsed },

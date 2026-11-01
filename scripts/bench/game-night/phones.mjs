@@ -9,7 +9,7 @@ export async function startPhones(stack, publicFeed) {
   loopback(stack.api,[stack.ports.api])
   const phones = []
   const date = await stack.sql("SELECT (now() AT TIME ZONE 'America/New_York')::date")
-  const requests = [], renders = [], reads = [], messages = []
+  const requests = [], renders = [], reads = [], messages = [], frames = []
   const faults = new Set(stack.qualityOptions?.fault?.split(',') ?? [])
   let closed = false
   const createPhone = async index => {
@@ -70,7 +70,7 @@ export async function startPhones(stack, publicFeed) {
           return result
         } catch(error) { requests.push({phone:index,at,done:Date.now(),error:error.message});throw error }
       },
-      onSnapshot:snapshot=>{phone.snapshot=snapshot;render();updateRecovery()},
+      onSnapshot:snapshot=>{phone.snapshot=snapshot;if(snapshot)frames.push({phone:index,at:Date.now(),snapshot});render();updateRecovery()},
     })
     const updatePoll = () => phone.poller.update({ date,active:Boolean(phone.view?.todaysGames?.some(game=>game.status==='InProgress')),
       visible:phone.visible,online:phone.online })
@@ -122,7 +122,7 @@ export async function startPhones(stack, publicFeed) {
   }
   try {
     for(let index=1;index<=10;index++)await createPhone(index)
-    return { phones,requests,renders,reads,messages,close,refresh:()=>Promise.all(phones.map(phone=>phone.refresh())),
+    return { phones,requests,renders,reads,messages,frames,close,refresh:()=>Promise.all(phones.map(phone=>phone.refresh())),
       snapshot:()=>phones.map(phone=>({phone:phone.index,ready:phone.ready,error:phone.error,broadcasts:phone.broadcasts,display:phone.display})) }
   } catch(error){await close();throw error}
 }
