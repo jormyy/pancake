@@ -10,10 +10,69 @@ const stats = { points: 5, reboundsTotal: 1, reboundsOffensive: 0, reboundsDefen
 const box = { gameId: '0022600001', gameEt: '2026-10-31T19:00:00-04:00', gameStatus: 2, gameStatusText: 'Q1', period: 1, gameClock: 'PT07M00S',
   homeTeam: { teamTricode: 'BOS', score: 5, players: [{ personId: 10, name: 'Public player', played: 1, statistics: stats }] },
   awayTeam: { teamTricode: 'NYK', score: 5, players: [{ personId: 11, name: 'Public player', played: 1, statistics: stats }] } }
+const event = { id:'4001',date:'2026-10-31T23:00:00Z',season:{type:2,year:2027},
+  status:{period:1,displayClock:'7:00',type:{state:'in'}},competitions:[{date:'2026-10-31T23:00:00Z',
+    status:{period:1,displayClock:'7:00',type:{state:'in'}},competitors:[
+      {homeAway:'home',score:'5',team:{abbreviation:'BOS'}},{homeAway:'away',score:'5',team:{abbreviation:'NY'}}]}] }
+
+function summary(source = event) {
+  return {header:{id:source.id,season:source.season,competitions:[{...source.competitions[0],status:source.status}]},
+    meta:{lastUpdatedAt:new Date(now).toISOString()},boxscore:{players:['BOS','NY'].map((team,index)=>({team:{abbreviation:team},statistics:[{
+      names:['PTS','REB','AST','STL','BLK','TO','PF','OREB','DREB','+/-','FG','3PT','FT','MIN'],athletes:[{
+        athlete:{id:String(20+index),displayName:'Player'},didNotPlay:false,stats:[source.competitions[0].competitors[index].score,'1','1','0','0','0','0','0','1','0','2-4','1-2','0-0','5:00'],
+      }]}]}))} }
+}
+
+async function sourceSelection(source: typeof event, nbaTime = now, nbaBox = box) {
+  const calls: string[] = []
+  vi.stubGlobal('fetch', async (input: RequestInfo | URL) => {
+    const url = new URL(input instanceof Request ? input.url : input)
+    calls.push(url.pathname)
+    if (url.hostname === 'site.api.espn.com') return Response.json(url.pathname.endsWith('scoreboard') ? {events:[source]} : summary(source))
+    return Response.json(url.pathname.includes('scoreboard')
+      ? {meta:{time:new Date(nbaTime).toISOString()},scoreboard:{games:[nbaBox]}}
+      : {meta:{time:new Date(nbaTime).toISOString()},game:nbaBox})
+  })
+  const response = await createLiveHandler({now:()=>now})(new Request(`http://local/api/live/${date}`))
+  return {response,body:await response.json(),calls}
+}
 
 afterEach(() => vi.unstubAllGlobals())
 
 describe('public live route', () => {
+  it('skips the large ESPN summary when a current NBA box agrees with its scoreboard', async () => {
+    const result = await sourceSelection(structuredClone(event))
+    expect(result.body.games[0].source).toBe('nba')
+    expect(result.calls.some(path=>path.endsWith('/summary'))).toBe(false)
+    expect(result.calls).toHaveLength(3)
+  })
+
+  it('reads ESPN when the NBA source is old or the scoreboard is ahead', async () => {
+    const old = await sourceSelection(structuredClone(event),now-20000)
+    expect(old.calls.some(path=>path.endsWith('/summary'))).toBe(true)
+    expect(old.body.games[0].source).toBe('espn')
+    const ahead = structuredClone(event)
+    ahead.status.displayClock = '6:30'
+    ahead.competitions[0].competitors[0].score = '6'
+    const result = await sourceSelection(ahead,now-1000)
+    expect(result.calls.some(path=>path.endsWith('/summary'))).toBe(true)
+    expect(result.body.games[0].home.score).toBe(6)
+    expect(result.body.games[0].source).toBe('espn')
+  })
+
+  it('keeps a complete NBA final without reading an ESPN summary', async () => {
+    const final = {...structuredClone(box),gameStatus:3}
+    const result = await sourceSelection(structuredClone(event),now-600000,final)
+    expect(result.body.games[0]).toMatchObject({source:'nba',status:'Final'})
+    expect(result.calls.some(path=>path.endsWith('/summary'))).toBe(false)
+  })
+
+  it('uses ESPN when an NBA player line is incomplete even if team points still agree', async () => {
+    const incomplete = structuredClone(box)
+    delete (incomplete.homeTeam.players[0].statistics as Partial<typeof stats>).reboundsTotal
+    const result = await sourceSelection(structuredClone(event),now,incomplete)
+    expect(result.body.games[0].source).toBe('espn')
+  })
   it('returns only compact public source data and cache headers without any database request', async () => {
     const requests: URL[] = []
     vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {

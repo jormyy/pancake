@@ -77,7 +77,7 @@ export class EspnLiveSource {
 
 export const liveEspnSource = new EspnLiveSource()
 
-function espnGame(id: string, competition: Competition): NBAGame {
+export function espnGame(id: string, competition: Competition): NBAGame {
   const home = competition.competitors.find(team => team.homeAway === 'home')
   const away = competition.competitors.find(team => team.homeAway === 'away')
   const status = competition.status

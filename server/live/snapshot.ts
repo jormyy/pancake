@@ -3,7 +3,7 @@ import type { NBABoxScore, NBABoxScorePlayer, NBAGame } from '../../supabase/fun
 import { gameElapsedSeconds } from '../../supabase/functions/_shared/gameProgress.ts'
 import { newerNbaSource } from '../../supabase/functions/_shared/liveSourceChoice.ts'
 import { runBounded } from '../../supabase/functions/_shared/runBounded.ts'
-import { EspnLiveSource, matchEspnGame, teamCode } from '../../supabase/functions/live-poll/espn.ts'
+import { EspnLiveSource, espnGame, matchEspnGame, teamCode } from '../../supabase/functions/live-poll/espn.ts'
 import type { EspnEvent } from '../../supabase/functions/live-poll/espn.ts'
 import type { LiveLine, LiveSnapshot, PublicLiveGame } from '../../core/src/live/overlay.ts'
 import { liveLineStats } from '../../core/src/live/codec.ts'
@@ -22,6 +22,9 @@ function compactPlayer(player: NBABoxScorePlayer, id = String(player.personId)):
   const s = player.statistics
   const minutes = parseNBAMinutes(s.minutes)
   const didNotPlay = player.played === '0' || player.played === 0 || player.played == null && minutes == null
+  const required = [s.points,s.reboundsTotal,s.assists,s.steals,s.blocks,s.turnovers,s.threePointersMade,
+    s.fieldGoalsMade,s.fieldGoalsAttempted,s.freeThrowsMade,s.freeThrowsAttempted,s.foulsPersonal]
+  if (!didNotPlay && required.some(value=>typeof value!=='number' || !Number.isFinite(value) || value<0)) throw new Error('Provider player line is incomplete')
   const row: LiveLine = [id,s.points ?? 0,s.reboundsTotal ?? 0,s.assists ?? 0,s.steals ?? 0,s.blocks ?? 0,
     s.turnovers ?? 0,s.threePointersMade ?? 0,s.fieldGoalsMade ?? 0,s.fieldGoalsAttempted ?? 0,
     s.freeThrowsMade ?? 0,s.freeThrowsAttempted ?? 0,s.foulsPersonal ?? 0,minutes ?? 0,didNotPlay ? 1 : 0]
@@ -46,10 +49,20 @@ function compactBox(box: NBABoxScore, board: NBAGame | undefined, event: EspnEve
     period: box.period, clock: box.gameClock, home: sides[0], away: sides[1] }
 }
 
+function nbaIsCurrent(box: NBABoxScore, event: EspnEvent | undefined, observedAt: number): boolean {
+  if (box.gameStatus === 3 || !event) return true
+  const timestamp = Date.parse(box.liveSourceUpdatedAt ?? box.sourceUpdatedAt ?? '')
+  if (!Number.isFinite(timestamp) || observedAt - timestamp > 10000) return false
+  if (event.status.type.state === 'pre') return true
+  const board = espnGame(event.id,{...event.competitions[0],status:event.status})
+  return gameElapsedSeconds(box) >= gameElapsedSeconds(board)
+    && box.homeTeam.score === board.homeTeam.score && box.awayTeam.score === board.awayTeam.score
+}
+
 export function createSnapshotSource(now: () => number = Date.now) {
-  const espn = new EspnLiveSource(now)
+  const espn = new EspnLiveSource(now,1500)
   return async (date: string): Promise<LiveSnapshot> => {
-    const results = await Promise.allSettled([fetchTodaysGames(2500),espn.scoreboard([date])])
+    const results = await Promise.allSettled([fetchTodaysGames(1500),espn.scoreboard([date])])
     if (results.every(result => result.status === 'rejected')) throw new Error('Both public score providers are unavailable')
     const boards = results[0].status === 'fulfilled' ? results[0].value.filter(game => boardDate(game,now()) === date) : []
     const events = results[1].status === 'fulfilled' ? results[1].value.filter(event => etDate(event.date) === date && event.season?.type === 2) : []
@@ -70,18 +83,17 @@ export function createSnapshotSource(now: () => number = Date.now) {
             away: { team: board?.awayTeam.teamTricode ?? teamCode(sides!.find(side => side.homeAway === 'away')!.team.abbreviation), score: 0, players: [] } })
           return
         }
-        const [nbaResult, espnResult] = await Promise.allSettled([
-          board ? fetchBoxScore(board.gameId,2500) : Promise.resolve(undefined),
-          event && ['in','post'].includes(event.status.type.state) ? espn.summary(event) : Promise.resolve(undefined),
-        ])
+        const nbaResult = await (board ? fetchBoxScore(board.gameId,1500) : Promise.resolve(undefined))
+          .then(value => ({status:'fulfilled' as const,value}),reason => ({status:'rejected' as const,reason}))
         let nba = nbaResult.status === 'fulfilled' ? nbaResult.value : undefined
         if (nba && (nba.gameId !== board?.gameId || nba.gameEt && etDate(nba.gameEt) !== date
           || nba.homeTeam.teamTricode !== board?.homeTeam.teamTricode || nba.awayTeam.teamTricode !== board?.awayTeam.teamTricode)) nba = undefined
-        const other = espnResult.status === 'fulfilled' ? espnResult.value : undefined
         let nbaCompact: PublicLiveGame | undefined
         if (nba) {
           try { nbaCompact = compactBox(nba,board,event,now()) } catch { nba = undefined }
         }
+        if (nba && nbaCompact && nbaIsCurrent(nba,event,now())) { games.push(nbaCompact); return }
+        const other = event && ['in','post'].includes(event.status.type.state) ? await espn.summary(event).catch(() => undefined) : undefined
         if (nba && nbaCompact && (!other || newerNbaSource(nba,other.game))) games.push(nbaCompact)
         else if (other) {
           const identities = new Map(other.players.map(row => [row.player,row.espnId]))
