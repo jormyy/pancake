@@ -10,9 +10,7 @@ export function distribution(values) {
 
 export function summarize(reports, { reference = false } = {}) {
   assert.ok(reports.length >= 3, 'At least three runs are required')
-  assert.ok(reports.every(report => reference
-    ? report.workCounts?.passed && !report.memory.oomKills && report.containerWatch?.passed !== false && report.swap.available !== false
-    : report.passed), reference ? 'Reference runs require real work, usable swap and monitoring, and no OOM kills' : 'Every candidate run must pass')
+  assert.ok(reports.every(report => report.passed && report.resources?.hostMemory.passed), 'Every run must pass quality and host-memory checks')
   assert.equal(new Set(reports.map(report => report.fixtureSha256)).size, 1, 'Frozen fixture differs across runs')
   assert.equal(new Set(reports.map(report => report.memoryMiB)).size, 1, 'Memory caps differ across runs')
   const metrics = {
@@ -29,13 +27,13 @@ export function summarize(reports, { reference = false } = {}) {
     cronRunsPerMinute: report => report.cronRunsPerMinute,
     scoreFreshnessP95Ms: report => report.scoreFreshness.p95Ms,
   }
-  const summary = { n: reports.length, source: reports[0].source, fixtureSha256: reports[0].fixtureSha256, memoryMiB: reports[0].memoryMiB,
+  const summary = { version:'game-night-summary-v2',primaryMetric:'cgroupAnonRefaultsPerSecond',n: reports.length, source: reports[0].source, fixtureSha256: reports[0].fixtureSha256, memoryMiB: reports[0].memoryMiB,runtimeConfiguration:reports[0].runtimeConfiguration,
     quality: { passed: reports.every(report=>report.passed), referenceOnly: reference,
       failedRuns: reports.filter(report=>!report.passed).map(report=>({label:report.label,finalState:report.finalState,failures:report.failures,quality:report.quality})) },
     runs: reports.map(report => report.label), metrics: Object.fromEntries(Object.entries(metrics).map(([name, get]) => [name, distribution(reports.map(get))])),
     workCounts: reports.map(report => ({ run: report.label, ...report.workCounts })),
     workerRunsPerHourByKind: {}, statementFunctions: [], limitations: [
-      'Swap counters cover the entire Docker VM. Other activity can contaminate them.',
+      'Cgroup anonymous refaults are primary. VM swap rates remain shared-host diagnostics.',
       'Anonymous memory is the largest five-second cgroup sample, not an exact kernel peak.',
       'Statement totals include nested calls. Function groups can overlap and do not sum to wall-clock work.',
       'Read blocks rank possible memory and swap pressure. They do not prove causal memory or swap use by function.',
@@ -58,7 +56,7 @@ export function summarize(reports, { reference = false } = {}) {
     wal: [...summary.statementFunctions].sort((a, b) => b.walBytesPerMinute.median - a.walBytesPerMinute.median).slice(0, 12),
     sessionChurn: { sessionsPerMinute: summary.metrics.newSessionsPerMinute, cronRunsPerMinute: summary.metrics.cronRunsPerMinute, attribution: 'Cron starts one backend per invocation; pooled PostgREST sessions persist. Per-client samples show live pool size, not cumulative session starts.' },
   }
-  summary.noise = Math.max(summary.metrics.swapTotalPagesPerSecond.spread, summary.metrics.swapTotalPagesPerSecond.median * .05)
+  summary.noise = Math.max(summary.metrics.cgroupAnonRefaultsPerSecond.spread, summary.metrics.cgroupAnonRefaultsPerSecond.median * .05)
   return summary
 }
 

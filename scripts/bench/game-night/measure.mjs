@@ -2,11 +2,12 @@ import assert from 'node:assert/strict'
 import { command, id, quote } from './common.mjs'
 import { stateAt } from './fixture.mjs'
 
-export const graderVersion = 'game-night-v3'
+export const graderVersion = 'game-night-v4'
 
 export async function counters(stack) {
-  const output = (await command('docker', ['exec', stack.container, 'sh', '-c', 'cat /proc/vmstat; echo CGROUP; cat /sys/fs/cgroup/memory.stat; echo CURRENT; cat /sys/fs/cgroup/memory.current /sys/fs/cgroup/memory.swap.current /sys/fs/cgroup/memory.peak /sys/fs/cgroup/memory.events /proc/swaps; echo IO; cat /sys/fs/cgroup/io.stat'])).stdout
-  const [vm, rest] = output.split('CGROUP\n')
+  const output = (await command('docker', ['exec', stack.container, 'sh', '-c', 'cat /proc/vmstat; echo MEMINFO; cat /proc/meminfo; echo CGROUP; cat /sys/fs/cgroup/memory.stat; echo CURRENT; cat /sys/fs/cgroup/memory.current /sys/fs/cgroup/memory.swap.current /sys/fs/cgroup/memory.peak /sys/fs/cgroup/memory.events /proc/swaps; echo IO; cat /sys/fs/cgroup/io.stat'])).stdout
+  const [host, rest] = output.split('CGROUP\n')
+  const [vm,meminfo]=host.split('MEMINFO\n')
   const [cg, current] = rest.split('CURRENT\n')
   const fields = text => Object.fromEntries(text.trim().split('\n').map(line => line.trim().split(/\s+/)).filter(row => row.length === 2).map(([key, value]) => [key, Number(value)]))
   const [memory,ioText] = current.split('IO\n')
@@ -18,7 +19,8 @@ export async function counters(stack) {
   }
   const inventory = (await command('docker', ['ps', '--format', '{{json .}}'])).stdout.trim().split('\n').filter(Boolean).map(line => JSON.parse(line))
   const foreignContainers = inventory.filter(row => !row.Labels?.includes(`com.supabase.cli.project=${stack.project}`)).map(row => ({ id: row.ID, name: row.Names, status: row.Status }))
-  return { at: Date.now(), vm: fields(vm), cgroup: fields(cg), io, current: Number(lines[0]), swapCurrent: Number(lines[1]), peak: Number(lines[2]), events: fields(lines.slice(3).join('\n')), swaps: lines.filter(line => line.includes('/var/lib/swap')), foreignContainers }
+  const memoryValue=name=>Number(meminfo.match(new RegExp(`^${name}:\\s+(\\d+) kB`,'m'))?.[1])*1024
+  return { at: Date.now(), vm: fields(vm), vmMemory:{availableBytes:memoryValue('MemAvailable'),freeBytes:memoryValue('MemFree'),totalBytes:memoryValue('MemTotal')}, cgroup: fields(cg), io, current: Number(lines[0]), swapCurrent: Number(lines[1]), peak: Number(lines[2]), events: fields(lines.slice(3).join('\n')), swaps: lines.filter(line => line.includes('/var/lib/swap')), foreignContainers }
 }
 
 export async function snapshot(stack) {

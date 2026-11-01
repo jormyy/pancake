@@ -4,6 +4,7 @@ import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { json, readJson } from './common.mjs'
 import { distribution, summarize } from './summary.mjs'
+import { resourceGraderVersion } from './resource-grade.mjs'
 
 const actionNames = ['rosterMove','lineupSave','tradeOffer','tradeAccept','waiverResult']
 
@@ -20,6 +21,7 @@ export function actionLimits(reports) {
 export function compareSeries(baselines, candidates) {
   const baseline = summarize(baselines, { reference: true })
   const candidate = summarize(candidates)
+  assert.ok([...baselines,...candidates].every(report=>report.resources?.version===resourceGraderVersion),'Resource grader versions differ')
   assert.equal(candidate.fixtureSha256, baseline.fixtureSha256, 'Baseline and candidate fixtures differ')
   assert.equal(candidate.memoryMiB, 192, 'The candidate must use the fixed 192 MiB cap')
   assert.equal(candidate.memoryMiB, baseline.memoryMiB, 'Baseline and candidate caps differ')
@@ -28,18 +30,18 @@ export function compareSeries(baselines, candidates) {
     assert.equal(new Set(rows.map(report => report.source)).size, 1, 'The source commit changes within a series')
     assert.equal(new Set(rows.map(report => JSON.stringify(report.runtimeConfiguration))).size, 1, 'Runtime settings change within a series')
   }
-  assert.ok([...baselines,...candidates].every(report => !report.swap.foreignContainerActivityObserved), 'Foreign Docker activity invalidates this comparison')
+  assert.ok([...baselines,...candidates].every(report => report.resources?.hostMemory.passed), 'Host memory pressure invalidates this comparison')
   const limits = actionLimits(baselines)
   const actions = candidates.flatMap(report => actionNames.map(name => {
     const row = report.actionResults?.records.find(item => item.name === name)
     return { run: report.label, name, latencyMs: row?.latencyMs ?? null, limitMs: limits[name], passed: Boolean(row?.passed && row.latencyMs <= limits[name]) }
   }))
-  const gain = baseline.metrics.swapTotalPagesPerSecond.median - candidate.metrics.swapTotalPagesPerSecond.median
-  const noise = Math.max(baseline.metrics.swapTotalPagesPerSecond.spread, baseline.metrics.swapTotalPagesPerSecond.median * .05)
-  const targetPagesPerSecond = Math.min(106, baseline.metrics.swapTotalPagesPerSecond.median * .05)
-  const trainingTarget = candidate.metrics.swapTotalPagesPerSecond.median <= targetPagesPerSecond
+  const gain = baseline.metrics.cgroupAnonRefaultsPerSecond.median - candidate.metrics.cgroupAnonRefaultsPerSecond.median
+  const noise = Math.max(baseline.metrics.cgroupAnonRefaultsPerSecond.spread, baseline.metrics.cgroupAnonRefaultsPerSecond.median * .05)
+  const targetPagesPerSecond = Math.min(61, baseline.metrics.cgroupAnonRefaultsPerSecond.median * .05)
+  const trainingTarget = candidate.metrics.cgroupAnonRefaultsPerSecond.median <= targetPagesPerSecond
   const quality = candidates.every(report => report.quality?.passed && report.quality.gates.injuries.passed && report.quality.gates.forecasts.passed) && actions.every(row => row.passed)
-  return { version: 'game-night-comparison-v2', baseline, candidate, limits, actions, targetPagesPerSecond, baselineQualityPassed: baseline.quality.passed, gainPagesPerSecond: gain, gainFraction: gain / baseline.metrics.swapTotalPagesPerSecond.median,
+  return { version: 'game-night-comparison-v3', baseline, candidate, limits, actions, targetPagesPerSecond, baselineQualityPassed: baseline.quality.passed, gainPagesPerSecond: gain, gainFraction: gain / baseline.metrics.cgroupAnonRefaultsPerSecond.median,
     noisePagesPerSecond: noise, exceedsNoise: gain > noise, trainingTarget, quality,
     passed: gain > noise && trainingTarget && quality }
 }
@@ -54,6 +56,6 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     await json(path.join(values.output, 'candidate-summary.json'), result.candidate)
     await json(path.join(values.output, 'action-limits.json'), result.limits)
     await json(path.join(values.output, 'comparison.json'), result)
-    console.log(JSON.stringify({ passed: result.passed, gainFraction: result.gainFraction, baseline: result.baseline.metrics.swapTotalPagesPerSecond, candidate: result.candidate.metrics.swapTotalPagesPerSecond, quality: result.quality }))
+    console.log(JSON.stringify({ passed: result.passed, gainFraction: result.gainFraction, baseline: result.baseline.metrics.cgroupAnonRefaultsPerSecond, candidate: result.candidate.metrics.cgroupAnonRefaultsPerSecond, quality: result.quality }))
   }
 }

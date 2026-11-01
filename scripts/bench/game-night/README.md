@@ -32,7 +32,10 @@ Live ingestion, score publication, forecasts, screen refreshes, and the installe
 Database allocation appears in every report. It is not a production backup.
 
 The database cgroup receives the memory cap. Swap remains available.
-Swap rates use the Linux VM's page counters. They include other VM activity.
+The primary rate is the database cgroup's `workingset_refault_anon` delta per second.
+VM `pswpin` and `pswpout` remain diagnostics. They include other containers.
+Per-cgroup major faults and exposed swap counters remain separate; unavailable swap-out traffic is not invented.
+See the [kernel cgroup documentation](https://www.kernel.org/doc/html/latest/admin-guide/cgroup-v2.html) for counter definitions.
 The report states when calibration does not reach production's rate.
 Anonymous memory uses five-second samples. The kernel peak includes all charged memory.
 
@@ -64,9 +67,13 @@ Process memory samples record proportional resident and swap memory. Do not add 
 Production settings require the separate procedures in `docs/half-gig-settings.md`.
 
 `series.mjs` compares at least three baseline and candidate reports. It rejects different fixtures, caps, harnesses, or changing settings.
-It rejects runs that overlap other Docker containers. It writes the summaries, action limits, and comparison outside the repository.
+It records other containers without rejecting a run for their presence.
+It rejects a run if any sampled VM `MemAvailable` is below 1 GiB.
+The floor is frozen before reruns, below one third of the lowest original baseline median free memory.
+`MemAvailable` includes reclaimable memory; see the [kernel proc documentation](https://www.kernel.org/doc/html/latest/filesystems/proc.html).
+It writes summaries, action limits, and comparisons outside the repository.
 The held-out command requires a passing training comparison before it loads the held-out fixture.
-Use `--phase held-out --training-result comparison.json` only after training reaches its target.
+Use `held-out-series.mjs --training comparison.json --evidence PATH` only after training reaches its target. It runs three references and one candidate.
 
 The cost model follows `docs/io-audit.md` and `docs/operations-scheduler.md`.
 Fixture shapes follow `scripts/load` and `scripts/bench`.
@@ -83,14 +90,14 @@ Add `--public-live --quality --policy --pool 2` to a training replay for the new
 
 Phones run the shared overlay, polling, and recovery code. They read real authorized home views and subscribe to real Realtime broadcasts. Reports count only timed broadcasts and requests. The report includes phone freshness, final fixture agreement, public-cache work, payload size, response time, calculation time, and home-read cost.
 
-Grader v6 requires due recovery checkpoints, final transitions, saved rows, worker starts, origin reads, and phone polls inside the window. Stored-score freshness remains a separate reported measure. Phone freshness supplies the live-screen quality gate. The feed holds its final window state while scheduled checkpoints settle outside measured counters. The unchanged final-state check then compares every fixture stat and score.
+Grader v8 requires due recovery checkpoints, final transitions, saved rows, worker starts, origin reads, and phone polls inside the window. Stored-score freshness remains a separate reported measure. Phone freshness supplies the live-screen quality gate. The feed holds its final window state while scheduled checkpoints settle outside measured counters. The unchanged final-state check then compares every fixture stat and score.
 
 Phone recovery tests run before each phone replay with a controlled clock. They exercise the real route, cache, poller, and overlay. Full-stack phone controls use `phone-final` and `phone-stale`. The former alters one simulated display; the latter supplies an expired response to one phone. Neither changes product code. `--phase controls` also runs the original dropped-stat and ingestion-off controls.
 
 Projected budgets extrapolate the peak window to ten phones, six hours nightly, thirty nights. They show local-route CPU assumptions, cache-region bounds, observed API-body transfer, Realtime delivery, database size, memory, and block IO. A value above half its allowance carries an explicit risk flag. The 250 disk operations per second limit is the documented Nano sustained baseline, not a monthly quota.
 
 
-The Docker event watcher rejects any foreign container start during warmup or measurement, including starts between five-second samples. A 325-millisecond control demonstrates that detection. Existing foreign containers also invalidate a run.
+The Docker event watcher records foreign starts throughout setup and the window, including starts between samples. Foreign containers stay untouched. Only measured host-memory pressure excludes a sample.
 
 The dropped-stat control first requires a valid unmodified final state and real timed work. The ingestion-off control must save no live rows while cron still runs. A definitive missed-final deadline can stop settling early; that run remains failed. Passing runs still wait for their scheduled thirty-minute checkpoint.
 
@@ -100,10 +107,12 @@ The dispatcher permits 32 completed or admitted work items within its two-second
 
 Use `verify-phone-history.mjs --evidence PATH` to verify official corrections on ten authenticated phones. Run `architecture-series.mjs` only after the settings comparison succeeds. Both measurement series keep the source, fixture, cap, and runtime configuration fixed.
 
-## Failed reference runs
+## Reference settlement and primary metric
 
-The original commit can fail the added reliability gates under action load. A failed reference never becomes a passing report. The paired series retains its final-state and job-failure evidence and labels its summary as a resource reference. It requires real timed work and no OOM or foreign Docker activity. All baseline actions must still complete before their observed times define candidate limits.
+Every reference and candidate must pass quality, work, final-state, failure and host-memory checks. Historical failed reports remain unchanged. `regrade.mjs` writes separate cgroup summaries and preserves the original grade. Historical free-page counters can prove headroom as a lower bound; missing available-memory data remains uncertain if that bound is too low.
 
-Candidates must pass every run gate. The final resource bar is the smaller of 106 pages/s and five percent of the paired reference median. A reference that processes fewer updates can understate the original cost; its rates do not establish equivalent completed work. The historical complete-work baseline remains separate. Comparison reports expose `baselineQualityPassed` and every failed reference run.
+All modes keep cron running after the window until the frozen fixture is stored. Legacy mode allows three minutes; public mode allows the scheduled thirty-minute checkpoint. This work is measured separately and never enters the timed counters. The old immediate cron stop could strand a due live job behind action work and reject a correct later final.
+
+The training bar is the smaller of 61 anon refaults/s and five percent of the rerun baseline median. The held-out bar is five percent of its own rerun reference median. Near the target, use at least three candidate runs and their observed spread.
 
 The phone grader requires a successful broadcast-triggered saved-screen refresh for every phone inside the measured window. Message receipt alone is insufficient. The replay decodes the same batched hint and public row-change envelopes as the app and advances its version cursor. The `phone-refresh` negative control still receives broadcasts but skips phone 1's saved-screen refresh.

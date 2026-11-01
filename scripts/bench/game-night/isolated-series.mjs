@@ -1,19 +1,13 @@
-import { command, delay } from './common.mjs'
+import assert from 'node:assert/strict'
+import { delay } from './common.mjs'
 
-async function waitForQuietDocker() {
-  let quietSince=Date.now()
-  console.log('Waiting for sixty quiet seconds before the next measured run.')
-  while(Date.now()-quietSince<60000) {
-    if((await command('docker',['ps','-q'])).stdout.trim())quietSince=Date.now()
-    await delay(5000)
-  }
-}
-
-export async function isolatedReplay(run,quiet=waitForQuietDocker) {
+export async function isolatedReplay(run,before=async()=>{}) {
   for(let attempt=1;;attempt++) {
-    await quiet()
+    await before()
     const report=await run(attempt)
-    if(!report.swap.foreignContainerActivityObserved)return report
-    console.log(`${report.label}: foreign Docker activity invalidates this sample; preserving it and retrying.`)
+    assert.ok(typeof report.resources?.hostMemory.passed==='boolean','Host memory headroom is unknown')
+    if(report.resources?.hostMemory.passed)return report
+    console.log(`${report.label}: VM available memory fell below the fixed floor; preserving this sample and retrying.`)
+    await delay(1000)
   }
 }

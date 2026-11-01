@@ -96,10 +96,10 @@ test('action limits require three observed successful baseline actions', () => {
   assert.throws(() => actionLimits(reports))
 })
 
-test('a paired comparison rejects host activity, changed fixtures, and changed caps', () => {
+test('a paired comparison rejects host pressure, changed fixtures, and changed caps', () => {
   const report = (pages, source) => ({
     passed: true, source, fixtureSha256: 'fixture', harnessSha256: 'harness', memoryMiB: 192, label: source, seconds: 240,
-    runtimeConfiguration: {}, swap: { inPagesPerSecond: pages / 2, outPagesPerSecond: pages / 2, cgroupAnonRefaultsPerSecond: pages, cgroupSwapPeakBytes: 1000, foreignContainerActivityObserved: false },
+    resources: {version:'game-night-cgroup-v1',hostMemory:{passed:true}}, runtimeConfiguration: {}, swap: { inPagesPerSecond: pages / 2, outPagesPerSecond: pages / 2, cgroupAnonRefaultsPerSecond: pages, cgroupSwapPeakBytes: 1000, foreignContainerActivityObserved: false },
     memory: { majorFaults: 0, cgroupAnonPeakBytes: 1000, cgroupShmemPeakBytes: 1000 },
     walBytesPerMinute: 0, newSessionsPerMinute: 1, cronRunsPerMinute: 1, scoreFreshness: { p95Ms: 30000 },
     workCounts: { passed: true }, statementExecSecondsPerMinuteByFunction: [], workerRunsPerHourByKind: {},
@@ -107,17 +107,14 @@ test('a paired comparison rejects host activity, changed fixtures, and changed c
     actionResults: { records: ['rosterMove','lineupSave','tradeOffer','tradeAccept','waiverResult'].map(name => ({ name, passed: true, latencyMs: 10 })) },
   })
   const baseline = Array.from({ length: 3 }, () => report(2000, 'base'))
-  const candidate = Array.from({ length: 3 }, () => report(90, 'candidate'))
+  const candidate = Array.from({ length: 3 }, () => report(50, 'candidate'))
   assert.equal(compareSeries(baseline, candidate).passed, true)
   const failedReference=structuredClone(baseline)
   failedReference[0].passed=false
   failedReference[0].finalState={passed:false,failures:[{field:'points'}]}
   failedReference[0].failures={jobs:[{kind:'refresh-views'}]}
   assert.throws(()=>summarize(failedReference))
-  const comparison=compareSeries(failedReference,candidate)
-  assert.equal(comparison.baselineQualityPassed,false)
-  assert.equal(comparison.baseline.quality.failedRuns.length,1)
-  assert.equal(failedReference[0].passed,false)
+  assert.throws(()=>compareSeries(failedReference,candidate))
   const failedCandidate=structuredClone(candidate)
   failedCandidate[0].passed=false
   assert.throws(()=>compareSeries(failedReference,failedCandidate))
@@ -126,10 +123,11 @@ test('a paired comparison rejects host activity, changed fixtures, and changed c
   delete failedReference[0].containerWatch
   failedReference[0].workCounts.passed=false
   assert.throws(()=>compareSeries(failedReference,candidate))
-  const lowerReference=baseline.map(row=>({...row,swap:{...row.swap,inPagesPerSecond:500,outPagesPerSecond:500}}))
+  const lowerReference=baseline.map(row=>({...row,swap:{...row.swap,cgroupAnonRefaultsPerSecond:500}}))
   assert.equal(compareSeries(lowerReference,candidate).trainingTarget,false)
   for (const change of [
-    row => { row.swap.foreignContainerActivityObserved = true },
+    row => { row.resources.hostMemory.passed = false },
+    row => { row.resources.version = 'old' },
     row => { row.fixtureSha256 = 'different' },
     row => { row.memoryMiB = 193 },
   ]) {

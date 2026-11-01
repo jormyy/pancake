@@ -5,12 +5,13 @@ import { defaultEvidence, json, repository } from './common.mjs'
 import { startStack } from './stack.mjs'
 import { configurePool } from './pool.mjs'
 
-const { values } = parseArgs({ options: { help: { type: 'boolean', short: 'h' }, evidence: { type: 'string', default: defaultEvidence }, phase: { type: 'string', default: 'run' }, source: { type: 'string', default: repository }, label: { type: 'string', default: 'run' }, 'profile-memory': { type: 'boolean', default: false }, pool: { type: 'string' }, 'pool-lifetime': { type: 'string' }, 'pool-idle': { type: 'string' }, quality: { type: 'boolean', default: false }, phones: { type: 'boolean', default: false }, 'public-live': { type: 'boolean', default: false }, policy: { type: 'boolean', default: false }, limits: { type: 'string' }, fault: { type: 'string' }, 'post-tests': { type: 'boolean', default: false }, 'shared-buffers': { type: 'string' }, 'training-result': { type: 'string' } } })
+const { values } = parseArgs({ options: { help: { type: 'boolean', short: 'h' }, evidence: { type: 'string', default: defaultEvidence }, phase: { type: 'string', default: 'run' }, source: { type: 'string', default: repository }, label: { type: 'string', default: 'run' }, 'profile-memory': { type: 'boolean', default: false }, pool: { type: 'string' }, 'pool-lifetime': { type: 'string' }, 'pool-idle': { type: 'string' }, quality: { type: 'boolean', default: false }, phones: { type: 'boolean', default: false }, 'public-live': { type: 'boolean', default: false }, policy: { type: 'boolean', default: false }, limits: { type: 'string' }, fault: { type: 'string' }, 'post-tests': { type: 'boolean', default: false }, 'shared-buffers': { type: 'string' }, 'training-result': { type: 'string' }, 'held-out-baseline': { type: 'string' } } })
 if (values.help) {
   console.log(`Usage: node scripts/bench/game-night/run.mjs [options]
   --phase run           One training replay at 192 MiB (default)
   --phase held-out      Validate once after a passing training comparison
   --training-result FILE  Passing comparison.json required for held-out
+  --held-out-baseline FILE  Three-run cgroup baseline summary for held-out
   --phase controls      Broken-final and ingestion-off controls
   --phase all           Original calibration and baseline workflow, including held-out
   --phase setup|smoke|baseline
@@ -43,7 +44,7 @@ The disposable loopback-only stack always stops. No production data is used.`)
       const { readJson } = await import('./common.mjs')
       assert.ok(values['training-result'], 'A passing training comparison is required')
       const training = await readJson(values['training-result'])
-      assert.ok(training.passed && training.candidate.n >= 3 && training.candidate.metrics.swapTotalPagesPerSecond.median <= 106, 'The training target must pass before held-out')
+      assert.ok(training.version === 'game-night-comparison-v3' && training.passed && training.candidate.n >= 3 && training.candidate.metrics.cgroupAnonRefaultsPerSecond.median <= 61, 'The training target must pass before held-out')
     }
     console.log('Starting the disposable local stack.')
     stack = await startStack(evidence, { sourceRoot: path.resolve(values.source), profileMemory: values['profile-memory'], sharedBuffers: values['shared-buffers'] })
@@ -85,9 +86,13 @@ The disposable loopback-only stack always stops. No production data is used.`)
         }
       } else if (values.phase === 'held-out') {
         const { readJson, directory } = await import('./common.mjs')
+        assert.ok(values['held-out-baseline'],'A rerun held-out baseline is required')
+        const baseline=await readJson(values['held-out-baseline'])
+        assert.ok(baseline.n>=3 && baseline.quality.passed,'The held-out baseline must pass')
         const slate = await readJson(path.join(directory, 'held-out.json'))
         const report = await runWindow(stack, slate, { label: 'held-out', memoryMiB: 192 })
-        assert.ok(report.passed && report.swap.inPagesPerSecond + report.swap.outPagesPerSecond <= 182, 'Held-out does not meet the full bar')
+        assert.equal(baseline.fixtureSha256,report.fixtureSha256,'The held-out fixtures differ')
+        assert.ok(report.passed && report.resources.primary.value <= baseline.metrics.cgroupAnonRefaultsPerSecond.median*.05, 'Held-out does not meet the full bar')
       } else await experiment(stack, values.phase)
       if (values['post-tests']) {
         const results = []

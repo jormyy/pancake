@@ -14,6 +14,7 @@ import { phoneGrade } from './phone-grade.mjs'
 import { checkpointGrade } from './checkpoint-grade.mjs'
 import { projectBudget } from './budget.mjs'
 import { settlementCosts } from './settlement.mjs'
+import { resourceGrade } from './resource-grade.mjs'
 import { counters, fantasyAt, finalCheck, finalGameCheck, graderVersion, groupStatements, percentile, readFantasy, readScores, snapshot, statementDeltas, workCheck } from './measure.mjs'
 
 export async function prepare(stack, slate, label) {
@@ -164,9 +165,9 @@ export async function runWindow(stack, slate, { label, memoryMiB, seconds = slat
     const realtimeAfter = await fetch(`http://127.0.0.1:${stack.ports.edge}/health`).then(response => response.json())
     let settlementSeconds = 0
     let settlementStopped = ingestionOff ? 'ingestion-off control' : null
-    if (stack.liveArchitecture && !ingestionOff) {
+    if (!ingestionOff) {
       const settlementStarted = Date.now()
-      while (Date.now()-settlementStarted < 1920000) {
+      while (Date.now()-settlementStarted < (stack.liveArchitecture?1920000:180000)) {
         await observeFinals(await readScores(stack),Date.now())
         if(finalGameChecks.some(row=>!row.passed)){settlementStopped='official final missed its quality deadline';break}
         if ((await finalCheck(stack,slate,seconds)).passed) break
@@ -183,7 +184,7 @@ export async function runWindow(stack, slate, { label, memoryMiB, seconds = slat
       await delay(1000)
     } while (Date.now() - drainStarted < 125000)
     assert.equal(health.active, 0, 'Real workers do not drain before cleanup')
-    const qualityState = stack.liveArchitecture ? await snapshot(stack) : after
+    const qualityState = await snapshot(stack)
     const controlBefore=broken ? await finalCheck(stack,slate,seconds) : null
     if(broken)assert.ok(controlBefore.passed,'The dropped-stat control needs a valid unmodified final state')
     if (broken) await stack.sql(`DELETE FROM public.player_game_stats WHERE game_id='${id(800003)}' AND player_id='${id(1081)}';`)
@@ -214,8 +215,9 @@ export async function runWindow(stack, slate, { label, memoryMiB, seconds = slat
     if(broken)assert.ok(work.passed,'The dropped-stat control needs real timed work')
     const first = samples[0], last = samples.at(-1)
     const elapsed = (last.at - first.at) / 1000
+    const resources=resourceGrade(samples)
     const failures = { cron: qualityState.cron.filter(row => row.status === 'failed'), jobs: qualityState.work.filter(row => ['failed','dead'].includes(row.status)), workers: qualityState.invocations.filter(row => row.worker_status === 'failed') }
-    const report = { version: 1, grader: { version: stack.liveArchitecture ? 'game-night-v7' : graderVersion, sha256: digest(JSON.stringify([harness['measure.mjs'],harness['checkpoint-grade.mjs'],harness['phone-grade.mjs']])) }, harnessSha256: digest(JSON.stringify(harness)), label, slate: slate.name, fixtureSha256: harness[`${slate.name}.json`], source: stack.metadata.source,
+    const report = { version: 1, grader: { version: stack.liveArchitecture ? 'game-night-v8' : graderVersion,resourceVersion:resources.version, sha256: digest(JSON.stringify([harness['measure.mjs'],harness['checkpoint-grade.mjs'],harness['phone-grade.mjs'],harness['resource-grade.mjs']])) }, resources,harnessSha256: digest(JSON.stringify(harness)), label, slate: slate.name, fixtureSha256: harness[`${slate.name}.json`], source: stack.metadata.source,
       startedAt: new Date(started).toISOString(), endedAt: new Date(ended).toISOString(), seconds: (ended - started) / 1000, warmupSeconds: warmupMs / 1000, memoryMiB, databaseSettings, runtimeConfiguration: stack.runtimeConfiguration ?? {},
       shape: prepared.shape, databaseGrowth:{before:before.storage,after:after.storage,bytes:after.storage.databaseBytes-before.storage.databaseBytes,bytesPerMinute:(after.storage.databaseBytes-before.storage.databaseBytes)/minutes,scope:'timed real PostgreSQL database growth; includes index and reusable-page allocation, not only new user rows'}, clock: 'native real time; fixture changes every 20 seconds; no accelerated jobs', observer: 'Seeding session closes before warmup; the measurement session keeps no seed plans',
       swap: { source: 'Linux Docker VM /proc/vmstat pswpin/pswpout; global to the VM, not per-cgroup', pageBytes: 4096, inPagesPerSecond: (last.vm.pswpin - first.vm.pswpin) / elapsed, outPagesPerSecond: (last.vm.pswpout - first.vm.pswpout) / elapsed, available: last.swaps.length > 0, cgroupSwapPeakBytes: Math.max(...samples.map(row => row.swapCurrent)), foreignContainerActivityObserved: containerWatch.initial.length>0 || containerWatch.events.length>0 || samples.some(row => row.foreignContainers.length > 0), cgroupAnonRefaultsPerSecond: (last.cgroup.workingset_refault_anon - first.cgroup.workingset_refault_anon) / elapsed },
@@ -235,8 +237,8 @@ export async function runWindow(stack, slate, { label, memoryMiB, seconds = slat
       realtime: { subscribed: realtimeBefore.realtimeStatus === 'SUBSCRIBED', messages: realtimeAfter.realtimeMessages - realtimeBefore.realtimeMessages, scoreMessages: realtimeAfter.realtimeScoreMessages - realtimeBefore.realtimeScoreMessages, clientCount: 1 },
       drainSeconds: (Date.now() - drainStarted) / 1000,
       scoreFreshness: { p50Ms: percentile(freshness.map(row => row.milliseconds), .5), p95Ms: percentile(freshness.map(row => row.milliseconds), .95), samples: freshness.length, resolutionMs: 5000, observations: freshness, fantasyP50Ms: percentile(fantasyFreshness, .5), fantasyP95Ms: percentile(fantasyFreshness, .95), fantasySamples: fantasyFreshness.length },
-      finalState: check, controlBefore, settlementSeconds, settlementStopped, postWindowCosts:stack.liveArchitecture?settlementCosts(after,qualityState):null, publicFeed:publicResults,phones:phoneResults,phoneBehavior,actionResults, failures, deadWorkItems: failures.jobs.filter(row => row.status === 'dead'),
-      passed: containerWatch.passed && check.passed && work.passed && (!phoneResults || phoneResults.passed) && (!actionResults || actionResults.passed) && !Object.values(failures).some(rows => rows.length) && last.events.oom_kill === first.events.oom_kill,
+      finalState: check, controlBefore, settlementSeconds, settlementStopped, postWindowCosts:settlementCosts(after,qualityState), publicFeed:publicResults,phones:phoneResults,phoneBehavior,actionResults, failures, deadWorkItems: failures.jobs.filter(row => row.status === 'dead'),
+      passed: resources.hostMemory.passed && check.passed && work.passed && (!phoneResults || phoneResults.passed) && (!actionResults || actionResults.passed) && !Object.values(failures).some(rows => rows.length) && last.events.oom_kill === first.events.oom_kill,
       control: broken ? 'delete one stored final stat' : ingestionOff ? 'live ingestion disabled at worker boundary' : stack.qualityOptions?.fault ?? null,
       processSamples, contextSamples, observations: samples, feedRequests: prepared.feed.requests, before, after }
     if (stack.qualityEnabled) {
@@ -247,7 +249,7 @@ export async function runWindow(stack, slate, { label, memoryMiB, seconds = slat
     }
     report.projectedBudget = projectBudget(report)
     await json(path.join(stack.evidence, `${label}.json`), report)
-    console.log(`${label}: final=${check.passed}, work=${work.passed}, swap=${report.swap.inPagesPerSecond.toFixed(1)}/${report.swap.outPagesPerSecond.toFixed(1)} pages/s.`)
+    console.log(`${label}: final=${check.passed}, work=${work.passed}, anon refaults=${resources.primary.value.toFixed(1)}/s; VM swap=${report.swap.inPagesPerSecond.toFixed(1)}/${report.swap.outPagesPerSecond.toFixed(1)} pages/s.`)
     return report
   } catch (error) {
     await json(path.join(stack.evidence, `${label}.json`), { label, memoryMiB, passed: false, error: error.message, at: new Date().toISOString() })
