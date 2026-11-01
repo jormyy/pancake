@@ -4,7 +4,7 @@ import path from 'node:path'
 import { command, delay, digest, directory, id, json, readJson, repository } from './common.mjs'
 import { seedSlate, startFeed, stateAt, validateSlate } from './fixture.mjs'
 import { startWorkers } from './workers.mjs'
-import { counters, fantasyAt, finalCheck, groupStatements, percentile, readFantasy, readScores, snapshot, statementDeltas, workCheck } from './measure.mjs'
+import { counters, fantasyAt, finalCheck, graderVersion, groupStatements, percentile, readFantasy, readScores, snapshot, statementDeltas, workCheck } from './measure.mjs'
 
 async function prepare(stack, slate, label) {
   await stack.sql("ALTER SYSTEM SET cron.launch_active_jobs='off'; SELECT pg_reload_conf();")
@@ -117,7 +117,7 @@ export async function runWindow(stack, slate, { label, memoryMiB, seconds = slat
     const first = samples[0], last = samples.at(-1)
     const elapsed = (last.at - first.at) / 1000
     const failures = { cron: cron.filter(row => row.status === 'failed'), jobs: after.work.filter(row => ['failed','dead'].includes(row.status)), workers: after.invocations.filter(row => row.worker_status === 'failed') }
-    const report = { version: 1, label, slate: slate.name, fixtureSha256: digest(await readFile(path.join(directory, `${slate.name}.json`))), source: stack.metadata.source,
+    const report = { version: 1, grader: { version: graderVersion, sha256: digest(await readFile(path.join(directory, 'measure.mjs'))) }, label, slate: slate.name, fixtureSha256: digest(await readFile(path.join(directory, `${slate.name}.json`))), source: stack.metadata.source,
       startedAt: new Date(started).toISOString(), endedAt: new Date(ended).toISOString(), seconds: (ended - started) / 1000, warmupSeconds: warmupMs / 1000, memoryMiB,
       shape: prepared.shape, clock: 'native real time; fixture changes every 20 seconds; no accelerated jobs',
       swap: { source: 'Linux Docker VM /proc/vmstat pswpin/pswpout; global to the VM, not per-cgroup', pageBytes: 4096, inPagesPerSecond: (last.vm.pswpin - first.vm.pswpin) / elapsed, outPagesPerSecond: (last.vm.pswpout - first.vm.pswpout) / elapsed, available: last.swaps.length > 0, cgroupSwapPeakBytes: Math.max(...samples.map(row => row.swapCurrent)), foreignContainerActivityObserved: samples.some(row => row.foreignContainers.length > 0), cgroupAnonRefaultsPerSecond: (last.cgroup.workingset_refault_anon - first.cgroup.workingset_refault_anon) / elapsed },

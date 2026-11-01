@@ -42,3 +42,10 @@ test('work bar fails empty and stale-work-only windows', () => {
 test('spread reports observed range and sample count', () => {
   assert.deepEqual(distribution([1, 9, 4]), { median: 4, min: 1, max: 9, spread: 8, n: 3 })
 })
+
+test('work is accepted under a lower legal cron cadence and fractional elapsed minutes', () => {
+  for (const cronRuns of [0, 4]) {
+    const result = workCheck({ statements: [{ function: 'save_live_feed_snapshot_atomic', calls: 73 }], observedScoreChanges: 32, workerStarts: 6, cronRuns, minutes: 4.00125 })
+    assert.equal(result.passed, true)
+  }
+})

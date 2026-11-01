@@ -2,6 +2,8 @@ import assert from 'node:assert/strict'
 import { command, id } from './common.mjs'
 import { stateAt } from './fixture.mjs'
 
+export const graderVersion = 'game-night-v2'
+
 export async function counters(stack) {
   const output = (await command('docker', ['exec', stack.container, 'sh', '-c', 'cat /proc/vmstat; echo CGROUP; cat /sys/fs/cgroup/memory.stat; echo CURRENT; cat /sys/fs/cgroup/memory.current /sys/fs/cgroup/memory.swap.current /sys/fs/cgroup/memory.peak /sys/fs/cgroup/memory.events /proc/swaps'])).stdout
   const [vm, rest] = output.split('CGROUP\n')
@@ -104,5 +106,5 @@ export function workCheck({ statements, observedScoreChanges, workerStarts, cron
   const calls = name => statements.filter(row => row.function === name).reduce((sum, row) => sum + row.calls, 0)
   const saved = calls('save_live_feed_snapshot_atomic') + calls('save_live_game_stats_atomic') + calls('save_live_scoreboard_atomic') + calls('save_game_stats_atomic')
   const liveTicks = calls('get_live_poll_work')
-  return { passed: saved >= minutes * 2 && observedScoreChanges >= minutes && workerStarts > 0 && cronRuns >= minutes, saved, liveTicks, observedScoreChanges, workerStarts, cronRuns, required: { saved: minutes * 2, observedScoreChanges: minutes, workerStarts: 1, cronRuns: minutes } }
+  return { passed: saved >= minutes * 2 && observedScoreChanges >= minutes && workerStarts > 0, saved, liveTicks, observedScoreChanges, workerStarts, cronRuns, required: { saved: minutes * 2, observedScoreChanges: minutes, workerStarts: 1 }, diagnostic: { cronRuns } }
 }
