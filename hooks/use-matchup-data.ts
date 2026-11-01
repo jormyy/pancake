@@ -46,12 +46,14 @@ export function useMatchupData(current: { id: string; team_name?: string | null;
     const [selection, setSelection] = useState({ identity, date: initialDate ?? todayLeague(timezone) })
     if (selection.identity !== identity) setSelection({ identity, date: initialDate ?? day })
     const requestedDate = selection.identity === identity ? selection.date : initialDate ?? day
-    const view = useScreenView<HomePayload>(current && user && league ? screenScope('home', league.id, current.id, { date: requestedDate, ...(matchupId ? { matchupId } : {}) }, user.id) : null, focused && membershipValidated && !membershipError)
+    const [publicLive, setPublicLive] = useState(false)
+    const view = useScreenView<HomePayload>(current && user && league ? screenScope('home', league.id, current.id, { date: requestedDate, ...(matchupId ? { matchupId } : {}) }, user.id) : null, focused && membershipValidated && !membershipError, { publicLive })
     const refreshView = view.refresh
     const data = view.data
     const selectedDate = data?.selectedDate ?? requestedDate
     const live = usePublicLiveSnapshot(selectedDate, data?.todaysGames ?? [], Boolean(data?.liveBasis?.length)
         && selectedDate === day && focused && membershipValidated && !membershipError)
+    useEffect(() => { setPublicLive(live.snapshot?.mode === 'public') }, [live.snapshot?.mode])
     const display = useMemo(() => {
         if (!data) return null
         const source = (data.context as HomePayload['context'] & { league?: { scoring_settings?: unknown } }).league?.scoring_settings ?? league?.scoring_settings
