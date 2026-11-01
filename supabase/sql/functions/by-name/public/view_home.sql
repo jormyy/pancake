@@ -71,6 +71,6 @@ BEGIN
     'forecast', public.get_matchup_forecast(matchup.id), 'announcements', announcements, 'todaysGames', mine->'games',
     'liveStats', (mine->'liveStats') || (theirs->'liveStats'), 'startedTeams', mine->'startedTeams', 'teamMatchups', mine->'teamMatchups',
     'liveBasis',CASE WHEN selected=league_today THEN private.live_score_basis(p_league_id,matchup.league_season_id,
-      (context->>'weekNumber')::integer,selected) ELSE '[]'::jsonb END);
+      (context->>'weekNumber')::integer,selected,matchup.id) ELSE '[]'::jsonb END);
 END;
 $$;

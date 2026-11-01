@@ -1,4 +1,4 @@
-CREATE OR REPLACE FUNCTION private.live_score_basis(p_league_id uuid, p_season_id uuid, p_week integer, p_date date)
+CREATE OR REPLACE FUNCTION private.live_score_basis(p_league_id uuid, p_season_id uuid, p_week integer, p_date date, p_detail_matchup_id uuid)
 RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
   WITH matches AS MATERIALIZED (
     SELECT m.* FROM public.matchups m WHERE m.league_id=p_league_id AND m.league_season_id=p_season_id
@@ -24,7 +24,7 @@ RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
     SELECT member.id,member.member_id,roster.player_id,false FROM members member
       JOIN public.roster_players roster ON roster.member_id=member.member_id AND roster.league_id=p_league_id
         AND roster.league_season_id=p_season_id
-      WHERE NOT EXISTS(SELECT 1 FROM public.weekly_lineups lineup WHERE lineup.member_id=member.member_id
+      WHERE member.id=p_detail_matchup_id AND NOT EXISTS(SELECT 1 FROM public.weekly_lineups lineup WHERE lineup.member_id=member.member_id
         AND lineup.league_id=p_league_id AND lineup.league_season_id=p_season_id AND lineup.game_date=p_date
         AND lineup.player_id=roster.player_id AND lineup.slot_type NOT IN ('BE','IR'))
   ), memberships AS MATERIALIZED (
