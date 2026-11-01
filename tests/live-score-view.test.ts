@@ -65,4 +65,9 @@ describe('home and other-team live scores', () => {
         source.games[0].clock = 'PT03M09.90S'
         expect(liveScoreView(home(), source, { points: 1 }, now).todaysGames[0].game_status_text).toBe('OT1 3:09')
     })
+
+    it('accepts a partial saved screen before its game data arrives', () => {
+        const partial = { ...home(), todaysGames: undefined, leagueMatchups: undefined } as unknown as ReturnType<typeof home>
+        expect(liveScoreView(partial, null, {}, now).todaysGames).toEqual([])
+    })
 })

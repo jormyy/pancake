@@ -20,7 +20,7 @@ export function liveScoreView(saved: LiveHome, snapshot: LiveSnapshot | null, se
         ftMade: value.freeThrowsMade, ftAttempted: value.freeThrowsAttempted, fouls: value.fouls,
         doubleDouble: value.doubleDouble, tripleDouble: value.tripleDouble, minutesPlayed: value.minutesPlayed, didNotPlay: value.didNotPlay,
     }
-    const todaysGames = saved.todaysGames.map(game => {
+    const todaysGames = (saved.todaysGames ?? []).map(game => {
         const fresh = current?.mode === 'public' && !displayed?.stale ? current.games.find(row => row.nbaId === game.nba_game_id
             || row.nbaId == null && row.home.team === game.home_team && row.away.team === game.away_team) : null
         if (!fresh || game.status === 'Final') return game
@@ -31,7 +31,7 @@ export function liveScoreView(saved: LiveHome, snapshot: LiveSnapshot | null, se
             game_status_text: fresh.status === 'Final' ? 'Final' : status }
     })
     return { matchup, todaysGames, liveStats, delayed: Boolean(displayed?.stale),
-        leagueMatchups: saved.leagueMatchups.map(matchup => {
+        leagueMatchups: (saved.leagueMatchups ?? []).map(matchup => {
             const score = points.get(matchup.id)
             return score ? { ...matchup, homePoints: score.homePoints, awayPoints: score.awayPoints } : matchup
         }),
