@@ -15,6 +15,7 @@ const { values }=parseArgs({options:{
   candidate:{type:'string',default:repository},
   'shared-buffers':{type:'string'},
   pool:{type:'string',default:'2'},
+  'worker-overlay':{type:'string',multiple:true},
 }})
 const slate=await readJson(path.join(directory,'training.json'))
 const baselines=[],candidates=[]
@@ -27,7 +28,7 @@ for(const [variant,number] of [['baseline',1],['architecture',1],['architecture'
   const report=await isolatedReplay(async attempt=>{
     let stack
     try {
-      stack=activeStack=await startStack(path.join(values.evidence,`${label}-attempt-${attempt}`),{sourceRoot:variant==='baseline'?values.baseline:values.candidate,
+      stack=activeStack=await startStack(path.join(values.evidence,`${label}-attempt-${attempt}`),{sourceRoot:variant==='baseline'?values.baseline:values.candidate,functionOverlays:values['worker-overlay'] ?? [],
         ...(variant!=='baseline' && values['shared-buffers']?{sharedBuffers:values['shared-buffers']}:{})})
       stack.qualityEnabled=true
       stack.phoneLab=true

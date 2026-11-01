@@ -14,6 +14,7 @@ const { values } = parseArgs({ options: {
   baseline: { type: 'string', default: path.resolve(repository, '../half-gig-baseline') },
   candidate: { type: 'string', default: repository },
   migration: { type: 'string', multiple: true },
+  'worker-overlay': { type: 'string', multiple: true },
 } })
 const slate = await readJson(path.join(directory, 'training.json'))
 const baselines = [], candidates = []
@@ -26,7 +27,7 @@ for (const [variant, number] of [['baseline',1],['settings',1],['settings',2],['
   const report=await isolatedReplay(async attempt=>{
     let stack
     try {
-      stack = activeStack = await startStack(path.join(values.evidence, `${label}-attempt-${attempt}`), { sourceRoot: variant === 'baseline' ? values.baseline : values.candidate, migrationOverlays: variant === 'settings' ? values.migration ?? [] : [] })
+      stack = activeStack = await startStack(path.join(values.evidence, `${label}-attempt-${attempt}`), { sourceRoot: variant === 'baseline' ? values.baseline : values.candidate, migrationOverlays: variant === 'settings' ? values.migration ?? [] : [],functionOverlays:values['worker-overlay'] ?? [] })
       stack.qualityEnabled = true
       stack.policyChecks = variant === 'settings'
       stack.qualityOptions = { ...(baselines.length >= 3 ? { limits: actionLimits(baselines) } : {}) }

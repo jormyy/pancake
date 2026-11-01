@@ -116,3 +116,5 @@ All modes keep cron running after the window until the frozen fixture is stored.
 The training bar is the smaller of 61 anon refaults/s and five percent of the rerun baseline median. The held-out bar is five percent of its own rerun reference median. Near the target, use at least three candidate runs and their observed spread.
 
 The phone grader requires a successful broadcast-triggered saved-screen refresh for every phone inside the measured window. Message receipt alone is insufficient. The replay decodes the same batched hint and public row-change envelopes as the app and advances its version cursor. The `phone-refresh` negative control still receives broadcasts but skips phone 1's saved-screen refresh.
+
+Reference correctness fixes use explicit `--worker-overlay` arguments. They copy only tracked TypeScript and JSON function sources plus generated database types. Each changed file hash appears in `environment.json`, and the source label names the overlay hash. Apply the same fixes to both sides; never describe a patched reference as the untouched commit. Environment files are excluded.

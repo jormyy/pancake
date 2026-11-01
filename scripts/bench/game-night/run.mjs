@@ -5,7 +5,7 @@ import { defaultEvidence, json, repository } from './common.mjs'
 import { startStack } from './stack.mjs'
 import { configurePool } from './pool.mjs'
 
-const { values } = parseArgs({ options: { help: { type: 'boolean', short: 'h' }, evidence: { type: 'string', default: defaultEvidence }, phase: { type: 'string', default: 'run' }, source: { type: 'string', default: repository }, label: { type: 'string', default: 'run' }, 'profile-memory': { type: 'boolean', default: false }, pool: { type: 'string' }, 'pool-lifetime': { type: 'string' }, 'pool-idle': { type: 'string' }, quality: { type: 'boolean', default: false }, phones: { type: 'boolean', default: false }, 'public-live': { type: 'boolean', default: false }, policy: { type: 'boolean', default: false }, limits: { type: 'string' }, fault: { type: 'string' }, 'post-tests': { type: 'boolean', default: false }, 'shared-buffers': { type: 'string' }, 'training-result': { type: 'string' }, 'held-out-baseline': { type: 'string' } } })
+const { values } = parseArgs({ options: { help: { type: 'boolean', short: 'h' }, evidence: { type: 'string', default: defaultEvidence }, phase: { type: 'string', default: 'run' }, source: { type: 'string', default: repository }, 'worker-overlay': { type: 'string', multiple: true }, label: { type: 'string', default: 'run' }, 'profile-memory': { type: 'boolean', default: false }, pool: { type: 'string' }, 'pool-lifetime': { type: 'string' }, 'pool-idle': { type: 'string' }, quality: { type: 'boolean', default: false }, phones: { type: 'boolean', default: false }, 'public-live': { type: 'boolean', default: false }, policy: { type: 'boolean', default: false }, limits: { type: 'string' }, fault: { type: 'string' }, 'post-tests': { type: 'boolean', default: false }, 'shared-buffers': { type: 'string' }, 'training-result': { type: 'string' }, 'held-out-baseline': { type: 'string' } } })
 if (values.help) {
   console.log(`Usage: node scripts/bench/game-night/run.mjs [options]
   --phase run           One training replay at 192 MiB (default)
@@ -16,6 +16,7 @@ if (values.help) {
   --phase all           Original calibration and baseline workflow, including held-out
   --phase setup|smoke|baseline
   --source PATH         Source checkout for migrations and real workers
+  --worker-overlay FILE  Explicit tracked worker correctness fix, with recorded hash
   --evidence PATH       Evidence directory outside the repository
   --label NAME          Single replay report name
   --quality             Run real authenticated actions and score-broadcast gates
@@ -47,7 +48,7 @@ The disposable loopback-only stack always stops. No production data is used.`)
       assert.ok(training.version === 'game-night-comparison-v3' && training.passed && training.candidate.n >= 3 && training.candidate.metrics.cgroupAnonRefaultsPerSecond.median <= 61, 'The training target must pass before held-out')
     }
     console.log('Starting the disposable local stack.')
-    stack = await startStack(evidence, { sourceRoot: path.resolve(values.source), profileMemory: values['profile-memory'], sharedBuffers: values['shared-buffers'] })
+    stack = await startStack(evidence, { sourceRoot: path.resolve(values.source), profileMemory: values['profile-memory'], sharedBuffers: values['shared-buffers'],functionOverlays:values['worker-overlay'] ?? [] })
     stack.phoneLab = values.phones || values['public-live']
     stack.liveArchitecture = values['public-live']
     stack.qualityEnabled = values.quality || stack.phoneLab

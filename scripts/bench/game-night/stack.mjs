@@ -7,6 +7,7 @@ import { command, delay, digest, json, loopback, quote, readJson, repository } f
 import { createSqlSession } from '../../season-sim/sql-session.mjs'
 import { copyMigrations } from './migration-files.mjs'
 import { watchDocker } from './docker-watch.mjs'
+import { copyFunctionFiles } from './function-files.mjs'
 
 async function freePorts() {
   const first = randomInt(1900, 2350) * 20
@@ -44,7 +45,7 @@ export async function stopRecordedStack(evidence, expectedProject) {
   await removeStack(evidence, project, [`${project}-rest:local`])
 }
 
-export async function startStack(evidence, { sourceRoot = repository, profileMemory = false, sharedBuffers = undefined, migrationOverlays = [] } = {}) {
+export async function startStack(evidence, { sourceRoot = repository, profileMemory = false, sharedBuffers = undefined, migrationOverlays = [],functionOverlays=[] } = {}) {
   if (sharedBuffers != null) assert.match(sharedBuffers, /^[1-9][0-9]*(kB|MB|GB)$/)
   const project = `pancake-game-night-${randomBytes(5).toString('hex')}`
   const base = await freePorts()
@@ -60,6 +61,9 @@ export async function startStack(evidence, { sourceRoot = repository, profileMem
     .replace(/(\[db.migrations\][\s\S]*?enabled = )true/, '$1false')
   await writeFile(path.join(workdir, 'supabase/config.toml'), config)
   const migrationFiles=await copyMigrations(path.join(sourceRoot,'supabase/migrations'),path.join(workdir,'supabase/migrations'),migrationOverlays)
+  const functionFiles=functionOverlays.length?await copyFunctionFiles({sourceRoot,destination:path.join(workdir,'function-source'),
+    baseFiles:(await command('git',['ls-files','--','supabase/functions','types/database.ts'],{cwd:sourceRoot})).stdout.trim().split('\n'),
+    overlays:functionOverlays,overlayRoot:repository}):null
   const container = `supabase_db_${project}`
   const cli = args => command('supabase', [...args, '--workdir', workdir], { file: path.join(evidence, `setup-${args[0]}.log`) })
   const owned = async name => {
@@ -144,12 +148,13 @@ export async function startStack(evidence, { sourceRoot = repository, profileMem
     const hashes=migrationFiles.hashes
     const sourceBase=(await command('git',['rev-parse','HEAD'],{cwd:sourceRoot})).stdout.trim()
     const overlayHash=Object.keys(migrationFiles.added).length ? digest(JSON.stringify(migrationFiles.added)) : null
-    const metadata = { project, ports, monitoringStartedAt: startupWatch.started, source: overlayHash ? `${sourceBase}+migrations:${overlayHash.slice(0,12)}` : sourceBase, sourceBase, migrationOverlays:migrationFiles.added, sourceRoot, migrations: hashes, cron, settings: { sharedBuffers: sharedBuffers ?? null }, clock: 'native real time; no SQL clock replacement', network: 'Database HTTP guard and loopback relay; Edge fetch guard and Deno allow-net', host: JSON.parse((await command('docker', ['info', '--format', '{{json .}}'])).stdout) }
+    const sourceLabel=(overlayHash ? `${sourceBase}+migrations:${overlayHash.slice(0,12)}` : sourceBase)+(functionFiles?`+workers:${digest(JSON.stringify(functionFiles.hashes)).slice(0,12)}`:'')
+    const metadata = { project, ports, monitoringStartedAt: startupWatch.started, source:sourceLabel, sourceBase, migrationOverlays:migrationFiles.added,functionOverlays:functionFiles?.hashes ?? {}, sourceRoot, migrations: hashes, cron, settings: { sharedBuffers: sharedBuffers ?? null }, clock: 'native real time; no SQL clock replacement', network: 'Database HTTP guard and loopback relay; Edge fetch guard and Deno allow-net', host: JSON.parse((await command('docker', ['info', '--format', '{{json .}}'])).stdout) }
     metadata.host = Object.fromEntries(['NCPU', 'MemTotal', 'KernelVersion', 'CgroupVersion', 'OperatingSystem'].map(key => [key, metadata.host[key]]))
     await json(path.join(evidence, 'environment.json'), metadata)
     await json(path.join(evidence, 'database-healthcheck.json'), (await owned(container)).healthcheck)
     await json(path.join(evidence, 'schema.json'), JSON.parse(await sql("SELECT json_agg(c) FROM (SELECT table_schema,table_name,column_name,data_type,column_default FROM information_schema.columns WHERE table_schema IN ('public','private','analytics') ORDER BY table_schema,table_name,ordinal_position)c")))
-    return { project, ports, container, workdir, sourceRoot, profileMemory, startupWatch, temporaryImages, api, db: db.href, keys, token, sql, sqlFile, sqlOnce, resetObserver, stop, metadata, evidence, owned, setRuntimeClose(close) { runtimeClose = close } }
+    return { project, ports, container, workdir, sourceRoot,functionsRoot:functionFiles?.root, profileMemory, startupWatch, temporaryImages, api, db: db.href, keys, token, sql, sqlFile, sqlOnce, resetObserver, stop, metadata, evidence, owned, setRuntimeClose(close) { runtimeClose = close } }
   } catch (error) {
     if(startupWatch)await json(path.join(evidence,'startup-watch.json'),startupWatch.result(Date.now()))
     await stop();throw error

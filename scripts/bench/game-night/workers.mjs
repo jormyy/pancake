@@ -11,7 +11,7 @@ export async function startWorkers(stack, label, ingestionOff = false) {
   const receipts = path.join(stack.evidence, `${label}-workers.jsonl`)
   const env = { PATH: process.env.PATH, HOME: process.env.HOME, SUPABASE_URL: stack.api, SUPABASE_DB_URL: stack.db,
     PANCAKE_SUPABASE_SECRET_KEY: stack.keys.SERVICE_ROLE_KEY, SUPABASE_ANON_KEY: stack.keys.ANON_KEY, PANCAKE_EDGE_INTERNAL_TOKEN: stack.token,
-    GAME_NIGHT_CONFIG: JSON.stringify({ ...stack.ports, functions: path.join(stack.sourceRoot, 'supabase/functions'), receipts, ingestionOff, realtimeToken: stack.realtimeToken, fault: stack.qualityOptions?.fault }) }
+    GAME_NIGHT_CONFIG: JSON.stringify({ ...stack.ports, functions: stack.functionsRoot ?? path.join(stack.sourceRoot, 'supabase/functions'), receipts, ingestionOff, realtimeToken: stack.realtimeToken, fault: stack.qualityOptions?.fault }) }
   for (const name of ['NBA_CDN_BASE_URL','NBA_STATS_BASE_URL','NBA_COM_BASE_URL','ESPN_SITE_BASE_URL','ESPN_CAREER_BASE_URL','ESPN_SEARCH_BASE_URL','HASHTAG_BASE_URL','SLEEPER_BASE_URL','EXPO_PUSH_URL','EXPO_RECEIPTS_URL']) env[name] = `http://127.0.0.1:${stack.ports.feed}`
   env.ESPN_LIVE_BASE_URL = `http://127.0.0.1:${stack.ports.feed}/espn`
   if (stack.liveArchitecture) env.LIVE_SNAPSHOT_BASE_URL = `http://127.0.0.1:${stack.ports.public}`
