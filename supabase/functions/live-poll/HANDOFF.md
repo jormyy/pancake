@@ -34,3 +34,5 @@ Run the current local replay through `node scripts/bench/game-night/run.mjs --he
 The complete performance series and held-out result remain required. Functional tests establish no swap gain. No production or deployed validation occurs in this work.
 
 Queued live ingestion takes the first available worker slot before older asynchronous jobs. The dispatcher still admits at most four active workers and thirty-two claims per call. Explicit pause and reduced-health rules stay active. The live-priority SQL test fails before this change and passes in normal and degraded modes afterward. Short-work, concurrency, health, and background-fairness checks pass.
+
+Public-mode checkpoints and finals request `get_live_checkpoint_inputs` with the selected game IDs. The database filters those IDs before constructing cached provider inputs. The legacy `get_live_poll_work` remains for the server off switch. Both readers keep the same eligibility and retry rules. The selected-input SQL tests compare their output and preserve service-role-only access.

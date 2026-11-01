@@ -6543,6 +6543,28 @@ export type Database = {
         Returns: { id: string; nba_game_id: string; game_date: string; status: string; game_time: string | null;
           home_team: string; away_team: string; checkpoint_at: string | null; needs_final_check: boolean }[]
       }
+      get_live_checkpoint_inputs: {
+        Args: { p_game_ids: string[]; p_now?: string }
+        Returns: {
+          away_score: number
+          away_team: string
+          game_date: string
+          game_status_text: string
+          game_time: string
+          home_score: number
+          home_team: string
+          id: string
+          live_cache: Json
+          nba_game_id: string
+          needs_scoreboard: boolean
+          needs_stats: boolean
+          season_year: number
+          started_at: string
+          stats_synced_at: string
+          status: string
+          week_number: number
+        }[]
+      }
       get_live_poll_work: {
         Args: { p_now?: string }
         Returns: {
@@ -6554,6 +6576,7 @@ export type Database = {
           home_score: number
           home_team: string
           id: string
+          live_cache: Json
           nba_game_id: string
           needs_scoreboard: boolean
           needs_stats: boolean

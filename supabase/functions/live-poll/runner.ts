@@ -24,8 +24,11 @@ const LIVE_RUN_MS = 110_000
 
 type LiveGame = Database['public']['Functions']['get_live_poll_work']['Returns'][number]
 
-async function loadWork(): Promise<LiveGame[]> {
-  const { data, error } = await supabase.rpc('get_live_poll_work').abortSignal(AbortSignal.timeout(5000))
+async function loadWork(gameIds?: ReadonlySet<string>): Promise<LiveGame[]> {
+  const request = gameIds
+    ? supabase.rpc('get_live_checkpoint_inputs', { p_game_ids: [...gameIds] })
+    : supabase.rpc('get_live_poll_work')
+  const { data, error } = await request.abortSignal(AbortSignal.timeout(5000))
   if (error) throw error
   return data ?? []
 }
@@ -71,7 +74,7 @@ export async function ingestTick(holder: string, onRetry?: () => void, gameIds?:
     failures, onRetry: () => { tickRetries++; onRetry?.() },
   })
   const select = (rows: LiveGame[]) => rows.filter((game): game is LiveGame & { nba_game_id: string } => !!game.nba_game_id && (!gameIds || gameIds.has(game.id)))
-  let work = select(await retry(loadWork))
+  let work = select(await retry(() => loadWork(gameIds)))
   if (!work.length) return { lines: 0, keepRunning: false, worked: false, failures: [], scoreRetries: 0, tickRetries }
   const boardGames = work.filter(game => game.needs_scoreboard)
   await retry(() => stampAttempts(holder, boardGames.filter(game => game.status === 'Scheduled').map(game => game.id), []))
@@ -92,7 +95,7 @@ export async function ingestTick(holder: string, onRetry?: () => void, gameIds?:
     const fallbackBoards = nbaScoreboard.filter(game => game.gameStatus !== 2 ||
       !work.some(stored => stored.nba_game_id === game.gameId && hasEspnLiveGame(stored, events)))
     await retry(() => saveScoreboardGames(gameIds ? fallbackBoards.filter(board => work.some(game => game.nba_game_id === board.gameId)) : fallbackBoards, work))
-    work = select(await retry(loadWork))
+    work = select(await retry(() => loadWork(gameIds)))
   }
   for (const game of nbaFinalWork) if (!work.some(row => row.id === game.id)) work.push(game)
   work = gameIds ? work : select(await retry(() => discoverEspnGames(work, events)))
