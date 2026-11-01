@@ -194,8 +194,13 @@ The [trade curve report](../docs/trade-curve.md) records the real trades, roster
 
 ## Release order for this release
 
-The supplied production head is `20261214005900`, with 741 migrations.
-Apply `20261214006000_inactive_pickup_drops.sql`, then merge the frontend. Edge source is unchanged.
+The supplied production head is `20261214006200`, from the recorded 2.14.7 release. This lab does not verify hosted state.
+The local candidate ends at `20261214007300`. Database, then Edge, then merge the frontend.
+Apply the pending migrations through `20261214007300` only during a separately approved release.
+Deploy the public snapshot route with database mode selected before enabling `LIVE_SNAPSHOT_BASE_URL` on the workers.
+The new route and worker must share the same server-side switch. Enable public mode after both are ready.
+Keep database mode available for rollback. It retains the previous live save path.
+This work performs no release, and the release attestations remain unchanged.
 
 ### Historical release 2.14.5 order
 

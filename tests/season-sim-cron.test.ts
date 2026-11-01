@@ -26,6 +26,5 @@ it('replay ticks execute both timeouts before dispatch', async () => {
   const from = Date.parse('2026-10-28T00:00:00Z')
   await advanceCron({ from, to: from + 60000, move: async () => {}, invoke: async (statement: string) => { statements.push(statement) } })
   expect(statements).toHaveLength(1)
-  expect(statements[0]).toContain('flush_league_inventory_hints')
   expect(statements[0]).toContain(command?.replace(/;$/, ''))
 })

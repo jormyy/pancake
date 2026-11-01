@@ -30,13 +30,13 @@ BEGIN
     'version',claim->'version','claimToken',claim->'claimToken'));
   PERFORM pg_temp.check_rules(result='true','screens publish without trade valuations');
   version:=(claim->>'version')::bigint;
-  PERFORM pg_temp.check_rules(EXISTS(SELECT 1 FROM private.work_items WHERE kind='trade-revaluation-scan'
-    AND payload->>'seasonId'=f.season_id::text),'screens schedule a separate scan');
+  PERFORM pg_temp.check_rules(NOT EXISTS(SELECT 1 FROM private.work_items WHERE kind='trade-revaluation-scan'
+    AND payload->>'seasonId'=f.season_id::text),'screens do not schedule trade analysis');
   PERFORM private.refresh_queue_trade_revaluations(f.season_id,version,'fixture');
-  PERFORM pg_temp.check_rules((SELECT count(*)=2 FROM private.work_items WHERE kind='trade-revaluation' AND league_id=f.league_id),
+  PERFORM pg_temp.check_rules((SELECT count(*)=2 FROM private.work_items WHERE kind='trade-revaluation' AND league_id=f.league_id AND key LIKE '%:latest'),
     'only pending and accepted trades get valuation work');
   PERFORM private.refresh_queue_trade_revaluations(f.season_id,version,'fixture');
-  PERFORM pg_temp.check_rules((SELECT count(*)=2 FROM private.work_items WHERE kind='trade-revaluation' AND league_id=f.league_id),
+  PERFORM pg_temp.check_rules((SELECT count(*)=2 FROM private.work_items WHERE kind='trade-revaluation' AND league_id=f.league_id AND key LIKE '%:latest'),
     'duplicate screen scans reuse valuation work');
   FOREACH current_trade IN ARRAY ARRAY[pending_id,accepted_id] LOOP
     inputs:=public.get_trade_revaluation_inputs(f.user_ids[1],f.member_ids[1],current_trade);
