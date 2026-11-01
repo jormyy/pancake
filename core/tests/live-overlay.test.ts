@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { overlayLiveScores, type LiveLine, type LiveSnapshot, type SavedLiveMatchup } from '../src/live/overlay'
 
 const now = Date.parse('2026-11-01T01:00:00Z')
-const line = (id: string, points: number): LiveLine => [id,points,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,25,0]
+const line = (id: string, points: number): LiveLine => [id,points,0,0,0,0,0,0,0,0,0,0,0,25,0]
 const snapshot = (): LiveSnapshot => ({ version: 1, mode: 'public', date: '2026-10-31', capturedAt: now,
   games: [{ id: '0021', nbaId: '0021', espnId: '4001', status: 'InProgress', updatedAt: now,
     home: { team: 'BOS', score: 14, players: [line('10',14),line('12',99)] },

@@ -23,9 +23,8 @@ function compactPlayer(player: NBABoxScorePlayer, id = String(player.personId)):
   const minutes = parseNBAMinutes(s.minutes)
   const didNotPlay = player.played === '0' || player.played === 0 || player.played == null && minutes == null
   const row: LiveLine = [id,s.points ?? 0,s.reboundsTotal ?? 0,s.assists ?? 0,s.steals ?? 0,s.blocks ?? 0,
-    s.turnovers ?? 0,s.threePointersMade ?? 0,s.threePointersAttempted ?? 0,s.fieldGoalsMade ?? 0,s.fieldGoalsAttempted ?? 0,
-    s.freeThrowsMade ?? 0,s.freeThrowsAttempted ?? 0,s.reboundsOffensive ?? 0,s.reboundsDefensive ?? 0,
-    s.foulsPersonal ?? 0,s.plusMinusPoints ?? 0,minutes ?? 0,didNotPlay ? 1 : 0]
+    s.turnovers ?? 0,s.threePointersMade ?? 0,s.fieldGoalsMade ?? 0,s.fieldGoalsAttempted ?? 0,
+    s.freeThrowsMade ?? 0,s.freeThrowsAttempted ?? 0,s.foulsPersonal ?? 0,minutes ?? 0,didNotPlay ? 1 : 0]
   if (!liveLineStats(row)) throw new Error('Invalid provider stat line')
   return row
 }

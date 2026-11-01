@@ -8,7 +8,7 @@ const basis = (): SavedLiveMatchup => ({ id: 'other', homeMemberId: 'a', awayMem
         team: 'BOS', gameId: '0021', savedPoints: 10, savedAt: now - 30000, starter: true }] })
 const snapshot = (): LiveSnapshot => ({ version: 1, mode: 'public', date: '2026-10-31', capturedAt: now,
     games: [{ id: '0021', nbaId: '0021', espnId: null, source: 'nba', status: 'InProgress', updatedAt: now,
-        home: { team: 'BOS', score: 14, players: [['10',14,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,25,0]] },
+        home: { team: 'BOS', score: 14, players: [['10',14,0,0,0,0,0,0,0,0,0,0,0,25,0]] },
         away: { team: 'NYK', score: 9, players: [] } }] })
 function home(line = basis()) {
     return { selectedDate: '2026-10-31', matchup: { id: 'other', myMemberId: 'a', opponentMemberId: 'b', myPoints: line.homePoints, opponentPoints: line.awayPoints },

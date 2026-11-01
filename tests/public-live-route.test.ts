@@ -35,7 +35,7 @@ describe('public live route', () => {
     const text = await response.text()
     const result = JSON.parse(text)
     expect(result.games[0]).toMatchObject({ nbaId: box.gameId, source: 'nba', status: 'InProgress' })
-    expect(result.games[0].home.players[0]).toHaveLength(19)
+    expect(result.games[0].home.players[0]).toHaveLength(15)
     expect(text).not.toMatch(/Public player|memberId|leagueId|playerId|supabase|authorization/i)
     expect(requests).toHaveLength(3)
     expect(new TextEncoder().encode(text).length).toBeLessThan(10000)

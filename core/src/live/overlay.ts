@@ -4,9 +4,8 @@ import { liveLineStats } from './codec'
 export { liveLineStats } from './codec'
 
 export type LiveLine = [id: string, points: number, rebounds: number, assists: number, steals: number, blocks: number,
-    turnovers: number, threesMade: number, threesAttempted: number, fieldGoalsMade: number, fieldGoalsAttempted: number,
-    freeThrowsMade: number, freeThrowsAttempted: number, offensiveRebounds: number, defensiveRebounds: number,
-    fouls: number, plusMinus: number, minutes: number, didNotPlay: number]
+    turnovers: number, threesMade: number, fieldGoalsMade: number, fieldGoalsAttempted: number,
+    freeThrowsMade: number, freeThrowsAttempted: number, fouls: number, minutes: number, didNotPlay: number]
 
 export type PublicLiveGame = {
     id: string
@@ -50,10 +49,6 @@ export type SavedLiveMatchup = {
 export type PublicLiveStats = StatLine & {
     minutesPlayed: number
     fouls: number
-    offensiveRebounds: number
-    defensiveRebounds: number
-    plusMinus: number
-    threePointersAttempted: number
 }
 
 
