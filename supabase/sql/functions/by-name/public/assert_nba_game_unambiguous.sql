@@ -12,5 +12,6 @@ BEGIN
   SELECT * INTO v_game FROM public.nba_games WHERE id=p_game_id;
   IF NOT FOUND OR v_game.season_year<>v_year THEN RAISE EXCEPTION 'Game inputs changed. Retry.' USING ERRCODE = 'PT409'; END IF;
   PERFORM private.assert_nba_game_candidate(v_game.nba_game_id,v_game.season_year,v_game.game_date,v_game.home_team,v_game.away_team,v_game.id);
+  INSERT INTO private.live_game_identity_checks(game_id,season_year) VALUES(v_game.id,v_game.season_year) ON CONFLICT DO NOTHING;
 END;
 $$;

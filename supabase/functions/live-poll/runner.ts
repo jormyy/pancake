@@ -15,7 +15,7 @@ import { withWorkContext, withLiveScoreRetries } from '../_shared/workContext.ts
 import { retryDatabaseContention } from '../_shared/databaseRetry.ts'
 import type { Database } from '../_shared/database.ts'
 
-const LIVE_TICK_MS = 20_000
+const LIVE_TICK_MS = 30_000
 const LIVE_TICK_BUDGET_MS = 18_000
 const LIVE_RUN_MS = 110_000
 
@@ -70,7 +70,7 @@ export async function ingestTick(holder: string, onRetry?: () => void): Promise<
   let work = (await retry(loadWork)).filter((game): game is LiveGame & { nba_game_id: string } => !!game.nba_game_id)
   if (!work.length) return { lines: 0, keepRunning: false, worked: false, failures: [], scoreRetries: 0, tickRetries }
   const boardGames = work.filter(game => game.needs_scoreboard)
-  await retry(() => stampAttempts(holder, boardGames.map(game => game.id), []))
+  await retry(() => stampAttempts(holder, boardGames.filter(game => game.status === 'Scheduled').map(game => game.id), []))
   const dates = [...new Set(work.map(game => game.game_date).filter(Boolean))]
   if (!dates.length) dates.push(new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' }))
   const espn = work.some(game => game.status !== 'Final')
@@ -78,10 +78,7 @@ export async function ingestTick(holder: string, onRetry?: () => void): Promise<
       console.warn('[live-poll] ESPN scoreboard unavailable; using NBA:', errorMessage(error))
       return []
     }) : Promise.resolve([])
-  const nba = boardGames.length ? recordSyncRun('source:nba-cdn-scoreboard', async () => {
-    const games = await fetchTodaysGames(2500)
-    return { result: games, rowsAffected: games.length }
-  }).catch(error => {
+  const nba = boardGames.length ? fetchTodaysGames(2500).catch(error => {
     console.warn('[live-poll] NBA scoreboard unavailable:', errorMessage(error))
     return []
   }) : Promise.resolve([])
@@ -137,7 +134,7 @@ export async function runLivePoll(request: Request): Promise<Response> {
     }).abortSignal(AbortSignal.timeout(5000))
     if (error) throw error
     return data === true
-  }, LIVE_POLL_LEASE_TTL_SECONDS * 1000 / 3, error => controller.abort(error ?? new Error('Live poll lease lost')))
+  }, LIVE_POLL_LEASE_TTL_SECONDS * 1000 * 2 / 3, error => controller.abort(error ?? new Error('Live poll lease lost')))
   try {
     const result = await recordSyncRun('live-poll', async () => {
       const started = Date.now()

@@ -7,7 +7,7 @@ RETURNS TABLE (
   id uuid, nba_game_id text, game_date date, season_year int, week_number int, status text,
   game_time timestamptz, started_at timestamptz, home_team text, away_team text,
   home_score int, away_score int, game_status_text text, stats_synced_at timestamptz,
-  needs_scoreboard boolean, needs_stats boolean
+  needs_scoreboard boolean, needs_stats boolean, live_cache jsonb
 )
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' AS $$
 BEGIN
@@ -46,8 +46,14 @@ BEGIN
   )
   SELECT game.id,game.nba_game_id,game.game_date,game.season_year,game.week_number,game.status,
     game.game_time,game.started_at,game.home_team,game.away_team,game.home_score,game.away_score,
-    game.game_status_text,game.stats_synced_at,game.board_due,game.stats_due
+    game.game_status_text,game.stats_synced_at,game.board_due,game.stats_due,
+    jsonb_build_object('snapshot',feed.stats_snapshot,'players',coalesce((
+      SELECT jsonb_agg(jsonb_build_object('provider_id',player.nba_id,'player_id',player.id,'nba_team',member.nba_team) ORDER BY player.id)
+      FROM private.player_game_memberships member JOIN public.players player ON player.id=member.player_id
+      WHERE member.game_id=game.id AND player.nba_id IS NOT NULL AND member.nba_team IS NOT NULL
+    ),'[]'::jsonb))
   FROM candidates game
+  LEFT JOIN private.live_feed_state feed ON feed.game_id=game.id
   WHERE game.board_due OR game.stats_due
   ORDER BY game.game_date,game.id;
 END;
