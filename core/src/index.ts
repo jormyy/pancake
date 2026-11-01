@@ -2,6 +2,8 @@
 export { calculateFantasyPoints, roundFantasyPoints, snakeToStatLine } from './scoring/formula'
 export type { StatLine, ScoringSettings } from './scoring/types'
 export { overlayLiveScores, liveLineStats } from './live/overlay'
+export { createLivePoller, fetchLiveSnapshot, readLiveSnapshot, LIVE_PHONE_POLL_MS } from './live/poll'
+export type { LiveResponse } from './live/poll'
 export type { LiveSnapshot, LiveLine, PublicLiveGame, SavedLiveMatchup, SavedLivePlayer, PublicLiveStats } from './live/overlay'
 
 // Season
