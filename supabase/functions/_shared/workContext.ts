@@ -47,7 +47,8 @@ export async function workFetch(input: string | URL | Request, init?: RequestIni
   const outer = init?.signal ?? (input instanceof Request ? input.signal : null)
   const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined))
   const url = new URL(input instanceof Request ? input.url : input)
-  const databaseUrl = typeof Deno === 'undefined' ? undefined : Deno.env.get('SUPABASE_URL')
+  const runtime = globalThis as typeof globalThis & { Deno?: { env: { get(name: string): string | undefined } } }
+  const databaseUrl = runtime.Deno?.env.get('SUPABASE_URL')
   const databaseOrigin = databaseUrl ? new URL(databaseUrl).origin : null
   if (context.livePollHolder && url.origin === databaseOrigin) headers.set('x-pancake-live-holder', context.livePollHolder)
   else headers.delete('x-pancake-live-holder')
