@@ -3,11 +3,12 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import net from 'node:net'
 import path from 'node:path'
 import { randomBytes, randomInt } from 'node:crypto'
-import { command, delay, digest, json, loopback, quote, readJson, repository } from './common.mjs'
+import { command, digest, json, loopback, quote, readJson, repository } from './common.mjs'
 import { createSqlSession } from '../../season-sim/sql-session.mjs'
 import { copyMigrations } from './migration-files.mjs'
 import { watchDocker } from './docker-watch.mjs'
 import { copyFunctionFiles } from './function-files.mjs'
+import { waitForDatabaseReady } from './database-readiness.mjs'
 
 async function freePorts() {
   const first = randomInt(1900, 2350) * 20
@@ -67,7 +68,7 @@ export async function startStack(evidence, { sourceRoot = repository, profileMem
   const container = `supabase_db_${project}`
   const cli = args => command('supabase', [...args, '--workdir', workdir], { file: path.join(evidence, `setup-${args[0]}.log`) })
   const owned = async name => {
-    const result = JSON.parse((await command('docker', ['inspect', '--format', '{"labels":{{json .Config.Labels}},"healthcheck":{{json .Config.Healthcheck}},"image":{{json .Config.Image}},"networks":{{json .NetworkSettings.Networks}}}', name])).stdout)
+    const result = JSON.parse((await command('docker', ['inspect', '--format', '{"labels":{{json .Config.Labels}},"healthcheck":{{json .Config.Healthcheck}},"health":{{json .State.Health}},"image":{{json .Config.Image}},"networks":{{json .NetworkSettings.Networks}}}', name])).stdout)
     assert.equal(result.labels?.['com.supabase.cli.project'], project, 'Refuse an unowned container')
     return result
   }
@@ -96,11 +97,7 @@ export async function startStack(evidence, { sourceRoot = repository, profileMem
     if (sharedBuffers != null) {
       await sqlOnce(`ALTER SYSTEM SET shared_buffers=${quote(sharedBuffers)};`)
       await command('docker', ['restart', container])
-      let ready = false
-      for (let attempt = 0; attempt < 60; attempt++) {
-        try { await sqlOnce('SELECT 1'); ready = true; break } catch { await delay(500) }
-      }
-      assert.ok(ready, 'The local database does not restart with shared_buffers')
+      await waitForDatabaseReady(()=>sqlOnce('SELECT 1'),async()=>(await owned(container)).health?.Status)
     }
     await writeFile(path.join(workdir, 'supabase/config.toml'), config.replace(/(\[db.migrations\][\s\S]*?enabled = )false/, '$1true'))
     await cli(['migration', 'up', '--local', '--include-all'])
