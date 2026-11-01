@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import path from 'node:path'
 import { parseArgs } from 'node:util'
-import { command, directory, json, readJson } from './common.mjs'
+import { defaultEvidence, command, directory, json, readJson } from './common.mjs'
 import { startStack } from './stack.mjs'
 import { configurePool } from './pool.mjs'
 import { prepare } from './experiment.mjs'
@@ -9,7 +9,7 @@ import { startWorkers } from './workers.mjs'
 import { startPublicFeed } from './public-runtime.mjs'
 import { startPhones } from './phones.mjs'
 
-const {values}=parseArgs({options:{evidence:{type:'string',default:'/Users/michaelchen/Documents/pancake-half-gig/evidence-climb/runtime-check'}}})
+const {values}=parseArgs({options:{evidence:{type:'string',default:path.join(defaultEvidence, 'runtime-check')}}})
 let stack,feed,workers,publicFeed,phones,switchTimer
 try {
   stack=await startStack(path.resolve(values.evidence))

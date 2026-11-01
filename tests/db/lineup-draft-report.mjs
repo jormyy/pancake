@@ -1,3 +1,4 @@
+import { evidencePath } from '../helpers/evidence-path.mjs'
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import { readFileSync, writeFileSync } from 'node:fs'
@@ -70,7 +71,7 @@ const warm=sql('warm'),fresh=sql('fresh')
 for(const row of [...warm,...fresh,...http]) for(const key of ['ms','buffers','wal','statements','written','bytes']) assert.ok(Number.isFinite(row[key])&&row[key]>=0,`${row.name} invalid ${key}`)
 const sample=row=>({name:row.name,manager:row.manager,variant:row.variant,round:row.round,connection:row.connection??'http',ms:row.ms,buffers:row.buffers,wal:row.wal,statements:row.statements,rowsWritten:row.written,responseBytes:row.bytes,dbResponseBytes:row.dbBytes,triggerCalls:row.triggers,followUp:Object.fromEntries(['publishes','refresh','notifications'].map(key=>[key,follow(row)[key]]))})
 const report={baseline:'952580ce',concurrentWithOtherLanes:true,limits:{cpus:2,memory:'1g',sharedBuffers:'224MB',effectiveCacheSize:'384MB'},warm:compare(warm),fresh:compare(fresh),http:compare(http),samples:{warm:warm.map(sample),fresh:fresh.map(sample),http:http.map(sample)},inputs:Object.fromEntries(['benchmark-warm.json','benchmark-fresh.json','http-benchmark.json','http-invocations.json'].map(name=>[name,createHash('sha256').update(readFileSync(path.join(directory,name))).digest('hex')]))}
-writeFileSync('tests/db/lineup-draft-results.json',JSON.stringify(report,null,2)+'\n')
+writeFileSync(evidencePath('lineup-draft-results.json'),JSON.stringify(report,null,2)+'\n')
 const metric=(group,key)=>`${group.before[key].p50}→${group.after[key].p50}`
 const timing=group=>`${group.before.ms.p50}/${group.before.ms.p95}→${group.after.ms.p50}/${group.after.ms.p95}`
 const followCell=group=>['publishes','refresh','notifications'].map(key=>`${group.before.followUp[key]}→${group.after.followUp[key]}`).join(' / ')

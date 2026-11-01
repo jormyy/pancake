@@ -124,8 +124,8 @@ Cold plans still touch many catalog pages. The numerical targets apply to warm r
 No production timing reduction is claimed.
 Setup checks both backup hashes before it changes the database.
 
-The [measurement tables](screen-view-cost-tables.md) list every requested function and the largest nested statements.
-The [machine-readable results](screen-view-cost-results.json) include the comparisons and negative controls.
+The measurement tables (external evidence) list every requested function and the largest nested statements.
+The machine-readable results (external evidence) include the comparisons and negative controls.
 
 ## Changed files
 
@@ -136,8 +136,8 @@ The [machine-readable results](screen-view-cost-results.json) include the compar
 - [Benchmark runner](screen-view-costs.mjs)
 - [SQL timing guard](screen-view-costs.sql)
 - [This recipe and handoff](screen-view-costs.md)
-- [Generated measurements](screen-view-cost-results.json)
-- [Generated tables](screen-view-cost-tables.md)
+- Generated measurements (external evidence)
+- Generated tables (external evidence)
 - [Generated release attestations](../e2e/release-history-attestations.json)
 - [Generated catalog attestations](../e2e/db-security-catalog-attestations.json)
 - [Database release notes](../../supabase/RELEASE-DB.md)

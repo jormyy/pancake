@@ -112,7 +112,8 @@ Committed Broadcast messages remain durable in `realtime.messages`. The private 
 Keep the 16-table `supabase_realtime` publication until all legacy clients reload and their subscriptions drain.
 Publication retirement needs a separate migration and delivery check.
 Restore the publication before rolling back to a legacy frontend.
-The independent 20-second live-game fallback and reconnect reads stay active.
+The database fallback and stale public mode retain 20-second recovery checks.
+Fresh public mode uses ten-minute recovery; reconnect checks remain active.
 Home foreground recovery shares its version request and keeps the scheduled read and failed-validation retry.
 
 Release `api`, `refresh-views`, `lineup-optimizer`, and the internal workers that consume `_shared/serve.ts` after SQL.
@@ -120,7 +121,7 @@ The shared invocation wrapper changes in `_shared/syncRuns.ts`.
 Database, then Edge, then merge the frontend.
 The orchestrator ships. This branch does not push or deploy.
 
-Methods and reruns: [Realtime](../docs/perf-l1.md), [workers](../docs/perf-l4.md), and [Home recovery](../tests/e2e/pwa-live-game.md).
+Methods and reruns: [Realtime](../docs/architecture.md#versioned-cache-and-push-invalidation), [workers](../docs/operations-scheduler.md), and [Home recovery](../tests/e2e/pwa-live-game.md).
 [Cleanup](../docs/release-2.14-cleanup.md) lists removed paths and retained coverage.
 [Integration](../docs/release-2.14-integration.md) records the private upgrade/reset comparison and checks.
 
@@ -148,7 +149,7 @@ Trade rules, roster legality, permissions, game locks, scoring, timers, publicat
 The statistics job retains its schedule and thresholds. Its diagnostic status and elapsed time reflect skipped sampling.
 
 Methods and reruns: [trades](../tests/db/trades-actions.md), [roster](../tests/db/roster-actions.md),
-[lineup and draft](../tests/db/lineup-draft-actions.md), [league](../tests/db/league-actions.md), and [background](../docs/perf-l4.md).
+[lineup and draft](../tests/db/lineup-draft-actions.md), [league](../tests/db/league-actions.md), and [background](../docs/operations-scheduler.md).
 [Integration checks and repeat cleanup](../docs/release-2.12-integration.md) record the private database comparison.
 [Removed paths and retained coverage](../docs/release-2.12-cleanup.md) document cleanup.
 The orchestrator ships this release. This branch does not push or deploy.
@@ -244,7 +245,7 @@ Apply the complete migration, including that grant.
 No existing index is dropped.
 The shared projection helper is used by screen and forecast reads.
 The dashboard and retention indexes overlap L4 bookkeeping.
-Measurements and remaining replay checks are in [the L3e report](../docs/perf-l3e.md).
+Measurements and remaining replay checks are in [the L3e report](../docs/io-audit.md).
 This lane makes no production request.
 
 ### Screen read cost migration
@@ -1398,7 +1399,7 @@ The form stays within app, components, and lib; no hook change is required.
 `20261214001700_ingest_identity_noop.sql` avoids repeated merge work for unchanged, uniquely named player source links.
 The player lock and identity checks remain in place.
 The stat saver also filters unchanged rows before attempting inserts and retains its conflict guard.
-Measurements and verification are recorded in `docs/perf-l4c.md`.
+Historical ingestion measurements remain in Git history. Current workload measurements are in [live scores](../docs/live-scores.md#lab-results).
 
 
 ## Pending trade offers
@@ -1458,7 +1459,7 @@ The full suite is not repeated.
 
 The private stack stops, the transferred backup is removed, and its config is restored.
 No production service, push, pull request, deployment, or CI run is used.
-[Verification counts](../tests/evidence/offers-do-not-lock.json) pin the tested migration hash.
+Verification counts (external evidence) pin the tested migration hash.
 ## Auto-set keeps starters
 
 Apply `20261214003300_autoset_keep_starters.sql`, then release `lineup-optimizer`.
@@ -1475,7 +1476,7 @@ Game-time locks keep their existing checks.
 Run `psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/autoset-keep-starters.sql` on a private stack.
 The recipe rolls back its fixture and reports eleven checks.
 Run the mini Deno tests in `supabase/functions/lineup-optimizer` for Edge behavior.
-The [backup replay](../tests/evidence/autoset-keep-starters/README.md) records Thursday and Friday evidence.
+The backup replay (external evidence) records Thursday and Friday evidence.
 
 ## Screen reads after 2.11
 

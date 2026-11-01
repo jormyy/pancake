@@ -2,7 +2,7 @@ import { labTarget } from './target.mjs'
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import { mkdir, readFile, realpath, rename, writeFile } from 'node:fs/promises'
-import { homedir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { captureFileLimit } from './bounded-log.mjs'
@@ -12,7 +12,7 @@ export const target = labTarget()
 export const labRoot = path.join(homedir(), target.relativeRoot)
 export const project = target.project
 export const ports = Object.freeze(target.ports)
-export const evidenceRoot = process.env.PERF_LAB_EVIDENCE_ROOT ?? path.join(homedir(), 'Documents/pancake-season-mission/fable/program3/evidence/lab')
+export const evidenceRoot = process.env.PERF_LAB_EVIDENCE_ROOT ?? path.join(tmpdir(), 'pancake-perf-evidence')
 export const digest = value => createHash('sha256').update(value).digest('hex')
 
 export function localTarget(value, allowed = Object.values(ports)) {

@@ -1,4 +1,0 @@
-psql:tests/db/trade-analyzer-revalue.sql:29: ERROR:  FAIL: validated unchanged values receive a current read lease
-CONTEXT:  PL/pgSQL function pg_temp_82.check_rules(boolean,text) line 4 at RAISE
-SQL statement "SELECT pg_temp.check_rules((result->>'expiresAt')::timestamptz>now(),'validated unchanged values receive a current read lease')"
-PL/pgSQL function inline_code_block line 18 at PERFORM

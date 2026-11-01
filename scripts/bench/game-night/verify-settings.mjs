@@ -1,9 +1,9 @@
 import path from 'node:path'
 import { parseArgs } from 'node:util'
-import { command, directory, json, repository } from './common.mjs'
+import { defaultEvidence, command, directory, json, repository } from './common.mjs'
 import { startStack } from './stack.mjs'
 
-const { values } = parseArgs({ options: { evidence: { type: 'string', default: '/Users/michaelchen/Documents/pancake-half-gig/evidence-climb/settings-verification' }, test: { type: 'string', multiple: true } } })
+const { values } = parseArgs({ options: { evidence: { type: 'string', default: path.join(defaultEvidence, 'settings-verification') }, test: { type: 'string', multiple: true } } })
 const evidence = path.resolve(values.evidence)
 let stack
 try {

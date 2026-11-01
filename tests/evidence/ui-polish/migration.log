@@ -1,6 +1,0 @@
-WARN: config section [inbucket] is deprecated. Please use [local_smtp] instead.
-Connecting to local database...
-Applying migration 20261214001300_trade_analyzer_revalue.sql...
-Local database is up to date.
-A new version of Supabase CLI is available: v2.122.0 (currently installed v2.109.1)
-We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli

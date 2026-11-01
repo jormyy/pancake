@@ -1,6 +1,6 @@
 import path from 'node:path'
 import { parseArgs } from 'node:util'
-import { command, id, json, readJson, repository } from './common.mjs'
+import { defaultEvidence, command, id, json, readJson, repository } from './common.mjs'
 import { startStack } from './stack.mjs'
 import { configurePool } from './pool.mjs'
 import { prepare } from './experiment.mjs'
@@ -8,7 +8,7 @@ import { startWorkers } from './workers.mjs'
 import { startPublicFeed } from './public-runtime.mjs'
 import { verifyOfficialHistory } from './official-history.mjs'
 
-const { values }=parseArgs({options:{evidence:{type:'string',default:'/Users/michaelchen/Documents/pancake-half-gig/evidence-climb/official-history'}}})
+const { values }=parseArgs({options:{evidence:{type:'string',default:path.join(defaultEvidence, 'official-history')}}})
 let stack,prepared,workers,publicFeed
 try {
   stack=await startStack(path.resolve(values.evidence))

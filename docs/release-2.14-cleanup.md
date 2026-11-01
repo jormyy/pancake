@@ -72,7 +72,7 @@ Workers lane cleanup:
 
 The ready workers SHA `cebdf3bc` brings no raw captures or lab setup drivers.
 Its generated catalogs and attestations are required contracts and remain.
-`docs/perf-l4.md` is reduced from 29,655 to 6,458 bytes.
+The historical worker measurement note is removed after its operating rules move into the scheduler guide.
 It keeps one summary, the method, the before/after counters, tradeoffs and focused rerun commands.
 The old raw-capture references and repeated verification receipts are removed.
 No additional path is deleted in this artifact pass.

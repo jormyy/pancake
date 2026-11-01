@@ -33,6 +33,8 @@ it('renders current contracts, control ownership and separate replay network lay
     await symlink(path.join(process.cwd(), name), path.join(root, name), 'dir')
   }
   await mkdir(path.join(root, 'docs'))
+  await writeFile(path.join(root, 'docs/data-flow.md'), 'Permanent data flow')
+  await writeFile(path.join(root, 'docs/screen-matrix.md'), 'Permanent screen coverage')
   const evidenceRoot = path.join(root, 'evidence')
   await mkdir(evidenceRoot)
   const request = { method: 'POST', url: 'http://127.0.0.1:57281/functions/v1/api', bytesIn: 5, bytesOut: 9, status: 200, durationMs: 4 }
@@ -47,35 +49,24 @@ it('renders current contracts, control ownership and separate replay network lay
     { queryid: '1', query: 'SELECT season_sim.time(season_sim.real_transaction())', calls: 1000, total_exec_time: 22, rows_returned_or_affected: 1000, shared_blks_hit: 1000, shared_blks_read: 0 },
   ] }))
   const { report } = await renderReport({ root, evidenceRoot })
-  expect(Reflect.get(report, 'startingNetwork').resourceTypes[0]).toMatchObject({ id: 'JavaScript', bytesDown: 4130315 })
-  expect(Reflect.get(report, 'startingNetwork').resourceTypes.reduce((sum: number, row: { requests: number }) => sum + row.requests, 0)).toBe(52)
-  expect(Reflect.get(report, 'startingNetwork').endpoints.reduce((sum: number, row: { bytesDown: number }) => sum + row.bytesDown, 0)).toBe(4563599)
+  expect(Reflect.get(report, 'startingNetwork')).toEqual({ resourceTypes: [], endpoints: [] })
   expect(Reflect.get(report, 'replayNetwork')).toMatchObject([
     { layer: 'client', requests: 2, bytesDown: 18, bytesUp: 10, durationMs: 8 },
     { layer: 'edge', requests: 1, bytesDown: 9, bytesUp: 5, durationMs: 4 },
   ])
   expect(Reflect.get(report, 'runtime')).toMatchObject({
-    matched: { calls: 1, spanMs: 10000, errors: 0 },
+    matched: null,
     current: { calls: 2, spanMs: 20000, durationMs: 12000, errors: 1 },
-    comparable: true,
+    comparable: false,
     complete: false,
   })
-  const lines = (await readFile(path.join(root, 'docs/data-flow.md'), 'utf8')).split('\n')
+  expect(await readFile(path.join(root, 'docs/data-flow.md'), 'utf8')).toBe('Permanent data flow')
+  expect(await readFile(path.join(root, 'docs/screen-matrix.md'), 'utf8')).toBe('Permanent screen coverage')
+  const lines = (await readFile(path.join(evidenceRoot, 'data-flow.md'), 'utf8')).split('\n')
   expect(lines).toContain('## Final ranked screen baseline')
   expect(Reflect.get(report, 'perScreen')).toHaveLength(41)
-  expect(lines).toContain('| forecasts | failed: matchup-forecast / 55P03 |')
-  expect(lines).toContain('The frozen starting matchup records 43 cold requests / 4500930 down bytes and 9 warm requests / 62669 down bytes.')
-  expect(lines).toContain('Cost × frequency is total response bytes. These archived results do not prove the current release.')
-  expect(lines).toContain('| JavaScript | 22 / 4123954 | 2 / 6361 |')
-  expect(lines).toContain('| service worker | 1 / 36876 | 1 / 36876 |')
   expect(lines).toContain('| Initial endpoint | Cold requests / down bytes | Warm requests / down bytes |')
   expect(lines).toContain('| API endpoint | Requests | Mean down bytes | Cost × frequency bytes |')
-  expect(lines).toContain('| Before empty-state and Analyzer captures | 136 | 224688182 |')
-  expect(lines.some(line => line.startsWith('| 3e7a89ab | full | client | 423307 | 369370760 | 14598 |'))).toBe(true)
-  const cohort = Reflect.get(report, 'cohort')
-  expect(cohort.observations).toHaveLength(212)
-  expect(cohort.ranking.resourceTypes.reduce((sum: number, row: { bytesDown: number }) => sum + row.bytesDown, 0)).toBe(527422874)
-  expect(lines).toContain('| Before final closure capture | 167 | 340209971 |')
   expect(lines.findIndex(line => line === '## Starting workload targets')).toBeLessThan(lines.findIndex(line => line.startsWith('| Screen | Incoming data')))
   expect(lines.find(line => line.startsWith('| /players · players |'))).toContain('pancake:screen-view:v1:')
   expect(lines.some(line => line.includes('never queue gameplay writes offline'))).toBe(false)
@@ -87,13 +78,10 @@ it('renders current contracts, control ownership and separate replay network lay
   expect(analyzer).toContain('pancake:dynasty-analyzer-snapshot:v7:')
   expect(analyzer).toContain('300 ms')
   expect(lines).toContain('Replay uses the current account and the original request ID. A failed write stops the queue until retry.')
-  expect(lines).toContain('Requested pick season: 2030. Available future seasons: 2027, 2028, 2029.')
-  expect(lines).toContain('API request sent: no. Failure point: scripts/season-sim/trade-scenarios.mjs:11.')
   expect(lines.find(line => line.startsWith('| /propose-trade · propose-trade |'))).toContain('pancake:trade-editor-context:v1:')
-  expect(lines).toContain('| Current through prior cutoff | 2025-10-23T02:15:00.000Z | 1 | 10000.00 | 10000.00 | 0 | partial |')
   expect(lines).toContain('| Current, incomplete | transaction | 1000 | 22.00 | 0.022000 | 4.400 | 1000 | 1000 |')
   expect(lines).toContain('| Current, incomplete | 1 | 1000 | 0.0220 | 22.00 | 1000 | 1000 | SELECT season_sim.time(season_sim.real_transaction()) |')
-  const matrix = (await readFile(path.join(root, 'docs/screen-matrix.md'), 'utf8')).split('\n')
+  const matrix = (await readFile(path.join(evidenceRoot, 'screen-matrix.md'), 'utf8')).split('\n')
   expect(matrix.find(line => line.includes('| player-from-players/0/0 |'))).toMatch(/^\| \/players \|/)
   expect(matrix.find(line => line.includes(' · claim-player | commissioner | in-progress | empty |'))).toContain('FAAB bid amount')
   expect(matrix.find(line => line.includes(' · notification-settings | commissioner | in-progress | empty |'))).toContain('Empty-state fixture not implemented')
@@ -122,3 +110,22 @@ it('renders current contracts, control ownership and separate replay network lay
   expect(failedReplay.report.simulationPassed).toBe(false)
   expect(failedReplay.report.replayEvidence?.retained).toBe(false)
 }, 15000)
+
+it('reads historical input only from the external evidence directory', async () => {
+  const evidenceRoot = await mkdtemp(path.join(tmpdir(), 'pancake-report-history-'))
+  directories.push(evidenceRoot)
+  await mkdir(path.join(evidenceRoot, 'baselines'))
+  await writeFile(path.join(evidenceRoot, 'baselines/initial-traffic.json'), JSON.stringify([{
+    id: 'synthetic', resourceTypes: [{ id: 'API', requests: 2, bytesDown: 80, bytesUp: 4, durationMs: 6 }],
+    endpoints: [{ id: 'GET /example', requests: 2, bytesDown: 80, bytesUp: 4, durationMs: 6 }],
+  }]))
+  const { report } = await renderReport({ evidenceRoot, writeReports: false })
+  expect(report.startingNetwork.endpoints).toEqual([{ id: 'GET /example', requests: 2, bytesDown: 80, bytesUp: 4, durationMs: 6, bytesPerRequest: 40 }])
+  expect(report.done).toBe(false)
+  await writeFile(path.join(evidenceRoot, 'baselines/initial-traffic.json'), '{')
+  await expect(renderReport({ evidenceRoot, writeReports: false })).rejects.toThrow()
+})
+
+it('rejects generated reports inside the repository', async () => {
+  await expect(renderReport({ evidenceRoot: path.join(process.cwd(), 'evidence') })).rejects.toThrow('outside the repository')
+})

@@ -72,3 +72,11 @@ The [IO model](io-audit.md) separates reads, writes, WAL, and memory pressure.
 Performance captures and generated rankings belong in an external evidence directory.
 They are not the application contract and do not replace this document.
 Use the [screen lab](perf-lab.md) for browser traffic and the [game-night lab](../scripts/bench/game-night/README.md) for memory pressure.
+
+## Free-agent response compatibility
+
+Migration `20261214002300_l5c_players_response.sql` omits unused ownership entries from free-agent responses.
+It preserves the function signature and all other response fields.
+Explicit support-player reads retain ownership entries.
+Release 2.9.1 remains compatible with this response change; either side can ship first.
+The current feature release still follows database, Edge, then frontend ordering.

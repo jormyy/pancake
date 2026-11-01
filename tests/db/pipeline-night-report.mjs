@@ -1,3 +1,4 @@
+import { evidencePath } from '../helpers/evidence-path.mjs'
 import assert from 'node:assert/strict'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
@@ -66,6 +67,6 @@ for (const name of cases) {
 const result = { version: 1, project: 'pt4bafablel7', ports: '648xx', limits: { cpus: stack.limits.NanoCpus / 1e9, memory: stack.limits.Memory },
   settings: stack.settings, backupHashes: stack.hashes, backupRows: stack.backupRows, tupleHash: stack.tupleHash,
   verification: read('verification'), experiments }
-writeFileSync('tests/db/pipeline-night-results.json', `${JSON.stringify(result, null, 2)}\n`)
-writeFileSync('tests/db/pipeline-night-tables.md', `${lines.join('\n')}\n`)
+writeFileSync(evidencePath('pipeline-night-results.json'), `${JSON.stringify(result, null, 2)}\n`)
+writeFileSync(evidencePath('pipeline-night-tables.md'), `${lines.join('\n')}\n`)
 process.stdout.write(`${cases.length} cases; ${final.samples.length} final samples; ${experiments.reduce((sum, row) => sum + row.samples.length, 0)} total samples.\n`)

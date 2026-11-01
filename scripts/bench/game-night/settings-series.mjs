@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import path from 'node:path'
 import { parseArgs } from 'node:util'
 import { appendFile } from 'node:fs/promises'
-import { directory, json, readJson, repository } from './common.mjs'
+import { defaultEvidence, directory, json, readJson, repository } from './common.mjs'
 import { startStack } from './stack.mjs'
 import { configurePool } from './pool.mjs'
 import { runWindow } from './experiment.mjs'
@@ -10,12 +10,13 @@ import { actionLimits, compareSeries } from './series.mjs'
 import { isolatedReplay } from './isolated-series.mjs'
 
 const { values } = parseArgs({ options: {
-  evidence: { type: 'string', default: '/Users/michaelchen/Documents/pancake-half-gig/evidence-climb/settings-series' },
-  baseline: { type: 'string', default: path.resolve(repository, '../half-gig-baseline') },
+  evidence: { type: 'string', default: path.join(defaultEvidence, 'settings-series') },
+  baseline: { type: 'string' },
   candidate: { type: 'string', default: repository },
   migration: { type: 'string', multiple: true },
   'worker-overlay': { type: 'string', multiple: true },
 } })
+assert.ok(values.baseline, 'Provide a separate baseline source checkout with --baseline')
 const slate = await readJson(path.join(directory, 'training.json'))
 const baselines = [], candidates = []
 let activeStack
@@ -47,5 +48,5 @@ await json(path.join(values.evidence, 'baseline-summary.json'), comparison.basel
 await json(path.join(values.evidence, 'settings-summary.json'), comparison.candidate)
 await json(path.join(values.evidence, 'action-limits.json'), comparison.limits)
 await json(path.join(values.evidence, 'comparison.json'), { ...comparison, phase: 'settings-only' })
-await appendFile('/Users/michaelchen/Documents/pancake-half-gig/ROUND-LOG.md', `\n## Approved settings, paired series\nBaseline: ${comparison.baseline.metrics.cgroupAnonRefaultsPerSecond.median} anon refaults/s, n=3. Baseline quality passed: ${comparison.baselineQualityPassed}; failed reference reports remain failed. Settings: ${comparison.candidate.metrics.cgroupAnonRefaultsPerSecond.median} anon refaults/s, n=3. Noise: ${comparison.noisePagesPerSecond} anon refaults/s. Gain: ${comparison.gainFraction * 100}%. All action and schedule gates pass. This records the approved schedule and a two-connection PostgREST pool before the architecture change.\n`)
+await appendFile(path.join(values.evidence, 'ROUND-LOG.md'), `\n## Approved settings, paired series\nBaseline: ${comparison.baseline.metrics.cgroupAnonRefaultsPerSecond.median} anon refaults/s, n=3. Baseline quality passed: ${comparison.baselineQualityPassed}; failed reference reports remain failed. Settings: ${comparison.candidate.metrics.cgroupAnonRefaultsPerSecond.median} anon refaults/s, n=3. Noise: ${comparison.noisePagesPerSecond} anon refaults/s. Gain: ${comparison.gainFraction * 100}%. All action and schedule gates pass. This records the approved schedule and a two-connection PostgREST pool before the architecture change.\n`)
 console.log(JSON.stringify({ phase: 'settings-only', baseline: comparison.baseline.metrics.cgroupAnonRefaultsPerSecond, settings: comparison.candidate.metrics.cgroupAnonRefaultsPerSecond, gain: comparison.gainFraction, quality: comparison.quality }))

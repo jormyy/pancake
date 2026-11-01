@@ -57,7 +57,7 @@ export async function runLab({ limit = Infinity, simulation = true, screens = tr
           throw error
         }
       }
-      const { report } = await renderReport({ evidenceRoot: evidence, receipts, simulation: simulationReceipt, writeDocs: false })
+      const { report } = await renderReport({ evidenceRoot: evidence, receipts, simulation: simulationReceipt, writeReports: false })
       if (!report.done) process.exitCode = 1
       return report
     } finally { await capture?.close(); await edge?.close() }

@@ -3,11 +3,12 @@ import { spawn } from 'node:child_process'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { createHash } from 'node:crypto'
 import path from 'node:path'
+import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 
 export const directory = path.dirname(fileURLToPath(import.meta.url))
 export const repository = path.resolve(directory, '../../..')
-export const defaultEvidence = '/Users/michaelchen/Documents/pancake-half-gig/evidence'
+export const defaultEvidence = path.join(tmpdir(), 'pancake-game-night')
 export const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
 export const digest = value => createHash('sha256').update(value).digest('hex')
 export const quote = value => "'" + String(value).replaceAll("'", "''") + "'"

@@ -1,3 +1,4 @@
+import { evidencePath } from '../helpers/evidence-path.mjs'
 import assert from 'node:assert/strict'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { spawn } from 'node:child_process'
@@ -167,11 +168,11 @@ async function report() {
   const expectedProductionSeconds=Math.ceil(Math.max(wall.after.max,runnerSeconds*1000)*4/5000)*5
   assert.ok(expectedProductionSeconds<300)
   const value={cpu:.25,memoryBytes:1073741824,rows:245097,samples:3,wall,locks,phases,dependencyProof:{before:before.length,after:after.length,unchanged:unchanged.length,changed},safetyFactor:4,runnerSeconds,expectedProductionSeconds,baseline,candidate,cachedPlans:JSON.parse(await readFile(`${directory}/cached-plans.json`,'utf8')),resume:JSON.parse(await readFile(`${directory}/resume.json`,'utf8'))}
-  await writeFile('tests/db/unpartition-migration-results.json',`${JSON.stringify(value,null,2)}\n`)
+  await writeFile(evidencePath('unpartition-migration-results.json'),`${JSON.stringify(value,null,2)}\n`)
   const table=['# Migration phase timings','','PostgreSQL has 0.25 CPU and 1 GiB. Three interleaved runs use the restored 245,097 rows.','','Times are median seconds. The JSON includes every run and individual function, index, and FK timings.','','| Phase | Before | After |','| --- | ---: | ---: |']
   for(const row of phases) table.push(`| ${row.name} | ${(row.before.median/1000).toFixed(3)} | ${(row.after.median/1000).toFixed(3)} |`)
   table.push(`| Writer lock | ${(locks.before.median/1000).toFixed(3)} | ${(locks.after.median/1000).toFixed(3)} |`,`| Complete call | ${(wall.before.median/1000).toFixed(3)} | ${(wall.after.median/1000).toFixed(3)} |`)
-  await writeFile('tests/db/unpartition-migration-tables.md',`${table.join('\n')}\n`)
+  await writeFile(evidencePath('unpartition-migration-tables.md'),`${table.join('\n')}\n`)
   console.log(JSON.stringify({wall,locks,expectedProductionSeconds,unchanged:unchanged.length}))
 }
 

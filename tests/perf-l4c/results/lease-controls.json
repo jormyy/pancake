@@ -1,9 +1,0 @@
-{
-  "unsafeCommit": "f68eb86b",
-  "reproduced": [
-    "An unchanged source link skips a lost work lease",
-    "Known CDN identities skip a lost work lease",
-    "Duplicate stat identities were accepted"
-  ],
-  "passed": true
-}

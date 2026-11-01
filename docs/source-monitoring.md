@@ -157,9 +157,9 @@ Equal refreshes do not change that fingerprint unless another returned field cha
 ## Scheduled work
 
 One cron entry calls `public.dispatch_work()` each minute.
-A second drains hints every 30 seconds.
-A third prunes cron history at minute 12 each hour.
-All three check the operator pause.
+The same connection drains hints.
+Hourly history cleanup runs at minute 12; daily statistics run separately.
+The dispatcher and history cleanup check the operator pause.
 The replay derives these commands from migrations and preserves scheduled wakes.
 
 `private.work_items` stores the kind, key, due time, attempts, lease, last error, and payload.
@@ -169,7 +169,8 @@ Pre-tipoff items share one active item per tipoff.
 A dead item cannot prevent later items from running.
 
 The dispatcher claims one item at a time with row locks that skip busy rows.
-It claims at most eight items and allows at most eight active workers.
+It admits at most 32 items and allows at most four active workers.
+Live work takes the first available slot.
 It starts no new item after two seconds.
 The outer cron statement has a five-second budget and 250 ms lock budget.
 Service-role statements have three-second and 250 ms budgets.
@@ -182,7 +183,8 @@ The direct SQL hint drain replaces three queued hint jobs and their delayed Edge
 Empty drains write no application rows.
 
 Each work claim grants a five-minute lease.
-Workers renew every thirty seconds through the shared heartbeat helper.
+Other workers renew every thirty seconds through the shared heartbeat helper.
+Live work renews its work lease every 120 seconds and its separate live lease every 60 seconds.
 Nested workers inherit its cancellation signal and database write fence.
 Expired or replaced workers cannot write application tables or report completion.
 An expired lease counts as a failed attempt.
@@ -213,33 +215,28 @@ UTC windows retain their original calendar boundaries.
 | `close-expired-nominations`  |  Every minute; active draft deadlines before the next minute, or opening-night snake completion work. |
 | `stats-sync`  |  Every minute; pending ranges, eligible failed ranges, stale claims, or malformed ranges needing settlement. The horizon remains one minute. |
 | `pre-tipoff`  |  Every minute; enabled current teams with an available scheduled tipoff within two minutes. Existing windows remain eligible until one minute after tipoff. Changed input fingerprints create a new revision after completion. |
-| `live-poll`, `sync-scores`  |  Every even minute; no live poll lease, then eligible ingestion work. Otherwise, uncertified or unfinished closed weeks need scores, with the existing thirty-minute score throttle. |
-| `season-boundary`, `setup-season-rollover`  |  Every fifteen minutes after 09:00 ET. Active, playoff, offseason, or drafting leagues get one boundary item per day. Setup rollover retains each eligible gate tick. |
-| `sync-players`, `player-injuries`  |  Every fifteen minutes. Full players refresh once after 06:00 ET. Injuries refresh every fifteen minutes from 11:00 through the last valid tipoff, otherwise hourly from 08:00 through 02:00 ET. |
-| `sync-schedule`  |  Minutes 05, 20, 35, and 50; once per day after 06:05 ET. |
-| `process-waivers` | Every fifteen minutes; each league uses its local midnight. Existing waiver eligibility and elapsed 48-hour holds stay in the worker. |
-| `pt:sleeper-week`, `pt:sleeper-day`, `pt:fantasypros`  |  Every fifteen minutes. Sleeper weekly follows a configured Pacific calendar week. Sleeper daily uses 08:00, 12:00, and 15:00 PT before first regular-season tipoff. FantasyPros uses 08:00 and 15:00 PT. |
-| `sync-trade-values` | Every fifteen minutes after 07:15 ET; one successful live publication per Eastern day. Failed fetches release the claim and queue up to four 30-minute retries. |
-| `pick-predictions` | Successful value publication queues the source hash. The internal API refreshes every league before queuing versioned trade re-analysis. |
-| `sync-draft-order`  |  13:00 UTC on June 20–30. |
-| `sync-draft-order`  |  13:00 UTC on July 1–15. |
-| `daily-stat-corrections`  |  Every fifteen minutes after 06:20 ET; a final regular-season game exists in the preceding seven dates. The range job remains unique. |
-| `matchup-forecasts`  |  Every minute; current, nonvoided forecast periods enter their existing discovery and expiry queue. Due dirty rows need an available three-minute claim. |
-| `refresh-views`  |  Every minute; discover seasons, expire cached trade values, and enqueue due dirty rows without a current three-minute view claim. |
-| `edge-invocation-reconcile`  |  Every five minutes when unresolved or running invocations exist. |
-| `cleanup-trade-estimates`  |  Daily at 08:35 UTC. |
-| `mock-room-expiry`  |  Daily at 09:30 UTC. |
-| `pg-net-response-vacuum`  |  Minute 17 of every hour. |
-| `trade-estimate`, `trade-activation` | Offer submission or accepted-trade activation queues internal API work. |
-| `trade-publication` | A trade write queues its coalesced league events and screen invalidation. |
-| `retention-prune`  |  Daily after 10:00 UTC, with one key per UTC date. |
+| `live-poll`, `sync-scores` | Eligible live work queues each minute; idle slates create no live loop. Score recovery retains its bounded throttle. |
+| `season-boundary`, `setup-season-rollover` | Existing daily and setup boundaries, with period keys preventing duplicate work. |
+| `sync-players`, `sync-trade-values`, `sync-rankings`, `pick-predictions` | Nightly 04:00–06:00 ET; defer while games remain live. |
+| `player-injuries` | Every 15 minutes from two hours before first tipoff through last tipoff; hourly earlier on game days; daily on off days. |
+| `sync-schedule` | Once daily after its configured morning gate. |
+| `process-waivers` | Each league's local midnight; elapsed holds and eligibility remain server rules. |
+| Projection providers | Morning 08:00–09:00 PT and one hour before first tipoff. |
+| `sync-draft-order` | Seasonal draft-order window. |
+| `daily-stat-corrections` | Existing morning reconciliation for recent final games. |
+| `matchup-forecasts` | Every 30 minutes during games and at matchup end; off otherwise. |
+| `refresh-views` | Coalesced SQL work, at most every two minutes during games. |
+| `edge-invocation-reconcile` | Every five minutes when unresolved or running invocations exist. |
+| `cleanup-trade-estimates` | Daily at 08:35 UTC. |
+| `mock-room-expiry` | Daily at 09:30 UTC. |
+| `pg-net-response-vacuum` | Minute 17 each hour. |
+| `trade-estimate`, `trade-activation` | Offer creation or accepted-trade activation; direct actions retain their current behavior. |
+| `trade-publication` | Coalesced events and screen invalidation after a trade write. |
+| `retention-prune` | Daily after 10:00 UTC. |
 
-The former hourly ranking enqueue and its weekly catch-up gate are removed.
-The `sync-rankings` endpoint returns HTTP 410 without fetching or writing.
-The old `invoke_*_if_due` functions and daily dispatch wrappers are removed.
-The old dispatch claim helpers and state table are removed.
-The unused general lineup gate becomes `private.enqueue_lineup_optimizer` for explicit callers.
-Its original today-through-seven-days predicate remains available.
+The [scheduler guide](operations-scheduler.md) owns cadence, shedding, and lease details.
+Rankings run as nightly work; the former hourly and weekly ranking gates are removed.
+Retired per-job cron dispatchers remain removed.
 
 ### Verification
 
@@ -286,10 +283,12 @@ Empty-date scans checkpoint after each 31-date batch.
 They release after four batches or the one-second scan budget, which can overrun by one batch.
 A failed checkpoint stops further work.
 
-Live polling targets twenty-second ingestion intervals.
+Live polling targets thirty-second source intervals.
+Public mode imports transitions, finals, corrections, and thirty-minute checkpoints.
+Database fallback retains per-tick ingestion.
 Each tick budgets eighteen seconds; each worker budgets 110 seconds.
 An abort guard stops work at 115 seconds.
-The live ingestion lease lasts ninety seconds and renews every thirty seconds.
+The live ingestion lease lasts ninety seconds and renews every sixty seconds.
 Its enclosing work-item lease lasts five minutes.
 Lease loss stops further writes.
 One scoring pass follows each batch of game updates.

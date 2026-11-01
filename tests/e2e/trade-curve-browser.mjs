@@ -1,3 +1,4 @@
+import { evidencePath } from '../helpers/evidence-path.mjs'
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
@@ -6,7 +7,7 @@ import path from 'node:path'
 assert.match(process.cwd(), /\/lanes\/fable-ui25\/repo$/)
 assert.match(readFileSync('supabase/config.toml', 'utf8'), /^project_id = "pt4bafabletc"$/m)
 const state = JSON.parse(readFileSync('../browser-state.json', 'utf8'))
-const output = path.resolve('tests/evidence/trade-curve')
+const output = evidencePath('trade-curve')
 mkdirSync(output, { recursive: true })
 const executable = path.resolve('node_modules/.bin/agent-browser')
 const session = `trade-curve-${crypto.randomUUID()}`

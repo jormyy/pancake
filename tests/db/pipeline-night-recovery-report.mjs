@@ -1,3 +1,4 @@
+import { evidencePath } from '../helpers/evidence-path.mjs'
 import assert from 'node:assert/strict'
 import {createHash} from 'node:crypto'
 import {readFileSync,writeFileSync} from 'node:fs'
@@ -5,7 +6,7 @@ import {readFileSync,writeFileSync} from 'node:fs'
 const root='/tmp/fable-l7/evidence'
 const read=name=>JSON.parse(readFileSync(`${root}/${name}.json`,'utf8'))
 const hash=value=>createHash('sha256').update(JSON.stringify(value)).digest('hex')
-const reportFile='tests/db/pipeline-night-input-recovery-results.json'
+const reportFile=evidencePath('pipeline-night-input-recovery-results.json')
 const report=JSON.parse(readFileSync(reportFile,'utf8'))
 const pairs=[]
 for(let round=1;round<=5;round++){

@@ -12,7 +12,7 @@ const analyzer = ['trades.analyzer', 'interaction.perf-analyzer-mode.multi-team'
 const cases = [...screens.map(surface => `${surface.id}/commissioner/in-progress/cold`), 'interaction.trades-analyzer-offline-light.result/member/in-progress/cold', ...analyzer.flatMap(surface => ['cold', 'warm', 'offline'].map(state => `${surface}/member/in-progress/${state}`))]
 for (const name of ['PERF_LAB_SURFACE', 'PERF_LAB_IDENTITY_EXPECTED']) delete process.env[name]
 Object.assign(process.env, { PERF_LAB_CAPTURE_PROFILE: 'full', PERF_LAB_CASES: cases.join(','), PERF_LAB_SCOPE: 'all', PERF_LAB_ROLES: 'commissioner,member', PERF_LAB_DAYS: 'in-progress', PERF_LAB_STATES: 'cold,warm,offline', PERF_LAB_SECONDS: '1200', PERF_LAB_STOP_ON_FAILURE: '0' })
-await run('walk', undefined, { writeDocs: false })
+await run('walk', undefined, { writeReports: false })
 const root = evidenceRoot
 const receipt = JSON.parse(await readFile(path.join(root, 'database-run.json'), 'utf8'))
 assert.ok(receipt.cleanup && !receipt.failure, 'Closure verification requires completed stack cleanup')

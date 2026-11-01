@@ -1,3 +1,4 @@
+import { evidencePath } from '../helpers/evidence-path.mjs'
 import assert from 'node:assert/strict'
 import { readFile, mkdir, writeFile } from 'node:fs/promises'
 import { createHash } from 'node:crypto'
@@ -261,7 +262,7 @@ async function report() {
   const migration=JSON.parse(migrationLog.match(/player_stats_rebuild (\{[^\n]+\})/)[1])
   assert.ok(migration.totalMs<60000&&migration.writerLockMs<60000)
   const result={functions,nested,reviews,indexes,migration,atomicCheck:await load('atomic-check.json'),usedIndexes:[...usedIndexes].sort(),contract:await load('contract.json'),parity:await load('parity.json')}
-  await writeFile('tests/db/unpartition-results.json',`${JSON.stringify(result,null,2)}\n`)
+  await writeFile(evidencePath('unpartition-results.json'),`${JSON.stringify(result,null,2)}\n`)
   const table=['# Fresh connection and warm results','','Each cell gives p50 / p95. Time includes planning and execution. Buffers include planning.','','| Function | Before fresh ms | After fresh ms | Before warm ms | After warm ms | Before fresh buffers | After fresh buffers | After warm buffers | Rows |','| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |']
   const cell=value=>`${value.p50.toFixed(2)} / ${value.p95.toFixed(2)}`
   for(const row of functions) table.push(`| ${row.name} | ${cell(row.before.fresh.milliseconds)} | ${cell(row.after.fresh.milliseconds)} | ${cell(row.before.warm.milliseconds)} | ${cell(row.after.warm.milliseconds)} | ${cell(row.before.fresh.buffers)} | ${cell(row.after.fresh.buffers)} | ${cell(row.after.warm.buffers)} | ${cell(row.after.warm.rows)} |`)
@@ -269,7 +270,7 @@ async function report() {
   for(const row of nested) for(const statement of row.statements) table.push(`| ${row.name} | ${row.version} | ${statement.key}: ${statement.query.replaceAll(/\s+/g,' ').replaceAll('|','\\|').slice(0,180)} | ${statement.buffers.toFixed(2)} | ${statement.milliseconds.toFixed(2)} | ${statement.rows.toFixed(2)} |`)
   table.push('','## Original index audit','','All nine original indexes remain. The native unique ID index is additional.','','| Index | Seen in a captured plan | Constraint | Retained |','| --- | --- | --- | --- |')
   for(const row of indexes) table.push(`| ${row.name} | ${row.observed} | ${row.constraint} | ${row.retained} |`)
-  await writeFile('tests/db/unpartition-tables.md',`${table.join('\n')}\n`)
+  await writeFile(evidencePath('unpartition-tables.md'),`${table.join('\n')}\n`)
   console.log(JSON.stringify({functions:functions.length,latencyGuards:'pass',planningNegativeControl:'pass',parity:result.parity}))
 }
 
