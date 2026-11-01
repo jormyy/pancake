@@ -36,7 +36,7 @@ for (const [variant, number] of [['baseline',1],['settings',1],['settings',2],['
     } finally {await stack?.stop();activeStack=null}
   })
   await json(path.join(values.evidence,`${label}.json`),report)
-  assert.ok(report.passed,`${label} fails a quality gate`)
+  assert.ok(variant==='baseline' ? report.workCounts.passed && !report.memory.oomKills : report.passed,`${label} fails its required checks`)
   ;(variant==='baseline'?baselines:candidates).push(report)
   console.log(`${label} complete; ${baselines.length} baseline and ${candidates.length} candidate runs accepted.`)
 }
@@ -46,5 +46,5 @@ await json(path.join(values.evidence, 'baseline-summary.json'), comparison.basel
 await json(path.join(values.evidence, 'settings-summary.json'), comparison.candidate)
 await json(path.join(values.evidence, 'action-limits.json'), comparison.limits)
 await json(path.join(values.evidence, 'comparison.json'), { ...comparison, phase: 'settings-only' })
-await appendFile('/Users/michaelchen/Documents/pancake-half-gig/ROUND-LOG.md', `\n## Approved settings, paired series\nBaseline: ${comparison.baseline.metrics.swapTotalPagesPerSecond.median} pages/s, n=3. Settings: ${comparison.candidate.metrics.swapTotalPagesPerSecond.median} pages/s, n=3. Noise: ${comparison.noisePagesPerSecond} pages/s. Gain: ${comparison.gainFraction * 100}%. All action and schedule gates pass. This records the approved schedule and a two-connection PostgREST pool before the architecture change.\n`)
+await appendFile('/Users/michaelchen/Documents/pancake-half-gig/ROUND-LOG.md', `\n## Approved settings, paired series\nBaseline: ${comparison.baseline.metrics.swapTotalPagesPerSecond.median} pages/s, n=3. Baseline quality passed: ${comparison.baselineQualityPassed}; failed reference reports remain failed. Settings: ${comparison.candidate.metrics.swapTotalPagesPerSecond.median} pages/s, n=3. Noise: ${comparison.noisePagesPerSecond} pages/s. Gain: ${comparison.gainFraction * 100}%. All action and schedule gates pass. This records the approved schedule and a two-connection PostgREST pool before the architecture change.\n`)
 console.log(JSON.stringify({ phase: 'settings-only', baseline: comparison.baseline.metrics.swapTotalPagesPerSecond, settings: comparison.candidate.metrics.swapTotalPagesPerSecond, gain: comparison.gainFraction, quality: comparison.quality }))

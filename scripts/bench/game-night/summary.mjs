@@ -8,8 +8,11 @@ export function distribution(values) {
   return { median: percentile(values, .5), min: Math.min(...values), max: Math.max(...values), spread: Math.max(...values) - Math.min(...values), n: values.length }
 }
 
-export function summarize(reports) {
-  assert.ok(reports.length >= 3 && reports.every(report => report.passed), 'At least three passing baseline runs are required')
+export function summarize(reports, { reference = false } = {}) {
+  assert.ok(reports.length >= 3, 'At least three runs are required')
+  assert.ok(reports.every(report => reference
+    ? report.workCounts?.passed && !report.memory.oomKills
+    : report.passed), reference ? 'Reference runs require real work without OOM kills' : 'Every candidate run must pass')
   assert.equal(new Set(reports.map(report => report.fixtureSha256)).size, 1, 'Frozen fixture differs across runs')
   assert.equal(new Set(reports.map(report => report.memoryMiB)).size, 1, 'Memory caps differ across runs')
   const metrics = {
@@ -27,6 +30,8 @@ export function summarize(reports) {
     scoreFreshnessP95Ms: report => report.scoreFreshness.p95Ms,
   }
   const summary = { n: reports.length, source: reports[0].source, fixtureSha256: reports[0].fixtureSha256, memoryMiB: reports[0].memoryMiB,
+    quality: { passed: reports.every(report=>report.passed), referenceOnly: reference,
+      failedRuns: reports.filter(report=>!report.passed).map(report=>({label:report.label,finalState:report.finalState,failures:report.failures,quality:report.quality})) },
     runs: reports.map(report => report.label), metrics: Object.fromEntries(Object.entries(metrics).map(([name, get]) => [name, distribution(reports.map(get))])),
     workCounts: reports.map(report => ({ run: report.label, ...report.workCounts })),
     workerRunsPerHourByKind: {}, statementFunctions: [], limitations: [
@@ -35,6 +40,7 @@ export function summarize(reports) {
       'Statement totals include nested calls. Function groups can overlap and do not sum to wall-clock work.',
       'Read blocks rank possible memory and swap pressure. They do not prove causal memory or swap use by function.',
       'This is synthetic local evidence. It is not production proof.',
+      ...(reference && reports.some(report=>!report.passed) ? ['The original reference fails quality gates. Its unchanged failed reports remain controls; its resource rates do not establish equivalent completed work.'] : []),
     ] }
   const names = new Set(reports.flatMap(report => report.statementExecSecondsPerMinuteByFunction.map(row => row.function)))
   summary.statementFunctions = [...names].map(name => {

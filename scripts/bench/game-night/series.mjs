@@ -18,7 +18,7 @@ export function actionLimits(reports) {
 }
 
 export function compareSeries(baselines, candidates) {
-  const baseline = summarize(baselines)
+  const baseline = summarize(baselines, { reference: true })
   const candidate = summarize(candidates)
   assert.equal(candidate.fixtureSha256, baseline.fixtureSha256, 'Baseline and candidate fixtures differ')
   assert.equal(candidate.memoryMiB, 192, 'The candidate must use the fixed 192 MiB cap')
@@ -36,9 +36,10 @@ export function compareSeries(baselines, candidates) {
   }))
   const gain = baseline.metrics.swapTotalPagesPerSecond.median - candidate.metrics.swapTotalPagesPerSecond.median
   const noise = Math.max(baseline.metrics.swapTotalPagesPerSecond.spread, baseline.metrics.swapTotalPagesPerSecond.median * .05)
-  const trainingTarget = candidate.metrics.swapTotalPagesPerSecond.median <= 106
+  const targetPagesPerSecond = Math.min(106, baseline.metrics.swapTotalPagesPerSecond.median * .05)
+  const trainingTarget = candidate.metrics.swapTotalPagesPerSecond.median <= targetPagesPerSecond
   const quality = candidates.every(report => report.quality?.passed && report.quality.gates.injuries.passed && report.quality.gates.forecasts.passed) && actions.every(row => row.passed)
-  return { baseline, candidate, limits, actions, gainPagesPerSecond: gain, gainFraction: gain / baseline.metrics.swapTotalPagesPerSecond.median,
+  return { version: 'game-night-comparison-v2', baseline, candidate, limits, actions, targetPagesPerSecond, baselineQualityPassed: baseline.quality.passed, gainPagesPerSecond: gain, gainFraction: gain / baseline.metrics.swapTotalPagesPerSecond.median,
     noisePagesPerSecond: noise, exceedsNoise: gain > noise, trainingTarget, quality,
     passed: gain > noise && trainingTarget && quality }
 }

@@ -99,3 +99,9 @@ The local cache models Vercel's lack of server-side `stale-if-error` support. Th
 The dispatcher permits 32 completed or admitted work items within its two-second budget. The existing four-active-worker cap remains. Completed SQL jobs no longer postpone live ingestion by consuming the whole four-claim budget.
 
 Use `verify-phone-history.mjs --evidence PATH` to verify official corrections on ten authenticated phones. Run `architecture-series.mjs` only after the settings comparison succeeds. Both measurement series keep the source, fixture, cap, and runtime configuration fixed.
+
+## Failed reference runs
+
+The original commit can fail the added reliability gates under action load. A failed reference never becomes a passing report. The paired series retains its final-state and job-failure evidence and labels its summary as a resource reference. It requires real timed work and no OOM or foreign Docker activity. All baseline actions must still complete before their observed times define candidate limits.
+
+Candidates must pass every run gate. The final resource bar is the smaller of 106 pages/s and five percent of the paired reference median. A reference that processes fewer updates can understate the original cost; its rates do not establish equivalent completed work. The historical complete-work baseline remains separate. Comparison reports expose `baselineQualityPassed` and every failed reference run.

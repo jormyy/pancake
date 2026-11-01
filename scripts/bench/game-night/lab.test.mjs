@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises'
 import { loopback } from './common.mjs'
 import { stateAt, validateSlate, startFeed } from './fixture.mjs'
 import { groupStatements, statementDeltas, workCheck } from './measure.mjs'
-import { distribution } from './summary.mjs'
+import { distribution, summarize } from './summary.mjs'
 import { qualityGrade, scoreMessage } from './quality-grade.mjs'
 import { actionLimits, compareSeries } from './series.mjs'
 
@@ -109,6 +109,22 @@ test('a paired comparison rejects host activity, changed fixtures, and changed c
   const baseline = Array.from({ length: 3 }, () => report(2000, 'base'))
   const candidate = Array.from({ length: 3 }, () => report(90, 'candidate'))
   assert.equal(compareSeries(baseline, candidate).passed, true)
+  const failedReference=structuredClone(baseline)
+  failedReference[0].passed=false
+  failedReference[0].finalState={passed:false,failures:[{field:'points'}]}
+  failedReference[0].failures={jobs:[{kind:'refresh-views'}]}
+  assert.throws(()=>summarize(failedReference))
+  const comparison=compareSeries(failedReference,candidate)
+  assert.equal(comparison.baselineQualityPassed,false)
+  assert.equal(comparison.baseline.quality.failedRuns.length,1)
+  assert.equal(failedReference[0].passed,false)
+  const failedCandidate=structuredClone(candidate)
+  failedCandidate[0].passed=false
+  assert.throws(()=>compareSeries(failedReference,failedCandidate))
+  failedReference[0].workCounts.passed=false
+  assert.throws(()=>compareSeries(failedReference,candidate))
+  const lowerReference=baseline.map(row=>({...row,swap:{...row.swap,inPagesPerSecond:500,outPagesPerSecond:500}}))
+  assert.equal(compareSeries(lowerReference,candidate).trainingTarget,false)
   for (const change of [
     row => { row.swap.foreignContainerActivityObserved = true },
     row => { row.fixtureSha256 = 'different' },
