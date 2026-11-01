@@ -58,13 +58,17 @@ BEGIN
   IF p_params->>'operation' IS DISTINCT FROM 'complete' THEN RAISE EXCEPTION 'Unknown refresh operation.' USING ERRCODE = '22023'; END IF;
   completed := queued.version = queued.claimed_version;
   IF completed THEN
-    PERFORM private.refresh_standings(queued.league_id, queued.league_season_id, queued.version);
+    IF queued.standings_dirty THEN
+      PERFORM private.refresh_standings(queued.league_id, queued.league_season_id, queued.version);
+    END IF;
     PERFORM private.refresh_matchup_totals(queued.league_id, queued.league_season_id, queued.version);
     PERFORM private.refresh_player_averages(queued.league_id, queued.league_season_id, queued.version);
-    PERFORM private.enqueue_trade_revaluation_scan(queued.league_season_id,queued.version,p_params->>'modelVersion');
   END IF;
   UPDATE private.screen_refresh_queue SET dirty = NOT completed, claim_token = NULL, claimed_at = NULL,
-    claimed_version = NULL, last_error = NULL, available_at = CASE WHEN completed THEN available_at ELSE now() + interval '5 seconds' END WHERE league_season_id = queued.league_season_id;
+    claimed_version = NULL, last_error = NULL,
+    standings_dirty=CASE WHEN completed THEN false ELSE standings_dirty END,
+    last_refreshed_at=CASE WHEN completed THEN now() ELSE last_refreshed_at END,
+    available_at=now()+interval '2 minutes' WHERE league_season_id = queued.league_season_id;
   RETURN to_jsonb(completed);
 END;
 $$;

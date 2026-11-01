@@ -4,7 +4,7 @@
 
 CREATE OR REPLACE FUNCTION private.maintain_player_season_totals()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
-DECLARE v_rows text; v_player uuid; v_years integer[];
+DECLARE v_rows text; v_player uuid; v_years integer[]; v_final boolean;
 BEGIN
   IF TG_OP='INSERT' THEN
     IF NOT EXISTS(SELECT 1 FROM totals_new_rows) THEN RETURN NULL; END IF;
@@ -21,7 +21,9 @@ BEGIN
     UNION ALL SELECT o.*,-1 AS sign FROM totals_old_rows o LEFT JOIN totals_new_rows n USING(id)
     WHERE n.id IS NULL OR (to_jsonb(n)-'updated_at') IS DISTINCT FROM (to_jsonb(o)-'updated_at')$rows$;
   END IF;
-  FOR v_player IN EXECUTE 'SELECT DISTINCT player_id FROM ('||v_rows||') changed ORDER BY player_id' LOOP
+  EXECUTE 'SELECT EXISTS(SELECT 1 FROM ('||v_rows||') changed JOIN public.nba_games game ON game.id=changed.game_id WHERE game.status=''Final'')' INTO v_final;
+  IF NOT v_final THEN RETURN NULL; END IF;
+  FOR v_player IN EXECUTE 'SELECT DISTINCT player_id FROM ('||v_rows||') changed JOIN public.nba_games game ON game.id=changed.game_id WHERE game.status=''Final'' ORDER BY player_id' LOOP
     PERFORM pg_advisory_xact_lock(hashtextextended('player-season-totals:'||v_player::text,0));
   END LOOP;
   EXECUTE format($query$
@@ -48,7 +50,7 @@ BEGIN
       count(*) FILTER(WHERE s.double_double)::bigint AS double_double,
       count(*) FILTER(WHERE s.triple_double)::bigint AS triple_double
       FROM changed s JOIN public.nba_games g ON g.id=s.game_id
-      WHERE NOT s.did_not_play AND public.is_regular_season_game_id(g.nba_game_id)
+      WHERE g.status='Final' AND NOT s.did_not_play AND public.is_regular_season_game_id(g.nba_game_id)
       GROUP BY s.player_id,s.season_year,s.sign
     ), delta AS (
       SELECT player_id,season_year,sign*games_played AS games_played,sign*minutes_played AS minutes_played,sign*minutes_played_count AS minutes_played_count,sign*points AS points,sign*points_count AS points_count,sign*rebounds AS rebounds,sign*rebounds_count AS rebounds_count,sign*offensive_rebounds AS offensive_rebounds,sign*offensive_rebounds_count AS offensive_rebounds_count,sign*defensive_rebounds AS defensive_rebounds,sign*defensive_rebounds_count AS defensive_rebounds_count,sign*assists AS assists,sign*assists_count AS assists_count,sign*steals AS steals,sign*steals_count AS steals_count,sign*blocks AS blocks,sign*blocks_count AS blocks_count,sign*turnovers AS turnovers,sign*turnovers_count AS turnovers_count,sign*personal_fouls AS personal_fouls,sign*personal_fouls_count AS personal_fouls_count,sign*field_goals_made AS field_goals_made,sign*field_goals_made_count AS field_goals_made_count,sign*field_goals_attempted AS field_goals_attempted,sign*field_goals_attempted_count AS field_goals_attempted_count,sign*three_pointers_made AS three_pointers_made,sign*three_pointers_made_count AS three_pointers_made_count,sign*three_pointers_attempted AS three_pointers_attempted,sign*three_pointers_attempted_count AS three_pointers_attempted_count,sign*free_throws_made AS free_throws_made,sign*free_throws_made_count AS free_throws_made_count,sign*free_throws_attempted AS free_throws_attempted,sign*free_throws_attempted_count AS free_throws_attempted_count,sign*plus_minus AS plus_minus,sign*plus_minus_count AS plus_minus_count,sign*double_double AS double_double,sign*triple_double AS triple_double FROM grouped

@@ -5,7 +5,7 @@
 CREATE OR REPLACE FUNCTION private.enqueue_scheduled_work(p_now timestamptz DEFAULT now())
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 DECLARE v_min integer:=extract(minute FROM p_now AT TIME ZONE 'UTC')::int;
-  v_waiver record; v_waiver_day date; v_waiver_due timestamptz;
+  v_trade record; v_waiver record; v_waiver_day date; v_waiver_due timestamptz;
   v_utc timestamp:=p_now AT TIME ZONE 'UTC'; v_key text:=date_trunc('minute',p_now)::text;
 BEGIN
   PERFORM private.enqueue_close_expired_nominations(p_now);
@@ -80,20 +80,23 @@ BEGIN
     PERFORM private.work_enqueue('process-trades',date_trunc('minute',p_now)::text,p_now);
   END IF;
   PERFORM private.enqueue_pre_tipoff_optimizer(p_now);
-  IF EXISTS(SELECT 1 FROM private.forecast_refresh_requests WHERE available_at<=p_now)
-    OR EXISTS(SELECT 1 FROM private.matchup_forecast_expiries WHERE available_at<=p_now) THEN
-    PERFORM private.work_enqueue('forecast-inputs',date_trunc('minute',p_now)::text,p_now,'{"schedulerChunk":"forecasts"}');
-  END IF;
-  IF EXISTS(SELECT 1 FROM private.matchup_forecast_queue WHERE dirty AND available_at<=p_now
-    AND NOT private.matchup_forecast_refresh_pending(matchup_id)
-    AND (claimed_at IS NULL OR claimed_at<p_now-interval '3 minutes')) THEN
-    PERFORM private.work_enqueue('matchup-forecasts',date_trunc('minute',p_now)::text,p_now);
-  END IF;
+  PERFORM private.enqueue_matchup_forecasts(p_now);
   PERFORM private.enqueue_screen_views(p_now);
   IF v_min%2=0 THEN PERFORM private.enqueue_live_poll(p_now); END IF;
   IF v_min%15=0 THEN
-    PERFORM private.enqueue_daily('sync-players',6,0,p_now);
-    PERFORM private.enqueue_daily('sync-trade-values',7,15,p_now);
+    IF ((p_now AT TIME ZONE 'America/New_York')::time>=time '04:00' AND (p_now AT TIME ZONE 'America/New_York')::time<time '06:00' AND NOT EXISTS(SELECT 1 FROM public.nba_games WHERE status='InProgress')) THEN
+      PERFORM private.enqueue_daily('sync-players',4,0,p_now);
+      PERFORM private.enqueue_daily('sync-trade-values',4,0,p_now);
+      PERFORM private.enqueue_rankings(p_now);
+      FOR v_trade IN SELECT DISTINCT queued.league_id,queued.league_season_id,queued.version
+        FROM private.screen_refresh_queue queued JOIN public.trades trade ON trade.league_season_id=queued.league_season_id
+        WHERE trade.status IN ('pending','accepted') LOOP
+        PERFORM private.work_enqueue('trade-revaluation-scan',v_trade.league_season_id::text||':'||
+          (p_now AT TIME ZONE 'America/New_York')::date::text,p_now,
+          jsonb_build_object('revaluationScan',true,'leagueId',v_trade.league_id,'seasonId',v_trade.league_season_id,
+            'version',v_trade.version),v_trade.league_id);
+      END LOOP;
+    END IF;
     PERFORM private.enqueue_daily('missing-final-stats',6,30,p_now);
     PERFORM private.enqueue_player_injuries(p_now);
     FOR v_waiver IN SELECT DISTINCT coalesce(timezone, 'America/Los_Angeles') AS timezone
@@ -116,7 +119,6 @@ BEGIN
     WHERE reconciled_at IS NULL OR worker_status='running') THEN
     PERFORM private.work_enqueue('edge-invocation-reconcile',v_key,p_now);
   END IF;
-  IF v_min=0 THEN PERFORM private.enqueue_rankings(p_now); END IF;
   IF v_min>=17 THEN
     PERFORM private.work_enqueue('public-read-retention',date_trunc('hour',p_now)::text,p_now);
   END IF;

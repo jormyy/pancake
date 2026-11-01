@@ -9,6 +9,12 @@ DECLARE v_item private.work_items%ROWTYPE; v_count integer:=0;
 BEGIN
   IF (SELECT paused FROM private.worker_controls WHERE id) THEN RETURN 0; END IF;
   IF NOT pg_try_advisory_xact_lock(hashtextextended('public.dispatch_work',0)) THEN RETURN 0; END IF;
+  BEGIN
+    PERFORM private.flush_player_stats_hints();
+    PERFORM private.flush_league_inventory_hints(1000);
+  EXCEPTION WHEN OTHERS THEN
+    RAISE WARNING 'Hint publication will retry: %',SQLERRM;
+  END;
   PERFORM private.release_stalled_live_poll();
   v_count:=private.dispatch_live_matchup_refresh();
   v_level:=private.apply_scheduler_health(private.scheduler_health());

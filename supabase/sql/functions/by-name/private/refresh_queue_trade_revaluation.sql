@@ -17,10 +17,10 @@ BEGIN
     RETURN false;
   END IF;
   due:=now();
-  IF private.trade_revaluation_is_live(trade.id) THEN
-    SELECT GREATEST(now(),next_allowed_at) INTO due FROM private.trade_revaluation_schedule
-      WHERE trade_id=trade.id;
-    due:=COALESCE(due,now());
+  SELECT GREATEST(now(),next_allowed_at) INTO due FROM private.trade_revaluation_schedule WHERE trade_id=trade.id;
+  IF due IS NULL THEN
+    due:=CASE WHEN EXISTS(SELECT 1 FROM private.trade_value_publications WHERE trade_id=trade.id)
+      THEN (CASE WHEN (now() AT TIME ZONE 'America/New_York')::time>=time '04:00' AND (now() AT TIME ZONE 'America/New_York')::time<time '06:00' AND NOT EXISTS(SELECT 1 FROM public.nba_games WHERE status='InProgress') THEN now() ELSE private.trade_revaluation_next_change() END) ELSE now() END;
   END IF;
   work_key:=trade.id::text||':'||p_model||':latest';
   work_payload:=jsonb_build_object('tradeId',trade.id,'memberId',trade.proposer_member_id,'userId',trade.user_id,

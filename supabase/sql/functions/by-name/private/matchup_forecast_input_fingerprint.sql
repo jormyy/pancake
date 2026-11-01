@@ -61,7 +61,7 @@ SELECT jsonb_build_object(
   'clock',md5(COALESCE((SELECT jsonb_agg(jsonb_build_array(g.id,g.live_scoreboard_elapsed_seconds,g.live_stats_elapsed_seconds)
     ORDER BY g.id) FROM games g WHERE g.status='InProgress'
       AND EXISTS(SELECT 1 FROM roster r WHERE r.nba_team IN(g.home_team,g.away_team)))::text,'')),
-  'validUntil',LEAST(now()+interval '6 hours',(c.today+1)::timestamp AT TIME ZONE 'America/New_York',
+  'validUntil',LEAST(now()+interval '30 minutes',(c.today+1)::timestamp AT TIME ZONE 'America/New_York',
     (SELECT min(g.game_time) FROM games g WHERE g.game_time>now()),
     (SELECT min(g.started_at) FROM games g WHERE g.started_at>now()),
     (SELECT min(f.expires) FROM freshness f WHERE f.expires>=now()))
