@@ -24,8 +24,11 @@ export function liveScoreView(saved: LiveHome, snapshot: LiveSnapshot | null, se
         const fresh = current?.mode === 'public' && !displayed?.stale ? current.games.find(row => row.nbaId === game.nba_game_id
             || row.nbaId == null && row.home.team === game.home_team && row.away.team === game.away_team) : null
         if (!fresh || game.status === 'Final') return game
+        const clock = /^PT(?:(\d+)M)?(\d+(?:\.\d+)?)S$/.exec(fresh.clock ?? '')
+        const period = fresh.period ?? 1
+        const status = clock ? `${period > 4 ? `OT${period - 4}` : `Q${period}`} ${Number(clock[1] ?? 0)}:${String(Math.floor(Number(clock[2]))).padStart(2, '0')}` : game.game_status_text
         return { ...game, home_score: fresh.home.score, away_score: fresh.away.score, status: fresh.status,
-            game_status_text: fresh.status === 'Final' ? 'Final' : fresh.clock ? `Q${fresh.period ?? 1} ${fresh.clock}` : game.game_status_text }
+            game_status_text: fresh.status === 'Final' ? 'Final' : status }
     })
     return { matchup, todaysGames, liveStats, delayed: Boolean(displayed?.stale),
         leagueMatchups: saved.leagueMatchups.map(matchup => {

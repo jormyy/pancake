@@ -58,4 +58,11 @@ describe('home and other-team live scores', () => {
         line.finalized = true
         expect(liveScoreView(home(line), snapshot(), { points: 100 }, now).matchup?.myPoints).toBe(100)
     })
+
+    it('formats the provider clock for overtime', () => {
+        const source = snapshot()
+        source.games[0].period = 5
+        source.games[0].clock = 'PT03M09.90S'
+        expect(liveScoreView(home(), source, { points: 1 }, now).todaysGames[0].game_status_text).toBe('OT1 3:09')
+    })
 })
