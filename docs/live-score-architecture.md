@@ -12,7 +12,7 @@ Responses use `s-maxage=30`, `stale-while-revalidate=15`, and `stale-if-error=90
 
 `LIVE_SCORES_OFF=1` selects database mode. The route then returns no player lines and makes no upstream requests. Worker and phone integration must honor this same response.
 
-The Edge worker reads the public origin configured by `LIVE_SNAPSHOT_BASE_URL`. Without that origin, it retains legacy ingestion. With it, the worker checks the shared snapshot every thirty seconds. It saves game transitions, verified finals, and five-minute recovery checkpoints. The existing final-correction schedule remains. The explicit request says five minutes; confirmation is pending because the external design file says thirty.
+The Edge worker reads the public origin configured by `LIVE_SNAPSHOT_BASE_URL`. Without that origin, it retains legacy ingestion. With it, the worker checks the shared snapshot every thirty seconds. It saves game transitions, verified finals, and thirty-minute recovery checkpoints. The existing final-correction schedule remains.
 
 The same server response controls both phones and workers. Database mode restores per-tick ingestion and the prior twenty-second screen-recovery check. Public mode uses a two-minute saved-screen check. Realtime still invalidates changed scores and actions immediately. An environment switch takes effect when the hosting service applies it; an existing CDN entry can then persist through its normal cache interval.
 

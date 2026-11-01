@@ -8,7 +8,7 @@ const slate=await readJson(new URL('./training.json',import.meta.url))
 function fixture() {
   const started=1000000,ended=started+slate.windowSeconds*1000
   const rows=(seconds,at)=>stateAt(slate,seconds).map(game=>({id:game.id,status:game.gameStatus===3?'Final':'InProgress',checkpoint_at:new Date(at).toISOString()}))
-  return {slate,started,ended,intervalMs:300000,before:rows(0,started-100000),after:rows(slate.windowSeconds,started+200000),
+  return {slate,started,ended,intervalMs:1800000,before:rows(0,started-1600000),after:rows(slate.windowSeconds,started+200000),
     work:{saved:10,workerStarts:2,liveTicks:1,observedScoreChanges:1},origins:9,phonePolls:90}
 }
 test('checkpoint work accepts approved writes and rejects a disabled ingestion path',()=>{

@@ -4,7 +4,7 @@ import type { LiveSnapshot } from '../_shared/liveSnapshot.ts'
 
 export type CheckpointGame = Database['public']['Functions']['get_live_checkpoint_work']['Returns'][number]
 export type LiveTick = { lines: number; keepRunning: boolean; worked: boolean; failures: string[]; scoreRetries: number; tickRetries: number; sourceMode?: 'public' | 'database' }
-export const CHECKPOINT_INTERVAL_MS = 5 * 60 * 1000
+export const CHECKPOINT_INTERVAL_MS = 30 * 60 * 1000
 
 export function createCheckpointPoller(dependencies: {
   load: () => Promise<CheckpointGame[]>

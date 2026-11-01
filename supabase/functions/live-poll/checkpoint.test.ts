@@ -11,12 +11,13 @@ const snapshot = (now: number, status='InProgress', mode='public') => ({ version
   games:mode==='database' ? [] : [{ id:'0021',nbaId:'0021',espnId:null,status,updatedAt:now,
     home:{team:'BOS',score:0,players:[]},away:{team:'NYK',score:0,players:[]} }] })
 
-Deno.test('shared ticks avoid database work between five-minute checkpoints', async () => {
+Deno.test('shared ticks avoid database work between thirty-minute checkpoints', async () => {
   let now=start, loads=0, writes=0, records=0
   const game=row()
   const tick=createCheckpointPoller({ now:()=>now,load:async()=>{loads++;return [game]},snapshot:async()=>snapshot(now),
     ingest:async(_holder,ids)=>{assert.deepEqual([...ids!],['game']);writes++;return result()},
     record:async()=>{records++;game.checkpoint_at=new Date(now).toISOString()} })
+  assert.equal(CHECKPOINT_INTERVAL_MS,1800000)
   for(let elapsed=0;elapsed<CHECKPOINT_INTERVAL_MS;elapsed+=30000) { now=start+elapsed; assert.equal((await tick('holder')).keepRunning,true) }
   assert.equal(loads,1)
   assert.equal(writes,0)

@@ -145,7 +145,7 @@ export async function runWindow(stack, slate, { label, memoryMiB, seconds = slat
     let settlementSeconds = 0
     if (stack.liveArchitecture) {
       const settlementStarted = Date.now()
-      while (Date.now()-settlementStarted < 420000) {
+      while (Date.now()-settlementStarted < 1920000) {
         if ((await finalCheck(stack,slate,seconds)).passed) break
         await delay(5000)
       }
@@ -182,7 +182,7 @@ export async function runWindow(stack, slate, { label, memoryMiB, seconds = slat
       origins:publicAfter.records.filter(row=>row.at>=started && row.at<ended),memory:publicAfter.memory,
       bodyBytes:publicAfter.records.filter(row=>row.at>=started && row.at<ended).map(row=>row.bytes)} : null
     if (stack.liveArchitecture) work = checkpointGrade({slate,before:checkpointBefore,after:checkpointAfter,started,ended,
-      intervalMs:300000,work,origins:publicResults.origins.length,phonePolls:phoneResults.pollCount})
+      intervalMs:1800000,work,origins:publicResults.origins.length,phonePolls:phoneResults.pollCount})
     const first = samples[0], last = samples.at(-1)
     const elapsed = (last.at - first.at) / 1000
     const failures = { cron: qualityState.cron.filter(row => row.status === 'failed'), jobs: qualityState.work.filter(row => ['failed','dead'].includes(row.status)), workers: qualityState.invocations.filter(row => row.worker_status === 'failed') }
