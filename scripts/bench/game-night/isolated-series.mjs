@@ -1,6 +1,6 @@
 import { command, delay } from './common.mjs'
 
-export async function waitForQuietDocker() {
+async function waitForQuietDocker() {
   let quietSince=Date.now()
   console.log('Waiting for sixty quiet seconds before the next measured run.')
   while(Date.now()-quietSince<60000) {
