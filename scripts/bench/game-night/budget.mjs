@@ -35,8 +35,8 @@ export function projectBudget(report) {
     },
     supabase:{
       database:row(report.databaseGrowth?.after.databaseBytes ?? report.shape.databaseBytes,500e6,'bytes','https://supabase.com/pricing'),
-      memory:row(report.memory.cgroupAnonPeakBytes+report.memory.cgroupShmemPeakBytes,500e6,'sampled anon plus shared bytes','https://supabase.com/pricing'),
-      diskIo:row(report.diskIo.readsPerSecond+report.diskIo.writesPerSecond,250,'operations per second','CONTRACT.md observed production baseline, not a Free-plan quota'),
+      memory:row(report.memory.cgroupAnonPeakBytes+report.memory.cgroupShmemPeakBytes,500e6,'sampled anon plus shared bytes','https://supabase.com/docs/guides/platform/compute-and-disk'),
+      diskIo:row(report.diskIo.readsPerSecond+report.diskIo.writesPerSecond,250,'operations per second','https://supabase.com/docs/guides/platform/compute-and-disk; Nano sustained baseline, not a monthly quota'),
       transfer:row((workerBytes+phones.viewBytes+phones.messageBytes)*scale,5e9,'decoded payload bytes','https://supabase.com/pricing'),
       edgeInvocations:row(report.edgeRequestCount*scale,500000,'invocations including API reads','https://supabase.com/docs/guides/platform/manage-your-usage/edge-function-invocations'),
       realtimeMessages:row((deliveries*2)*scale,2000000,'messages upper estimate','https://supabase.com/docs/guides/platform/manage-your-usage/realtime-messages'),

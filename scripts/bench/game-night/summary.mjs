@@ -103,11 +103,11 @@ The Docker probe cost belongs to this lab. Do not rank it as a product regressio
 
 | Path | Possible change | Required proof |
 | --- | --- | --- |
-| 20-second live tick and per-game saves | Batch game saves or test a 60-second tick. | Preserve final correction and the 60-second score limit. |
+| 20-second live tick and per-game saves | Use public thirty-second snapshots with official checkpoints; test sixty seconds only as a named limit variant. | Preserve final correction and the 45-second phone freshness gate at the default cadence. |
 | resolve_player_imports_atomic | Cache verified identities within an invocation. | Preserve conflict checks and unknown-player imports. |
 | assert_nba_game_unambiguous | Reuse identity proofs until relevant inputs change. | Keep ambiguity rejection and concurrent-change protection. |
 | refresh-views and scheduler chunks | Coalesce dirty work and reuse shared reads. | Preserve cursors, queues, and saved-screen freshness. |
-| Forecasts | Reuse inputs and defer repeated dirty recomputations. | Keep win odds at most five minutes stale. |
+| Forecasts | Reuse inputs and defer repeated dirty recomputations. | Keep the approved thirty-minute cycle and final update. |
 | Cron frequency and backend forks | Test fewer empty dispatches or a persistent scheduler connection. | Preserve waivers, deadlines, leases, and recovery. |
 | Pooled PostgREST connections | Test smaller idle pools and bounded active workers. | Measure peak latency and queue growth. |
 | Realtime sends | Coalesce equal hints and count subscribers. | Preserve authenticated delivery and revisions. |

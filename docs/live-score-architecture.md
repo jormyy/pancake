@@ -8,7 +8,7 @@ The public source, phone polling, score overlay, and checkpoint ingestion pass f
 
 The root `api/live/[date].ts` function runs beside the static Expo output. Its rewrite precedes the static fallback. Vercel supports an `api` directory with a separate output directory. See [build configuration](https://vercel.com/docs/builds/configure-a-build).
 
-Responses use `s-maxage=30`, `stale-while-revalidate=15`, and `stale-if-error=90`. The origin has no second timed cache. Concurrent origin requests share one fetch. Phones must reject snapshots older than two minutes, even if a CDN returns them. See [cache directives](https://vercel.com/docs/caching/cache-control-headers).
+Responses use `s-maxage=30`, `stale-while-revalidate=15`, and `stale-if-error=90`. Concurrent origin requests share one fetch. Vercel does not enforce `stale-if-error` for server-side caching. The origin keeps at most two last-good daily responses as a best-effort error fallback. It preserves their source times and stops serving them after two minutes. A cold instance without a saved response returns an uncached error. The lab models this behavior and does not pretend the CDN supports error reuse. Phones must reject snapshots older than two minutes, even if a CDN returns them. See [cache directives](https://vercel.com/docs/caching/cache-control-headers).
 
 `LIVE_SCORES_OFF=1` selects database mode. The route then returns no player lines and makes no upstream requests. Worker and phone integration must honor this same response.
 
@@ -20,6 +20,16 @@ The route rejects bodies above 1 MB. This is below the 4.5 MB function response 
 
 Each player line has fifteen values: provider ID, points, rebounds, assists, steals, blocks, turnovers, made threes, made field goals, attempted field goals, made free throws, attempted free throws, fouls, minutes, and DNP. These cover the shared scoring formula and displayed box-score fields. Unused offensive rebounds, defensive rebounds, attempted threes, and plus/minus are omitted.
 
+## Source and payload measurements
+
+Michael's completed Vercel probe returned NBA scoreboard 22 KB in 89 ms and NBA box score 31 KB in 198 ms. ESPN returned 169 KB in 126 ms and 448 KB in 27 ms. Its cache moved from MISS to HIT. That single quiet-slate observation does not prove sustained live access. No further deployment was made.
+
+The route now tries a validated NBA box before an ESPN summary. It still reads both scoreboards to check freshness and identity. It fetches an ESPN summary only when NBA cannot meet those checks. A local matched-game test reduces four source calls and 3,130 bytes to three calls and 2,148 bytes, with identical output.
+
+A later local public-feed check returned an NBA scoreboard of 22,261 bytes. ESPN returned HTTP 403. The requested day had no games. Its 230 ms wall time and 29 ms CPU are a single local observation, not a live-game or Vercel billing measurement.
+
+The authorized home response falls from 82,288 to 57,549 raw bytes and 7,680 to 6,510 gzip bytes. It retains all matchup starters and only the displayed matchup's bench. The measured fixture drops from 200 to 104 basis rows. It adds no screen read. The omitted-bench control fails before this change.
+
 ## Initial source measurement
 
 The local source probe returned seven games on November 1, 2026: 11,400 bytes raw, 3,463 bytes gzip, and 350 ms wall time. The evidence is `evidence-climb/provider-connectivity.json`. This proves source access from this Mac. It does not measure a live Vercel function.
@@ -30,7 +40,7 @@ Phones poll at cache expiry, about every thirty seconds. One short retry reads a
 
 With one shared cache region, thirty-second misses produce at most 21,600 origin calls during those hours. Eleven independent regions produce at most 237,600. That upper estimate transfers 2.71 GB of raw origin responses. Cache outages can increase calls; the request total remains the conservative upper bound.
 
-Current [Hobby allowances](https://vercel.com/docs/plans/hobby) include one million CDN requests, one million function invocations, 100 GB transfer, 10 GB origin transfer, four active CPU hours, and 360 GB memory-hours. Request and transfer estimates are below half those allowances. CPU and memory need direct measurement before acceptance. Public traffic beyond these ten phones is outside this estimate.
+Current [Hobby allowances](https://vercel.com/docs/plans/hobby) include one million CDN requests, one million function invocations, 100 GB transfer, 10 GB origin transfer, four active CPU hours, and 360 GB memory-hours. Request and transfer estimates are below half those allowances. Each replay also projects CPU and memory from local route measurements. Those projections do not establish deployed resource usage. Public traffic beyond these ten phones is outside this estimate.
 
 ## Validation
 
@@ -53,3 +63,23 @@ Focused cache and phone tests cover outages, stale snapshots, hidden screens, re
 ## Saved-score basis
 
 Home returns authorized lineup IDs and saved contributions with its existing screen read. A consistency check compares saved stat totals with official matchup totals. Phones show saved scores until those totals agree. A saved final never accepts another live delta. Later official corrections remain visible. Past-day screens omit the live basis. Other-team screens select the requested league matchup while retaining the viewer authorization check.
+
+
+## Free-plan accounting
+
+Reports project the measured peak window across ten phones, six hours per night, thirty nights. They count worker polling as well as phone polling. A second bound allows eleven separate CDN regions. Normal cache hits cost requests and transfer but do not invoke the function. The fixed route cap is 1 MB; measured snapshots are much smaller.
+
+| Service | Resource | Free allowance | Half allowance |
+| --- | --- | --- | --- |
+| Vercel Hobby | CDN requests / function invocations | 1,000,000 each | 500,000 each |
+| Vercel Hobby | Fast data / origin transfer | 100 GB / 10 GB | 50 GB / 5 GB |
+| Vercel Hobby | Active CPU / allocated memory time | 4 hours / 360 GB-hours | 2 hours / 180 GB-hours |
+| Supabase Free | Database / egress | 500 MB / 5 GB | 250 MB / 2.5 GB |
+| Supabase Free | Edge invocations | 500,000 | 250,000 |
+| Supabase Free | Realtime messages / peak connections | 2,000,000 / 200 | 1,000,000 / 100 |
+
+The current sources are [Vercel limits](https://vercel.com/docs/limits) and [Supabase quotas](https://supabase.com/docs/guides/platform/billing-on-supabase). Supabase [Nano compute](https://supabase.com/docs/guides/platform/compute-and-disk) provides up to 0.5 GB memory and 250 baseline disk operations per second. Disk operations are a sustained baseline, not a monthly quota.
+
+Named risk: database size and retention. The unchanged 265 MB fixture already uses about 53% of the 500 MB allowance. Reports retain actual before/after database allocation and table sizes. A short allocation increase includes reusable pages and does not predict permanent monthly growth. Official stats and results stay protected; successful-job and broadcast history retain their bounded cleanup. Real hosted growth remains unmeasured because this work never reads production.
+
+A physical phone, sustained live provider access from Vercel, deployed cache behavior, and deployed CPU billing remain rollout checks. The local browser uses the real exported app at a 390-pixel viewport. It verifies saved-score fallback without horizontal overflow or script errors. Ten authenticated replay clients verify official corrections through actual Realtime broadcasts; an omitted correction fails their expectation.
