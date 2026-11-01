@@ -51,7 +51,7 @@ export async function prepare(stack, slate, label) {
 export async function runWindow(stack, slate, { label, memoryMiB, seconds = slate.windowSeconds, warmup = 120, ingestionOff = false, broken = false, skipSettlement = false }) {
   const settlementLimit=settlementBudget({publicLive:stack.liveArchitecture,ingestionOff,skipSettlement,fault:stack.qualityOptions?.fault,broken})
   const harness = Object.fromEntries(await Promise.all((await readdir(directory)).filter(file => !file.startsWith('.')).map(async file => [file, digest(await readFile(path.join(directory, file)))])))
-  for (const file of ['server/live/handler.ts','server/live/snapshot.ts','core/cjs/index.js','core/cjs/scoring/formula.js','core/cjs/live/overlay.js','core/cjs/live/poll.js','core/cjs/live/codec.js','core/cjs/live/recovery.js',
+  for (const file of ['server/live/handler.ts','server/live/snapshot.ts','core/cjs/index.js','core/cjs/scoring/formula.js','core/cjs/live/overlay.js','core/cjs/live/poll.js','core/cjs/live/codec.js','core/cjs/live/recovery.js','core/cjs/live/changes.js','core/cjs/live/saved.js',
     'vitest.config.ts','tests/live-phone-recovery.test.ts',
     'supabase/functions/_shared/nba.ts','supabase/functions/_shared/workContext.ts','supabase/functions/_shared/sourceEnvironment.ts',
     'supabase/functions/_shared/liveSourceChoice.ts','supabase/functions/live-poll/espn.ts']) {
@@ -223,6 +223,10 @@ export async function runWindow(stack, slate, { label, memoryMiB, seconds = slat
     const first = samples[0], last = samples.at(-1)
     const elapsed = (last.at - first.at) / 1000
     const resources=resourceGrade(samples)
+    const healthcheck=await readJson(path.join(stack.evidence,'database-healthcheck.json'))
+    const healthchecksPerMinute=60e9/healthcheck.Interval
+    const sessionsPerMinute=(Number(after.database.sessions)-Number(before.database.sessions))/minutes
+    const backendIds=application=>[...new Set(processSamples.flatMap(sample=>sample.processes.filter(row=>application(row.application_name)).map(row=>row.pid)))]
     const failures = { cron: qualityState.cron.filter(row => row.status === 'failed'), jobs: qualityState.work.filter(row => ['failed','dead'].includes(row.status)), workers: qualityState.invocations.filter(row => row.worker_status === 'failed') }
     const report = { version: 1, grader: { version: stack.liveArchitecture ? 'game-night-v8' : graderVersion,resourceVersion:resources.version, sha256: digest(JSON.stringify([harness['measure.mjs'],harness['checkpoint-grade.mjs'],harness['phone-grade.mjs'],harness['resource-grade.mjs']])) }, resources,harnessSha256: digest(JSON.stringify(harness)), label, slate: slate.name, fixtureSha256: harness[`${slate.name}.json`], source: stack.metadata.source,
       startedAt: new Date(started).toISOString(), endedAt: new Date(ended).toISOString(), seconds: (ended - started) / 1000, warmupSeconds: warmupMs / 1000, memoryMiB, databaseSettings, runtimeConfiguration: stack.runtimeConfiguration ?? {},
@@ -234,7 +238,13 @@ export async function runWindow(stack, slate, { label, memoryMiB, seconds = slat
         readBytesPerSecond:(last.io.rbytes-first.io.rbytes)/elapsed,writeBytesPerSecond:(last.io.wbytes-first.io.wbytes)/elapsed},
       statementExecSecondsPerMinuteByFunction: functions, statements, functionCounters: { before: before.functions, after: after.functions },
       walBytesPerMinute: (Number(after.wal.wal_bytes) - Number(before.wal.wal_bytes)) / minutes,
-      newSessionsPerMinute: (Number(after.database.sessions) - Number(before.database.sessions)) / minutes,
+      newSessionsPerMinute: sessionsPerMinute,
+      sessionDiagnostics:{counter:'pg_stat_database.sessions',labHealthchecksPerMinute:healthchecksPerMinute,
+        healthcheckSource:'Owned Docker database healthcheck interval; expected rate, not a subtraction from the raw metric',
+        cronBackendsPerMinute:cron.length/minutes,residualSessionsPerMinute:Math.max(0,sessionsPerMinute-healthchecksPerMinute-cron.length/minutes),
+        sampledPostgrestBackendIds:backendIds(name=>name.startsWith('PostgREST')),
+        sampledObserverBackendIds:backendIds(name=>name==='game-night-observer'),
+        samplingLimit:'Five-second process samples can miss short-lived backends; the separate connection-log experiment identifies them.'},
       cronRunsPerMinute: cron.length / minutes, cron, workerRunsPerHourByKind: Object.fromEntries(Object.entries(runs).map(([kind, count]) => [kind, count / minutes * 60])),
       workerCounts: runs, workCounts: work, connectionsByClient: connectionSamples,
       edgeRequestCount:edgeRequests.length,edgeRequests,

@@ -25,3 +25,13 @@ test('foreign, deleted and invalid hints do not refresh a screen',()=>{
   assert.equal(phoneChange({payload:{league_id:'league',topic:'score'}},'league').refresh,false)
   assert.equal(phoneChange({payload:{schema:'private',table:'league_change_hints',eventType:'UPDATE',new:{league_id:'league',...version}}},'league').refresh,false)
 })
+
+test('phone and application policies skip unrelated versions and future lineups',()=>{
+  const selection={seasonId:'season',memberIds:['mine','opponent'],date:'2026-11-01'}
+  const row={topic:'version',details:[{version:'31',topic:'roster',created_at:'2026-11-01T00:00:00Z',
+    scope:{topics:['roster'],hints:[{topic:'roster',scopes:[{season_id:'season',member_id:'other'}]}]}}]}
+  assert.deepEqual(phoneChange(batch(row),'league','30',selection),{refresh:false,version:'31'})
+  assert.deepEqual(phoneChange(batch(row),'league','29',selection),{refresh:true,version:'31'})
+  assert.equal(phoneChange(batch({topic:'lineup',scopes:[{season_id:'season',date:'2026-11-02'}]}),'league','30',selection).refresh,false)
+  assert.equal(phoneChange(batch({topic:'score',scopes:[{season_id:'season'}]}),'league','30',selection).refresh,true)
+})

@@ -80,7 +80,10 @@ export function phoneGrade({slate,started,ended,renders,phones,requests,reads,me
     gates.finalHandoffs={passed:checks.length>0 && checks.every(row=>row.official && row.delivered),checks}
   }
   return {version:'phone-v3',passed:Object.values(gates).every(gate=>gate.passed),gates,observations,
+    architecture,personalChannels:phones.every(phone=>phone.topics?.length===3),
     requests:timed(requests),viewReads:timed(reads),messages:received,refreshes:refreshed,pollCount:timed(requests).length,
     messageBytes:received.reduce((sum,row)=>sum+row.bytes,0),calculationP95Ms:percentile(timed(renders).map(row=>row.calculationMs).filter(Number.isFinite),.95),
-    viewBytes:timed(reads).reduce((sum,row)=>sum+row.bytes,0),viewLatencyP95Ms:percentile(timed(reads).map(row=>row.done-row.at),.95)}
+    viewBytes:timed(reads).reduce((sum,row)=>sum+row.bytes,0),viewWireBytes:timed(reads).reduce((sum,row)=>sum+(row.wireBytes ?? row.bytes),0),
+    compressionVerified:timed(reads).filter(row=>row.kind==='home').every(row=>row.encoding==='gzip' && row.wireBytes<row.bytes),
+    viewLatencyP95Ms:percentile(timed(reads).map(row=>row.done-row.at),.95)}
 }

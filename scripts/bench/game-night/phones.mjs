@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict'
 import { createClient } from '@supabase/supabase-js'
-import { createLivePoller, fetchLiveSnapshot, readLiveSnapshot, overlayLiveScores, nextLiveRecovery } from '@pancake/core'
+import { createLivePoller, fetchLiveSnapshot, readLiveSnapshot, overlayLiveScores, nextLiveRecovery, decodeSavedLiveView } from '@pancake/core'
 import { id, loopback } from './common.mjs'
 import { userToken } from './quality.mjs'
 import { scoreMessage } from './quality-grade.mjs'
 import { advancePhoneVersion, phoneChange } from './phone-read.mjs'
+import { readWireResponse } from './wire.mjs'
 
 export async function startPhones(stack, publicFeed) {
   loopback(stack.api,[stack.ports.api])
@@ -44,14 +45,14 @@ export async function startPhones(stack, publicFeed) {
         const at=Date.now()
         try {
           const version=encodeURIComponent(phone.version)
-          const response=await fetch(`http://127.0.0.1:${stack.ports.edge}/functions/v1/api/version?league=${id(1)}&since=${version}`,
-            {headers:{authorization:`Bearer ${token}`},signal:AbortSignal.timeout(10000)})
-          const body=await response.text()
-          reads.push({kind:'version',phone:index,at,done:Date.now(),status:response.status,bytes:Buffer.byteLength(body)})
+          const response=await readWireResponse(`http://127.0.0.1:${stack.ports.edge}/functions/v1/api/version?league=${id(1)}&since=${version}`,{authorization:`Bearer ${token}`})
+          const body=response.body
+          reads.push({kind:'version',phone:index,at,done:Date.now(),status:response.status,bytes:response.bytes,wireBytes:response.wireBytes,encoding:response.encoding})
           assert.ok(response.ok,`Phone ${index} cannot check its screen version`)
           const value=JSON.parse(body)
           if(BigInt(value.version)>BigInt(phone.version)) {
             phone.version=advancePhoneVersion(phone.version,value.version)
+            phone.readReason='recovery'
             await phone.refresh()
           }
         } catch(error) {phone.error=error.message}
@@ -87,15 +88,15 @@ export async function startPhones(stack, publicFeed) {
         do {
           phone.pending=false
           const at=Date.now()
-          const query=new URLSearchParams({leagueId:id(1),memberId:id(200+index),params:JSON.stringify({date})})
-          const response=await fetch(`http://127.0.0.1:${stack.ports.edge}/functions/v1/api/views/home?${query}`,
-            {headers:{authorization:`Bearer ${token}`},signal:AbortSignal.timeout(10000)})
-          const body=await response.text()
-          reads.push({kind:'home',phone:index,at,done:Date.now(),status:response.status,bytes:Buffer.byteLength(body)})
+          const query=new URLSearchParams({leagueId:id(1),memberId:id(200+index),params:JSON.stringify({date}),compact:'1'})
+          const response=await readWireResponse(`http://127.0.0.1:${stack.ports.edge}/functions/v1/api/views/home?${query}`,{authorization:`Bearer ${token}`})
+          const body=response.body
+          reads.push({kind:'home',reason:phone.readReason ?? 'open',phone:index,at,done:Date.now(),status:response.status,bytes:response.bytes,wireBytes:response.wireBytes,encoding:response.encoding,
+            fields:Object.fromEntries(Object.entries(JSON.parse(body).view ?? {}).map(([name,value])=>[name,Buffer.byteLength(JSON.stringify(value))]))})
           assert.ok(response.ok,`Phone ${index} cannot read its authorized home (${response.status})`)
           const result=JSON.parse(body)
           assert.ok(result.ok && result.view,`Phone ${index} received an invalid screen response`)
-          phone.view=result.view
+          phone.view=decodeSavedLiveView(result.view)
           phone.version=advancePhoneVersion(phone.version,phone.view.context?.version)
           phone.ready=true
           render();updatePoll();updateRecovery()
@@ -105,11 +106,14 @@ export async function startPhones(stack, publicFeed) {
     }
     phone.channel=client.channel(`l1:league:${id(1)}`,{config:{private:true}}).on('broadcast',{event:'change'},message=>{
       const score=scoreMessage(message)
-      messages.push({phone:index,at:Date.now(),bytes:Buffer.byteLength(JSON.stringify(message)),score})
+      messages.push({phone:index,at:Date.now(),bytes:Buffer.byteLength(JSON.stringify(message)),score,
+        table:message.payload?.table,hints:message.payload?.hints?.map(hint=>({event:hint.event,table:hint.payload?.table,topic:hint.row?.topic,updatedAt:hint.row?.updated_at,scopes:hint.row?.scopes,details:hint.row?.details}))})
       if(score)phone.broadcasts++
-      const change=phoneChange(message,id(1),phone.version)
+      const change=phoneChange(message,id(1),phone.version,{seasonId:phone.view?.context?.seasonId,date:phone.view?.selectedDate,
+        week:phone.view?.context?.weekNumber,memberIds:[phone.view?.matchup?.myMemberId,phone.view?.matchup?.opponentMemberId].filter(Boolean)})
       phone.version=advancePhoneVersion(phone.version,change.version)
       if(change.refresh && !(index===1 && faults.has('phone-refresh'))){
+        phone.readReason='broadcast:'+(message.payload?.hints?.map(hint=>hint.row?.topic ?? hint.payload?.table).filter(Boolean).join(',') ?? message.payload?.table ?? 'change')
         clearTimeout(phone.timer)
         phone.timer=setTimeout(async()=>{
           if(closed || !phone.visible || !phone.online)return
@@ -125,6 +129,20 @@ export async function startPhones(stack, publicFeed) {
         if(['CHANNEL_ERROR','TIMED_OUT'].includes(status)){clearTimeout(timer);reject(new Error(`Phone ${index} Realtime ${status}`))}
       })
     })
+    phone.topics=[`l1:league:${id(1)}`,`l1:member:${id(200+index)}`,`l1:user:${id(100+index)}`]
+    for(const topic of phone.topics.slice(1)) {
+      const channel=client.channel(topic,{config:{private:true}}).on('broadcast',{event:'change'},message=>{
+        messages.push({phone:index,at:Date.now(),bytes:Buffer.byteLength(JSON.stringify(message)),score:scoreMessage(message),
+          topic,table:message.payload?.table})
+      })
+      await new Promise((resolve,reject)=>{
+        const timer=setTimeout(()=>reject(new Error(`Phone ${index} personal subscription times out`)),15000)
+        channel.subscribe(status=>{
+          if(status==='SUBSCRIBED'){clearTimeout(timer);resolve()}
+          if(['CHANNEL_ERROR','TIMED_OUT'].includes(status)){clearTimeout(timer);reject(new Error(`Phone ${index} personal Realtime ${status}`))}
+        })
+      })
+    }
     await phone.refresh()
     assert.ok(phone.ready && !phone.error,`Phone ${index} cannot open its home: ${phone.error}`)
   }
@@ -137,6 +155,6 @@ export async function startPhones(stack, publicFeed) {
   try {
     for(let index=1;index<=10;index++)await createPhone(index)
     return { phones,requests,renders,reads,messages,frames,refreshes,close,refresh:()=>Promise.all(phones.map(phone=>phone.refresh())),
-      snapshot:()=>phones.map(phone=>({phone:phone.index,ready:phone.ready,error:phone.error,broadcasts:phone.broadcasts,display:phone.display})) }
+      snapshot:()=>phones.map(phone=>({phone:phone.index,ready:phone.ready,error:phone.error,broadcasts:phone.broadcasts,topics:phone.topics,display:phone.display})) }
   } catch(error){await close();throw error}
 }

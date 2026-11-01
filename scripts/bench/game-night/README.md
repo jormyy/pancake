@@ -96,6 +96,20 @@ Phone recovery tests run before each phone replay with a controlled clock. They 
 
 Projected budgets extrapolate the peak window to ten phones, six hours nightly, thirty nights. They show local-route CPU assumptions, cache-region bounds, observed API-body transfer, Realtime delivery, database size, memory, and block IO. A value above half its allowance carries an explicit risk flag. The 250 disk operations per second limit is the documented Nano sustained baseline, not a monthly quota.
 
+Cost schema `game-night-budget-v3` counts encoded phone response bytes before decompression. The real API handles gzip negotiation. Internal database-to-Edge bodies remain a conservative decoded-byte charge. The report also retains the fully decoded upper bound. Monthly estimates add one screen opening per phone each night and a reserve for ten-minute recovery reads absent from a short sample.
+
+Realtime counts database sends once and includes observed deliveries on league, member and user channels. The ten-recipient upper bound and the earlier estimate that counted one send per recipient remain visible. Supabase's [billing definition](https://supabase.com/docs/guides/platform/manage-your-usage/realtime-messages) distinguishes the single send from recipient deliveries.
+
+The phones use the same Home relevance policy as the app. Version hints carry the original member, date and resource scopes. Other-matchup roster changes, future lineups and unrelated trade or activity versions do not refresh Home. Public-mode recovery runs every ten minutes. Missing public snapshots restore the existing twenty-second database recovery.
+
+Derived point totals and player averages do not invalidate Home. Standings updates still invalidate it when displayed wins or losses change. Matchup ordering reads the official matchup points directly, so it does not wait for a derived totals refresh.
+
+Authenticated Home reads opt into compact saved-score arrays. The eight matchup fields are ID, home member, away member, home points, away points, final flag, ready flag and player rows. Each player row contains ID, side index, NBA ID, ESPN ID, team, game ID, saved points, saved timestamp, starter flag and final flag. The shared decoder restores the ordinary overlay model. The original view format remains available.
+
+The same opt-in format packs displayed lineup and box-score rows. The [shared decoder](../../../core/src/live/saved.ts) names each field and restores the screen model. Focused SQL and core tests compare identities, scoring inputs and displayed stats.
+
+League change events share one transaction batch. The app still dispatches each original event to its existing listeners. Draft, member and user channels retain their original envelopes. Routine public checkpoints suppress live-only broadcasts only with a valid service-role lease. Version history remains available to stale-client recovery. Tipoffs, finals, corrections, user actions and the server off switch retain broadcasts.
+
 
 The Docker event watcher records foreign starts throughout setup and the window, including starts between samples. Foreign containers stay untouched. Only measured host-memory pressure excludes a sample.
 

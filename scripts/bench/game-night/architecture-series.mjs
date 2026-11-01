@@ -19,6 +19,7 @@ const { values }=parseArgs({options:{
   ceiling:{type:'string',default:'61'},
   'worker-overlay':{type:'string',multiple:true},
   'baseline-migration':{type:'string',multiple:true},
+  'require-budget':{type:'boolean',default:false},
 }})
 const slate=await readJson(path.join(directory,'training.json'))
 const baselines=[],candidates=[]
@@ -48,10 +49,17 @@ for(const [variant,number] of [['baseline',1],['architecture',1],['architecture'
   })
   await json(path.join(values.evidence,`${label}.json`),report)
   assert.ok(report.passed,`${label} fails its required checks`)
+  if(values['require-budget'] && variant==='architecture') {
+    const budget=report.projectedBudget
+    assert.ok(budget?.supabaseWithinHalfLimits && budget.supabaseQuarterTargets && budget.vercelWithinHalfLimits && budget.vercelInvocationTarget,
+      `${label} fails the requested Free-plan budget; preserve this result before another candidate`)
+  }
   ;(variant==='baseline'?baselines:candidates).push(report)
   console.log(`${label} complete; ${baselines.length} baseline and ${candidates.length} candidate runs accepted.`)
 }
 const comparison=compareSeries(baselines,candidates,{targetCeiling:Number(values.ceiling)})
+comparison.freePlanTargetPassed=candidates.every(report=>report.projectedBudget?.supabaseWithinHalfLimits
+  && report.projectedBudget.supabaseQuarterTargets && report.projectedBudget.vercelWithinHalfLimits && report.projectedBudget.vercelInvocationTarget)
 await json(path.join(values.evidence,'baseline-summary.json'),comparison.baseline)
 await json(path.join(values.evidence,'candidate-summary.json'),comparison.candidate)
 await json(path.join(values.evidence,'action-limits.json'),comparison.limits)

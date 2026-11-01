@@ -1,3 +1,5 @@
+import { homeHintAffects, homeVersionAffects } from '@pancake/core'
+
 const maxVersion=9223372036854775807n
 
 export function advancePhoneVersion(current,value) {
@@ -6,7 +8,7 @@ export function advancePhoneVersion(current,value) {
   return BigInt(next)>BigInt(current) ? next : current
 }
 
-export function phoneChange(message,leagueId,since='0') {
+export function phoneChange(message,leagueId,since='0',selection={}) {
   const payload=message?.payload
   if(!payload || typeof payload!=='object')return {refresh:false}
   const rows=Array.isArray(payload.hints) ? payload.hints.flatMap(hint=>
@@ -24,8 +26,9 @@ export function phoneChange(message,leagueId,since='0') {
         || typeof change.version!=='string' || typeof change.topic!=='string' || typeof change.created_at!=='string'
         || advancePhoneVersion('0',change.version)==='0')continue
       version=advancePhoneVersion(version,change.version)
-    } else if(['lineup','roster','score','game','stat','player_stats','inventory','resources'].includes(row.topic))refresh=true
+      if(BigInt(change.version)>BigInt(since) && homeVersionAffects(change,selection))refresh=true
+    } else if(['lineup','roster','score','game','stat','player_stats','inventory','resources'].includes(row.topic))refresh ||= homeHintAffects(row,selection)
   }
-  refresh ||= BigInt(version)>BigInt(since)
+  if(BigInt(version)>BigInt(since)+1n)refresh=true
   return {refresh,...(version!=='0'?{version}:{})}
 }
