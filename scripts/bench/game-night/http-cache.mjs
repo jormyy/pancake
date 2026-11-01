@@ -18,7 +18,7 @@ export function createSharedHttpCache(origin, { now = Date.now, maxBytes = 10000
       const headers = [...result.headers]
       const policy = result.headers.get('cache-control') ?? ''
       const seconds = name => Number(new RegExp(`(?:^|,)\\s*${name}=(\\d+)`).exec(policy)?.[1] ?? 0)*1000
-      const entry = { body, headers, status: result.status, at: now(), ttl: seconds('s-maxage'), swr: seconds('stale-while-revalidate'), sie: seconds('stale-if-error') }
+      const entry = { body, headers, status: result.status, at: now(), ttl: seconds('s-maxage'), swr: seconds('stale-while-revalidate') }
       if (result.status === 200 && entry.ttl > 0 && body.byteLength <= maxBytes && !result.headers.has('set-cookie')
         && !/(?:private|no-cache|no-store)/.test(policy) && result.headers.get('vary') !== '*') entries.set(key,entry)
       return entry
@@ -39,20 +39,7 @@ export function createSharedHttpCache(origin, { now = Date.now, maxBytes = 10000
         void load(request).catch(() => {})
         return response(previous,'STALE',request.method)
       }
-      try {
-        const result = await load(request)
-        if (result.status >= 500 && previous && age < previous.ttl+previous.sie) {
-          counters.stale++
-          return response(previous,'STALE',request.method)
-        }
-        return response(result,'MISS',request.method)
-      } catch (error) {
-        if (previous && age < previous.ttl+previous.sie) {
-          counters.stale++
-          return response(previous,'STALE',request.method)
-        }
-        throw error
-      }
+      return response(await load(request),'MISS',request.method)
     },
     settle: () => Promise.allSettled([...pending.values()]),
   }

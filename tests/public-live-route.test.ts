@@ -141,6 +141,28 @@ describe('public live route', () => {
     expect(await response.text()).not.toContain('provider details')
   })
 
+  it('bounds an origin fallback when the CDN does not support stale-if-error', async () => {
+    let clock = now
+    let failed = false
+    const source = async () => {
+      if (failed) throw new Error('outage')
+      return { version: 1 as const, mode: 'public' as const, date, capturedAt: clock, games: [] }
+    }
+    const handler = createLiveHandler({ now: () => clock, source })
+    const request = () => new Request(`http://local/api/live/${date}`)
+    await handler(request())
+    failed = true
+    clock += 46000
+    const fallback = await handler(request())
+    expect(fallback.status).toBe(200)
+    expect((await fallback.json()).capturedAt).toBe(now)
+    expect(fallback.headers.get('cache-control')).toContain('s-maxage=30')
+    clock = now + 119001
+    expect((await handler(request())).headers.get('cache-control')).toContain('s-maxage=1')
+    clock = now + 120001
+    expect((await handler(request())).status).toBe(503)
+  })
+
   it('coalesces concurrent origin requests and caps response size below platform limits', async () => {
     let release!: () => void
     const wait = new Promise<void>(resolve => { release = resolve })

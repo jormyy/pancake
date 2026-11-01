@@ -19,7 +19,7 @@ test('shared cache uses thirty seconds, then revalidates without changing the st
   assert.equal(cache.counters.originRequests,2)
 })
 
-test('failed revalidation retains the old payload only through the stale-if-error bound', async () => {
+test('the Vercel cache ignores stale-if-error after the revalidation window', async () => {
   let now = 0, failed = false
   const cache = createSharedHttpCache(async () => failed ? new Response(null,{status:503})
     : Response.json({ capturedAt: now }, { headers: { 'cache-control': 'public, s-maxage=30, stale-while-revalidate=15, stale-if-error=90' } }), { now: () => now })
@@ -27,7 +27,7 @@ test('failed revalidation retains the old payload only through the stale-if-erro
   await cache.fetch(request())
   failed = true
   now = 46000
-  assert.equal((await (await cache.fetch(request())).json()).capturedAt,0)
+  assert.equal((await cache.fetch(request())).status,503)
   now = 120001
   assert.equal((await cache.fetch(request())).status,503)
 })
