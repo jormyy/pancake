@@ -38,7 +38,8 @@ for(const [variant,number] of [['baseline',1],['architecture',1],['architecture'
       stack.qualityOptions=baselines.length>=3?{limits:actionLimits(baselines)}:{}
       stack.runtimeConfiguration={postgrest:await configurePool(stack,variant==='baseline'?{}:{connections:Number(values.pool)})}
       const report=await runWindow(stack,slate,{label,memoryMiB:192})
-      if(variant==='architecture' && number===3 && report.passed)await proveDroppedFinal(stack,slate,report)
+      if(variant==='architecture' && number===3 && report.passed)
+        await json(path.join(values.evidence,'control-broken-final.json'),await proveDroppedFinal(stack,slate,report))
       return report
     } finally {await stack?.stop();activeStack=null}
   })

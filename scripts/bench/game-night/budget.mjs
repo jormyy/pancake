@@ -17,6 +17,8 @@ export function projectBudget(report) {
   const memoryHours=source.reduce((sum,value)=>sum+value.milliseconds,0)/3600000*scale*2
   const workerBytes=(report.workerDataTransfer?.requests ?? []).reduce((sum,value)=>sum+value.responseBytes,0)
   const deliveries=phones.messages.length
+  const memorySamples=(report.observations ?? []).map(sample=>sample.current).filter(Number.isFinite)
+  const memoryBytes=memorySamples.length?Math.max(...memorySamples):report.memory.cgroupAnonPeakBytes+report.memory.cgroupShmemPeakBytes
   const budget={
     basis:{phones:10,hoursPerNight:6,nights:30,peakWindowHeldConstant:true,cacheRegionsUpperBound:11,
       assumptions:['Vercel CPU and duration use the local fake-feed route, not deployed billing measurements.',
@@ -35,7 +37,7 @@ export function projectBudget(report) {
     },
     supabase:{
       database:row(report.databaseGrowth?.after.databaseBytes ?? report.shape.databaseBytes,500e6,'bytes','https://supabase.com/pricing'),
-      memory:row(report.memory.cgroupAnonPeakBytes+report.memory.cgroupShmemPeakBytes,500e6,'sampled anon plus shared bytes','https://supabase.com/docs/guides/platform/compute-and-disk'),
+      memory:row(memoryBytes,500e6,memorySamples.length?'peak sampled cgroup memory.current bytes':'sum of separate anon and shared peaks; upper bound','https://supabase.com/docs/guides/platform/compute-and-disk'),
       diskIo:row(report.diskIo.readsPerSecond+report.diskIo.writesPerSecond,250,'operations per second','https://supabase.com/docs/guides/platform/compute-and-disk; Nano sustained baseline, not a monthly quota'),
       transfer:row((workerBytes+phones.viewBytes+phones.messageBytes)*scale,5e9,'decoded payload bytes','https://supabase.com/pricing'),
       edgeInvocations:row(report.edgeRequestCount*scale,500000,'invocations including API reads','https://supabase.com/docs/guides/platform/manage-your-usage/edge-function-invocations'),

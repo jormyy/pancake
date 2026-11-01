@@ -15,6 +15,9 @@ test('monthly budget uses all Edge requests and identifies the fixed database-si
   assert.equal(budget.supabase.database.riskOverHalf,true)
   assert.equal(budget.supabase.diskIo.value,30)
   assert.equal(budget.vercelWithinHalfLimits,true)
+  const observed={...report,observations:[{current:160000000},{current:170000000}]}
+  assert.equal(projectBudget(observed).supabase.memory.value,170000000)
+  assert.match(projectBudget(observed).supabase.memory.unit,/memory.current/)
   report.publicFeed.requests=1000
   report.phones.viewBytes=3000000
   report.diskIo.readsPerSecond=300
