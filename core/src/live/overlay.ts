@@ -83,7 +83,7 @@ export function overlayLiveScores(saved: readonly SavedLiveMatchup[], snapshot: 
             const game = games[0]
             if (game.status === 'Scheduled') continue
             if (!Number.isFinite(game.updatedAt) || game.updatedAt > now + 5000 || now - game.updatedAt > 120000) { stale = true; continue }
-            if (game.updatedAt < player.savedAt) continue
+            if (game.updatedAt <= player.savedAt) continue
             const providerId = game.source === 'espn' ? player.espnId : player.nbaId
             const team = [game.home,game.away].find(side => side.team === player.team)
             const rows = (team?.players ?? []).filter(row => row[0] === providerId)

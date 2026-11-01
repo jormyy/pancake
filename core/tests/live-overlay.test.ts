@@ -103,4 +103,12 @@ describe('public live-score overlay', () => {
     saved[0].players[0].final = true
     expect(overlayLiveScores(saved, snapshot(), { points: 1 }, now).matchups[0].homePoints).toBe(105)
   })
+
+  it('does not replace a checkpoint with different cached stats from the same source timestamp', () => {
+    const saved = basis()
+    saved[0].homePoints = 105
+    saved[0].players[0].savedPoints = 15
+    saved[0].players[0].savedAt = now
+    expect(overlayLiveScores(saved, snapshot(), { points: 1 }, now).matchups[0].homePoints).toBe(105)
+  })
 })

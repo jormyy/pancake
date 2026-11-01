@@ -45,7 +45,7 @@ function overlayLiveScores(saved, snapshot, settings, now) {
                     stale = true;
                     continue;
                 }
-                if (game.updatedAt < player.savedAt)
+                if (game.updatedAt <= player.savedAt)
                     continue;
                 const providerId = game.source === 'espn' ? player.espnId : player.nbaId;
                 const team = [game.home, game.away].find(side => side.team === player.team);
