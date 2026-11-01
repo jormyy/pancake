@@ -33,6 +33,7 @@ export type SavedLivePlayer = {
     savedPoints: number
     savedAt: number
     starter: boolean
+    final?: boolean
 }
 
 export type SavedLiveMatchup = {
@@ -42,6 +43,7 @@ export type SavedLiveMatchup = {
     homePoints: number
     awayPoints: number
     finalized: boolean
+    ready?: boolean
     players: SavedLivePlayer[]
 }
 
@@ -62,10 +64,11 @@ export function overlayLiveScores(saved: readonly SavedLiveMatchup[], snapshot: 
     const stats: Record<string, PublicLiveStats> = {}
     const matchups = saved.map(matchup => {
         let homePoints = matchup.homePoints, awayPoints = matchup.awayPoints
-        let stale = !matchup.finalized && mode === 'public' && !usable
+        let stale = !matchup.finalized && mode === 'public' && (!usable || matchup.ready === false)
         const pendingStats: Record<string, PublicLiveStats> = {}
         const seen = new Set<string>()
         if (usable && mode === 'public' && !matchup.finalized) for (const player of matchup.players) {
+            if (player.final) continue
             const key = `${player.memberId}:${player.playerId}:${player.gameId}`
             if (seen.has(key)) { stale = true; continue }
             seen.add(key)

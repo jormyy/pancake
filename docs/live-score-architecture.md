@@ -1,6 +1,6 @@
 # Shared live scores
 
-The public source and score overlay are implemented. Phone wiring and checkpoint ingestion are still in progress. No deployment has occurred.
+The public source, phone polling, and score overlay are implemented. Checkpoint ingestion and full replay validation are still in progress. No deployment has occurred.
 
 ## Public route
 
@@ -29,3 +29,7 @@ Current [Hobby allowances](https://vercel.com/docs/plans/hobby) include one mill
 The route tests cover source fallback, public-only output, the off switch, invalid requests, source errors, request coalescing, and routing order. The local cache tests cover thirty-second expiry and bounded stale responses. The core overlay tests cover starter deltas, source identity, stale fallback, duplicate rows, invalid lines, and official finals. Ten simulated pollers share the same cache in a clock-controlled check. Every observed change arrives within 45 seconds, with no more than two requests per cache interval. Polling stops while hidden, offline, or without live games. Reopening and reconnecting fetch immediately.
 
 The unchanged ingestion path remains available for the off switch and official saves. It must not be removed while the switch depends on it.
+
+## Saved-score basis
+
+Home returns authorized lineup IDs and saved contributions with its existing screen read. A consistency check compares saved stat totals with official matchup totals. Phones show saved scores until those totals agree. A saved final never accepts another live delta. Later official corrections remain visible. Past-day screens omit the live basis. Other-team screens select the requested league matchup while retaining the viewer authorization check.

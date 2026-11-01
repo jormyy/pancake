@@ -13,11 +13,13 @@ function overlayLiveScores(saved, snapshot, settings, now) {
     const stats = {};
     const matchups = saved.map(matchup => {
         let homePoints = matchup.homePoints, awayPoints = matchup.awayPoints;
-        let stale = !matchup.finalized && mode === 'public' && !usable;
+        let stale = !matchup.finalized && mode === 'public' && (!usable || matchup.ready === false);
         const pendingStats = {};
         const seen = new Set();
         if (usable && mode === 'public' && !matchup.finalized)
             for (const player of matchup.players) {
+                if (player.final)
+                    continue;
                 const key = `${player.memberId}:${player.playerId}:${player.gameId}`;
                 if (seen.has(key)) {
                     stale = true;

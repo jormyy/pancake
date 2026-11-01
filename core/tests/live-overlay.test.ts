@@ -92,4 +92,15 @@ describe('public live-score overlay', () => {
     expect(result.stale).toBe(true)
     expect(result.matchups[0].homePoints).toBe(100)
   })
+
+  it('waits for a consistent score publication and preserves a later final correction', () => {
+    const saved = basis()
+    saved[0].ready = false
+    expect(overlayLiveScores(saved, snapshot(), { points: 1 }, now).matchups[0]).toMatchObject({ homePoints: 100, stale: true })
+    saved[0].ready = true
+    saved[0].homePoints = 105
+    saved[0].players[0].savedPoints = 15
+    saved[0].players[0].final = true
+    expect(overlayLiveScores(saved, snapshot(), { points: 1 }, now).matchups[0].homePoints).toBe(105)
+  })
 })

@@ -125,6 +125,7 @@
     "private.league_version_flush()": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.lineup_game_available(text,text)": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.lineup_game_started(uuid,date)": {"acl":["PUBLIC|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},
+    "private.live_score_basis(uuid,uuid,integer,date)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.live_nba_witnesses(jsonb)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.lock_current_score_inputs(uuid,integer,jsonb)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.lock_deleted_stat_game()": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},

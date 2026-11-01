@@ -21,6 +21,7 @@ export type LineupPlayer = {
     careerGames?: number | null
     injuryStatus: string | null
     nbaId: string | null
+    espnId?: string | null
 }
 
 export type LineupSlot = {
