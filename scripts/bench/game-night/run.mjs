@@ -70,9 +70,10 @@ The disposable loopback-only stack always stops. No production data is used.`)
           assert.ok(off.workCounts.cronRuns>0,'The ingestion-off control must keep background work running')
           if (stack.qualityEnabled) {
             assert.ok(stack.qualityOptions.limits, 'Frozen action limits are required for negative quality controls')
-            stack.qualityOptions.fault = 'slow-actions,realtimeScores,forecastDelivery'
+            stack.qualityOptions.fault = 'slow-actions,realtimeScores,forecastDelivery'+(stack.phoneLab?',phone-refresh':'')
             const bad = await runWindow(stack, slate, { label: 'control-quality', memoryMiB: 192 })
             for (const name of ['rosterMove','lineupSave','tradeOffer','tradeAccept','waiverResult','realtimeScores','forecastDelivery']) assert.equal(bad.quality.gates[name].passed, false, `${name} must reject its broken control`)
+            if(stack.phoneLab)assert.equal(bad.phones.gates.invalidation.passed,false,'Ignored score broadcasts must fail saved-screen invalidation')
           }
           if(stack.phoneLab) {
             for(const [fault,gate] of [['phone-final','finalScores'],['phone-stale','freshness']]) {

@@ -10,7 +10,7 @@ export async function startPhones(stack, publicFeed) {
   loopback(stack.api,[stack.ports.api])
   const phones = []
   const date = await stack.sql("SELECT (now() AT TIME ZONE 'America/New_York')::date")
-  const requests = [], renders = [], reads = [], messages = [], frames = []
+  const requests = [], renders = [], reads = [], messages = [], frames = [], refreshes = []
   const faults = new Set(stack.qualityOptions?.fault?.split(',') ?? [])
   let closed = false
   const createPhone = async index => {
@@ -106,11 +106,15 @@ export async function startPhones(stack, publicFeed) {
       const score=scoreMessage(message)
       messages.push({phone:index,at:Date.now(),bytes:Buffer.byteLength(JSON.stringify(message)),score})
       if(score)phone.broadcasts++
-      const change=phoneChange(message,id(1))
+      const change=phoneChange(message,id(1),phone.version)
       phone.version=advancePhoneVersion(phone.version,change.version)
-      if(change.refresh){
+      if(change.refresh && !(index===1 && faults.has('phone-refresh'))){
         clearTimeout(phone.timer)
-        phone.timer=setTimeout(()=>{void phone.refresh()},200)
+        phone.timer=setTimeout(async()=>{
+          if(closed || !phone.visible || !phone.online)return
+          await phone.refresh()
+          if(!phone.error)refreshes.push({phone:index,at:Date.now()})
+        },200)
       }
     })
     await new Promise((resolve,reject)=>{
@@ -131,7 +135,7 @@ export async function startPhones(stack, publicFeed) {
   }
   try {
     for(let index=1;index<=10;index++)await createPhone(index)
-    return { phones,requests,renders,reads,messages,frames,close,refresh:()=>Promise.all(phones.map(phone=>phone.refresh())),
+    return { phones,requests,renders,reads,messages,frames,refreshes,close,refresh:()=>Promise.all(phones.map(phone=>phone.refresh())),
       snapshot:()=>phones.map(phone=>({phone:phone.index,ready:phone.ready,error:phone.error,broadcasts:phone.broadcasts,display:phone.display})) }
   } catch(error){await close();throw error}
 }

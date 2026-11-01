@@ -20,7 +20,7 @@ function fixture() {
     }
     return {phone:index+1,ready:true,error:null,broadcasts:1,display}
   })
-  return {slate,started,ended,renders,phones,requests:[],reads:[],messages:phones.map(phone=>({phone:phone.phone,at:started+1000,score:true,bytes:100}))}
+  return {slate,started,ended,renders,phones,requests:[],reads:[],refreshes:phones.map(phone=>({phone:phone.phone,at:started+1000})),messages:phones.map(phone=>({phone:phone.phone,at:started+1000,score:true,bytes:100}))}
 }
 test('ten correct phone histories pass and a dropped final value fails',()=>{
   const data=fixture()
@@ -65,4 +65,14 @@ test('every phone needs each official final line and one corrupted final line fa
   data.frames[0].snapshot.games[0].home.players[0][1]++
   data.finalGameChecks[0].passed=false
   assert.equal(phoneGrade(data).gates.finalHandoffs.passed,false)
+})
+
+test('receiving broadcasts without a completed refresh fails invalidation',()=>{
+  const data=fixture()
+  data.refreshes=data.refreshes.filter(row=>row.phone!==1)
+  assert.equal(phoneGrade(data).gates.realtime.passed,true)
+  assert.equal(phoneGrade(data).gates.invalidation.passed,false)
+  const warm=fixture()
+  warm.refreshes=warm.refreshes.map(row=>({...row,at:started-1}))
+  assert.equal(phoneGrade(warm).gates.invalidation.passed,false)
 })

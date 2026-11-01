@@ -24,7 +24,7 @@ function correctFinalFrame(frame,expected) {
   return true
 }
 
-export function phoneGrade({slate,started,ended,renders,phones,requests,reads,messages,frames=[],finalGameChecks=[],architecture=false}) {
+export function phoneGrade({slate,started,ended,renders,phones,requests,reads,messages,refreshes=[],frames=[],finalGameChecks=[],architecture=false}) {
   const observations = [], missing = [], invalid = []
   for(const phone of phones) {
     const member = phone.display?.homeMemberId
@@ -58,12 +58,15 @@ export function phoneGrade({slate,started,ended,renders,phones,requests,reads,me
   const times=observations.map(row=>row.milliseconds)
   const timed=rows=>rows.filter(row=>row.at>=started && row.at<ended)
   const received=timed(messages ?? [])
+  const refreshed=timed(refreshes)
+  const refreshCounts=phones.map(phone=>({phone:phone.phone,count:refreshed.filter(row=>row.phone===phone.phone).length}))
   const broadcastCounts=phones.map(phone=>({phone:phone.phone,count:received.filter(row=>row.phone===phone.phone && row.score).length}))
   const gates={
     clients:{passed:phones.length===10 && phones.every(phone=>phone.ready && !phone.error),count:phones.length},
     freshness:{passed:times.length>0 && missing.length===0 && percentile(times,.95)<=45000,p50Ms:percentile(times,.5),p95Ms:percentile(times,.95),samples:times.length,missing},
     finalScores:{passed:finalFailures.length===0,checked:phones.length,failures:finalFailures},
     validScores:{passed:invalid.length===0,failures:invalid},
+    invalidation:{passed:refreshCounts.every(row=>row.count>0),refreshes:refreshCounts},
     realtime:{passed:broadcastCounts.every(row=>row.count>0),messages:broadcastCounts},
   }
   if(architecture) {
@@ -76,8 +79,8 @@ export function phoneGrade({slate,started,ended,renders,phones,requests,reads,me
     })
     gates.finalHandoffs={passed:checks.length>0 && checks.every(row=>row.official && row.delivered),checks}
   }
-  return {version:'phone-v2',passed:Object.values(gates).every(gate=>gate.passed),gates,observations,
-    requests:timed(requests),viewReads:timed(reads),messages:received,pollCount:timed(requests).length,
+  return {version:'phone-v3',passed:Object.values(gates).every(gate=>gate.passed),gates,observations,
+    requests:timed(requests),viewReads:timed(reads),messages:received,refreshes:refreshed,pollCount:timed(requests).length,
     messageBytes:received.reduce((sum,row)=>sum+row.bytes,0),calculationP95Ms:percentile(timed(renders).map(row=>row.calculationMs).filter(Number.isFinite),.95),
     viewBytes:timed(reads).reduce((sum,row)=>sum+row.bytes,0),viewLatencyP95Ms:percentile(timed(reads).map(row=>row.done-row.at),.95)}
 }
