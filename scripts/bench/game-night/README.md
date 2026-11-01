@@ -119,6 +119,7 @@ Pass the prior stricter bar to `architecture-series.mjs --ceiling VALUE`. Adding
 The phone grader requires a successful broadcast-triggered saved-screen refresh for every phone inside the measured window. Message receipt alone is insufficient. The replay decodes the same batched hint and public row-change envelopes as the app and advances its version cursor. The `phone-refresh` negative control still receives broadcasts but skips phone 1's saved-screen refresh.
 
 Reference correctness fixes use explicit `--worker-overlay` arguments. They copy only tracked TypeScript and JSON function sources plus generated database types. Each changed file hash appears in `environment.json`, and the source label names the overlay hash. Apply the same fixes to both sides; never describe a patched reference as the untouched commit. Environment files are excluded.
+Use `--baseline-migration` for a recorded reference correctness repair that the candidate already contains. The original dispatcher can delay live ingestion behind completed short jobs. A reference with that failure remains failed; shared dispatch repairs preserve its original cadence and pool configuration.
 
 The synthetic pre-game history includes completed daily player, trade-value, schedule, and missing-final synchronization. This models a game night after morning jobs. It prevents the wall clock on the replay host from inventing an overdue morning provider job. All variants use the same recorded history; those seeded rows never count as timed work.
 

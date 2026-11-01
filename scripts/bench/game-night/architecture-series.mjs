@@ -18,6 +18,7 @@ const { values }=parseArgs({options:{
   pool:{type:'string',default:'2'},
   ceiling:{type:'string',default:'61'},
   'worker-overlay':{type:'string',multiple:true},
+  'baseline-migration':{type:'string',multiple:true},
 }})
 const slate=await readJson(path.join(directory,'training.json'))
 const baselines=[],candidates=[]
@@ -31,6 +32,7 @@ for(const [variant,number] of [['baseline',1],['architecture',1],['architecture'
     let stack
     try {
       stack=activeStack=await startStack(path.join(values.evidence,`${label}-attempt-${attempt}`),{sourceRoot:variant==='baseline'?values.baseline:values.candidate,functionOverlays:values['worker-overlay'] ?? [],
+        migrationOverlays:variant==='baseline'?values['baseline-migration'] ?? []:[],
         ...(variant!=='baseline' && values['shared-buffers']?{sharedBuffers:values['shared-buffers']}:{})})
       stack.qualityEnabled=true
       stack.phoneLab=true

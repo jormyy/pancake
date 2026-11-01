@@ -9,7 +9,7 @@ import {actionLimits} from './series.mjs'
 import {summarize} from './summary.mjs'
 import {isolatedReplay} from './isolated-series.mjs'
 
-const {values}=parseArgs({options:{training:{type:'string'},evidence:{type:'string'},pool:{type:'string',default:'2'},'shared-buffers':{type:'string'},'worker-overlay':{type:'string',multiple:true}}})
+const {values}=parseArgs({options:{training:{type:'string'},evidence:{type:'string'},pool:{type:'string',default:'2'},'shared-buffers':{type:'string'},'worker-overlay':{type:'string',multiple:true},'baseline-migration':{type:'string',multiple:true}}})
 assert.ok(values.training && values.evidence,'Provide the passing training comparison and evidence directory')
 const training=await readJson(values.training)
 assert.ok(training.version==='game-night-comparison-v3' && training.passed && training.candidate.n>=3,'Training must pass before held-out is loaded')
@@ -20,7 +20,7 @@ const baselines=[]
 for(let number=1;number<=3;number++) {
   const report=await isolatedReplay(async attempt=>{
     try {
-      stack=await startStack(path.join(values.evidence,`baseline-${number}-attempt-${attempt}`),{sourceRoot:path.resolve(repository,'../half-gig-baseline'),functionOverlays:values['worker-overlay'] ?? []})
+      stack=await startStack(path.join(values.evidence,`baseline-${number}-attempt-${attempt}`),{sourceRoot:path.resolve(repository,'../half-gig-baseline'),functionOverlays:values['worker-overlay'] ?? [],migrationOverlays:values['baseline-migration'] ?? []})
       stack.phoneLab=true;stack.qualityEnabled=true
       stack.runtimeConfiguration={postgrest:await configurePool(stack,{})}
       return await runWindow(stack,slate,{label:`held-out-baseline-${number}`,memoryMiB:192})
