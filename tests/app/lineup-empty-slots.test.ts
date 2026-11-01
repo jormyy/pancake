@@ -22,7 +22,6 @@ vi.mock('@/hooks/use-lineup-actions', () => ({ useLineupActions: () => ({
     selected: mocks.selection, setSelected: mocks.setSelected, saving: false, autoSetModalVisible: true,
     setAutoSetModalVisible: vi.fn(), handleTap: mocks.handleTap, handleAutoSet: vi.fn(),
 }) }))
-vi.mock('@/hooks/use-live-stats', () => ({ useLiveStats: () => ({ startedTeams: mocks.startedTeams, liveTeams: new Set<string>(), todaysGames: mocks.games, freshness: mocks.freshness, teamMatchups: new Map() }) }))
 vi.mock('@/lib/cache/screen-cache', () => ({
     cachedScreenView: () => ({ dirty: mocks.dirty }),
     subscribeScreenView: (scope: { leagueId: string }, listener: () => void) => { mocks.listeners.set(listener, scope.leagueId); return () => { mocks.listeners.delete(listener) } },
