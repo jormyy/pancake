@@ -16,6 +16,7 @@ const { values }=parseArgs({options:{
   candidate:{type:'string',default:repository},
   'shared-buffers':{type:'string'},
   pool:{type:'string',default:'2'},
+  ceiling:{type:'string',default:'61'},
   'worker-overlay':{type:'string',multiple:true},
 }})
 const slate=await readJson(path.join(directory,'training.json'))
@@ -48,7 +49,7 @@ for(const [variant,number] of [['baseline',1],['architecture',1],['architecture'
   ;(variant==='baseline'?baselines:candidates).push(report)
   console.log(`${label} complete; ${baselines.length} baseline and ${candidates.length} candidate runs accepted.`)
 }
-const comparison=compareSeries(baselines,candidates)
+const comparison=compareSeries(baselines,candidates,{targetCeiling:Number(values.ceiling)})
 await json(path.join(values.evidence,'baseline-summary.json'),comparison.baseline)
 await json(path.join(values.evidence,'candidate-summary.json'),comparison.candidate)
 await json(path.join(values.evidence,'action-limits.json'),comparison.limits)

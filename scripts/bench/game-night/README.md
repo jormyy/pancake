@@ -114,6 +114,7 @@ Every reference and candidate must pass quality, work, final-state, failure and 
 All modes keep cron running after the window until the frozen fixture is stored. Legacy mode allows three minutes; public mode allows the scheduled thirty-minute checkpoint. This work is measured separately and never enters the timed counters. The old immediate cron stop could strand a due live job behind action work and reject a correct later final.
 
 The training bar is the smaller of 61 anon refaults/s and five percent of the rerun baseline median. The held-out bar is five percent of its own rerun reference median. Near the target, use at least three candidate runs and their observed spread.
+Pass the prior stricter bar to `architecture-series.mjs --ceiling VALUE`. Adding phone load cannot relax that ceiling.
 
 The phone grader requires a successful broadcast-triggered saved-screen refresh for every phone inside the measured window. Message receipt alone is insufficient. The replay decodes the same batched hint and public row-change envelopes as the app and advances its version cursor. The `phone-refresh` negative control still receives broadcasts but skips phone 1's saved-screen refresh.
 

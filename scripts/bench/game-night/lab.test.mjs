@@ -109,6 +109,10 @@ test('a paired comparison rejects host pressure, changed fixtures, and changed c
   const baseline = Array.from({ length: 3 }, () => report(2000, 'base'))
   const candidate = Array.from({ length: 3 }, () => report(50, 'candidate'))
   assert.equal(compareSeries(baseline, candidate).passed, true)
+  assert.equal(compareSeries(baseline,candidate,{targetCeiling:35}).passed,false)
+  assert.equal(compareSeries(baseline,candidate,{targetCeiling:35}).targetPagesPerSecond,35)
+  assert.equal(compareSeries(baseline,candidate,{targetCeiling:100}).targetPagesPerSecond,61)
+  assert.throws(()=>compareSeries(baseline,candidate,{targetCeiling:0}))
   const failedReference=structuredClone(baseline)
   failedReference[0].passed=false
   failedReference[0].finalState={passed:false,failures:[{field:'points'}]}

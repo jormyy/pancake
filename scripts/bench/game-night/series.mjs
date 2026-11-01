@@ -18,7 +18,8 @@ export function actionLimits(reports) {
   }))
 }
 
-export function compareSeries(baselines, candidates) {
+export function compareSeries(baselines, candidates, {targetCeiling=61} = {}) {
+  assert.ok(Number.isFinite(targetCeiling) && targetCeiling>0,'The target ceiling must be positive and finite')
   const baseline = summarize(baselines, { reference: true })
   const candidate = summarize(candidates)
   assert.ok([...baselines,...candidates].every(report=>report.resources?.version===resourceGraderVersion),'Resource grader versions differ')
@@ -38,10 +39,10 @@ export function compareSeries(baselines, candidates) {
   }))
   const gain = baseline.metrics.cgroupAnonRefaultsPerSecond.median - candidate.metrics.cgroupAnonRefaultsPerSecond.median
   const noise = Math.max(baseline.metrics.cgroupAnonRefaultsPerSecond.spread, baseline.metrics.cgroupAnonRefaultsPerSecond.median * .05)
-  const targetPagesPerSecond = Math.min(61, baseline.metrics.cgroupAnonRefaultsPerSecond.median * .05)
+  const targetPagesPerSecond = Math.min(61,targetCeiling,baseline.metrics.cgroupAnonRefaultsPerSecond.median * .05)
   const trainingTarget = candidate.metrics.cgroupAnonRefaultsPerSecond.median <= targetPagesPerSecond
   const quality = candidates.every(report => report.quality?.passed && report.quality.gates.injuries.passed && report.quality.gates.forecasts.passed) && actions.every(row => row.passed)
-  return { version: 'game-night-comparison-v3', baseline, candidate, limits, actions, targetPagesPerSecond, baselineQualityPassed: baseline.quality.passed, gainPagesPerSecond: gain, gainFraction: gain / baseline.metrics.cgroupAnonRefaultsPerSecond.median,
+  return { version: 'game-night-comparison-v3', baseline, candidate, limits, actions, targetPagesPerSecond, targetCeilingPagesPerSecond:Math.min(61,targetCeiling), baselineQualityPassed: baseline.quality.passed, gainPagesPerSecond: gain, gainFraction: gain / baseline.metrics.cgroupAnonRefaultsPerSecond.median,
     noisePagesPerSecond: noise, exceedsNoise: gain > noise, trainingTarget, quality,
     passed: gain > noise && trainingTarget && quality }
 }
