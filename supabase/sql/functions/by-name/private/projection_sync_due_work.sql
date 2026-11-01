@@ -8,28 +8,25 @@ LANGUAGE sql
 STABLE
 SET search_path = ''
 AS $$
-  WITH local_clock AS (
-    SELECT p_now AT TIME ZONE 'America/Los_Angeles' AS local_now
-  ), clock AS (
-    SELECT local_now, local_now::date AS today,
-      date_trunc('week',local_now)::date AS monday,
-      EXTRACT(HOUR FROM local_now)::integer AS hour,
-      EXTRACT(YEAR FROM local_now)::integer + (EXTRACT(MONTH FROM local_now)>=10)::integer AS season_year
-    FROM local_clock
+  WITH clock AS (
+    SELECT (p_now AT TIME ZONE 'America/Los_Angeles')::date AS today,
+      (p_now AT TIME ZONE 'America/Los_Angeles')::time AS local_time,
+      date_trunc('week',p_now AT TIME ZONE 'America/Los_Angeles')::date AS monday,
+      extract(year FROM p_now AT TIME ZONE 'America/Los_Angeles')::integer
+        +(extract(month FROM p_now AT TIME ZONE 'America/Los_Angeles')>=10)::integer AS season_year
   ), calendar AS (
-    SELECT clock.*, min(g.game_time) AS first_tipoff
-    FROM clock LEFT JOIN public.nba_games g ON g.game_date=clock.today
-      AND g.season_year=clock.season_year AND public.is_regular_season_game_id(g.nba_game_id)
-    GROUP BY local_now,today,monday,hour,clock.season_year
+    SELECT clock.*,min(game.game_time) AS first_tipoff FROM clock
+    LEFT JOIN public.nba_games game ON game.game_date=clock.today AND game.season_year=clock.season_year
+      AND game.status NOT IN ('Cancelled','Postponed') AND public.is_regular_season_game_id(game.nba_game_id)
+    GROUP BY today,local_time,monday,clock.season_year
+  ), periods AS (
+    SELECT *,today::text||CASE WHEN p_now>=first_tipoff-interval '1 hour' THEN ':pregame' ELSE ':08' END AS period
+    FROM calendar WHERE (local_time>=time '08:00' AND local_time<time '09:00' AND (first_tipoff IS NULL OR p_now<first_tipoff))
+      OR p_now>=first_tipoff-interval '1 hour' AND p_now<first_tipoff
   )
-  SELECT 'pt:sleeper-week',monday::text,'sync-sleeper-projections'
-  FROM calendar WHERE EXISTS (SELECT 1 FROM public.season_weeks w WHERE w.season_year=calendar.season_year
-    AND date_trunc('week',w.week_start::timestamp)::date=calendar.monday)
+  SELECT 'pt:sleeper-day',period,'sync-sleeper-projections' FROM periods
+    WHERE EXISTS(SELECT 1 FROM public.season_weeks week WHERE week.season_year=periods.season_year
+      AND date_trunc('week',week.week_start::timestamp)::date=periods.monday)
   UNION ALL
-  SELECT 'pt:sleeper-day',today::text||':'||CASE WHEN hour>=15 THEN '15' WHEN hour>=12 THEN '12' ELSE '08' END,
-    'sync-sleeper-projections'
-  FROM calendar WHERE hour>=8 AND first_tipoff>p_now
-  UNION ALL
-  SELECT 'pt:fantasypros',today::text||':'||CASE WHEN hour>=15 THEN '15' ELSE '08' END,'sync-projections'
-  FROM calendar WHERE hour>=8;
+  SELECT 'pt:fantasypros',period,'sync-projections' FROM periods;
 $$;

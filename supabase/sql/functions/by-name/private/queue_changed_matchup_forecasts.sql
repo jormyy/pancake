@@ -7,6 +7,10 @@ RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 DECLARE affected_league uuid;
 BEGIN
   IF TG_TABLE_NAME='matchups' THEN
+    IF TG_OP='UPDATE' AND NEW.is_finalized AND
+      (NEW.is_finalized,NEW.home_points,NEW.away_points) IS DISTINCT FROM (OLD.is_finalized,OLD.home_points,OLD.away_points) THEN
+      UPDATE private.matchup_forecast_queue SET finalized=false WHERE matchup_id=NEW.id AND finalized;
+    END IF;
     PERFORM private.queue_matchup_forecasts(NEW.league_id,NEW.id);
   ELSIF TG_TABLE_NAME IN ('lineup_optimizer_settings','lineup_slot_templates') THEN
     IF TG_OP='DELETE' THEN PERFORM private.queue_matchup_forecasts(OLD.league_id);
