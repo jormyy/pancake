@@ -1,21 +1,25 @@
 import assert from 'node:assert/strict'
 import { readFile, readdir } from 'node:fs/promises'
 import path from 'node:path'
-import { command, delay, digest, directory, id, json, readJson, repository } from './common.mjs'
+import { command, delay, digest, directory, id, json, readJson } from './common.mjs'
 import { seedSlate, startFeed, stateAt, validateSlate } from './fixture.mjs'
 import { startWorkers } from './workers.mjs'
+import { memoryContexts, processMemory } from './process-memory.mjs'
+import { prepareActions, startActions } from './quality.mjs'
+import { qualityGrade } from './quality-grade.mjs'
 import { counters, fantasyAt, finalCheck, graderVersion, groupStatements, percentile, readFantasy, readScores, snapshot, statementDeltas, workCheck } from './measure.mjs'
 
 async function prepare(stack, slate, label) {
   await stack.sql("ALTER SYSTEM SET cron.launch_active_jobs='off'; SELECT pg_reload_conf();")
   await command('docker', ['update', '--memory=512m', '--memory-swap=1536m', stack.container])
   await stack.sql(await readFile(path.join(directory, 'seed.sql'), 'utf8'))
-  const migration = await readFile(path.join(repository, 'supabase/migrations/20261024100002_live_player_season_totals.sql'), 'utf8')
+  const migration = await readFile(path.join(stack.sourceRoot, 'supabase/migrations/20261024100002_live_player_season_totals.sql'), 'utf8')
   await stack.sql(migration.match(/INSERT INTO analytics\.player_season_totals[\s\S]*?;/)[0])
   await stack.sql("UPDATE private.worker_controls SET paused=false,scheduler_level='normal',scheduler_checked_at=NULL,scheduler_healthy_since=NULL,scheduler_last_dispatch_at=NULL,scheduler_health=NULL; TRUNCATE private.scheduler_health_log; UPDATE public.scheduler_health_hint SET level='normal';")
   const anchor = new Date().toISOString()
   await seedSlate(stack, slate, anchor)
   await stack.sql(await readFile(path.join(directory, 'history.sql'), 'utf8'))
+  if (stack.qualityEnabled) await prepareActions(stack)
   for (let batch = 0; batch < 100; batch++) {
     if (Number(await stack.sql('SELECT pg_database_size(current_database())')) >= 263000000) break
     await stack.sql(`INSERT INTO public.league_activity(league_id,league_season_id,actor_member_id,event_type,title,body,created_at)
@@ -31,11 +35,14 @@ async function prepare(stack, slate, label) {
   assert.equal(Number(shape.stats), 246000)
   shape.priorProviderWork = JSON.parse(await stack.sql("SELECT coalesce(json_agg(w),'[]') FROM (SELECT kind,key,status,payload FROM private.work_items WHERE payload->>'gameNightSyntheticHistory'='true')w"))
   await json(path.join(stack.evidence, `${label}-shape.json`), shape)
+  await stack.resetObserver()
   const feed = await startFeed(stack, slate, anchor)
   return { feed, shape, anchor }
 }
 
 export async function runWindow(stack, slate, { label, memoryMiB, seconds = slate.windowSeconds, warmup = 120, ingestionOff = false, broken = false }) {
+  const harness = Object.fromEntries(await Promise.all((await readdir(directory)).filter(file => !file.startsWith('.')).map(async file => [file, digest(await readFile(path.join(directory, file)))])))
+  await json(path.join(stack.evidence, `${label}-harness.json`), harness)
   console.log(`${label}: preparing synthetic data.`)
   const prepared = await prepare(stack, slate, label)
   let workers
@@ -46,12 +53,25 @@ export async function runWindow(stack, slate, { label, memoryMiB, seconds = slat
     await stack.sql("ALTER SYSTEM SET cron.launch_active_jobs='on'; SELECT pg_reload_conf();")
     const warmupMs = seconds < 120 ? warmup * 1000 : (Math.floor(Date.now() / 120000) + 1) * 120000 + 115000 - Date.now()
     console.log(`${label}: warming the real scheduled workers for ${Math.round(warmupMs / 1000)} seconds.`)
-    await delay(warmupMs)
+    const readyAt = Date.now() + warmupMs
+    const policies = {}
+    if (stack.policyChecks) {
+      await delay(Math.max(0, readyAt - 70000 - Date.now()))
+      for (const name of ['injuries','forecasts']) {
+        const result = await stack.sqlFile(path.join(directory, `quality-${name}.sql`), { allowFailure: true, output: path.join(stack.evidence, `${label}-policy-${name}.log`) })
+        policies[name] = { passed: result.code === 0, exitCode: result.code }
+      }
+    }
+    await delay(Math.max(0, readyAt - Date.now()))
     const realtimeBefore = await fetch(`http://127.0.0.1:${stack.ports.edge}/health`).then(response => response.json())
     const before = await snapshot(stack)
+    const databaseSettings = JSON.parse(await stack.sql("SELECT jsonb_object_agg(name,jsonb_build_object('value',setting,'unit',unit,'source',source,'pendingRestart',pending_restart)) FROM pg_settings WHERE name IN('shared_buffers','wal_buffers','work_mem','hash_mem_multiplier','maintenance_work_mem','autovacuum_work_mem','max_connections','autovacuum_max_workers','checkpoint_timeout','max_wal_size','min_wal_size','huge_pages','jit')"))
     const samples = [await counters(stack)]
+    const processSamples = [await processMemory(stack)]
+    const contextSamples = stack.profileMemory ? [await memoryContexts(stack)] : []
     const started = Date.now()
     prepared.feed.start(started)
+    const actions = stack.qualityEnabled ? startActions(stack, started, stack.qualityOptions) : null
     const freshness = []
     const fantasyFreshness = []
     const seenFantasy = new Set()
@@ -64,6 +84,8 @@ export async function runWindow(stack, slate, { label, memoryMiB, seconds = slat
       await delay(Math.min(5000, Math.max(1, started + seconds * 1000 - Date.now())))
       const sample = await counters(stack)
       samples.push(sample)
+      processSamples.push(await processMemory(stack))
+      if (stack.profileMemory && processSamples.length % 12 === 0) contextSamples.push(await memoryContexts(stack))
       const scores = await readScores(stack)
       const elapsed = (Date.now() - started) / 1000
       const fantasy = await readFantasy(stack)
@@ -91,6 +113,7 @@ export async function runWindow(stack, slate, { label, memoryMiB, seconds = slat
     }
     const ended = Date.now()
     prepared.feed.freeze(seconds)
+    if (stack.qualityOptions?.fault?.split(',').includes('forecastDelivery')) await stack.sql(`DELETE FROM public.matchup_forecasts WHERE matchup_id=(SELECT id FROM public.matchups WHERE league_id='${id(1)}' AND week_number=2 ORDER BY id LIMIT 1)`)
     const after = await snapshot(stack)
     const realtimeAfter = await fetch(`http://127.0.0.1:${stack.ports.edge}/health`).then(response => response.json())
     await stack.sql("ALTER SYSTEM SET cron.launch_active_jobs='off'; SELECT pg_reload_conf();")
@@ -104,6 +127,7 @@ export async function runWindow(stack, slate, { label, memoryMiB, seconds = slat
     assert.equal(health.active, 0, 'Real workers do not drain before cleanup')
     if (broken) await stack.sql(`DELETE FROM public.player_game_stats WHERE game_id='${id(800003)}' AND player_id='${id(1081)}';`)
     const check = await finalCheck(stack, slate, seconds)
+    const actionResults = actions ? await actions.done : null
     const minutes = (ended - started) / 60000
     const statements = statementDeltas(before.statements, after.statements)
     assert.equal(before.statementInfo.stats_reset, after.statementInfo.stats_reset, 'Statement counters reset during the window')
@@ -117,9 +141,9 @@ export async function runWindow(stack, slate, { label, memoryMiB, seconds = slat
     const first = samples[0], last = samples.at(-1)
     const elapsed = (last.at - first.at) / 1000
     const failures = { cron: cron.filter(row => row.status === 'failed'), jobs: after.work.filter(row => ['failed','dead'].includes(row.status)), workers: after.invocations.filter(row => row.worker_status === 'failed') }
-    const report = { version: 1, grader: { version: graderVersion, sha256: digest(await readFile(path.join(directory, 'measure.mjs'))) }, label, slate: slate.name, fixtureSha256: digest(await readFile(path.join(directory, `${slate.name}.json`))), source: stack.metadata.source,
-      startedAt: new Date(started).toISOString(), endedAt: new Date(ended).toISOString(), seconds: (ended - started) / 1000, warmupSeconds: warmupMs / 1000, memoryMiB,
-      shape: prepared.shape, clock: 'native real time; fixture changes every 20 seconds; no accelerated jobs',
+    const report = { version: 1, grader: { version: graderVersion, sha256: harness['measure.mjs'] }, harnessSha256: digest(JSON.stringify(harness)), label, slate: slate.name, fixtureSha256: harness[`${slate.name}.json`], source: stack.metadata.source,
+      startedAt: new Date(started).toISOString(), endedAt: new Date(ended).toISOString(), seconds: (ended - started) / 1000, warmupSeconds: warmupMs / 1000, memoryMiB, databaseSettings, runtimeConfiguration: stack.runtimeConfiguration ?? {},
+      shape: prepared.shape, clock: 'native real time; fixture changes every 20 seconds; no accelerated jobs', observer: 'Seeding session closes before warmup; the measurement session keeps no seed plans',
       swap: { source: 'Linux Docker VM /proc/vmstat pswpin/pswpout; global to the VM, not per-cgroup', pageBytes: 4096, inPagesPerSecond: (last.vm.pswpin - first.vm.pswpin) / elapsed, outPagesPerSecond: (last.vm.pswpout - first.vm.pswpout) / elapsed, available: last.swaps.length > 0, cgroupSwapPeakBytes: Math.max(...samples.map(row => row.swapCurrent)), foreignContainerActivityObserved: samples.some(row => row.foreignContainers.length > 0), cgroupAnonRefaultsPerSecond: (last.cgroup.workingset_refault_anon - first.cgroup.workingset_refault_anon) / elapsed },
       memory: { cgroupAnonPeakBytes: Math.max(...samples.map(row => row.cgroup.anon)), cgroupShmemPeakBytes: Math.max(...samples.map(row => row.cgroup.shmem)), sampleIntervalSeconds: 5, containerLifetimePeakBytes: last.peak, oomKills: (last.events.oom_kill ?? 0) - (first.events.oom_kill ?? 0), majorFaults: last.cgroup.pgmajfault - first.cgroup.pgmajfault },
       statementExecSecondsPerMinuteByFunction: functions, statements, functionCounters: { before: before.functions, after: after.functions },
@@ -127,13 +151,17 @@ export async function runWindow(stack, slate, { label, memoryMiB, seconds = slat
       newSessionsPerMinute: (Number(after.database.sessions) - Number(before.database.sessions)) / minutes,
       cronRunsPerMinute: cron.length / minutes, cron, workerRunsPerHourByKind: Object.fromEntries(Object.entries(runs).map(([kind, count]) => [kind, count / minutes * 60])),
       workerCounts: runs, workCounts: work, connectionsByClient: connectionSamples,
-      realtime: { subscribed: realtimeBefore.realtimeStatus === 'SUBSCRIBED', messages: realtimeAfter.realtimeMessages - realtimeBefore.realtimeMessages, clientCount: 1 },
+      realtime: { subscribed: realtimeBefore.realtimeStatus === 'SUBSCRIBED', messages: realtimeAfter.realtimeMessages - realtimeBefore.realtimeMessages, scoreMessages: realtimeAfter.realtimeScoreMessages - realtimeBefore.realtimeScoreMessages, clientCount: 1 },
       drainSeconds: (Date.now() - drainStarted) / 1000,
       scoreFreshness: { p50Ms: percentile(freshness.map(row => row.milliseconds), .5), p95Ms: percentile(freshness.map(row => row.milliseconds), .95), samples: freshness.length, resolutionMs: 5000, observations: freshness, fantasyP50Ms: percentile(fantasyFreshness, .5), fantasyP95Ms: percentile(fantasyFreshness, .95), fantasySamples: fantasyFreshness.length },
-      finalState: check, failures, deadWorkItems: failures.jobs.filter(row => row.status === 'dead'),
-      passed: check.passed && work.passed && !Object.values(failures).some(rows => rows.length) && last.events.oom_kill === first.events.oom_kill,
-      control: broken ? 'delete one stored final stat' : ingestionOff ? 'live ingestion disabled at worker boundary' : null,
-      observations: samples, feedRequests: prepared.feed.requests, before, after }
+      finalState: check, actionResults, failures, deadWorkItems: failures.jobs.filter(row => row.status === 'dead'),
+      passed: check.passed && work.passed && (!actionResults || actionResults.passed) && !Object.values(failures).some(rows => rows.length) && last.events.oom_kill === first.events.oom_kill,
+      control: broken ? 'delete one stored final stat' : ingestionOff ? 'live ingestion disabled at worker boundary' : stack.qualityOptions?.fault ?? null,
+      processSamples, contextSamples, observations: samples, feedRequests: prepared.feed.requests, before, after }
+    if (stack.qualityEnabled) {
+      report.quality = qualityGrade({ actions: actionResults, freshness: report.scoreFreshness, realtime: report.realtime, policies, liveForecasts: after.liveForecasts, observedAt: ended, requireLimits: Boolean(stack.qualityOptions?.limits), requirePolicies: Boolean(stack.policyChecks) })
+      report.passed &&= report.quality.passed
+    }
     await json(path.join(stack.evidence, `${label}.json`), report)
     console.log(`${label}: final=${check.passed}, work=${work.passed}, swap=${report.swap.inPagesPerSecond.toFixed(1)}/${report.swap.outPagesPerSecond.toFixed(1)} pages/s.`)
     return report

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { command, id } from './common.mjs'
 import { stateAt } from './fixture.mjs'
 
-export const graderVersion = 'game-night-v2'
+export const graderVersion = 'game-night-v3'
 
 export async function counters(stack) {
   const output = (await command('docker', ['exec', stack.container, 'sh', '-c', 'cat /proc/vmstat; echo CGROUP; cat /sys/fs/cgroup/memory.stat; echo CURRENT; cat /sys/fs/cgroup/memory.current /sys/fs/cgroup/memory.swap.current /sys/fs/cgroup/memory.peak /sys/fs/cgroup/memory.events /proc/swaps'])).stdout
@@ -26,6 +26,7 @@ export async function snapshot(stack) {
     'functions',(SELECT coalesce(json_agg(f),'[]') FROM (SELECT schemaname,funcname,calls,total_time,self_time FROM pg_stat_user_functions)f),
     'connections',(SELECT coalesce(json_agg(c),'[]') FROM (SELECT application_name,usename,client_addr::text,backend_type,count(*) FROM pg_stat_activity GROUP BY 1,2,3,4)c),
     'work',(SELECT coalesce(json_agg(w),'[]') FROM (SELECT id,kind,status,attempts,created_at,completed_at,last_error FROM private.work_items)w),
+    'liveForecasts',(SELECT coalesce(json_agg(f),'[]') FROM (SELECT cache.matchup_id,cache.calculated_at,cache.valid_until FROM public.matchup_forecasts cache JOIN public.matchups matchup ON matchup.id=cache.matchup_id WHERE matchup.league_id='ab000000-0000-4000-8000-000000000001' AND matchup.week_number=2)f),
     'cron',(SELECT coalesce(json_agg(c),'[]') FROM (SELECT runid,jobid,status,start_time,end_time,return_message FROM cron.job_run_details)c),
     'invocations',(SELECT coalesce(json_agg(i),'[]') FROM (SELECT inv.id,inv.function_name,coalesce(work.kind,inv.function_name) kind,inv.queued_at,inv.worker_started_at,inv.worker_finished_at,inv.worker_status,inv.error_message FROM public.edge_invocations inv LEFT JOIN private.work_items work ON work.id=inv.work_item_id)i)
   )`))

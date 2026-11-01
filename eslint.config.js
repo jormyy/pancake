@@ -16,6 +16,11 @@ module.exports = defineConfig([
         },
     },
     {
+        files: ['scripts/bench/game-night/edge.mjs'],
+        languageOptions: { globals: { Deno: 'readonly' } },
+        rules: { 'import/no-unresolved': ['error', { ignore: ['^npm:'] }] },
+    },
+    {
         files: ['tests/lib/*.test.ts'],
         rules: {
             'import/first': 'off',

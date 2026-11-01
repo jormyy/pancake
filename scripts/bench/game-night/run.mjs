@@ -3,25 +3,87 @@ import assert from 'node:assert/strict'
 import path from 'node:path'
 import { defaultEvidence, json, repository } from './common.mjs'
 import { startStack } from './stack.mjs'
+import { configurePool } from './pool.mjs'
 
-const { values } = parseArgs({ options: { help: { type: 'boolean', short: 'h' }, evidence: { type: 'string', default: defaultEvidence }, phase: { type: 'string', default: 'all' } } })
+const { values } = parseArgs({ options: { help: { type: 'boolean', short: 'h' }, evidence: { type: 'string', default: defaultEvidence }, phase: { type: 'string', default: 'run' }, source: { type: 'string', default: repository }, label: { type: 'string', default: 'run' }, 'profile-memory': { type: 'boolean', default: false }, pool: { type: 'string' }, 'pool-lifetime': { type: 'string' }, 'pool-idle': { type: 'string' }, quality: { type: 'boolean', default: false }, policy: { type: 'boolean', default: false }, limits: { type: 'string' }, fault: { type: 'string' }, 'post-tests': { type: 'boolean', default: false }, 'shared-buffers': { type: 'string' }, 'training-result': { type: 'string' } } })
 if (values.help) {
-  console.log('Usage: node scripts/bench/game-night/run.mjs [--evidence PATH] [--phase all|setup|smoke|baseline]\nBuild a disposable loopback-only Supabase lab. Run calibration, failing controls, three training baselines, and one held-out baseline. Baseline mode reuses recorded calibration and controls. Evidence stays outside the repository. The stack always stops.')
+  console.log(`Usage: node scripts/bench/game-night/run.mjs [options]
+  --phase run           One training replay at 192 MiB (default)
+  --phase held-out      Validate once after a passing training comparison
+  --training-result FILE  Passing comparison.json required for held-out
+  --phase controls      Broken-final and ingestion-off controls
+  --phase all           Original calibration and baseline workflow, including held-out
+  --phase setup|smoke|baseline
+  --source PATH         Source checkout for migrations and real workers
+  --evidence PATH       Evidence directory outside the repository
+  --label NAME          Single replay report name
+  --quality             Run real authenticated actions and score-broadcast gates
+  --policy              Check approved injury and forecast schedules during warmup
+  --limits PATH         Frozen baseline action latency limits in JSON
+  --shared-buffers SIZE  Override and restart the local database before migration
+  --pool N              Override the local PostgREST connection pool
+  --pool-lifetime N     PostgREST maximum connection lifetime in seconds
+  --pool-idle N         PostgREST idle timeout in seconds
+  --profile-memory      Probe pooled backend contexts; diagnostic runs only
+  --fault NAME          Inject a quality-control failure
+  --post-tests          Run focused SQL checks after the timed window
+The disposable loopback-only stack always stops. No production data is used.`)
 } else {
   const evidence = path.resolve(values.evidence)
-  assert.ok(['all','setup','smoke','baseline'].includes(values.phase), 'Choose all, setup, smoke, or baseline')
+  assert.ok(['all','setup','smoke','baseline','run','controls','held-out'].includes(values.phase), 'Choose all, setup, smoke, baseline, run, controls, or held-out')
   assert.ok(path.relative(repository, evidence).startsWith('..'), 'Evidence must stay outside the repository')
   let stack
   for (const signal of ['SIGINT','SIGTERM']) process.once(signal, async () => {
     try { await stack?.stop() } finally { process.exit(signal === 'SIGINT' ? 130 : 143) }
   })
   try {
+    if (values.phase === 'held-out') {
+      const { readJson } = await import('./common.mjs')
+      assert.ok(values['training-result'], 'A passing training comparison is required')
+      const training = await readJson(values['training-result'])
+      assert.ok(training.passed && training.candidate.n >= 3 && training.candidate.metrics.swapTotalPagesPerSecond.median <= 106, 'The training target must pass before held-out')
+    }
     console.log('Starting the disposable local stack.')
-    stack = await startStack(evidence)
+    stack = await startStack(evidence, { sourceRoot: path.resolve(values.source), profileMemory: values['profile-memory'], sharedBuffers: values['shared-buffers'] })
+    stack.qualityEnabled = values.quality
+    stack.policyChecks = values.policy
+    stack.qualityOptions = { fault: values.fault }
+    if (values.limits) { const { readJson } = await import('./common.mjs'); stack.qualityOptions.limits = await readJson(values.limits) }
+    stack.runtimeConfiguration = { postgres: stack.metadata.settings, postgrest: await configurePool(stack, { connections: values.pool == null ? undefined : Number(values.pool), lifetimeSeconds: values['pool-lifetime'] == null ? undefined : Number(values['pool-lifetime']), idleSeconds: values['pool-idle'] == null ? undefined : Number(values['pool-idle']) }) }
     console.log('The real migration and cron catalog are ready.')
     if (values.phase !== 'setup') {
-      const { experiment } = await import('./experiment.mjs')
-      await experiment(stack, values.phase)
+      const { experiment, runWindow } = await import('./experiment.mjs')
+      if (['run','controls'].includes(values.phase)) {
+        const { readJson, directory } = await import('./common.mjs')
+        const slate = await readJson(path.join(directory, 'training.json'))
+        if (values.phase === 'run') await runWindow(stack, slate, { label: values.label, memoryMiB: 192 })
+        else {
+          const broken = await runWindow(stack, slate, { label: 'control-broken-final', memoryMiB: 192, broken: true })
+          assert.equal(broken.finalState.passed, false, 'The broken final stat must fail')
+          const off = await runWindow(stack, slate, { label: 'control-ingestion-off', memoryMiB: 192, ingestionOff: true, seconds: 120 })
+          assert.equal(off.workCounts.passed, false, 'Disabled ingestion must fail the work check')
+          if (values.quality) {
+            assert.ok(stack.qualityOptions.limits, 'Frozen action limits are required for negative quality controls')
+            stack.qualityOptions.fault = 'slow-actions,realtimeScores,forecastDelivery'
+            const bad = await runWindow(stack, slate, { label: 'control-quality', memoryMiB: 192 })
+            for (const name of ['rosterMove','lineupSave','tradeOffer','tradeAccept','waiverResult','realtimeScores','forecastDelivery']) assert.equal(bad.quality.gates[name].passed, false, `${name} must reject its broken control`)
+          }
+        }
+      } else if (values.phase === 'held-out') {
+        const { readJson, directory } = await import('./common.mjs')
+        const slate = await readJson(path.join(directory, 'held-out.json'))
+        const report = await runWindow(stack, slate, { label: 'held-out', memoryMiB: 192 })
+        assert.ok(report.passed && report.swap.inPagesPerSecond + report.swap.outPagesPerSecond <= 182, 'Held-out does not meet the full bar')
+      } else await experiment(stack, values.phase)
+      if (values['post-tests']) {
+        const results = []
+        for (const name of ['io-write-reductions.sql','statistics-maintenance.sql']) {
+          const result = await stack.sqlFile(path.join(repository, 'tests/db', name), { allowFailure: true, output: path.join(evidence, `${name}.log`) })
+          results.push({ name, exitCode: result.code })
+        }
+        await json(path.join(evidence, 'focused-tests.json'), results)
+        console.log(JSON.stringify({ focusedTests: results }))
+      }
     }
   } catch (error) {
     await json(path.join(evidence, 'failure.json'), { at: new Date().toISOString(), message: error.message, stack: error.stack })

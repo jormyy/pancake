@@ -1,8 +1,7 @@
 import assert from 'node:assert/strict'
-import { writeFile } from 'node:fs/promises'
+import { readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { digest, directory, json, readJson } from './common.mjs'
-import { readFile } from 'node:fs/promises'
 import { percentile } from './measure.mjs'
 
 export function distribution(values) {

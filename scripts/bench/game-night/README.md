@@ -1,7 +1,8 @@
 # Game-night replay lab
 
 Run `node scripts/bench/game-night/run.mjs --help` for usage.
-Run `node scripts/bench/game-night/run.mjs` for calibration, controls, three baselines, and the held-out run.
+Run `node scripts/bench/game-night/run.mjs --quality --policy --pool 2 --evidence PATH` for one training replay.
+Use `--phase all` only for the original calibration and baseline workflow.
 Use `--phase baseline` to repeat baselines with existing calibration and control evidence.
 Run `node --test scripts/bench/game-night/lab.test.mjs` for focused harness checks.
 
@@ -37,16 +38,38 @@ Anonymous memory uses five-second samples. The kernel peak includes all charged 
 Each report includes raw counter boundaries, statement rows, worker receipts, feed requests, and correctness checks.
 Statement groups sum duplicate query IDs across roles and nesting levels.
 Nested times and WAL overlap. They do not sum to exclusive totals.
-Observer SQL uses one persistent session with statement tracking disabled.
+The seeding session closes before warmup. Observer SQL uses a fresh persistent session with statement tracking disabled.
 Session counts include Docker health probes. The summary separates their expected rate from application costs.
 
 The final-state control deletes one stored final stat before the normal check.
 The no-ingestion control leaves cron active and disables live ingestion at the router.
 Both controls must fail their stated gates before baseline results are accepted.
 
+The quality replay drops a bench player, saves a lineup, offers and accepts a trade, and processes a due waiver claim.
+It uses real authenticated routes and the real dispatcher. Trade and waiver notifications must exist when the action completes.
+The due claim is synthetic historical input released during the window. The worker applies the normal eligibility and roster rules.
+Baseline action limits use three successful runs and include their observed timing spread.
+Pass `--limits action-limits.json` to enforce those frozen limits.
+Pass `--phase controls --quality --policy --limits action-limits.json` to inject slow actions, dropped score broadcasts, and a missing forecast.
+The score freshness limit is 45 seconds. An authenticated Realtime subscriber must receive score broadcasts.
+Injury and forecast policy checks run during warmup, in rollback-only transactions.
+Real forecast publication must also cover all five matchups within the approved thirty-minute interval.
+
+Use `--source PATH` to replay another checkout with the same harness.
+Use `--profile-memory` only for diagnosis; concurrent context probes touch pooled backends and change the workload.
+Process memory samples record proportional resident and swap memory. Do not add shared mappings once per process.
+`--pool`, `--pool-lifetime`, and `--pool-idle` replace only this stack's PostgREST container.
+`--shared-buffers` restarts only its database before migrations. Every report records the applied settings.
+Production settings require the separate procedures in `docs/half-gig-settings.md`.
+
+`series.mjs` compares at least three baseline and candidate reports. It rejects different fixtures, caps, harnesses, or changing settings.
+It rejects runs that overlap other Docker containers. It writes the summaries, action limits, and comparison outside the repository.
+The held-out command requires a passing training comparison before it loads the held-out fixture.
+Use `--phase held-out --training-result comparison.json` only after training reaches its target.
+
 The cost model follows `docs/io-audit.md` and `docs/operations-scheduler.md`.
 Fixture shapes follow `scripts/load` and `scripts/bench`.
 Worker routing, network guards, and persistent observation follow `scripts/season-sim` and `scripts/perf-lab`.
 
-The frozen contract sets the bar. The lab measures a baseline and makes no product optimization.
+The frozen contract sets the bar. Reports distinguish product changes from local runtime settings.
 The principles used here freeze the bar, prove the gates can fail, and report measurement limits.

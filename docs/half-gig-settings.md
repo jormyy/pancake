@@ -87,7 +87,7 @@ Local `supabase/config.toml` does not change hosted service settings.
 
 | Setting | Candidate | Expected memory effect | Apply outside migrations |
 | --- | --- | --- | --- |
-| PostgREST `db-pool` | Test 5 connections; keep idle expiry at 30 seconds | Bounds active SQL backends; savings depend on removed backends and their measured private memory | Hosted Data API configuration or support; this is separate from Supavisor's pool |
+| PostgREST `db-pool` | Test 2 and 5 connections; keep idle expiry at 30 seconds | Bounds active SQL backends; savings depend on removed backends and their measured private memory | Management API `PATCH /v1/projects/{ref}/postgrest`, body `{"db_pool":2}`; this is separate from Supavisor's pool |
 | `max_connections` | Test 40 after service pools fit below that limit | Lowers shared bookkeeping and prevents unbounded backend growth; unused slots do not equal running backends | Hosted Postgres configuration; restart required |
 | `work_mem` | Keep 4 MB first; test 2 MB separately | Saves up to 2 MB per active sort; hash savings also depend on `hash_mem_multiplier` | Hosted Postgres configuration; compare temporary I/O and interactive latency |
 | `shared_buffers` | Test 64 MB if the current value is 128 MB | Frees 64 MB of fixed shared allocation; can increase reads | Hosted Postgres configuration; restart required |
@@ -102,6 +102,17 @@ Keep Auth for login, Storage for avatars, Realtime for instant actions, and cron
 Do not disable required services to meet the memory target.
 Do not shorten connection acquisition limits to hide a saturated pool.
 
+The [PostgREST configuration endpoint](https://supabase.com/docs/reference/api/v1-update-postgrest-service-config) requires `rest:write` or `data_api_config_write` access.
+It also accepts `db_pool_acquisition_timeout`; leave that value unchanged when testing pool size.
+The local lab replaces only its own PostgREST container with the requested pool settings.
+Local lifetime and idle-time experiments do not establish that hosted controls exist for those settings.
+No hosted configuration changes occur in the lab.
+
+For a measured `shared_buffers` change, the hosted command is `supabase postgres-config update --config shared_buffers=64MB --project-ref <ref> --experimental`.
+The [Postgres configuration guide](https://supabase.com/docs/guides/database/custom-postgres-config) requires a restart for this setting.
+Read the applied value and `pending_restart` afterward.
+The lab uses its own container and never runs that hosted command.
+
 [PostgREST pooling](https://docs.postgrest.org/en/stable/references/connection_pool.html) explains backend lifetime and queueing.
 [Postgres memory settings](https://www.postgresql.org/docs/17/runtime-config-resource.html) distinguish shared memory from per-operation memory.
 [Supabase configuration](https://supabase.com/docs/guides/database/custom-postgres-config) describes hosted updates and restarts.
@@ -113,7 +124,7 @@ Do not shorten connection acquisition limits to hide a saturated pool.
 The disposable database uses PostgreSQL 17.6 and the repository's complete migration sequence.
 Auth, Storage, and Realtime use their matching public service schemas.
 The new migration also applies with a non-superuser application owner and the required cron API grant.
-No production database, backup, credential file, or game-night lab runs are used.
+No production database, backup, or credential file is used. The replay adds separate game-night evidence.
 
 The supplied test selector reports this migration as unmapped.
 The selected checks are:
@@ -144,20 +155,27 @@ The next run clears the eligible remainder.
 Pause, failure, active-work, newest-result, other-topic, and current-health checks pass.
 These are isolated fixture measurements, not game-night performance results.
 
-The full `tests/db/io-write-reductions.sql` fails at its later unchanged-screen assertion.
-It observes two updates to `private.work_items` during trade publication.
-The same assertion fails with the baseline trigger definitions restored.
-Fixing that unrelated assertion or its worker behavior requires another owner's files.
-No such file changes here.
+The original unchanged-screen test fails at `e5f16211` before these cuts.
+Its fixture captures trade inputs before initializing the averages that form part of those inputs.
+The repaired fixture captures the completed initial state, then checks that identical content produces no writes.
+It also uses a completed NBA game, expects the shared dispatcher, and clears its own pending scan inputs before testing idle work.
 
-`tests/db/statistics-maintenance.sql` also fails its final assertion that every table receives analysis.
-The existing refresh function correctly skips tables whose statistics are fresh.
-Its earlier checks confirm the restored player-stat storage policy.
-The separate freshness test passes all 11 checks.
-Repairing the stale assertion requires editing that test outside this scope.
+The old statistics test requires every table to be analyzed, even when its statistics are fresh.
+The repaired test accepts fresh statistics and verifies that a second pass performs no analysis.
+
+The reported 27 permission mismatches do not reproduce in fresh local stacks.
+Both `e5f16211` and the current schema match existing ownership and permission entries.
+The new cache invalidation trigger receives its missing catalog entry with owner-only execution.
+No release attestation is regenerated.
+
+The approved schedule passes `supabase/functions/refresh-views/schedule.test.sql` with 46 checks.
+The new `tests/db/nightly-worker-hours.sql` covers all six deferred job kinds with 12 checks.
+Before the fix, pick predictions start during a live game and fail that test.
+After the fix, they remain pending until the nightly window.
+A clock-driven live-worker test observes ticks at 0, 30, 60, and 90 seconds, then exits immediately on an idle slate.
+The original 20-second worker fails the same test.
 
 Run selected SQL files with `psql -X -v ON_ERROR_STOP=1 -f <file>` against a disposable database.
-Set `PANCAKE_TEST_DB_PORT` and `SUPABASE_DB_URL` to that database for tests with local-target guards.
+The lab runner supplies its own loopback port and translates test-only placeholder URLs to that stack.
 Run `node scripts/check-db-function-sources.mjs --check` and `git diff --check` afterward.
-The full write test and stale maintenance assertion remain verification blockers.
-Hosted settings, production query sizes, WebSocket delivery, and swap reduction remain unmeasured.
+Hosted settings and real game-night load remain unmeasured until a separate authorized rollout.
