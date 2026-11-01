@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import {qualityGrade} from './quality-grade.mjs'
 
-const grade=freshness=>qualityGrade({actions:{records:[]},freshness,realtime:{},policies:{}})
+const grade=freshness=>qualityGrade({actions:{records:[]},freshness,realtime:{},policies:{},liveForecasts:[]})
 
 test('missing phone observations fail freshness even when the observed p95 is fast',()=>{
   for(const passed of [false,undefined]) {
