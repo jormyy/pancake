@@ -11,6 +11,7 @@ import { recordSyncRun } from '../_shared/syncRuns.ts'
 import { errorMessage } from '../_shared/responses.ts'
 import { startLeaseHeartbeat } from '../_shared/leaseHeartbeat.ts'
 import { LIVE_POLL_LEASE_TTL_SECONDS, LIVE_POLL_LOCK_KEY } from '../_shared/livePoll.ts'
+import { renewLivePollLease } from './lease.ts'
 import { withWorkContext, withLiveScoreRetries, withPublicCheckpoint } from '../_shared/workContext.ts'
 import { retryDatabaseContention } from '../_shared/databaseRetry.ts'
 import type { Database } from '../_shared/database.ts'
@@ -129,6 +130,7 @@ export async function ingestTick(holder: string, onRetry?: () => void, gameIds?:
 }
 
 export async function runLivePoll(request: Request): Promise<Response> {
+  let leaseExpiresAt = Date.now() + LIVE_POLL_LEASE_TTL_SECONDS * 1000
   const { data: holder, error } = await supabase.rpc('try_live_poll_lease', {
     p_lock_key: LIVE_POLL_LOCK_KEY, p_ttl_seconds: LIVE_POLL_LEASE_TTL_SECONDS,
   }).abortSignal(AbortSignal.timeout(5000))
@@ -136,13 +138,15 @@ export async function runLivePoll(request: Request): Promise<Response> {
   if (!holder) return Response.json({ ok: true, action: 'lease-skip', ticks: 0 })
   const controller = new AbortController()
   const deadline = setTimeout(() => controller.abort(new Error('Live ingestion reached its wall-clock limit')), 115_000)
-  const heartbeat = startLeaseHeartbeat(async () => {
+  const heartbeat = startLeaseHeartbeat(() => renewLivePollLease(async timeoutMs => {
+    const requestedAt = Date.now()
     const { data, error } = await supabase.rpc('renew_live_poll_lease', {
       p_lock_key: LIVE_POLL_LOCK_KEY, p_holder_id: holder, p_ttl_seconds: LIVE_POLL_LEASE_TTL_SECONDS,
-    }).abortSignal(AbortSignal.timeout(5000))
+    }).abortSignal(AbortSignal.timeout(timeoutMs))
     if (error) throw error
+    if (data === true) leaseExpiresAt = requestedAt + LIVE_POLL_LEASE_TTL_SECONDS * 1000
     return data === true
-  }, LIVE_POLL_LEASE_TTL_SECONDS * 1000 * 2 / 3, error => controller.abort(error ?? new Error('Live poll lease lost')))
+  }, leaseExpiresAt - 1000), LIVE_POLL_LEASE_TTL_SECONDS * 1000 * 2 / 3, error => controller.abort(error ?? new Error('Live poll lease lost')))
   try {
     const result = await recordSyncRun('live-poll', async () => {
       const started = Date.now()
