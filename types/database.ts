@@ -6538,6 +6538,11 @@ export type Database = {
         Args: { p_league_id: string; p_since?: string; p_user_id: string }
         Returns: Json
       }
+      get_live_checkpoint_work: {
+        Args: { p_now?: string }
+        Returns: { id: string; nba_game_id: string; game_date: string; status: string; game_time: string | null;
+          home_team: string; away_team: string; checkpoint_at: string | null; needs_final_check: boolean }[]
+      }
       get_live_poll_work: {
         Args: { p_now?: string }
         Returns: {
@@ -6965,6 +6970,10 @@ export type Database = {
       rebuild_nba_calendar_atomic: {
         Args: { p_season_year: number }
         Returns: number
+      }
+      record_live_checkpoint: {
+        Args: { p_holder: string; p_game_ids: string[] }
+        Returns: undefined
       }
       record_live_poll_attempts: {
         Args: {
