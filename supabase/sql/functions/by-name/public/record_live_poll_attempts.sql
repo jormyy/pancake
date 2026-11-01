@@ -10,9 +10,9 @@ BEGIN
   PERFORM private.lock_live_poll_holder(p_holder);
   INSERT INTO private.live_poll_game_state(game_id,checked_at,stats_attempted_at)
     SELECT game.id,
-      CASE WHEN game.id=ANY(p_checked_ids) THEN clock_timestamp() END,
+      CASE WHEN game.id=ANY(p_checked_ids) AND game.status<>'InProgress' THEN clock_timestamp() END,
       CASE WHEN game.id=ANY(p_stats_ids) AND game.status='Final' THEN clock_timestamp() END
-    FROM public.nba_games game WHERE game.id=ANY(p_checked_ids) OR (game.id=ANY(p_stats_ids) AND game.status='Final')
+    FROM public.nba_games game WHERE (game.id=ANY(p_checked_ids) AND game.status<>'InProgress') OR (game.id=ANY(p_stats_ids) AND game.status='Final')
     ORDER BY game.id
     ON CONFLICT(game_id) DO UPDATE SET
       checked_at=COALESCE(EXCLUDED.checked_at,live_poll_game_state.checked_at),
