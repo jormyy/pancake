@@ -63,15 +63,16 @@ export async function runWindow(stack, slate, { label, memoryMiB, seconds = slat
     phoneBehavior={passed:result.success && result.numPassedTests===3,tests:result.numPassedTests,clock:'controlled clock; real route, cache, poller, and overlay',file}
     assert.ok(phoneBehavior.passed,'Phone recovery behavior fails before replay')
   }
+  const dockerWatch=stack.startupWatch ?? await watchDocker(stack.project)
+  stack.startupWatch=null
   console.log(`${label}: preparing synthetic data.`)
-  const prepared = await prepare(stack, slate, label)
-  let workers, publicFeed, phones, dockerWatch
+  const prepared = await prepare(stack, slate, label).catch(async error=>{await dockerWatch.close();throw error})
+  let workers, publicFeed, phones
   stack.setRuntimeClose(async () => { await workers?.close(); await phones?.close(); await publicFeed?.close(); await prepared.feed.close() })
   try {
     if (stack.phoneLab) publicFeed = await startPublicFeed(stack,label)
     workers = await startWorkers(stack, label, ingestionOff)
     if (stack.phoneLab) phones = await startPhones(stack,publicFeed)
-    dockerWatch=await watchDocker(stack.project)
     await command('docker', ['update', `--memory=${memoryMiB}m`, '--memory-swap=1536m', stack.container])
     await stack.sql("ALTER SYSTEM SET cron.launch_active_jobs='on'; SELECT pg_reload_conf();")
     const warmupMs = seconds < 120 ? warmup * 1000 : (Math.floor(Date.now() / 120000) + 1) * 120000 + 115000 - Date.now()

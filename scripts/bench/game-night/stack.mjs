@@ -6,6 +6,7 @@ import { randomBytes, randomInt } from 'node:crypto'
 import { command, delay, digest, json, loopback, quote, readJson, repository } from './common.mjs'
 import { createSqlSession } from '../../season-sim/sql-session.mjs'
 import { copyMigrations } from './migration-files.mjs'
+import { watchDocker } from './docker-watch.mjs'
 
 async function freePorts() {
   const first = randomInt(1900, 2350) * 20
@@ -72,17 +73,20 @@ export async function startStack(evidence, { sourceRoot = repository, profileMem
   }
   let session
   let runtimeClose
+  let startupWatch
   let stopping
   const temporaryImages = []
   const stop = async () => {
     stopping ??= (async () => {
       await runtimeClose?.()
       await session?.close()
+      await startupWatch?.close()
       await removeStack(evidence, project, temporaryImages)
     })()
     return stopping
   }
   try {
+    startupWatch=await watchDocker(project)
     await cli(['start', '-x', 'studio,imgproxy,vector,logflare,supavisor,edge-runtime,postgres-meta,mailpit'])
     await sqlOnce("ALTER SYSTEM SET cron.launch_active_jobs='off'; ALTER SYSTEM SET pg_stat_statements.track='all'; ALTER SYSTEM SET track_functions='all'; SELECT pg_reload_conf();")
     if (sharedBuffers != null) {
@@ -140,11 +144,14 @@ export async function startStack(evidence, { sourceRoot = repository, profileMem
     const hashes=migrationFiles.hashes
     const sourceBase=(await command('git',['rev-parse','HEAD'],{cwd:sourceRoot})).stdout.trim()
     const overlayHash=Object.keys(migrationFiles.added).length ? digest(JSON.stringify(migrationFiles.added)) : null
-    const metadata = { project, ports, source: overlayHash ? `${sourceBase}+migrations:${overlayHash.slice(0,12)}` : sourceBase, sourceBase, migrationOverlays:migrationFiles.added, sourceRoot, migrations: hashes, cron, settings: { sharedBuffers: sharedBuffers ?? null }, clock: 'native real time; no SQL clock replacement', network: 'Database HTTP guard and loopback relay; Edge fetch guard and Deno allow-net', host: JSON.parse((await command('docker', ['info', '--format', '{{json .}}'])).stdout) }
+    const metadata = { project, ports, monitoringStartedAt: startupWatch.started, source: overlayHash ? `${sourceBase}+migrations:${overlayHash.slice(0,12)}` : sourceBase, sourceBase, migrationOverlays:migrationFiles.added, sourceRoot, migrations: hashes, cron, settings: { sharedBuffers: sharedBuffers ?? null }, clock: 'native real time; no SQL clock replacement', network: 'Database HTTP guard and loopback relay; Edge fetch guard and Deno allow-net', host: JSON.parse((await command('docker', ['info', '--format', '{{json .}}'])).stdout) }
     metadata.host = Object.fromEntries(['NCPU', 'MemTotal', 'KernelVersion', 'CgroupVersion', 'OperatingSystem'].map(key => [key, metadata.host[key]]))
     await json(path.join(evidence, 'environment.json'), metadata)
     await json(path.join(evidence, 'database-healthcheck.json'), (await owned(container)).healthcheck)
     await json(path.join(evidence, 'schema.json'), JSON.parse(await sql("SELECT json_agg(c) FROM (SELECT table_schema,table_name,column_name,data_type,column_default FROM information_schema.columns WHERE table_schema IN ('public','private','analytics') ORDER BY table_schema,table_name,ordinal_position)c")))
-    return { project, ports, container, workdir, sourceRoot, profileMemory, temporaryImages, api, db: db.href, keys, token, sql, sqlFile, sqlOnce, resetObserver, stop, metadata, evidence, owned, setRuntimeClose(close) { runtimeClose = close } }
-  } catch (error) { await stop(); throw error }
+    return { project, ports, container, workdir, sourceRoot, profileMemory, startupWatch, temporaryImages, api, db: db.href, keys, token, sql, sqlFile, sqlOnce, resetObserver, stop, metadata, evidence, owned, setRuntimeClose(close) { runtimeClose = close } }
+  } catch (error) {
+    if(startupWatch)await json(path.join(evidence,'startup-watch.json'),startupWatch.result(Date.now()))
+    await stop();throw error
+  }
 }
