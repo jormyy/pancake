@@ -1,8 +1,8 @@
 # Half-gig database cuts
 
 These changes reduce stored history, repeated trigger calls, and duplicate index writes.
-They do not establish the 95% swap target.
-The separate game-night measurement owns that result.
+Individual migration cuts do not establish the combined target.
+The [local measurement report](half-gig-results.md) records the accepted architecture and runtime settings.
 
 ## Migration changes
 
@@ -82,15 +82,15 @@ Managed cron and Realtime tables retain their service-owned storage settings.
 
 Read current settings first.
 Apply and measure one change at a time in the separate replay.
-The values below are candidates, not settings applied by this migration.
+The table separates selected replay settings from further candidates. These settings are applied outside schema migrations.
 Local `supabase/config.toml` does not change hosted service settings.
 
 | Setting | Candidate | Expected memory effect | Apply outside migrations |
 | --- | --- | --- | --- |
-| PostgREST `db-pool` | Test 2 and 5 connections; keep idle expiry at 30 seconds | Bounds active SQL backends; savings depend on removed backends and their measured private memory | Management API `PATCH /v1/projects/{ref}/postgrest`, body `{"db_pool":2}`; this is separate from Supavisor's pool |
+| PostgREST `db-pool` | Selected: 2 connections; keep idle expiry at 30 seconds | Bounds active SQL backends; savings depend on removed backends and their measured private memory | Management API `PATCH /v1/projects/{ref}/postgrest`, body `{"db_pool":2}`; this is separate from Supavisor's pool |
 | `max_connections` | Test 40 after service pools fit below that limit | Lowers shared bookkeeping and prevents unbounded backend growth; unused slots do not equal running backends | Hosted Postgres configuration; restart required |
 | `work_mem` | Keep 4 MB first; test 2 MB separately | Saves up to 2 MB per active sort; hash savings also depend on `hash_mem_multiplier` | Hosted Postgres configuration; compare temporary I/O and interactive latency |
-| `shared_buffers` | Test 64 MB if the current value is 128 MB | Frees 64 MB of fixed shared allocation; can increase reads | Hosted Postgres configuration; restart required |
+| `shared_buffers` | Selected: 32 MB in the combined replay | Bounds fixed shared allocation; measured reads and quality must still pass | Hosted Postgres configuration; restart required |
 | `maintenance_work_mem` and `autovacuum_work_mem` | Test 16 MB each | Caps memory per maintenance task or vacuum worker; smaller limits can increase passes | Hosted Postgres configuration |
 | Realtime SQL pools | Ask support which tenant pools can use 2 connections | Fewer idle database backends; savings require a lower actual connection count | Provider-managed configuration; no documented dashboard pool control |
 | Realtime event and connection limits | Fit measured peak usage with headroom | Bounds fan-out memory on Realtime nodes; database savings are indirect | Realtime settings; preserve draft presence and private broadcasts |
@@ -108,7 +108,7 @@ The local lab replaces only its own PostgREST container with the requested pool 
 Local lifetime and idle-time experiments do not establish that hosted controls exist for those settings.
 No hosted configuration changes occur in the lab.
 
-For a measured `shared_buffers` change, the hosted command is `supabase postgres-config update --config shared_buffers=64MB --project-ref <ref> --experimental`.
+For a measured `shared_buffers` change, the hosted command is `supabase postgres-config update --config shared_buffers=32MB --project-ref <ref> --experimental`.
 The [Postgres configuration guide](https://supabase.com/docs/guides/database/custom-postgres-config) requires a restart for this setting.
 Read the applied value and `pending_restart` afterward.
 The lab uses its own container and never runs that hosted command.
@@ -179,3 +179,9 @@ Run selected SQL files with `psql -X -v ON_ERROR_STOP=1 -f <file>` against a dis
 The lab runner supplies its own loopback port and translates test-only placeholder URLs to that stack.
 Run `node scripts/check-db-function-sources.mjs --check` and `git diff --check` afterward.
 Hosted settings and real game-night load remain unmeasured until a separate authorized rollout.
+
+## Current local measurement
+
+The approved schedule and pool of two first pass three paired runs at 142.640 anonymous refaults/s, versus 701.832 for their reference. The later public architecture adds the selected shared-buffer setting. Its separate repeated result and untouched held-out result are in [the measurement report](half-gig-results.md). Do not attribute the combined gain to one setting.
+
+The database stays local throughout these checks. No hosted configuration command runs. The production setting needs a restart and a read-back of `shared_buffers` and `pending_restart` during the separate authorized rollout.

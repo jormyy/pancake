@@ -1,6 +1,6 @@
 # Shared live scores
 
-The public source, phone polling, score overlay, and checkpoint ingestion pass focused checks. Full replay validation and the performance comparison remain in progress. No deployment has occurred.
+The local replay validates shared snapshots, phone scoring, and official checkpoints. [Measured results](half-gig-results.md) separate code changes, runtime settings, quality checks, and remaining free-plan risks. No deployment has occurred.
 
 ## Public route
 
@@ -36,9 +36,9 @@ The local source probe returned seven games on November 1, 2026: 11,400 bytes ra
 
 Removing four unused values reduces the frozen seven-game response from 10,196 to 8,768 bytes. Gzip falls from 2,326 to 2,040 bytes. That is 14.0% less raw data and 12.3% less compressed data. This comparison changes no scoring input. Evidence is `evidence-climb/public-runtime-smoke/payload-trim.json`.
 
-Phones poll at cache expiry, about every thirty seconds. One short retry reads a completed background refresh after a stale response. Two requests per interval produce at most 432,000 monthly phone requests for ten phones, six hours per night, thirty nights. A thirty-second worker adds 21,600 requests. At the measured size, 453,600 responses transfer 5.17 GB raw or 1.57 GB gzip. These are estimates until the complete replay measures the final payload.
+Phones poll at cache expiry, about every thirty seconds. One short retry reads a completed background refresh after a stale response. Ten phones, six hours per night, thirty nights produce at most 432,000 phone requests. The worker adds 21,600 requests. At the measured median of 8,788 raw and 2,129 gzip bytes, the combined bound transfers 3.986 GB raw or 0.966 GB gzip. These are projections, not hosted billing measurements.
 
-With one shared cache region, thirty-second misses produce at most 21,600 origin calls during those hours. Eleven independent regions produce at most 237,600. That upper estimate transfers 2.71 GB of raw origin responses. Cache outages can increase calls; the request total remains the conservative upper bound.
+With one shared cache region, thirty-second misses produce at most 21,600 origin calls during those hours. Eleven independent regions produce at most 237,600. That upper estimate transfers 2.088 GB of raw origin responses. Cache outages can increase calls; the request total remains the conservative upper bound.
 
 Current [Hobby allowances](https://vercel.com/docs/plans/hobby) include one million CDN requests, one million function invocations, 100 GB transfer, 10 GB origin transfer, four active CPU hours, and 360 GB memory-hours. Request and transfer estimates are below half those allowances. Each replay also projects CPU and memory from local route measurements. Those projections do not establish deployed resource usage. Public traffic beyond these ten phones is outside this estimate.
 
@@ -58,7 +58,7 @@ The unchanged ingestion path remains available for the off switch and official s
 
 The timed window still uses 192 MiB. After it ends, the feed holds its last state while scheduled checkpoints settle. That work stays outside the measured counters. Final-state checks then compare official stats and scores with the unchanged fixture. Reports retain stored-score freshness separately from phone freshness. The new work grader requires due checkpoints, final transitions, actual saves, worker starts, cache misses, and phone requests inside the timed window.
 
-Focused cache and phone tests cover outages, stale snapshots, hidden screens, reconnecting, and opening mid-game. Deliberately late scores, wrong final scores, missing subscribers, missing checkpoints, and disabled ingestion fail their graders. Full-stack negative controls and repeated performance runs remain required before acceptance.
+Focused cache and phone tests cover outages, stale snapshots, hidden screens, reconnecting, and opening mid-game. Deliberately late scores, wrong final scores, missing subscribers, missing checkpoints, and disabled ingestion fail their graders. The repeated comparison and explicit fault controls are recorded separately. They retain their source hashes and original failed reports.
 
 ## Saved-score basis
 
@@ -83,3 +83,11 @@ The current sources are [Vercel limits](https://vercel.com/docs/limits) and [Sup
 Named risk: database size and retention. The unchanged 265 MB fixture already uses about 53% of the 500 MB allowance. Reports retain actual before/after database allocation and table sizes. A short allocation increase includes reusable pages and does not predict permanent monthly growth. Official stats and results stay protected; successful-job and broadcast history retain their bounded cleanup. Real hosted growth remains unmeasured because this work never reads production.
 
 A physical phone, sustained live provider access from Vercel, deployed cache behavior, and deployed CPU billing remain rollout checks. The local browser uses the real exported app at a 390-pixel viewport. It verifies saved-score fallback without horizontal overflow or script errors. Ten authenticated replay clients verify official corrections through actual Realtime broadcasts; an omitted correction fails their expectation.
+
+## Accepted runtime setting
+
+The combined replay uses 32 MB `shared_buffers` and a PostgREST pool of two connections. The [settings guide](half-gig-settings.md) gives the separate hosted controls. These values are not applied by a schema migration.
+
+The replay keeps Realtime, Auth, Storage, cron, and `pg_net`. The old ingestion branch and unfiltered checkpoint reader remain for database mode. The live worker also needs its identity checks and save functions for final results and corrections.
+
+The decoded Supabase transfer projection remains a named risk. It repeats the heavy action rate across every playing hour and includes database-to-Edge plus Edge-to-phone responses. Keep both legs visible; do not call this hosted billing data.
