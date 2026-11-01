@@ -3,11 +3,11 @@
 import type { StatLine } from './scoringCore.ts'
 
 
-export type LiveLine = [id: string, points: number, rebounds: number, assists: number, steals: number, blocks: number,
+type LiveLine = [id: string, points: number, rebounds: number, assists: number, steals: number, blocks: number,
     turnovers: number, threesMade: number, fieldGoalsMade: number, fieldGoalsAttempted: number,
     freeThrowsMade: number, freeThrowsAttempted: number, fouls: number, minutes: number, didNotPlay: number]
 
-export type PublicLiveGame = {
+type PublicLiveGame = {
     id: string
     nbaId: string | null
     espnId: string | null
@@ -22,36 +22,12 @@ export type PublicLiveGame = {
 
 export type LiveSnapshot = { version: 1; mode: 'public' | 'database'; date: string; capturedAt: number; games: PublicLiveGame[] }
 
-export type SavedLivePlayer = {
-    playerId: string
-    memberId: string
-    nbaId: string | null
-    espnId: string | null
-    team: string | null
-    gameId: string | null
-    savedPoints: number
-    savedAt: number
-    starter: boolean
-    final?: boolean
-}
-
-export type SavedLiveMatchup = {
-    id: string
-    homeMemberId: string
-    awayMemberId: string
-    homePoints: number
-    awayPoints: number
-    finalized: boolean
-    ready?: boolean
-    players: SavedLivePlayer[]
-}
-
-export type PublicLiveStats = StatLine & {
+type PublicLiveStats = StatLine & {
     minutesPlayed: number
     fouls: number
 }
 
-export function liveLineStats(row: LiveLine): PublicLiveStats | null {
+function liveLineStats(row: LiveLine): PublicLiveStats | null {
     if (row.length !== 15 || !/^\d+$/.test(row[0]) || row.slice(1).some(value => typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 2147483647)) return null
     if (![0,1].includes(row[14])) return null
     const doubles = [row[1],row[2],row[3],row[4],row[5]].filter(value => value >= 10).length
@@ -65,7 +41,7 @@ export function liveLineStats(row: LiveLine): PublicLiveStats | null {
 
 
 
-export type LiveResponse = { body: unknown; ageMs: number; cache: string }
+type LiveResponse = { body: unknown; ageMs: number; cache: string }
 
 export async function fetchLiveSnapshot(url: string, signal: AbortSignal): Promise<LiveResponse> {
     const response = await fetch(url, { signal, credentials: 'omit', redirect: 'error', headers: { accept: 'application/json' } })

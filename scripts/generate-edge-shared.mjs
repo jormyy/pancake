@@ -181,11 +181,11 @@ async function liveSnapshotCore() {
   let types = await read('core/src/live/overlay.ts')
   for (const specifier of ['../scoring/formula', '../scoring/types', './codec']) types = dropImportDeclaration(types, 'liveSnapshotTypes', specifier)
   types = types.replace("export { liveLineStats } from './codec'\n", '')
-  types = pruneEdgeExports(types, 'liveSnapshotTypes', [], ['overlayLiveScores'])
-  const codec = dropImportDeclaration(await read('core/src/live/codec.ts'), 'liveSnapshotCodec', './overlay')
+  types = pruneEdgeExports(types, 'liveSnapshotTypes', ['LiveLine', 'PublicLiveGame', 'PublicLiveStats'], ['overlayLiveScores', 'SavedLivePlayer', 'SavedLiveMatchup'])
+  const codec = pruneEdgeExports(dropImportDeclaration(await read('core/src/live/codec.ts'), 'liveSnapshotCodec', './overlay'), 'liveSnapshotCodec', ['liveLineStats'])
   let reader = await read('core/src/live/poll.ts')
   for (const specifier of ['./codec', './overlay']) reader = dropImportDeclaration(reader, 'liveSnapshotReader', specifier)
-  reader = pruneEdgeExports(reader, 'liveSnapshotReader', [], ['createLivePoller', 'PollScope', 'LIVE_PHONE_POLL_MS'])
+  reader = pruneEdgeExports(reader, 'liveSnapshotReader', ['LiveResponse'], ['createLivePoller', 'PollScope', 'LIVE_PHONE_POLL_MS'])
   return `${HEADER}import type { StatLine } from './scoringCore.ts'\n\n${types}\n${codec}\n${reader}`
 }
 

@@ -2,10 +2,10 @@ import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
 import { id, quote } from './common.mjs'
 
-export const teams = ['ATL','BOS','BKN','CHA','CHI','CLE','DAL','DEN','DET','GSW','HOU','IND','LAC','LAL','MEM','MIA','MIL','MIN','NOP','NYK','OKC','ORL','PHI','PHX','POR','SAC','SAS','TOR','UTA','WAS']
-export const gameId = number => id(800000 + number)
-export const nbaId = number => '00299' + String(number).padStart(5, '0')
-export const playerId = (team, index) => teams.indexOf(team) * 20 + index + 1
+const teams = ['ATL','BOS','BKN','CHA','CHI','CLE','DAL','DEN','DET','GSW','HOU','IND','LAC','LAL','MEM','MIA','MIL','MIN','NOP','NYK','OKC','ORL','PHI','PHX','POR','SAC','SAS','TOR','UTA','WAS']
+const gameId = number => id(800000 + number)
+const nbaId = number => '00299' + String(number).padStart(5, '0')
+const playerId = (team, index) => teams.indexOf(team) * 20 + index + 1
 
 export function stateAt(slate, seconds) {
   const elapsed = Math.max(0, Math.min(slate.windowSeconds - 30, seconds))

@@ -182,7 +182,9 @@
     "tests/db/l3e-attest.mjs",
     "tests/db/l3e-install.mjs",
     "scripts/season-sim/sql-session-fixture.mjs",
-    "tests/db/league-actions{,-stack,-report,-metrics.test}.mjs"
+    "tests/db/league-actions{,-stack,-report,-metrics.test}.mjs",
+    "api/live/*.ts",
+    "scripts/bench/game-night/{architecture-series,cleanup,edge,provider-check,public-server,regressions,run,runtime-check,series,settings-series,verify,verify-phone-history,verify-settings}.{mjs,ts}"
   ],
   "project": [
     "**/*.{js,mjs,ts,tsx}"
