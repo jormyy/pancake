@@ -58,6 +58,20 @@ afterEach(async () => {
 })
 
 describe('database broadcast subscriptions', () => {
+    it('delivers batched roster and trade changes together with version hints', () => {
+        const roster = vi.fn(), trades = vi.fn(), hints = vi.fn()
+        subscribeToTableChanges('batch', { mode: 'per-watch', watches: [
+            { table: 'roster_players', filter: 'league_id=eq.league-1', onChange: roster },
+            { table: 'trades', filter: 'league_id=eq.league-1', onChange: trades },
+            { table: 'league_change_hints', filter: 'league_id=eq.league-1', onChange: hints },
+        ] })
+        const row = { schema: 'public', table: 'roster_players', eventType: 'DELETE', new: {}, old: { member_id: 'member' } }
+        const trade = { ...row, table: 'trades', eventType: 'UPDATE' }
+        realtime.callbacks[0].callback({ payload: { hints: [{ payload: row }, { payload: trade }, { event: 'UPDATE', row: { topic: 'version' } }] } })
+        expect(roster).toHaveBeenCalledExactlyOnceWith(row)
+        expect(trades).toHaveBeenCalledExactlyOnceWith(trade)
+        expect(hints).toHaveBeenCalledOnce()
+    })
     it('dispatches every coalesced hint and still accepts the original envelope', () => {
         const receive = vi.fn()
         subscribeToTableChanges('hints', { mode: 'per-watch', watches: [

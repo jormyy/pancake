@@ -11,7 +11,7 @@ import { recordSyncRun } from '../_shared/syncRuns.ts'
 import { errorMessage } from '../_shared/responses.ts'
 import { startLeaseHeartbeat } from '../_shared/leaseHeartbeat.ts'
 import { LIVE_POLL_LEASE_TTL_SECONDS, LIVE_POLL_LOCK_KEY } from '../_shared/livePoll.ts'
-import { withWorkContext, withLiveScoreRetries } from '../_shared/workContext.ts'
+import { withWorkContext, withLiveScoreRetries, withPublicCheckpoint } from '../_shared/workContext.ts'
 import { retryDatabaseContention } from '../_shared/databaseRetry.ts'
 import type { Database } from '../_shared/database.ts'
 import type { LiveGameCache } from '../_shared/liveFeed.ts'
@@ -161,7 +161,7 @@ export async function runLivePoll(request: Request): Promise<Response> {
           return data ?? []
         }),
         snapshot: async date => (await fetchLiveSnapshot(new URL(`/api/live/${date}`, sharedUrl).href, AbortSignal.timeout(5000))).body,
-        ingest: (holder, gameIds) => ingestTick(holder, () => { tickRetries++ },gameIds),
+        ingest: (holder, gameIds, checkpointOnly) => withPublicCheckpoint(Boolean(checkpointOnly), () => ingestTick(holder, () => { tickRetries++ },gameIds)),
         record: (holder, gameIds) => checkpointRetry(async () => {
           const { error } = await supabase.rpc('record_live_checkpoint',{p_holder:holder,p_game_ids:gameIds}).abortSignal(AbortSignal.timeout(5000))
           if (error) throw error

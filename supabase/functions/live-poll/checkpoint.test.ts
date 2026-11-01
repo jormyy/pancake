@@ -15,7 +15,7 @@ Deno.test('shared ticks avoid database work between thirty-minute checkpoints', 
   let now=start, loads=0, writes=0, records=0
   const game=row()
   const tick=createCheckpointPoller({ now:()=>now,load:async()=>{loads++;return [game]},snapshot:async()=>snapshot(now),
-    ingest:async(_holder,ids)=>{assert.deepEqual([...ids!],['game']);writes++;return result()},
+    ingest:async(_holder,ids,checkpointOnly)=>{assert.deepEqual([...ids!],['game']);assert.equal(checkpointOnly,true);writes++;return result()},
     record:async()=>{records++;game.checkpoint_at=new Date(now).toISOString()} })
   assert.equal(CHECKPOINT_INTERVAL_MS,1800000)
   for(let elapsed=0;elapsed<CHECKPOINT_INTERVAL_MS;elapsed+=30000) { now=start+elapsed; assert.equal((await tick('holder')).keepRunning,true) }
@@ -32,7 +32,7 @@ Deno.test('tipoffs and finals save immediately without waiting for a checkpoint'
   let now=start, status='Scheduled', writes=0
   const game=row();game.status='Scheduled'
   const tick=createCheckpointPoller({now:()=>now,load:async()=>game.status==='Final'?[]:[game],snapshot:async()=>snapshot(now,status),
-    ingest:async()=>{writes++;game.status=status;return result()},record:async()=>{game.checkpoint_at=new Date(now).toISOString()} })
+    ingest:async(_holder,_ids,checkpointOnly)=>{assert.equal(checkpointOnly,false);writes++;game.status=status;return result()},record:async()=>{game.checkpoint_at=new Date(now).toISOString()} })
   await tick('holder');assert.equal(writes,0)
   status='InProgress';now+=30000;await tick('holder');assert.equal(writes,1)
   status='Final';now+=30000;assert.equal((await tick('holder')).keepRunning,false);assert.equal(writes,2)

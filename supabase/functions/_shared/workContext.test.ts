@@ -3,14 +3,14 @@ import { strict as assert } from 'node:assert'
 Deno.test('request-scoped deadlines and lease headers', async t => {
 const database = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, async req => {
   await new Promise(resolve => setTimeout(resolve, 10))
-  return Response.json({ holder: req.headers.get('x-pancake-live-holder'), requestId: req.headers.get('x-request-id'), actor: req.headers.get('x-request-actor') })
+  return Response.json({ holder: req.headers.get('x-pancake-live-holder'), requestId: req.headers.get('x-request-id'), actor: req.headers.get('x-request-actor'), checkpoint: req.headers.get('x-pancake-public-checkpoint') })
 })
 const external = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, req => {
   if (new URL(req.url).pathname === '/body') return new Response(new ReadableStream({ start(controller) { controller.enqueue(new TextEncoder().encode('{')) } }))
-  return Response.json({ holder: req.headers.get('x-pancake-live-holder'), requestId: req.headers.get('x-request-id'), actor: req.headers.get('x-request-actor') })
+  return Response.json({ holder: req.headers.get('x-pancake-live-holder'), requestId: req.headers.get('x-request-id'), actor: req.headers.get('x-request-actor'), checkpoint: req.headers.get('x-pancake-public-checkpoint') })
 })
 Deno.env.set('SUPABASE_URL', `http://127.0.0.1:${database.addr.port}`)
-const { withWorkContext, withoutWorkContext, workFetch } = await import('./workContext.ts')
+const { withWorkContext, withoutWorkContext, workFetch, withPublicCheckpoint } = await import('./workContext.ts')
 
 try {
 await t.step('concurrent mutations keep their verified actors and do not send identity upstream', async () => {
@@ -22,7 +22,7 @@ await t.step('concurrent mutations keep their verified actors and do not send id
     const upstream = await (await workFetch(`http://127.0.0.1:${external.addr.port}`, { headers: { 'x-request-id': action.requestId, 'x-request-actor': action.actor } })).json()
     return { requestId: db.requestId, actor: db.actor, upstream }
   })))
-  assert.deepEqual(results, actions.map(action => ({ ...action, upstream: { holder: null, requestId: null, actor: null } })))
+  assert.deepEqual(results, actions.map(action => ({ ...action, upstream: { holder: null, requestId: null, actor: null, checkpoint: null } })))
 })
 
 await t.step('concurrent work contexts keep their lease identity and do not send it upstream', async () => {
@@ -36,6 +36,23 @@ await t.step('concurrent work contexts keep their lease identity and do not send
   assert.equal((await (await workFetch(`http://127.0.0.1:${database.addr.port}`)).json()).holder, null)
   const bounded = await withWorkContext({ signal: AbortSignal.timeout(5000) }, async () => await (await workFetch(`http://127.0.0.1:${database.addr.port}`)).json())
   assert.equal(bounded.holder, null)
+})
+
+await t.step('only leased public checkpoints carry the database-only marker', async () => {
+  await withWorkContext({ signal: AbortSignal.timeout(5000), livePollHolder: crypto.randomUUID() }, async () => {
+    await withPublicCheckpoint(true, async () => {
+      const db = await (await workFetch(`http://127.0.0.1:${database.addr.port}`)).json()
+      assert.equal(db.checkpoint, 'true')
+      const upstream = await (await workFetch(`http://127.0.0.1:${external.addr.port}`, { headers: { 'x-pancake-public-checkpoint': 'true' } })).json()
+      assert.equal(upstream.checkpoint, null)
+    })
+    const restored = await (await workFetch(`http://127.0.0.1:${database.addr.port}`)).json()
+    assert.equal(restored.checkpoint, null)
+  })
+  await withWorkContext({ signal: AbortSignal.timeout(5000) }, () => withPublicCheckpoint(true, async () => {
+    const db = await (await workFetch(`http://127.0.0.1:${database.addr.port}`)).json()
+    assert.equal(db.checkpoint, null)
+  }))
 })
 
 await t.step('work deadline cancels a real response body after headers arrive', async () => {

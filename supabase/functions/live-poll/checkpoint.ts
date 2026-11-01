@@ -9,7 +9,7 @@ export const CHECKPOINT_INTERVAL_MS = 30 * 60 * 1000
 export function createCheckpointPoller(dependencies: {
   load: () => Promise<CheckpointGame[]>
   snapshot: (date: string) => Promise<unknown>
-  ingest: (holder: string, gameIds?: ReadonlySet<string>) => Promise<LiveTick>
+  ingest: (holder: string, gameIds?: ReadonlySet<string>, checkpointOnly?: boolean) => Promise<LiveTick>
   record: (holder: string, gameIds: string[]) => Promise<void>
   now?: () => number
 }) {
@@ -29,8 +29,9 @@ export function createCheckpointPoller(dependencies: {
       return { ...await dependencies.ingest(holder), sourceMode: 'database' }
     }
     const due = new Set<string>()
+    let checkpointOnly = true
     for (const game of work) {
-      if (game.needs_final_check) { due.add(game.id); continue }
+      if (game.needs_final_check) { due.add(game.id); checkpointOnly = false; continue }
       const matches = snapshots.get(game.game_date)!.games.filter(row => row.nbaId === game.nba_game_id
         || row.nbaId == null && row.home.team === game.home_team && row.away.team === game.away_team)
       if (matches.length > 1) throw new Error(`Shared game identity is ambiguous: ${game.nba_game_id}`)
@@ -40,11 +41,14 @@ export function createCheckpointPoller(dependencies: {
         continue
       }
       if (snapshot.status === 'Scheduled') continue
-      if (game.status !== snapshot.status || !game.checkpoint_at || now() - Date.parse(game.checkpoint_at) >= CHECKPOINT_INTERVAL_MS) due.add(game.id)
+      if (game.status !== snapshot.status || !game.checkpoint_at || now() - Date.parse(game.checkpoint_at) >= CHECKPOINT_INTERVAL_MS) {
+        due.add(game.id)
+        checkpointOnly &&= game.status === 'InProgress' && snapshot.status === 'InProgress' && Boolean(game.checkpoint_at)
+      }
     }
     let result: LiveTick = { lines: 0, keepRunning: true, worked: true, failures: [], scoreRetries: 0, tickRetries: 0 }
     if (due.size) {
-      result = await dependencies.ingest(holder,due)
+      result = await dependencies.ingest(holder,due,checkpointOnly)
       if (result.worked && !result.failures.length) {
         await dependencies.record(holder,[...due])
         work = await dependencies.load()
