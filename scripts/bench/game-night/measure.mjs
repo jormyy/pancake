@@ -24,6 +24,7 @@ export async function counters(stack) {
 export async function snapshot(stack) {
   return JSON.parse(await stack.sql(`SELECT json_build_object(
     'at',clock_timestamp(),'database',(SELECT row_to_json(d) FROM (SELECT sessions,xact_commit,xact_rollback,blks_read,blks_hit,temp_bytes,stats_reset FROM pg_stat_database WHERE datname=current_database())d),
+    'storage',json_build_object('databaseBytes',pg_database_size(current_database()),'tables',(SELECT json_agg(t) FROM (SELECT schemaname,relname,pg_total_relation_size(relid) bytes,n_live_tup,n_dead_tup,n_tup_ins,n_tup_upd,n_tup_del FROM pg_stat_user_tables ORDER BY pg_total_relation_size(relid) DESC LIMIT 25)t)),
     'wal',(SELECT row_to_json(w) FROM pg_stat_wal w),
     'statementInfo',(SELECT row_to_json(i) FROM extensions.pg_stat_statements_info i),
     'settings',(SELECT json_agg(s) FROM (SELECT name,setting,unit FROM pg_settings WHERE name IN ('shared_buffers','work_mem','maintenance_work_mem','max_connections','effective_cache_size','huge_pages','jit','max_parallel_workers_per_gather','wal_buffers','pg_stat_statements.track','track_functions'))s),

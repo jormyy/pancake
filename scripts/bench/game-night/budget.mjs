@@ -25,16 +25,16 @@ export function projectBudget(report) {
         'Realtime message estimate adds delivered broadcasts and an upper bound of one send per delivery.']},
     payload:{medianBytes:bytes,medianGzipBytes:gzip},
     vercel:{
-      requests:row(requests,1000000,'requests','https://vercel.com/docs/plans/hobby'),
-      invocations:row(worstInvocations,1000000,'invocations','https://vercel.com/docs/plans/hobby'),
+      requests:row(requests,1000000,'requests','https://vercel.com/docs/limits'),
+      invocations:row(worstInvocations,1000000,'invocations','https://vercel.com/docs/limits'),
       oneRegionInvocations:invocations,
-      transfer:row(requests*(gzip ?? bytes),100e9,'bytes','https://vercel.com/docs/plans/hobby'),
-      originTransfer:row(worstInvocations*bytes,10e9,'bytes','https://vercel.com/docs/plans/hobby'),
-      activeCpu:row(cpu*Math.min(11,requests/Math.max(invocations,1)),4,'hours','https://vercel.com/docs/plans/hobby'),
-      memory:row(memoryHours*Math.min(11,requests/Math.max(invocations,1)),360,'GB-hours at 2 GB allocation','https://vercel.com/docs/plans/hobby'),
+      transfer:row(requests*(gzip ?? bytes),100e9,'bytes','https://vercel.com/docs/limits'),
+      originTransfer:row(worstInvocations*bytes,10e9,'bytes','https://vercel.com/docs/limits'),
+      activeCpu:row(cpu*Math.min(11,requests/Math.max(invocations,1)),4,'hours','https://vercel.com/docs/limits'),
+      memory:row(memoryHours*Math.min(11,requests/Math.max(invocations,1)),360,'GB-hours at 2 GB allocation','https://vercel.com/docs/limits'),
     },
     supabase:{
-      database:row(report.shape.databaseBytes,500e6,'bytes','https://supabase.com/pricing'),
+      database:row(report.databaseGrowth?.after.databaseBytes ?? report.shape.databaseBytes,500e6,'bytes','https://supabase.com/pricing'),
       memory:row(report.memory.cgroupAnonPeakBytes+report.memory.cgroupShmemPeakBytes,500e6,'sampled anon plus shared bytes','https://supabase.com/pricing'),
       diskIo:row(report.diskIo.readsPerSecond+report.diskIo.writesPerSecond,250,'operations per second','CONTRACT.md observed production baseline, not a Free-plan quota'),
       transfer:row((workerBytes+phones.viewBytes+phones.messageBytes)*scale,5e9,'decoded payload bytes','https://supabase.com/pricing'),
@@ -42,6 +42,8 @@ export function projectBudget(report) {
       realtimeMessages:row((deliveries*2)*scale,2000000,'messages upper estimate','https://supabase.com/docs/guides/platform/manage-your-usage/realtime-messages'),
       realtimeConnections:row(10,200,'simultaneous phone connections; lab adds one observer','https://supabase.com/docs/guides/realtime/limits'),
     },
+    databaseGrowth:report.databaseGrowth ?? null,
+    namedRisks:[...(report.shape.databaseBytes>250e6?['Database size and retention: the fixed fixture exceeds half the 500 MB Free allowance. Timed allocation includes reusable pages and must not be extrapolated linearly as permanent row growth. Successful-job and broadcast retention stay bounded; official stats and results stay protected.']:[])],
     observedBroadcasts:{deliveries},
   }
 }
