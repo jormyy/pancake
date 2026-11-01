@@ -66,6 +66,8 @@ The disposable loopback-only stack always stops. No production data is used.`)
           assert.equal(broken.finalState.passed, false, 'The broken final stat must fail')
           const off = await runWindow(stack, slate, { label: 'control-ingestion-off', memoryMiB: 192, ingestionOff: true, seconds: 120 })
           assert.equal(off.workCounts.passed, false, 'Disabled ingestion must fail the work check')
+          assert.equal(off.workCounts.saved,0,'Disabled ingestion must not save live rows')
+          assert.ok(off.workCounts.cronRuns>0,'The ingestion-off control must keep background work running')
           if (stack.qualityEnabled) {
             assert.ok(stack.qualityOptions.limits, 'Frozen action limits are required for negative quality controls')
             stack.qualityOptions.fault = 'slow-actions,realtimeScores,forecastDelivery'
