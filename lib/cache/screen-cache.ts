@@ -4,6 +4,7 @@ import { compareLeagueVersions, leagueVersionSnapshot, readLeagueVersion, subscr
 import { API_URL } from '@/lib/shared/api-url'
 import { mergePlayerPage, playerPageOffset, type PlayerPages } from '@/lib/cache/player-pages'
 import { leagueVersionsConnected } from '@/lib/league-changes'
+import { decodeSavedLiveView, homeVersionAffects } from '@pancake/core'
 
 export type ScreenName = 'home' | 'roster' | 'players' | 'player' | 'trades' | 'trade-block' | 'trade-details' | 'trade-analysis' | 'league' | 'league-schedule' | 'standings' | 'activity' | 'picks' | 'settings' | 'lineup' | 'claim-editor' | 'draft-rooms' | 'draft-room' | 'profile'
 export type ScreenScope = { accountId: string; leagueId?: string | null; memberId?: string | null; seasonId?: string | null; screen: ScreenName; params?: Record<string, unknown> }
@@ -117,11 +118,17 @@ const dependencies: Record<ScreenName, string[]> = {
     profile: ['profile'],
 }
 
-function screenAffected(scope: ScreenScope, snapshot: LeagueVersionSnapshot, previous: string): boolean {
+function screenAffected(scope: ScreenScope, snapshot: LeagueVersionSnapshot, previous: string, value?: unknown): boolean {
     if (compareLeagueVersions(snapshot.version, previous) <= 0) return false
     const changes = snapshot.changes.filter(change => compareLeagueVersions(change.version, previous) > 0)
     if (!changes.length || BigInt(changes[0].version) > BigInt(previous) + 1n) return true
     return changes.some(change => {
+        if (scope.screen === 'home') {
+            const view = value as { context?: ViewContext; selectedDate?: string; matchup?: { myMemberId?: string; opponentMemberId?: string } } | undefined
+            return homeVersionAffects(change, { seasonId: view?.context?.seasonId, date: view?.selectedDate,
+                week: view?.context?.weekNumber ?? undefined,
+                memberIds: [view?.matchup?.myMemberId, view?.matchup?.opponentMemberId].filter((id): id is string => Boolean(id)) })
+        }
         if (change.topic === 'catchup') return true
         const rawTopics = Array.isArray(change.scope.topics) ? change.scope.topics : [change.topic]
         const topics = rawTopics.map(topic => topic === 'members' ? 'member' : topic === 'players' ? 'resources' : topic === 'projections' ? 'resources' : topic === 'claims' ? 'inventory' : topic)
@@ -138,7 +145,7 @@ function applyVersion(leagueId: string, snapshot: LeagueVersionSnapshot): void {
     restore()
     for (const [key, entry] of entries) {
         if (entry.scope.leagueId !== leagueId || compareLeagueVersions(snapshot.version, entry.version) <= 0) continue
-        if (screenAffected(entry.scope, snapshot, entry.version)) {
+        if (screenAffected(entry.scope, snapshot, entry.version, entry.value)) {
             entry.dirty = true
             revisions.set(key, (revisions.get(key) ?? 0) + 1)
         } else entry.version = snapshot.version
@@ -274,13 +281,14 @@ export async function readScreenView<T>(scope: ScreenScope, options: { force?: b
             do {
                 const params = offset ? { ...scope.params, offset } : scope.params ?? {}
                 const query = new URLSearchParams({ params: JSON.stringify(params) })
+                if (scope.screen === 'home') query.set('compact', '1')
                 if (scope.leagueId) query.set('leagueId', scope.leagueId)
                 if (scope.memberId) query.set('memberId', scope.memberId)
                 const response = await fetch(`${API_URL}/views/${scope.screen}?${query}`, { headers: { Authorization: `Bearer ${session.access_token}` }, cache: 'no-store', signal: AbortSignal.timeout(30_000) })
                 const body = await response.json() as { ok?: boolean; view?: T; error?: string }
                 if (!current()) throw new Error('Your account or league changed. Please retry.')
                 if (!response.ok || body.ok !== true || body.view === undefined) throw new Error(body.error ?? 'Could not load this screen.')
-                value = body.view
+                value = scope.screen === 'home' ? decodeSavedLiveView(body.view) : body.view
                 if (!paginated) break
                 const page = value as PlayerPages
                 combined = combined ? mergePlayerPage(combined, page, offset) : { ...page, nextOffset: page.players.length }
@@ -298,7 +306,7 @@ export async function readScreenView<T>(scope: ScreenScope, options: { force?: b
                 const published = typeof raw === 'number' && Number.isSafeInteger(raw) ? String(raw) : raw
                 try { if (typeof published === 'string' && compareLeagueVersions(published, version) > 0) version = published } catch {}
             }
-        } while (revision !== (revisions.get(key) ?? 0) || Boolean(scope.leagueId && screenAffected(scope, leagueVersionSnapshot(scope.leagueId), version)))
+        } while (revision !== (revisions.get(key) ?? 0) || Boolean(scope.leagueId && screenAffected(scope, leagueVersionSnapshot(scope.leagueId), version, value)))
         saveScreenView(scope, value, version, true)
         return value
     })

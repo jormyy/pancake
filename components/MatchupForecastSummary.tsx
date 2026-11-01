@@ -1,9 +1,9 @@
 import { StyleSheet, Text, View } from 'react-native'
-import type { MatchupForecast } from '@/hooks/use-matchup-forecast'
+import type { MatchupForecastDisplay } from '@/hooks/use-matchup-forecast'
 import { colors, radii, spacing, textStyles } from '@/constants/tokens'
 
 export function MatchupForecastSummary({ forecast, myMemberId, opponentMemberId, error }: {
-    forecast: MatchupForecast | null
+    forecast: MatchupForecastDisplay | null
     pending: boolean
     stale: boolean
     error: boolean

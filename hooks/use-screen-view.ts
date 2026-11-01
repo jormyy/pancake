@@ -9,6 +9,7 @@ import { sessionGeneration } from '@/lib/session-cache-registry'
 import { useOnlineStatus } from '@/hooks/use-online-status'
 import { deferLeagueRefresh, leagueChangeAffects, listenForLeagueChanges } from '@/lib/league-changes'
 import { useLiveViewRecovery } from '@/hooks/use-live-view-recovery'
+import { homeHintAffects } from '@pancake/core'
 
 export function useScreenView<T>(scope: ScreenScope | null, enabled = true, options: { autoLoad?: boolean; publicLive?: boolean } = {}) {
     useLeagueDay(leagueTimezone(scope?.leagueId))
@@ -76,6 +77,7 @@ export function useScreenView<T>(scope: ScreenScope | null, enabled = true, opti
             invalidateScreenViews(selected.leagueId!, entry => {
                 if (entry.scope.screen !== 'home') return false
                 const context = (entry.value as { context?: ViewContext } | undefined)?.context
+                if (!homeHintAffects(change, { seasonId: context?.seasonId, week: context?.weekNumber ?? undefined })) return false
                 return !context?.seasonId || leagueChangeAffects(change, { seasonId: context.seasonId, week: context.weekNumber ?? undefined })
             })
             if (!cachedScreenView(selected)) invalidateScreenView(selected)

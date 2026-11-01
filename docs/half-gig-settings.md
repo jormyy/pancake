@@ -185,3 +185,15 @@ Hosted settings and real game-night load remain unmeasured until a separate auth
 The approved schedule and pool of two first pass three paired runs at 142.640 anonymous refaults/s, versus 701.832 for their reference. The later public architecture adds the selected shared-buffer setting. Its separate repeated result and untouched held-out result are in [the measurement report](half-gig-results.md). Do not attribute the combined gain to one setting.
 
 The database stays local throughout these checks. No hosted configuration command runs. The production setting needs a restart and a read-back of `shared_buffers` and `pending_restart` during the separate authorized rollout.
+
+## Free-plan configuration check
+
+The official [Postgres configuration guide](https://supabase.com/docs/guides/database/custom-postgres-config) lists `shared_buffers` as a CLI setting. It requires an organization Owner or Administrator and a database restart. It lists no paid-plan requirement. The local CLI also documents `postgres-config update --config` and its restart behavior.
+
+Use `supabase postgres-config update --project-ref <ref> --config shared_buffers=32MB --experimental` during the authorized rollout. Read `pg_settings` afterward and confirm that no restart remains pending. No hosted command runs in this work.
+
+The official [PostgREST configuration endpoint](https://supabase.com/docs/reference/api/v1-update-postgrest-service-config) accepts `db_pool`. It requires `rest:write` or `data_api_config_write` and lists no paid-plan requirement. Set `{"db_pool":2}` through that endpoint. This controls PostgREST, separately from Supavisor.
+
+Free-plan applicability follows those general project controls and their stated permission requirements. The documentation does not describe a separate Free restriction. Actual hosted acceptance and read-back remain unverified because this work cannot change production. No evidence identifies either setting as unavailable on Free.
+
+The connection trace identifies three short Auth database sessions per authorized Home read. The PostgREST data pool persists during those reads. Reducing screen requests removes those Auth calls while retaining per-request authorization. No Auth cache, shorter connection lifetime, or hosted idle-time override is introduced.

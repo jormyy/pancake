@@ -39,7 +39,6 @@ export default function OtherMatchupScreen() {
     const settings = useMemo(() => league?.scoring_settings && typeof league.scoring_settings === 'object' && !Array.isArray(league.scoring_settings) ? league.scoring_settings as Record<string, number> : {}, [league?.scoring_settings])
     const columns = useMemo(() => lineupStatColumns(settings), [settings])
     const showColumns = !narrow && usableWidth >= statLineupWidth(columns)
-    const projections = useMemo(() => new Map((forecastState.forecast?.games ?? []).filter(game => game.date === selectedDate).map(game => [`${game.memberId}:${game.playerId}`, game])), [forecastState.forecast, selectedDate])
     const playingTeams = useMemo(() => new Set(weekDays.find(day => day.date === selectedDate)?.playingTeams ?? []), [weekDays, selectedDate])
     const { liveTeams } = getGameDisplayState(liveSnapshot.todaysGames, liveSnapshot.freshness)
     const openMatchup = (id: string | null) => {
@@ -60,8 +59,7 @@ export default function OtherMatchupScreen() {
                                 <LiveScoreStatus delayed={data.liveDelayed} />
                             </ScoreCard>
                             {myLineup && oppLineup ? <MatchupLineupView
-                                readOnly playerForecasts={projections} forecastStale={forecastState.stale}
-                                myMemberId={matchup.myMemberId} opponentMemberId={matchup.opponentMemberId}
+                                readOnly
                                 myLineup={myLineup} oppLineup={oppLineup} selected={null} getTargetState={() => null}
                                 onTap={() => {}} saving={false} playingTeams={playingTeams}
                                 liveStats={liveSnapshot.liveStats} liveTeams={liveTeams} scoringSettings={settings}

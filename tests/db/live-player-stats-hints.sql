@@ -14,6 +14,9 @@ BEGIN
   PERFORM private.flush_player_stats_hints();
   SELECT revision INTO v_revision FROM league_change_hints WHERE league_id=l AND topic='score';
   IF v_revision IS DISTINCT FROM 1 THEN RAISE EXCEPTION 'First visible-stat hint is missing'; END IF;
+  IF NOT EXISTS(SELECT 1 FROM league_change_hints WHERE league_id=l AND topic='score'
+    AND details @> jsonb_build_array(jsonb_build_object('resource','averages','season_id',s))) THEN
+    RAISE EXCEPTION 'Averages hint loses its field scope'; END IF;
   UPDATE player_game_stats SET points=21 WHERE player_id=p;
   PERFORM private.flush_player_stats_hints();
   IF (SELECT revision FROM league_change_hints WHERE league_id=l AND topic='score')<>v_revision THEN RAISE EXCEPTION 'Stats hints exceed the minute throttle'; END IF;

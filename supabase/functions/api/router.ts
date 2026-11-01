@@ -16,8 +16,9 @@ import { handleVersionRoute } from './version/index.ts'
 import { handleViewRoute } from './views/index.ts'
 import { handlePublicRoute } from './public/index.ts'
 import { EDGE_ARTIFACT_DIGEST, RELEASE_COMMIT_SHA } from '../_shared/releaseMetadata.ts'
+import { compressApiResponse } from '../_shared/compression.ts'
 
-export async function handleApiRoute(req: Request): Promise<Response> {
+async function routeApiRequest(req: Request): Promise<Response> {
   const publicResponse = await handlePublicRoute(req, routePath(req))
   if (publicResponse) return publicResponse
   if (req.method === 'POST' && routePath(req) === '/trades/pick-values-work') return handlePickPredictionWork(req)
@@ -53,4 +54,8 @@ export async function handleApiRoute(req: Request): Promise<Response> {
 
     return route ?? json({ ok: false, error: 'Not found' }, 404)
   })
+}
+
+export async function handleApiRoute(req: Request): Promise<Response> {
+  return compressApiResponse(req, await routeApiRequest(req))
 }

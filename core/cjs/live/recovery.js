@@ -2,7 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.nextLiveRecovery = nextLiveRecovery;
 function nextLiveRecovery(games, now, publicLive) {
-    const interval = publicLive ? 120000 : 20000;
+    const interval = publicLive ? 600000 : 20000;
     const scheduled = games.filter(game => game.status === 'Scheduled' && !/postpon|cancel|suspend/i.test(game.game_status_text ?? ''));
     if (games.some(game => game.status === 'InProgress') || scheduled.some(game => {
         const time = Date.parse(game.game_time ?? '');

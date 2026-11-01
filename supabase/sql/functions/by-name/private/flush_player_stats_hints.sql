@@ -16,9 +16,10 @@ BEGIN
     ORDER BY pending.league_id LIMIT 1000 FOR UPDATE SKIP LOCKED
   ), emitted AS (
     INSERT INTO public.league_change_hints AS stored(league_id,topic,revision,scopes,details,updated_at)
-    SELECT ready.league_id,'score',1,NULL,NULL,clock_timestamp() FROM ready
+    SELECT ready.league_id,'score',1,NULL,(SELECT jsonb_agg(jsonb_build_object('resource','averages','season_id',season.id))
+      FROM public.league_seasons season WHERE season.league_id=ready.league_id AND season.is_current),clock_timestamp() FROM ready
     ON CONFLICT(league_id,topic) DO UPDATE SET revision=stored.revision+1,
-      scopes=NULL,details=NULL,updated_at=clock_timestamp()
+      scopes=NULL,details=EXCLUDED.details,updated_at=clock_timestamp()
     WHERE stored.updated_at<=clock_timestamp()-interval '1 minute'
     RETURNING league_id
   ) DELETE FROM private.player_stats_hint_pending WHERE league_id IN (SELECT league_id FROM emitted);

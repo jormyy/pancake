@@ -1,7 +1,7 @@
 type RecoveryGame = { status: string; game_time?: string | null; game_status_text?: string | null }
 
 export function nextLiveRecovery(games: readonly RecoveryGame[], now: number, publicLive: boolean): number | null {
-    const interval = publicLive ? 120000 : 20000
+    const interval = publicLive ? 600000 : 20000
     const scheduled = games.filter(game => game.status === 'Scheduled' && !/postpon|cancel|suspend/i.test(game.game_status_text ?? ''))
     if (games.some(game => game.status === 'InProgress') || scheduled.some(game => {
         const time = Date.parse(game.game_time ?? '')

@@ -40,3 +40,23 @@ it('reuses the initial version and reads once after a later catchup', async () =
     await act(async () => { await bumpView() })
     expect(boundary.read).toHaveBeenCalledTimes(2)
 })
+
+it('skips other matchup roster and future lineup changes but keeps current score corrections', async () => {
+    await h.render()
+    const send = async (topic: string, scopes: Record<string, unknown>[], homeChanged?: boolean) => {
+        boundary.version = String(Number(boundary.version) + 1)
+        boundary.changes = [{ version: boundary.version, topic, scope: { topics: [topic], hints: [{ topic, scopes }], ...(homeChanged === undefined ? {} : { homeChanged }) }, created_at: new Date().toISOString() }]
+        await act(async () => {
+            for (const listener of boundary.listeners.get('league')!) listener({ version: boundary.version, changes: boundary.changes })
+            await new Promise(resolve => setTimeout(resolve, 250))
+        })
+    }
+    await send('roster', [{ season_id: 'season', member_id: 'other-matchup' }])
+    await send('lineup', [{ season_id: 'season', date: '2099-01-01' }])
+    await send('score', [{ season_id: 'season' }], false)
+    expect(boundary.read).toHaveBeenCalledOnce()
+    boundary.read.mockResolvedValue(homePayload(undefined, 12))
+    await send('score', [{ season_id: 'season', week: 1 }])
+    expect(boundary.read).toHaveBeenCalledTimes(2)
+    expect(h.latest.matchup?.myPoints).toBe(12)
+})

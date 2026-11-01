@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { nextLiveRecovery } from '../src/live/recovery'
 
 describe('database recovery behind public live scores', () => {
-    it('uses the approved two-minute saved-screen cadence and restores legacy recovery with the switch', () => {
-        expect(nextLiveRecovery([{ status: 'InProgress' }], 0, true)).toBe(120000)
+    it('uses ten-minute saved-screen recovery and restores legacy recovery with the switch', () => {
+        expect(nextLiveRecovery([{ status: 'InProgress' }], 0, true)).toBe(600000)
         expect(nextLiveRecovery([{ status: 'InProgress' }], 0, false)).toBe(20000)
     })
     it('keeps tipoff wakeup and stops for completed or postponed games', () => {

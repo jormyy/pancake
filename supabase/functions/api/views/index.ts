@@ -8,6 +8,7 @@ export async function handleViewRoute(request: Request, path: string): Promise<R
   if (!Object.hasOwn(screenViews, screen)) return null
   const name = screen as ScreenView
   const args = viewRequest(new URL(request.url), name)
+  if (name === 'home' && new URL(request.url).searchParams.get('compact') === '1') args.p_params = { ...args.p_params as Record<string, import('../../_shared/database.ts').Json>, compact: true }
   const userId = await requireUser(request)
   const client = viewClient(request)
   if (name === 'trade-analysis' && typeof args.p_params === 'object' && args.p_params && !Array.isArray(args.p_params)

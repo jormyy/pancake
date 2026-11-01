@@ -25,6 +25,18 @@ const connected = () => {
     setLeagueChangesConnected('league', true)
 }
 
+it('keeps Home stable for a season-average hint while preserving score corrections', async () => {
+    await h.render(); connected()
+    await act(async () => { notifyLeagueChange('league', { topic: 'score', scopes: null,
+        details: [{ resource: 'averages', season_id: 'season' }] }) })
+    await advance(250)
+    expect(boundary.read).toHaveBeenCalledOnce()
+    boundary.read.mockResolvedValue(payload(12))
+    await act(async () => { notifyLeagueChange('league', { topic: 'score', scopes: null }) })
+    await advance(250)
+    expect(h.latest.matchup?.myPoints).toBe(12)
+})
+
 it('recovers a silently stale connected matchup through HTTP within twenty seconds', async () => {
     await h.render(); connected(); changedServer()
     await advance(19_999)

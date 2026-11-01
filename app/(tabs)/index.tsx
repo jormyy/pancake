@@ -54,9 +54,6 @@ export default function HomeScreen() {
     const { openDraftRoom } = useDraftRoomLauncher(league?.id, { notifyOnError: true })
 
     const { matchup, leagueMatchups, weekDays, selectedDate, setSelectedDate, myLineup, oppLineup, matchupLoading, matchupRefreshing, lineupLoading, lineupError, loadMyLineup, loadLineups, matchupRef, error, refresh, emptyConfirmed, forecastState, liveSnapshot, liveDelayed, timezone } = useMatchupData(current, user, league, membershipValidated, membershipError, refreshMemberships)
-    const playerForecasts = useMemo(() => new Map((forecastState.forecast?.games ?? [])
-        .filter(game => game.date === selectedDate)
-        .map(game => [`${game.memberId}:${game.playerId}`, game])), [forecastState.forecast, selectedDate])
     const homeActivity = useBrowserReadActivity()
     const lastHomeActivityRevision = useRef(0)
     const refreshHome = refresh
@@ -194,10 +191,6 @@ export default function HomeScreen() {
 
                     {myLineup && oppLineup ? (
                         <MatchupLineupView
-                            playerForecasts={playerForecasts}
-                            forecastStale={forecastState.stale}
-                            myMemberId={matchup.myMemberId}
-                            opponentMemberId={matchup.opponentMemberId}
                             myLineup={myLineup}
                             oppLineup={oppLineup}
                             selected={selected}

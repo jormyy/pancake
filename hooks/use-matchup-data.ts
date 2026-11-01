@@ -9,12 +9,12 @@ import type { HomeView } from '@/lib/cache/view-types'
 import type { MatchupContext } from '@/lib/scoring'
 import type { NBAGameRow, LiveStatLine } from '@/lib/games'
 import type { LeagueAnnouncement } from '@/lib/league-announcements'
-import type { MatchupForecast } from '@/hooks/use-matchup-forecast'
+import type { MatchupForecastDisplay } from '@/hooks/use-matchup-forecast'
 import { endOfLeagueDayUTC, resolveLeagueTimezone, todayLeague } from '@/lib/timezone'
 import { usePublicLiveSnapshot } from '@/hooks/use-public-live-snapshot'
 import { liveScoreView } from '@/lib/live-score-view'
 
-type HomePayload = HomeView & { forecast: MatchupForecast | null; announcements: LeagueAnnouncement[]; todaysGames: NBAGameRow[]; liveStats: Record<string, LiveStatLine>; startedTeams: string[]; teamMatchups: Record<string, { opponent: string; isHome: boolean }> }
+type HomePayload = HomeView & { forecast: MatchupForecastDisplay | null; announcements: LeagueAnnouncement[]; todaysGames: NBAGameRow[]; liveStats: Record<string, LiveStatLine>; startedTeams: string[]; teamMatchups: Record<string, { opponent: string; isHome: boolean }> }
 
 export function useMatchupData(current: { id: string; team_name?: string | null; role?: string } | null, user: { id: string } | null, league: Pick<LeagueInfo, 'id'> & Partial<LeagueInfo> | null, membershipValidated = true, membershipError: Error | null = null, refreshMemberships?: () => Promise<void>, matchupId?: string, initialDate?: string) {
     const focused = useIsFocused()

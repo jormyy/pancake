@@ -68,18 +68,6 @@ it('keeps injuries beside names and games visible without no-game team text', as
     expect(texts().join(' ')).not.toMatch(/TOR|OKC|OFF|No game/)
 })
 
-it('keeps earned points and game lines without per-player projection text', async () => {
-    const props = rowProps()
-    await act(async () => { screen = create(React.createElement(MatchupRow, {
-        ...props, showProjections: true, forecastStale: true,
-        myProjection: { gameId: 'g', playerId: 'Mine', memberId: 'm', date: '2026-10-25', projection: 23.4, source: 'Sleeper', sourceAt: '2026-10-25T12:00:00Z', remainingFraction: 1 },
-    })) })
-    const texts = screen.root.findAllByType('Text' as React.ElementType).map(node => node.props.children)
-    expect(texts.filter(value => value === 'TOR @ OKC')).toHaveLength(2)
-    expect(texts).toContain('0.0')
-    expect(texts.join(' ')).not.toMatch(/Proj|23\.4|Sleeper/)
-})
-
 it('renders the game line and tip time together on the first row commit', async () => {
     const commits: string[][] = []
     const props = { ...rowProps(), myPlayer: rowPlayer('Mine', 'WAS'), oppPlayer: rowPlayer('Theirs', 'CLE'), teamMatchups: new Map([

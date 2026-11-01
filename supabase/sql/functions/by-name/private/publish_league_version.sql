@@ -17,6 +17,18 @@ BEGIN
     RETURNING league_id,version,updated_at,reader_ids INTO stored;
     change_topic := CASE WHEN cardinality(p_topics)=1 THEN p_topics[1] ELSE 'batch' END;
     change_scope := jsonb_build_object('topics',p_topics,'tables',p_sources);
+    IF cardinality(p_sources)>0 AND p_sources<@ARRAY['standings_current','matchup_totals','player_season_averages']::text[]
+      AND (NOT 'standings_current'=ANY(p_sources)
+        OR COALESCE(NULLIF(current_setting('pancake.home_changes',true),'')::jsonb->>'standings_current','true')='false') THEN
+      change_scope:=change_scope||jsonb_build_object('homeChanged',false);
+    END IF;
+    change_scope := change_scope || jsonb_build_object('hints',COALESCE((
+      SELECT CASE WHEN count(*)<=32 THEN jsonb_agg(item ORDER BY item::text) ELSE '[]'::jsonb END FROM (
+        SELECT DISTINCT jsonb_build_object('topic',hint->'row'->'topic','scopes',hint->'row'->'scopes',
+          'details',hint->'row'->'details') AS item
+        FROM private.live_hint_broadcasts pending CROSS JOIN LATERAL jsonb_array_elements(pending.changes) hint
+        WHERE pending.transaction_id=pg_current_xact_id() AND pending.topic='l1:league:'||p_league_id::text
+          AND hint->'row'->>'topic'<>'version') scoped),'[]'::jsonb));
     INSERT INTO public.league_changes(league_id,version,topic,scope,created_at)
       VALUES(stored.league_id,stored.version,change_topic,change_scope,stored.updated_at);
     DELETE FROM public.league_changes WHERE league_id=stored.league_id AND version<=stored.version-128;

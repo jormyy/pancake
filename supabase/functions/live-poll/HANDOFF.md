@@ -2,7 +2,9 @@
 
 The default public path polls every thirty seconds while games are live. It writes status transitions, final stats, and thirty-minute recovery checkpoints.
 
-The public route contains no Supabase client or user data. Phones use the shared scoring formula over their authorized saved lineup basis. A saved official final ignores public deltas. Realtime still invalidates scores and instant actions.
+Routine checkpoints keep their version history but suppress live-only broadcasts. The marker requires a valid service-role live lease. Tipoffs, finals, corrections and the off switch retain their change messages. A fresh public phone checks its saved screen every ten minutes; a stale phone restores the existing twenty-second recovery.
+
+The public route contains no Supabase client or user data. Phones use the shared scoring formula over their authorized saved lineup basis. A saved official final ignores public deltas. Realtime still invalidates official scores and instant actions. Change events share one transaction batch, and Home ignores scopes it does not display. Authenticated Home reads opt into compact score inputs and gzip responses.
 
 `LIVE_SCORES_OFF=1` on the public route restores database mode. The worker reads the same response as the phones. Without `LIVE_SNAPSHOT_BASE_URL`, the worker retains database mode. See [the architecture guide](../../../docs/live-score-architecture.md) for setup and limitations.
 
