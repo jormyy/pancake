@@ -506,6 +506,7 @@
     "public.save_client_settings_atomic(text,jsonb)": {"acl":["authenticated|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.save_final_game_snapshot_atomic(uuid,text,jsonb,timestamp with time zone,integer,integer,text)": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.save_game_stats_atomic(uuid,text,jsonb,boolean)": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
+    "public.save_live_cache_invalidate()": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.save_live_feed_snapshot_atomic(uuid,text,jsonb)": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.save_live_game_stats_atomic(uuid,text,jsonb,numeric)": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.save_live_scoreboard_atomic(uuid,text,text,integer,integer,text,numeric)": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},

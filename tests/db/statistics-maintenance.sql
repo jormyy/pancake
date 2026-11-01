@@ -44,7 +44,9 @@ BEGIN
       AND p.prosrc ~* $maintenance$(^|[[:space:];'"])(ANALYZE|VACUUM|REINDEX)([[:space:](;]|$)$maintenance$),'only the independent job contains database maintenance');
   result:=private.refresh_screen_statistics();
   PERFORM pg_temp.check_rules(jsonb_array_length(result)=15,'the separate job visits each target once');
-  PERFORM pg_temp.check_rules(NOT EXISTS(SELECT FROM jsonb_array_elements(result) row WHERE row->>'status'<>'analyzed'),'every unlocked target is analyzed');
+  PERFORM pg_temp.check_rules(NOT EXISTS(SELECT FROM jsonb_array_elements(result) row WHERE row->>'status' NOT IN ('analyzed','fresh')),'every unlocked target has current statistics');
+  result:=private.refresh_screen_statistics();
+  PERFORM pg_temp.check_rules(jsonb_array_length(result)=15 AND NOT EXISTS(SELECT FROM jsonb_array_elements(result) row WHERE row->>'status'<>'fresh'),'unchanged targets do not repeat analysis');
 END;
 $$;
 SELECT count(*) AS passed_checks FROM rules_checks;
