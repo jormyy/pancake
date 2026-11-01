@@ -74,9 +74,11 @@ export async function startFeed(stack, slate, anchor) {
     response.writeHead(status, { 'content-type': 'application/json' })
     response.end(encoded)
   })
-  await new Promise(resolve => server.listen(stack.ports.feed, '127.0.0.1', resolve))
+  await new Promise(resolve => server.listen({ port: stack.ports.feed, host: '127.0.0.1' }, () => resolve(undefined)))
+  const address=server.address()
+  assert.ok(address && typeof address==='object','The fake feed must bind a TCP port')
   let closing
-  return { origin: `http://127.0.0.1:${server.address().port}`, requests, changes, start(at) { started = at }, freeze(seconds) { stopped = seconds }, close: () => closing ??= new Promise(resolve => server.close(resolve)) }
+  return { origin: `http://127.0.0.1:${address.port}`, requests, changes, start(at) { started = at }, freeze(seconds) { stopped = seconds }, close: () => closing ??= new Promise(resolve => server.close(resolve)) }
 }
 
 export async function seedSlate(stack, slate, anchor) {

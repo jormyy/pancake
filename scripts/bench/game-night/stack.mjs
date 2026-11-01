@@ -16,7 +16,7 @@ async function freePorts() {
       for (let i = 0; i < 12; i++) {
         const server = net.createServer()
         servers.push(server)
-        await new Promise((resolve, reject) => server.once('error', reject).listen(base + i, '127.0.0.1', resolve))
+        await new Promise((resolve, reject) => server.once('error', reject).listen({ port: base + i, host: '127.0.0.1' }, () => resolve(undefined)))
       }
       return base
     } catch {} finally { await Promise.all(servers.map(server => new Promise(resolve => server.close(resolve)))) }
@@ -44,7 +44,7 @@ export async function stopRecordedStack(evidence, expectedProject) {
   await removeStack(evidence, project, [`${project}-rest:local`])
 }
 
-export async function startStack(evidence, { sourceRoot = repository, profileMemory = false, sharedBuffers, migrationOverlays = [] } = {}) {
+export async function startStack(evidence, { sourceRoot = repository, profileMemory = false, sharedBuffers = undefined, migrationOverlays = [] } = {}) {
   if (sharedBuffers != null) assert.match(sharedBuffers, /^[1-9][0-9]*(kB|MB|GB)$/)
   const project = `pancake-game-night-${randomBytes(5).toString('hex')}`
   const base = await freePorts()
@@ -53,9 +53,9 @@ export async function startStack(evidence, { sourceRoot = repository, profileMem
   await mkdir(path.join(workdir, 'supabase'), { recursive: true, mode: 0o700 })
   let config = await readFile(path.join(sourceRoot, 'supabase/config.toml'), 'utf8')
   config = config.replace(/^project_id = .*$/m, `project_id = "${project}"`)
-    .replace(/\b54321\b/g, ports.api).replace(/\b54322\b/g, ports.db).replace(/\b54320\b/g, ports.shadow)
-    .replace(/\b54323\b/g, ports.studio).replace(/\b54324\b/g, ports.mail).replace(/\b54329\b/g, ports.pool)
-    .replace(/\b54327\b/g, ports.analytics).replace(/\b8083\b/g, ports.inspector)
+    .replace(/\b54321\b/g, String(ports.api)).replace(/\b54322\b/g, String(ports.db)).replace(/\b54320\b/g, String(ports.shadow))
+    .replace(/\b54323\b/g, String(ports.studio)).replace(/\b54324\b/g, String(ports.mail)).replace(/\b54329\b/g, String(ports.pool))
+    .replace(/\b54327\b/g, String(ports.analytics)).replace(/\b8083\b/g, String(ports.inspector))
     .replace(/env\([^)]+\)/g, '').replace(/(\[db.seed\][\s\S]*?enabled = )true/, '$1false')
     .replace(/(\[db.migrations\][\s\S]*?enabled = )true/, '$1false')
   await writeFile(path.join(workdir, 'supabase/config.toml'), config)
@@ -112,7 +112,7 @@ export async function startStack(evidence, { sourceRoot = repository, profileMem
       session = createSqlSession('psql', env)
       await sql("SET pg_stat_statements.track='none';")
     }
-    const sqlFile = async (file, { allowFailure = false, output } = {}) => {
+    const sqlFile = async (file, { allowFailure = false, output = undefined } = {}) => {
       const testEnv = { ...env, PGUSER: 'postgres', PANCAKE_TEST_DB_PORT: String(ports.db), SUPABASE_DB_URL: db.href }
       const input = (await readFile(file, 'utf8')).replaceAll("'http://127.0.0.1:1'", quote(`http://127.0.0.1:${ports.edge}`)).replace(/^\\getenv (\w+) (\w+)$/gm, (_, variable, name) => {
         assert.ok(name === 'PANCAKE_TEST_DB_PORT', `Unsupported test environment variable: ${name}`)

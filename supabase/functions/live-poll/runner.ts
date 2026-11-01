@@ -14,6 +14,7 @@ import { LIVE_POLL_LEASE_TTL_SECONDS, LIVE_POLL_LOCK_KEY } from '../_shared/live
 import { withWorkContext, withLiveScoreRetries } from '../_shared/workContext.ts'
 import { retryDatabaseContention } from '../_shared/databaseRetry.ts'
 import type { Database } from '../_shared/database.ts'
+import type { LiveGameCache } from '../_shared/liveFeed.ts'
 import { createCheckpointPoller } from './checkpoint.ts'
 import type { LiveTick } from './checkpoint.ts'
 import { fetchLiveSnapshot } from '../_shared/liveSnapshot.ts'
@@ -22,7 +23,7 @@ const LIVE_TICK_MS = 30_000
 const LIVE_TICK_BUDGET_MS = 18_000
 const LIVE_RUN_MS = 110_000
 
-type LiveGame = Database['public']['Functions']['get_live_poll_work']['Returns'][number]
+type LiveGame = Omit<Database['public']['Functions']['get_live_poll_work']['Returns'][number], 'live_cache'> & { live_cache?: LiveGameCache }
 
 async function loadWork(gameIds?: ReadonlySet<string>): Promise<LiveGame[]> {
   const request = gameIds
@@ -30,7 +31,7 @@ async function loadWork(gameIds?: ReadonlySet<string>): Promise<LiveGame[]> {
     : supabase.rpc('get_live_poll_work')
   const { data, error } = await request.abortSignal(AbortSignal.timeout(5000))
   if (error) throw error
-  return data ?? []
+  return (data ?? []).map(game => ({ ...game, live_cache: (game.live_cache as LiveGameCache | null) ?? undefined }))
 }
 
 async function stampAttempts(holder: string, checkedIds: string[], statIds: string[]): Promise<void> {

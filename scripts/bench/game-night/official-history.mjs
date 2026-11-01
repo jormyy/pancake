@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { overlayLiveScores } from '../../../core/cjs/index.js'
+import { overlayLiveScores } from '@pancake/core'
 import { delay, id, quote } from './common.mjs'
 import { startPhones } from './phones.mjs'
 

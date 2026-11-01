@@ -5,6 +5,7 @@ import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { scoreMessage } from './quality-grade.mjs'
 
+const Deno = globalThis['Deno']
 const config = JSON.parse(Deno.env.get('GAME_NIGHT_CONFIG'))
 const ports = [config.api, config.db, config.edge, config.feed, config.public].filter(Boolean).map(String)
 const nativeFetch = globalThis.fetch
@@ -36,7 +37,7 @@ try {
 let active = 0
 let realtimeMessages = 0
 let realtimeScoreMessages = 0
-const { createClient } = await import('npm:@supabase/supabase-js@2.98.0')
+const { createClient } = await import(new URL('npm:@supabase/supabase-js@2.98.0').href)
 const realtimeClient = createClient(Deno.env.get('SUPABASE_URL'), config.realtimeToken ? Deno.env.get('SUPABASE_ANON_KEY') : Deno.env.get('PANCAKE_SUPABASE_SECRET_KEY'), { auth: { autoRefreshToken: false, persistSession: false } })
 if (config.realtimeToken) await realtimeClient.realtime.setAuth(config.realtimeToken)
 const realtimeChannel = realtimeClient.channel('l1:league:ab000000-0000-4000-8000-000000000001', { config: { private: true } }).on('broadcast', { event: 'change' }, message => { realtimeMessages++; if (scoreMessage(message) && !config.fault?.split(',').includes('realtimeScores')) realtimeScoreMessages++ })

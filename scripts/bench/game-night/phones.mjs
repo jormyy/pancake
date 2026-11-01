@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { createClient } from '@supabase/supabase-js'
-import { createLivePoller, fetchLiveSnapshot, overlayLiveScores, nextLiveRecovery } from '../../../core/cjs/index.js'
+import { createLivePoller, fetchLiveSnapshot, readLiveSnapshot, overlayLiveScores, nextLiveRecovery } from '@pancake/core'
 import { id, loopback } from './common.mjs'
 import { userToken } from './quality.mjs'
 import { scoreMessage } from './quality-grade.mjs'
@@ -69,8 +69,9 @@ export async function startPhones(stack, publicFeed) {
         const at=Date.now()
         try {
           const result=await fetchLiveSnapshot(`${publicFeed.origin}/api/live/${day}`,signal)
-          if(index===1 && faults.has('phone-stale'))result.body={...result.body,capturedAt:Date.now()-120001}
-          requests.push({phone:index,at,done:Date.now(),cache:result.cache,sourceAt:result.body?.capturedAt,mode:result.body?.mode})
+          const snapshot=readLiveSnapshot(result.body,day,Date.now())
+          if(index===1 && faults.has('phone-stale') && snapshot)result.body={...snapshot,capturedAt:Date.now()-120001}
+          requests.push({phone:index,at,done:Date.now(),cache:result.cache,sourceAt:snapshot?.capturedAt,mode:snapshot?.mode})
           return result
         } catch(error) { requests.push({phone:index,at,done:Date.now(),error:error.message});throw error }
       },

@@ -202,7 +202,7 @@ export async function runWindow(stack, slate, { label, memoryMiB, seconds = slat
     const inWindow = value => startOf(value) >= started && startOf(value) < ended
     const cron = after.cron.filter(row => inWindow(row.start_time))
     const invocations = after.invocations.filter(row => inWindow(row.worker_started_at))
-    const edgeRequests = (await readFile(workers.receipts,'utf8')).trim().split('\n').filter(Boolean).map(JSON.parse)
+    const edgeRequests = (await readFile(workers.receipts,'utf8')).trim().split('\n').filter(Boolean).map(value=>JSON.parse(value))
       .filter(row=>row.start>=started && row.start<ended)
     const runs = Object.fromEntries([...new Set(invocations.map(row => row.kind))].map(kind => [kind, invocations.filter(row => row.kind === kind).length]))
     let work = workCheck({ statements, observedScoreChanges, workerStarts: invocations.length, cronRuns: cron.length, minutes })

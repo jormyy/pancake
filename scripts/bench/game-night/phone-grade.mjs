@@ -1,6 +1,6 @@
 import { fantasyAt, percentile } from './measure.mjs'
 import { stateAt } from './fixture.mjs'
-import { liveLineStats } from '../../../core/cjs/index.js'
+import { liveLineStats } from '@pancake/core'
 
 const equal = (a,b) => Number.isFinite(a) && Number.isFinite(b) && Math.abs(a-b)<0.005
 const points = (expected, display) => display.homeMemberId===expected.home_member_id

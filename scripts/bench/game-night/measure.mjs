@@ -120,7 +120,10 @@ export async function finalCheck(stack, slate, seconds) {
   const fantasy = await readFantasy(stack)
   for (const expected of fantasyAt(slate, seconds)) {
     const actual = fantasy.find(row => row.home_member_id === expected.home_member_id && row.away_member_id === expected.away_member_id)
-    for (const key of ['home_points','away_points']) if (!actual || Number(actual[key]) !== expected[key]) failures.push({ field: `fantasy.${key}`, member: expected.home_member_id, expected: expected[key], actual: actual?.[key] ?? null })
+    for (const key of ['home_points','away_points']) if (!actual || Number(actual[key]) !== expected[key]) {
+      const failure={ field: `fantasy.${key}`, member: expected.home_member_id, expected: expected[key], actual: actual?.[key] ?? null }
+      failures.push(failure)
+    }
   }
   return { passed: failures.length === 0, games: expected.length, statRows: stats.length, fantasyMatchups: fantasy.length, failures }
 }

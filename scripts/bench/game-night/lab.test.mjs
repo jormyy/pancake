@@ -15,7 +15,7 @@ test('network guard rejects remote hosts and foreign local ports', () => {
 })
 
 test('training fixture keeps five live games and a final transition', async () => {
-  const slate = JSON.parse(await readFile(new URL('./training.json', import.meta.url)))
+  const slate = JSON.parse(await readFile(new URL('./training.json', import.meta.url), 'utf8'))
   assert.equal(validateSlate(slate), 5)
   assert.equal(stateAt(slate, 0).filter(game => game.gameStatus === 2).length, 5)
   assert.equal(stateAt(slate, 240).filter(game => game.gameStatus === 3).length, 3)

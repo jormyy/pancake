@@ -30,7 +30,7 @@ export async function prepareActions(stack) {
   stack.realtimeToken = userToken(stack, id(109))
 }
 
-export function startActions(stack, started, { limits = {}, fault } = {}) {
+export function startActions(stack, started, { limits = {}, fault = undefined } = {}) {
   const records = []
   const faults = new Set(fault?.split(',') ?? [])
   let tradeId

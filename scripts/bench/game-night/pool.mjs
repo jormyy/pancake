@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { command, delay } from './common.mjs'
 
-export async function configurePool(stack, { connections, lifetimeSeconds, idleSeconds } = {}) {
+export async function configurePool(stack, { connections = undefined, lifetimeSeconds = undefined, idleSeconds = undefined } = {}) {
   if (connections == null && lifetimeSeconds == null && idleSeconds == null) return null
   for (const value of [connections, lifetimeSeconds, idleSeconds].filter(value => value != null)) assert.ok(Number.isInteger(value) && value > 0)
   const name = `supabase_rest_${stack.project}`

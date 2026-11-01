@@ -28,7 +28,7 @@ export async function json(file, value) {
 
 export const readJson = async file => JSON.parse(await readFile(file, 'utf8'))
 
-export function command(executable, args, { input, cwd = repository, env, timeout = 300000, file, allowFailure = false } = {}) {
+export function command(executable, args, { input = undefined, cwd = repository, env = undefined, timeout = 300000, file = undefined, allowFailure = false } = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(executable, args, { cwd, env, stdio: ['pipe', 'pipe', 'pipe'] })
     let stdout = '', stderr = ''
