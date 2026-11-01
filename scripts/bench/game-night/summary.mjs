@@ -11,8 +11,8 @@ export function distribution(values) {
 export function summarize(reports, { reference = false } = {}) {
   assert.ok(reports.length >= 3, 'At least three runs are required')
   assert.ok(reports.every(report => reference
-    ? report.workCounts?.passed && !report.memory.oomKills
-    : report.passed), reference ? 'Reference runs require real work without OOM kills' : 'Every candidate run must pass')
+    ? report.workCounts?.passed && !report.memory.oomKills && report.containerWatch?.passed !== false && report.swap.available !== false
+    : report.passed), reference ? 'Reference runs require real work, usable swap and monitoring, and no OOM kills' : 'Every candidate run must pass')
   assert.equal(new Set(reports.map(report => report.fixtureSha256)).size, 1, 'Frozen fixture differs across runs')
   assert.equal(new Set(reports.map(report => report.memoryMiB)).size, 1, 'Memory caps differ across runs')
   const metrics = {

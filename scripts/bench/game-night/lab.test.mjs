@@ -121,6 +121,9 @@ test('a paired comparison rejects host activity, changed fixtures, and changed c
   const failedCandidate=structuredClone(candidate)
   failedCandidate[0].passed=false
   assert.throws(()=>compareSeries(failedReference,failedCandidate))
+  failedReference[0].containerWatch={passed:false}
+  assert.throws(()=>compareSeries(failedReference,candidate))
+  delete failedReference[0].containerWatch
   failedReference[0].workCounts.passed=false
   assert.throws(()=>compareSeries(failedReference,candidate))
   const lowerReference=baseline.map(row=>({...row,swap:{...row.swap,inPagesPerSecond:500,outPagesPerSecond:500}}))
