@@ -13,6 +13,7 @@ import { startPhones } from './phones.mjs'
 import { phoneGrade } from './phone-grade.mjs'
 import { checkpointGrade } from './checkpoint-grade.mjs'
 import { projectBudget } from './budget.mjs'
+import { settlementCosts } from './settlement.mjs'
 import { counters, fantasyAt, finalCheck, finalGameCheck, graderVersion, groupStatements, percentile, readFantasy, readScores, snapshot, statementDeltas, workCheck } from './measure.mjs'
 
 export async function prepare(stack, slate, label) {
@@ -234,7 +235,7 @@ export async function runWindow(stack, slate, { label, memoryMiB, seconds = slat
       realtime: { subscribed: realtimeBefore.realtimeStatus === 'SUBSCRIBED', messages: realtimeAfter.realtimeMessages - realtimeBefore.realtimeMessages, scoreMessages: realtimeAfter.realtimeScoreMessages - realtimeBefore.realtimeScoreMessages, clientCount: 1 },
       drainSeconds: (Date.now() - drainStarted) / 1000,
       scoreFreshness: { p50Ms: percentile(freshness.map(row => row.milliseconds), .5), p95Ms: percentile(freshness.map(row => row.milliseconds), .95), samples: freshness.length, resolutionMs: 5000, observations: freshness, fantasyP50Ms: percentile(fantasyFreshness, .5), fantasyP95Ms: percentile(fantasyFreshness, .95), fantasySamples: fantasyFreshness.length },
-      finalState: check, controlBefore, settlementSeconds, settlementStopped, publicFeed:publicResults,phones:phoneResults,phoneBehavior,actionResults, failures, deadWorkItems: failures.jobs.filter(row => row.status === 'dead'),
+      finalState: check, controlBefore, settlementSeconds, settlementStopped, postWindowCosts:stack.liveArchitecture?settlementCosts(after,qualityState):null, publicFeed:publicResults,phones:phoneResults,phoneBehavior,actionResults, failures, deadWorkItems: failures.jobs.filter(row => row.status === 'dead'),
       passed: containerWatch.passed && check.passed && work.passed && (!phoneResults || phoneResults.passed) && (!actionResults || actionResults.passed) && !Object.values(failures).some(rows => rows.length) && last.events.oom_kill === first.events.oom_kill,
       control: broken ? 'delete one stored final stat' : ingestionOff ? 'live ingestion disabled at worker boundary' : stack.qualityOptions?.fault ?? null,
       processSamples, contextSamples, observations: samples, feedRequests: prepared.feed.requests, before, after }
