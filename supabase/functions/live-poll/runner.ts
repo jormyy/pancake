@@ -94,16 +94,16 @@ export async function ingestTick(holder: string, onRetry?: () => void, gameIds?:
   const failures: unknown[] = []
   let discovered = work
   try {
-      const nbaStarts = await saveScoreboardGames(nbaScoreboard,work,new Set())
-      failures.push(...nbaStarts.map(row=>row.error))
-      discovered = await withWorkContext({signal:AbortSignal.timeout(3000)}, () => retry(() => discoverEspnGames(work, events)))
-      const starts = discovered.filter(game => game.status === 'Scheduled' && hasEspnLiveGame(game,events)
-        && !nbaScoreboard.some(board => board.gameId === game.nba_game_id && board.gameStatus > 1)).map(game => ({
-          ...espnGame(game.nba_game_id!,matchEspnGame(game,events)!.competitions[0]),gameId:game.nba_game_id!,
-        }))
-      const espnStarts = await saveScoreboardGames(starts,discovered,new Set())
-      failures.push(...espnStarts.map(row=>row.error))
-  } catch(error) { failures.push(error) }
+    const nbaStarts = await saveScoreboardGames(nbaScoreboard,work,new Set())
+    for (const failure of nbaStarts) console.error('[live-poll] start receipt failed:', failure.gameId, errorMessage(failure.error))
+    discovered = await withWorkContext({signal:AbortSignal.timeout(3000)}, () => retry(() => discoverEspnGames(work, events)))
+    const starts = discovered.filter(game => game.status === 'Scheduled' && hasEspnLiveGame(game,events)
+      && !nbaScoreboard.some(board => board.gameId === game.nba_game_id && board.gameStatus > 1)).map(game => ({
+      ...espnGame(game.nba_game_id!,matchEspnGame(game,events)!.competitions[0]),gameId:game.nba_game_id!,
+      }))
+    const espnStarts = await saveScoreboardGames(starts,discovered,new Set())
+    for (const failure of espnStarts) console.error('[live-poll] start receipt failed:', failure.gameId, errorMessage(failure.error))
+  } catch(error) { console.error('[live-poll] start discovery failed:', errorMessage(error)) }
   const nbaFinalWork = work.filter(game => game.status !== 'Final' && nbaScoreboard.some(board => board.gameId === game.nba_game_id && board.gameStatus === 3))
   if (boardGames.length) {
     const fallbackBoards = nbaScoreboard.filter(game => (!gameIds || work.some(stored => stored.nba_game_id === game.gameId)) && (game.gameStatus !== 2 ||

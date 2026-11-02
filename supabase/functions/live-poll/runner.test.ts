@@ -207,7 +207,7 @@ Deno.test('an unrelated malformed scoreboard still permits selected box recovery
   await withDatabase(async calls=>{
     const result=await ingestTick(holder,undefined,new Set([holder]))
     assert.equal(calls.filter(name=>name==='boxscore_0022600001.json').length,1)
-    assert.equal(result.failures.length,2)
+    assert.equal(result.failures.length,1)
     assert.ok(result.failures.some(failure=>/0022600001.*403/.test(failure)))
   },name=>{
     if(name==='get_live_checkpoint_inputs')return Response.json([{
@@ -342,4 +342,42 @@ Deno.test('start receipts have independent deadlines, bounded concurrency and ro
     assert.equal(maximum,2)
     assert.notEqual(orders[0][0],orders[1][0])
   }finally{globalThis.fetch=original}
+})
+
+Deno.test('unrelated start errors do not prevent a selected import checkpoint',async()=>{
+  const original=globalThis.fetch
+  const board=JSON.parse(await Deno.readTextFile('tests/fixtures/live-espn/2026-10-30T01-00-49.445Z-scoreboard.json')).payload
+  board.events=[]
+  const selected={id:holder,nba_game_id:'0022600001',status:'InProgress',needs_scoreboard:true,needs_stats:true,
+    game_date:'2026-10-29',season_year:2027,week_number:2,home_team:'BOS',away_team:'NYK'}
+  let unrelated=0
+  const starts:string[]=[]
+  globalThis.fetch=async(input,init)=>{
+    const request=new Request(input,init);const url=new URL(request.url);const name=url.pathname.split('/').at(-1)!
+    if(url.hostname==='espn.invalid')return url.pathname.endsWith('scoreboard')?Response.json(board):Response.json({},{status:503})
+    if(name==='todaysScoreboard_00.json')return Response.json({scoreboard:{games:[{gameId:'0022600144',gameStatus:2,gameStatusText:'Q1',period:1,gameClock:'broken',homeTeam:{teamTricode:'ATL',score:0},awayTeam:{teamTricode:'CLE',score:0}}]}})
+    if(name==='boxscore_0022600144.json'){unrelated++;return Response.json({},{status:403})}
+    if(name==='boxscore_0022600001.json') {
+      const statistics=Object.fromEntries(['assists','blocks','fieldGoalsAttempted','fieldGoalsMade','foulsPersonal','freeThrowsAttempted','freeThrowsMade','plusMinusPoints','points','reboundsDefensive','reboundsOffensive','reboundsTotal','steals','threePointersAttempted','threePointersMade','turnovers'].map(key=>[key,0]))
+      const side=(personId:number,teamTricode:string)=>({teamTricode,score:0,players:[{personId,name:'Fixture',played:0,statistics:{...statistics,minutes:'PT0M00S'}}]})
+      return Response.json({meta:{time:'2026-10-30T01:00:00Z'},game:{gameId:selected.nba_game_id,gameStatus:3,homeTeam:side(1,'BOS'),awayTeam:side(2,'NYK')}})
+    }
+    if(name==='get_live_checkpoint_inputs')return Response.json([selected])
+    if(name==='nba_games')return Response.json([{...selected,id:'unrelated',nba_game_id:'0022600144',status:'Scheduled',home_team:'ATL',away_team:'CLE'}])
+    if(name==='resolve_player_imports_atomic')return Response.json({stale_draft_numbers_cleared:0,results:[1,2].map((value,index)=>({index,player_id:`player-${value}`,action:'updated'}))})
+    if(name==='league_seasons')return Response.json([])
+    if(name==='save_live_scoreboard_atomic')starts.push((await request.json()).p_game_id)
+    return Response.json(name==='save_final_game_snapshot_atomic'?2:null)
+  }
+  try {
+    const {createCheckpointPoller}=await import('./checkpoint.ts')
+    let records=0
+    const game={...selected,checkpoint_at:null,checked_at:null,needs_final_check:false,game_time:null,home_score:0,away_score:0}
+    const tick=createCheckpointPoller({load:async()=>[game],snapshot:async()=>null,ingest:(_holder,ids)=>ingestTick(_holder,undefined,ids),
+      record:async()=>{records++;Object.assign(game,{checkpoint_at:new Date().toISOString()})}})
+    await tick(holder);await tick(holder)
+    assert.equal(unrelated,0)
+    assert.deepEqual(starts,[])
+    assert.equal(records,1)
+  }finally {globalThis.fetch=original}
 })
