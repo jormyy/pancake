@@ -3492,6 +3492,27 @@
       "statementCount": 1,
       "statementsSha256": "1eb552f4c508529c5474a1be807a49194792b2536b9f3994240a6ccea5e9aa08",
       "sha256": "3811b52e7f9cdd69e3a3a97986c6f7cf4b055d53b472dcdb93d2ebe18a8d8f8b"
+    },
+    {
+      "name": "keep_all_star_projection_windows",
+      "version": "20261214009000",
+      "statementCount": 1,
+      "statementsSha256": "6495fea646c58eeef898c7a68e7735045509f61e27cb240a13c862dc55e48816",
+      "sha256": "83de8e5ee587f4ce7b6ad2b0764bce9e4683d0d7b64d39be78ec015ba539fd22"
+    },
+    {
+      "name": "rearm_trade_analysis_after_values",
+      "version": "20261214009100",
+      "statementCount": 1,
+      "statementsSha256": "4a6662fc691d6f6840c7ac200bc70aac900bb5173f6aece784cf271cfe8c8a45",
+      "sha256": "4d73d067bff46741ca474c794c8b7ae49a7da4dc3f6e3d810e967621974268fc"
+    },
+    {
+      "name": "keep_unfinished_matchups_live",
+      "version": "20261214009200",
+      "statementCount": 2,
+      "statementsSha256": "6940bec60fbb1be146df0e0bcccef72900149378ecd841324c0f8235445e6c8e",
+      "sha256": "378261f7083e2f5c87ff96dc75fa081f1cd372c371d95b5f6b9b69014e251f06"
     }
   ]
 }

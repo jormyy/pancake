@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261214008900",
+  "candidateVersion": "20261214009200",
   "common": {
     "functions": [
       {
@@ -2622,6 +2622,18 @@
     {
       "filename": "20261214008900_refresh_decimal_scoring.sql",
       "sha256": "3811b52e7f9cdd69e3a3a97986c6f7cf4b055d53b472dcdb93d2ebe18a8d8f8b"
+    },
+    {
+      "filename": "20261214009000_keep_all_star_projection_windows.sql",
+      "sha256": "83de8e5ee587f4ce7b6ad2b0764bce9e4683d0d7b64d39be78ec015ba539fd22"
+    },
+    {
+      "filename": "20261214009100_rearm_trade_analysis_after_values.sql",
+      "sha256": "4d73d067bff46741ca474c794c8b7ae49a7da4dc3f6e3d810e967621974268fc"
+    },
+    {
+      "filename": "20261214009200_keep_unfinished_matchups_live.sql",
+      "sha256": "378261f7083e2f5c87ff96dc75fa081f1cd372c371d95b5f6b9b69014e251f06"
     }
   ],
   "preMigration": {
