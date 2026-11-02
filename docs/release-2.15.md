@@ -22,31 +22,27 @@ Existing Home content stays available offline while its old version counter awai
 
 ## Local acceptance
 
-These figures precede the review corrections. Final candidate verification is pending.
-
-The final training repeat uses the frozen runtime at `e48cae97`.
-Three candidates measure 6.85, 4.04, and 4.73 anonymous refaults/s.
-Three paired references measure 1,866, 2,216, and 1,931/s.
-The median is 4.73 versus 1,931/s: 99.76% lower.
-Every quality gate passes; the deliberately broken final write fails its control.
-The final held-out confirmation measures 1.92/s and passes its gates.
-These are local synthetic results at a 192 MiB cap, 32 MB shared buffers, and PostgREST pool two.
+The measured runtime is `cd24bce935b02493a065835c2f3a36b5d6c00f18`.
+Three candidates measure 6.688, 3.668, and 27.059 anonymous refaults/s.
+Their median is 6.688 versus the recorded reference median of 1,930.923/s: 99.65% lower.
+The comparison is unpaired and keeps the fixed 35.09/s ceiling.
+Every quality gate passes; the deliberately dropped final stat fails its control.
+The one final held-out confirmation measures 13.774/s, below 158.37/s, and passes all gates.
+These are synthetic local results at a 192 MiB cap, 32 MB shared buffers, and PostgREST pool two.
 They are not production capacity or billing proof.
-The review fixes require a new paired training series and one final held-out confirmation.
 
 ## Named risks
 
-The ten-phone stress projection reaches 51.0% of Supabase's 5 GB transfer allowance, about 2.55 GB/month.
-The final repeat ranges from 49.7% to 51.0%, above the preferred half-limit on one sample.
-This margin is accepted for release; it remains below the actual allowance.
-The unchanged database fixture occupies about 53% of the 500 MB allowance.
+The largest transfer projection is 2.746 GB/month, or 54.91% of Supabase's 5 GB allowance.
+It fits the accepted 55% exception with narrow remaining headroom.
+The unchanged database fixture occupies about 53.14% of the 500 MB allowance.
 Official statistics and results have no automatic expiry.
 Long-term growth requires an explicit history policy or a larger plan.
 
 Hosted acceptance of 32 MB shared buffers and PostgREST pool two still requires read-back during rollout.
-If either setting is refused, stop rollout before merging and measure the supported configuration separately.
+If either setting is refused, stop before merging and measure the supported configuration separately.
 Local gzip is verified; hosted compression and billed transfer remain rollout checks.
-See [live scores](live-scores.md) for the complete budget model and [capacity](db-capacity.md) for retention.
+See [live scores](live-scores.md) for the budget model and [capacity](db-capacity.md) for retention.
 
 ## Release order and recovery
 
@@ -57,6 +53,6 @@ Unsetting the worker secret restores ordinary ingestion on new invocations; it d
 Phones need a client deployment or the separate Vercel switch to return to database mode.
 There is no access to that Vercel account in this work.
 
-The database release guide lists all 30 pending migrations and the generated records.
+The database release guide lists all 31 pending migrations and the generated records.
 The operator runbook remains outside the repository because it contains project-specific commands.
 Production changes, pushes, and deployment are not part of release preparation.

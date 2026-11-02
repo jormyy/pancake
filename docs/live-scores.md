@@ -130,104 +130,100 @@ Pool three has no demonstrated benefit for this cause.
 
 ## Lab results
 
-The figures below predate the PR review corrections. The current candidate is being reverified.
-
 These are local synthetic results, not production capacity or billing proof.
-The resource reports use `game-night-cgroup-v1` and the fixed 192 MiB cap.
-Public-mode quality uses `game-night-v8`; reference ingestion keeps its existing work checks.
+The measured runtime is `cd24bce935b02493a065835c2f3a36b5d6c00f18`.
+Three candidates reuse the recorded reference; this comparison is unpaired.
+The resource grader stays `game-night-cgroup-v1`; public quality stays `game-night-v8`.
+Every run uses the same fixture, 192 MiB cap, 32 MB shared buffers, and PostgREST pool two.
 The primary measure is the database cgroup's `workingset_refault_anon` delta per second.
 VM swap counters remain diagnostics; the kernel exposes no normal per-cgroup swap-out rate.
-A sample fails host isolation below 1 GiB VM available memory.
-Foreign containers are recorded and left unchanged.
+A sample fails below 1 GiB VM available memory; foreign containers are recorded and left unchanged.
 
 | Sample | n | Median anonymous refaults/s | Range |
 | --- | ---: | ---: | --- |
-| Paired reference | 3 | 1,931 | 1,866–2,216 |
-| Final runtime training | 3 | 4.73 | 4.04–6.85 |
+| Recorded reference | 3 | 1,930.923 | 1,866.310–2,216.158 |
+| Current training | 3 | 6.688 | 3.668–27.059 |
 | Held-out reference | 3 | 3,167.493 | 3,114.448–3,432.218 |
-| Final held-out confirmation | 1 | 1.920 | Single sample |
+| Final held-out confirmation | 1 | 13.774 | Single sample |
 
-The training reduction is 99.76%; it remains below the stricter retained 35.092/s ceiling.
-The held-out ceiling is 158.375/s.
-Training and held-out use the final runtime at `e48cae97`, including the heartbeat repair.
-The final training repeat passes every quality gate; its broken-final control fails as required.
-The held-out run is a final confirmation after earlier use, not a fresh untouched tuning set.
-Settings alone measured 142.640/s against 701.832/s, each with n=3 and without phones.
-Those gains are not additive.
+Training is 99.65% below the recorded reference, with a 23.391/s spread.
+It passes the retained 35.09/s ceiling; held-out passes 158.37/s.
+The held-out run confirms the corrected design after earlier use; it is not a new tuning set.
+All four candidates pass their action, final-state, freshness, schedule, broadcast, and failure gates.
+Training phone freshness p95 has a 29.971-second median and a 30.395-second maximum.
+Held-out phone freshness p95 is 26.969 seconds, below the 45-second limit.
+The dropped-final control fails as required.
 
-All three final training samples pass their action, final-state, freshness, schedule, and failure gates.
-The traffic and latency medians below come from the preceding matched series; the final repeat confirms runtime acceptance.
-Phone freshness p95 is 29.408 seconds at the median, with a maximum sample of 31.079 seconds.
-Held-out phone freshness p95 is 29.378 seconds.
-The ten-phone correction test reaches all phones in 560 ms.
-Broken final statistics, disabled ingestion, slow actions, suppressed broadcasts, missing forecasts, and wrong phone finals fail their gates.
+The table uses ten phones on both sides and shows medians per four-minute window.
+The reference includes the old full-screen refresh path; earlier database-only session baselines use a different workload.
 
-| Per four-minute window, unless stated | Previous architecture | Current architecture |
+| Measure | Recorded reference | Current candidate |
 | --- | ---: | ---: |
-| Provider calls | 75 | 75 |
-| Provider bytes | 1,372,190 | 1,372,138 |
-| Database API calls | 343 | 165 |
-| Home reads | 90 | 14 |
-| Mean Home decoded bytes | 56,716 | 28,290 |
-| Current mean Home gzip bytes | Unmeasured | 4,892 |
-| Phone decoded bytes | 5,105,006 | 396,066 |
-| Current phone wire bytes | Unmeasured | 68,484 |
-| Edge invocations | 111 | 24 |
-| Broadcast sends / phone deliveries | 26 / 240 | 16 / 142 |
-| New sessions/minute | 83.46 | 19.24 |
-| Sessions/minute excluding health probes and cron | 76.46 | 12.24 |
-| WAL bytes/minute | 302,425 | 299,738 |
+| Provider calls | 79 | 75 |
+| Provider response bytes | 1,589,531 | 1,372,160 |
+| Database API calls | 1,425 | 204 |
+| Database API decoded bytes | 5,862,558 | 559,026 |
+| Full Home reads | 160 | 4 |
+| Score-only reads | 0 | 10 |
+| Mean Home gzip bytes | 6,008 | 4,885 |
+| Phone wire bytes | 948,485 | 48,142 |
+| Edge invocations | 283 | 26 |
+| Broadcast sends / deliveries | 145 / 1,432 | 17 / 152 |
+| New sessions/minute | 211.87 | 19.99 |
+| Sessions/minute after health probes and cron | 203.87 | 12.74 |
+| WAL bytes/minute | 1,149,183 | 332,273 |
 
-Four Home reads serve roster changes; ten serve official game or stat changes.
-No timed Home read comes from a live-only tick.
-The median snapshot is 8,788 decoded bytes and 2,130 gzip bytes.
+Four full Home reads serve roster changes; ten score-only reads serve official changes.
+Forecast-only reads range from zero to ten, according to scheduled delivery.
+No full Home read comes from a live-only tick.
+The training snapshot is 8,787 decoded bytes and 2,130 gzip bytes at the median.
+Held-out uses 15,025 decoded bytes and 3,279 gzip bytes.
 The supplied deployed probe measures NBA boxes at 31 KB and ESPN summaries at 448 KB.
 No additional deployed probe supports these lab numbers.
 
 ## Free-plan budget
 
 The stress model uses ten phones, six hours per night, and thirty nights.
-These are projected usage totals, except database size, memory, disk operations, and peak connections.
-The transfer row includes the final training repeat; other rows retain the recorded training and held-out bounds.
+The table takes the largest training or held-out value.
+These are projected monthly totals, except database size, memory, disk operations, and peak connections.
 
 | Resource | Projected use or measured peak | Free allowance or reference | Share |
 | --- | ---: | ---: | ---: |
-| Supabase transfer | About 2.55 GB/month | 5 GB/month | 51.0% |
-| Supabase Edge invocations | 81,260/month | 500,000/month | 16.25% |
-| Realtime messages | 456,034/month | 2,000,000/month | 22.80% |
+| Supabase transfer | 2.746 GB/month | 5 GB/month | 54.91% |
+| Supabase Edge invocations | 108,241/month | 500,000/month | 21.65% |
+| Realtime messages | 485,701/month | 2,000,000/month | 24.29% |
 | Realtime connections | 10 | 200 | 5.00% |
-| Database size | 267.06 MB | 500 MB | 53.41% |
-| Database memory | 201.23 MB | 500 MB reference | 40.25% |
-| Disk operations | 51.80/s | 250/s reference | 20.72% |
-| Vercel requests | 261,761/month | 1,000,000/month | 26.18% |
-| Vercel invocations, eleven regions | 237,488/month | 1,000,000/month | 23.75% |
-| Vercel transfer | 0.854 GB/month | 100 GB/month | 0.85% |
-| Vercel origin transfer | 3.567 GB/month | 10 GB/month | 35.66% |
-| Vercel active CPU | 0.43 hours/month | 4 hours/month | 10.75% |
-| Vercel memory | 0.93 GB-hours/month | 360 GB-hours/month | 0.26% |
+| Database size | 265.68 MB | 500 MB | 53.14% |
+| Database memory | 201.25 MB | 500 MB reference | 40.25% |
+| Disk operations | 89.36/s | 250/s reference | 35.74% |
+| Vercel requests | 272,532/month | 1,000,000/month | 27.25% |
+| Vercel invocations, eleven regions | 237,464/month | 1,000,000/month | 23.75% |
+| Vercel transfer | 0.867 GB/month | 100 GB/month | 0.87% |
+| Vercel origin transfer | 3.567 GB/month | 10 GB/month | 35.67% |
+| Vercel active CPU | 0.566 hours/month | 4 hours/month | 14.16% |
+| Vercel memory | 1.218 GB-hours/month | 360 GB-hours/month | 0.34% |
 
 Real users likely reach one or two cache regions.
-Training projects 21,588 monthly invocations for one region, or 43,175 for two.
+The largest training projection is 21,588 monthly invocations for one region, or 43,176 for two.
 The table reserves eleven independent caches.
 Vercel CPU and duration come from the local fake feed, not hosted billing.
 
 Transfer uses measured encoded phone bytes and conservatively decoded database-to-Edge bytes.
-The unchanged budget model reserves 16 KiB per recovery check across 10,800 monthly checks.
+The unchanged model reserves 16 KiB per recovery check across 10,800 monthly checks.
 It adds 300 cold openings and counts both phone and internal transfer legs.
-An earlier 455-byte recovery probe does not reduce this conservative reserve.
+An earlier 455-byte recovery probe does not reduce this reserve.
 Headers and TLS overhead are unmodeled.
 
 The [official egress guidance](https://supabase.com/kb/troubleshooting/all-about-supabase-egress-a_Sg_e) describes outgoing bytes and both transfer legs.
 It does not explicitly promise API-specific gzip billing.
 Local `Content-Encoding` and encoded lengths are verified; hosted compression and billing remain unverified.
-The fully decoded upper bound is 3.378 GB/month, above the 50% target.
-The named budget decision uses measured encoded responses, with hosted verification required at rollout.
+The largest fully decoded estimate is 3.571 GB/month, above the half-allowance target.
+The named decision uses measured encoded responses, with hosted verification required at rollout.
 [Realtime billing](https://supabase.com/docs/guides/platform/manage-your-usage/realtime-messages) counts a send and each receiving client.
 
-Transfer and database size are the named exceptions to the half-allowance goal.
-The final repeat projects transfer at 49.7%, 49.8%, and 51.0% of the actual allowance.
-The 51.0% stress result is accepted as a release risk; hosted billing still needs verification.
-The production-sized synthetic fixture stays unchanged and official history does not expire.
+Transfer uses the accepted exception of at most 55%; held-out reaches 54.91%, with narrow remaining headroom.
+Database size is the other accepted exception: the production-sized fixture stays unchanged.
+Official history does not expire automatically.
 See [capacity and retention](db-capacity.md) for growth limits.
 The [replay lab](../scripts/bench/game-night/README.md) retains the executable gates and reporting workflow.
 

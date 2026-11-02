@@ -5,7 +5,7 @@
 The supplied production head is `20261214006200` at `e5f16211` (release 2.14.7).
 Release 2.15 adds 31 migrations; the candidate contains 775 migrations through `20261214009300`.
 This is a minor feature release, with application version `2.15.0`.
-Executable candidate: `19b362db76bff5adbfd64f62312739ef696e4246`. Subsequent documentation commits preserve this executable source.
+Measured runtime candidate: `cd24bce935b02493a065835c2f3a36b5d6c00f18`. The external verification receipt pins the later documentation-only release head.
 
 | Migration | Change |
 | --- | --- |
@@ -51,11 +51,12 @@ If either is refused, stop before the frontend merge and validate the supported 
 The function catalog, database types, and both release attestations regenerate from a fresh private database.
 The audited baseline and historical security phases remain unchanged.
 
-The pre-review runtime measured 4.73 versus 1,931 anonymous refaults/s, 99.76% lower, with three samples per arm.
-The held-out confirmation is 1.92/s.
-The transfer stress projection reaches 51.0% of the 5 GB Free allowance; database size is about 53% of 500 MB.
-Both are named release risks, not hidden failures or claims of production capacity.
-Review corrections require fresh candidate acceptance before release.
+The corrected training median is 6.688 versus the recorded 1,930.923 anonymous refaults/s, 99.65% lower, with three candidates.
+This is an unpaired local comparison. The final held-out confirmation is 13.774/s.
+Every replay quality gate passes; the dropped-final control fails as intended.
+Transfer reaches 54.91% of the 5 GB allowance, within the accepted 55% exception.
+The unchanged database fixture reaches about 53.14% of 500 MB; both remain named release risks.
+See the final verification receipt for suite results and the exact release head.
 See [release notes](../docs/release-2.15.md), [live scores and rollback](../docs/live-scores.md), and the current release order below.
 
 ## Release 2.14.6

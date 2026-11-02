@@ -58,7 +58,7 @@ These settings affect future maintenance; they do not immediately compact existi
 
 ## Lab cost summary
 
-The [paired results table](live-scores.md#lab-results) records current calls, bytes, sessions, WAL, and broadcasts.
+The [recorded-reference results table](live-scores.md#lab-results) records current calls, bytes, sessions, WAL, and broadcasts.
 Home score and forecast updates use smaller authorized reads; mixed changes still require the full view.
 These measurements do not assign causal refault pages to a function or trigger.
 

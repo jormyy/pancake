@@ -5,20 +5,20 @@
 The current evidence is a synthetic local game-night replay, not a production capacity test.
 The fixture has ten teams, about 2,600 players, and 246,000 `player_game_stats` rows.
 It remains production-sized; no historical data is removed to improve the result.
-The latest three-run training median database size is 267,054,227 bytes.
-The largest training sample is 267,062,419 bytes, or 53.41% of the 500 MB Free allowance.
-The held-out database is 265,628,819 bytes.
+The latest three-run training median database size is 265,505,939 bytes.
+The largest training sample is 265,661,587 bytes, or 53.13% of the 500 MB Free allowance.
+The held-out database is 265,677,971 bytes.
 
 Database size is an accepted exception to the half-allowance target.
-The final transfer stress projection also reaches 51.0% of its 5 GB allowance.
+The final transfer stress projection also reaches 54.91% of its 5 GB allowance.
 Official statistics and results have no automatic expiry.
 An explicit historical-data policy or a larger plan is needed before continued growth reaches the allowance.
 The replay cannot establish how many months of production growth remain.
 
 ## Growth and retention
 
-Median allocation increases by 868,352 bytes during the four-minute training window.
-Settlement adds 147,456 bytes after that window.
+Median allocation increases by 933,888 bytes during the four-minute training window.
+Settlement adds 172,032 bytes after that window.
 These values include reusable pages and maintenance allocation; do not extrapolate them as permanent row growth.
 No current production growth rate is measured.
 
@@ -30,6 +30,7 @@ No current production growth rate is measured.
 | Failed sync history | 30 days, plus newest outcome | Same cleanup |
 | Private `l1:` broadcasts | 1 day | 4,096 rows per hourly cleanup |
 | Scheduler transitions | 7 days | 512 rows per hourly cleanup |
+| Live recovery failures | Cleared on successful checkpoint; row deleted with the game | One timestamp per existing game-state row |
 | Live NBA participation receipts | Until official final; deleted with the game | First observation per game and player; retries add no rows |
 | Official game statistics and results | No automatic expiry | Product history remains durable |
 
@@ -44,13 +45,13 @@ Other managed Realtime topics retain provider policy.
 The lab caps its database cgroup at 192 MiB with swap available.
 The selected runtime settings are 32 MB shared buffers and a PostgREST pool of two.
 These are separate from the fixture size and Supavisor pool.
-Training measures a median 122,384,384-byte anonymous-memory peak and 71,770,112-byte shared-memory peak.
+Training measures a median 130,813,952-byte anonymous-memory peak and 66,265,088-byte shared-memory peak.
 Component peaks can occur at different times; do not sum them as one observed peak.
-The maximum measured container memory is 201,228,288 bytes.
+The maximum measured container memory is 201,252,864 bytes.
 
-Training records 19.24 new database sessions per minute.
+Training records 19.99 new database sessions per minute.
 Six local health probes and about one cron start per minute explain part of that rate.
-The remaining 12.24 includes Auth sessions for necessary screen reads.
+The remaining 12.74 includes Auth sessions for necessary screen reads.
 The PostgREST data pool remains connected; short Auth sessions caused the earlier excess churn.
 See [hosted settings and lab results](live-scores.md).
 
