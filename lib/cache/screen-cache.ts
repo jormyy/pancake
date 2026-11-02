@@ -34,7 +34,7 @@ function canonical(value: unknown): unknown {
 }
 
 export function screenCacheKey(scope: ScreenScope): string {
-    return prefix + JSON.stringify(canonical({ ...scope, leagueId: scope.leagueId ?? null, memberId: scope.memberId ?? null, seasonId: scope.seasonId ?? null, params: scope.params ?? {} }))
+    return prefix + JSON.stringify(canonical({ ...scope, leagueId: scope.leagueId ?? null, memberId: scope.memberId ?? null, seasonId: scope.seasonId ?? null, params: scope.params ?? {}, ...(scope.screen === 'home' ? { versionClock: 'league' } : {}) }))
 }
 
 function storage(): Storage | null {

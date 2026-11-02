@@ -238,3 +238,20 @@ it('patches official scores and game locks without replacing a saved lineup or f
     expect(await readScreenView(selected)).toEqual({ ...saved, ...fields, context: { ...saved.context, version: '2' }, forecast: { ...saved.forecast, stale: true } })
     expect(JSON.parse(new URL(mocks.fetch.mock.calls[0][0]).searchParams.get('params')!).section).toBe('scores')
 })
+
+
+it('discards Home entries written with the old publication counter', () => {
+    const selected: ScreenScope = { ...scope, screen: 'home' }
+    const key = screenCacheKey(selected)
+    const parts = JSON.parse(key.slice('pancake:screen-view:v1:'.length))
+    delete parts.versionClock
+    const legacyKey = 'pancake:screen-view:v1:' + JSON.stringify(parts)
+    const values = new Map([[legacyKey, JSON.stringify({ schema: 1, scope: selected, version: '900', savedAt: Date.now(), value: { old: true }, dirty: false })]])
+    const localStorage = { get length() { return values.size }, key: (index: number) => [...values.keys()][index],
+        getItem: (name: string) => values.get(name) ?? null, removeItem: (name: string) => values.delete(name) }
+    vi.stubGlobal('window', { localStorage })
+    try {
+        expect(cachedScreenView(selected)).toBeUndefined()
+        expect(values.size).toBe(0)
+    } finally { vi.stubGlobal('window', undefined) }
+})
