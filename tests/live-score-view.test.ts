@@ -19,6 +19,18 @@ function home(line = basis()) {
 }
 
 describe('home and other-team live scores', () => {
+    it('keeps future scheduled players saved while live teammates keep updating', () => {
+        const saved = home()
+        saved.liveBasis![0].players.push({ ...saved.liveBasis![0].players[0], playerId: 'later', nbaId: '11', gameId: '0022', team: 'LAL' })
+        saved.todaysGames.push({ ...saved.todaysGames[0], id: 'later-game', nba_game_id: '0022', home_team: 'LAL', away_team: 'GSW',
+            status: 'Scheduled', game_time: new Date(now + 3600000).toISOString() })
+        const view = liveScoreView(saved, snapshot(), { points: 1 }, now)
+        expect(view.matchup?.myPoints).toBe(104)
+        expect(view.delayed).toBe(false)
+        saved.todaysGames[1].game_time = new Date(now - 1000).toISOString()
+        expect(liveScoreView(saved, snapshot(), { points: 1 }, now).delayed).toBe(true)
+    })
+
     it('uses the same formula for the displayed matchup, other-matchup list, and player line', () => {
         const view = liveScoreView(home(), snapshot(), { points: 1 }, now)
         expect(view.matchup?.myPoints).toBe(104)

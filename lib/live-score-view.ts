@@ -6,7 +6,11 @@ type LiveHome = HomeView & { todaysGames: NBAGameRow[]; liveStats: Record<string
 
 export function liveScoreView(saved: LiveHome, snapshot: LiveSnapshot | null, settings: ScoringSettings, now: number) {
     const current = readLiveSnapshot(snapshot, saved.selectedDate, now)
-    const overlay = overlayLiveScores(saved.liveBasis ?? [], current, settings, now)
+    const basis = (saved.liveBasis ?? []).map(matchup => ({ ...matchup, players: matchup.players.map(player => {
+        const game = saved.todaysGames?.find(game => game.nba_game_id === player.gameId)
+        return { ...player, scheduledAt: game?.status === 'Scheduled' && game.game_time ? Date.parse(game.game_time) : undefined }
+    }) }))
+    const overlay = overlayLiveScores(basis, current, settings, now)
     const points = new Map(overlay.matchups.map(matchup => [matchup.id, matchup]))
     const displayed = saved.matchup ? points.get(saved.matchup.id) : null
     const matchup = saved.matchup && displayed ? { ...saved.matchup,

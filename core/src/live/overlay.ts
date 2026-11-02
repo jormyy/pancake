@@ -34,6 +34,7 @@ export type SavedLivePlayer = {
     savedAt: number
     starter: boolean
     final?: boolean
+    scheduledAt?: number
 }
 
 export type SavedLiveMatchup = {
@@ -72,7 +73,7 @@ export function overlayLiveScores(saved: readonly SavedLiveMatchup[], snapshot: 
                 || game.nbaId == null && [game.home.team,game.away.team].includes(player.team ?? '')
                 : [game.home.team,game.away.team].includes(player.team ?? ''))
             if (!games.length) {
-                if (player.gameId) stale = true
+                if (player.gameId && !(Number.isFinite(player.scheduledAt) && player.scheduledAt! > now)) stale = true
                 continue
             }
             if (games.length !== 1) { stale = true; continue }
