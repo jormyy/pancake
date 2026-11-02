@@ -5,7 +5,7 @@
 The supplied production head is `20261214006200` at `e5f16211` (release 2.14.7).
 Release 2.15 adds 26 migrations; the candidate contains 770 migrations through `20261214009200`.
 This is a minor feature release, with application version `2.15.0`.
-Runtime source: `7fea40a2a517ba7f863a57b291eb298d2513496d`. The operator runbook and external verification receipt pin the final release commit and current test results.
+Runtime source: `6cc8a4834b4e992fd3f9253254484667b0960cea` (the measured `7fea40a2a517ba7f863a57b291eb298d2513496d` plus the ESPN fallback inactive-player fix). The operator runbook and external verification receipt pin the final release commit and current test results.
 
 | Migration | Change |
 | --- | --- |
