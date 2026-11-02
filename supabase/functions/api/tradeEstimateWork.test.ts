@@ -6,6 +6,7 @@ const other = '33333333-3333-4333-8333-333333333333'
 let attached = false
 let inputCalls = 0
 let quoteCalls = 0
+let inputFailures: string[] = []
 let quoteFailures: string[] = []
 const reanalysisIds = Array.from({ length: 27 }, (_, index) => `44444444-4444-4444-8444-${String(index).padStart(12, '0')}`)
 const reanalyzed = new Set<string>()
@@ -26,6 +27,8 @@ const server = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, asy
   if (path.endsWith('/get_trade_revaluation_inputs') || path.endsWith('/get_trade_estimate_reanalysis_inputs')) {
     const body = await req.json()
     inputCalls++
+    const failure = inputFailures.shift()
+    if (failure) return Response.json({ code: failure, message: 'Trade inputs changed. Retry.' }, { status: 409 })
     if (reanalyzed.has(body.p_trade_id)) return Response.json(null)
     return Response.json({ leagueId: trade, seasonId: trade, seasonYear: 2027, teams: 2, rosterSize: 20,
       scoringSettings: { points: 1 }, faabBudget: 100, players: [], replacementPlayers: [], picks: [],
@@ -105,6 +108,15 @@ Deno.test('submitted estimate exposes contention after its retry bound', async (
   assert.equal(quoteCalls - before, 5)
   assert.equal(attached, false)
   quoteFailures = []
+})
+
+Deno.test('submitted estimate reloads inputs after a concurrent official change', async () => {
+  attached = false
+  inputFailures = ['40001']
+  const before = inputCalls
+  assert.equal((await handleTradeEstimateWork(estimateRequest())).status, 200)
+  assert.equal(inputCalls - before, 2)
+  assert.equal(attached, true)
 })
 
 Deno.test({ name: 'estimate worker server closes', sanitizeOps: false, sanitizeResources: false, fn: () => server.shutdown() })
