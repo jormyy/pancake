@@ -1,5 +1,5 @@
 import { assertGameUnambiguous } from './gameIdentity.ts'
-import { saveFinalScore, saveGameStats } from './syncStats.ts'
+import { saveFinalGameStats } from './syncStats.ts'
 import { supabase } from './supabase.ts'
 import { fantasyCalendar, completeSeasonSchedule } from './schedule.ts'
 import { fetchBBRefSchedule, fetchBBRefBoxScore, sleep } from './bbref.ts'
@@ -214,7 +214,7 @@ async function upsertBBRefStats(
   const boxScore = await fetchBBRefBoxScore(gameId, homeTeamBBRef, awayTeamBBRef)
   const stats = []
 
-  for (const stat of [...boxScore.home, ...boxScore.away]) {
+  for (const [index,stat] of [...boxScore.home, ...boxScore.away].entries()) {
     const playerId = await resolveNamedPlayer(resolver, stat.playerName)
     if (!playerId) throw new Error(`No canonical player match for BBRef player: ${stat.playerName}`)
 
@@ -225,6 +225,7 @@ async function upsertBBRefStats(
     stats.push({
       player_id: playerId,
       game_id: dbGame.id,
+      is_home: index < boxScore.home.length,
       season_year: seasonYear,
       week_number: dbGame.week_number,
       minutes_played: minutesPlayed,
@@ -252,9 +253,8 @@ async function upsertBBRefStats(
   }
 
   if (!stats.length) throw new Error(`BBRef box score has no resolved players for ${gameId}`)
-  await saveFinalScore({ id: dbGame.id, status: 'Final' }, gameId, {
+  await saveFinalGameStats({ id: dbGame.id, status: 'Final' }, gameId, stats, {
     homeTeam: { score: boxScore.home.reduce((total, player) => total + player.pts, 0) },
     awayTeam: { score: boxScore.away.reduce((total, player) => total + player.pts, 0) },
   })
-  await saveGameStats(dbGame.id, gameId, stats, true)
 }

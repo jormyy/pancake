@@ -29,7 +29,7 @@ async function exercise(box: Box, fail: (path: string, count: number) => object 
     if (url.pathname.endsWith('/assert_nba_game_unambiguous')) return Response.json(null)
     if (url.pathname.endsWith('/resolve_player_imports_atomic')) return Response.json({ results: [0, 1].map(index => ({ index, player_id: `player-${index}`, action: 'updated' })), stale_draft_numbers_cleared: 0 })
     if (url.pathname.endsWith('/save_live_scoreboard_atomic')) return Response.json(true)
-    equal(url.pathname, `/rest/v1/rpc/${box.sourceTime && box.gameStatus === 3 ? 'save_final_game_snapshot_atomic' : box.gameStatus === 3 ? 'save_game_stats_atomic' : 'save_live_game_stats_atomic'}`)
+    equal(url.pathname, `/rest/v1/rpc/${box.sourceTime && box.gameStatus === 3 ? 'save_final_game_snapshot_atomic' : box.gameStatus === 3 ? 'save_final_game_unversioned_atomic' : 'save_live_game_stats_atomic'}`)
     return Response.json(2)
   }
   try {
@@ -38,23 +38,24 @@ async function exercise(box: Box, fail: (path: string, count: number) => object 
   } finally { globalThis.fetch = nativeFetch }
 }
 const names = (rpc: { name: string }[]) => rpc.map(call => call.name)
-const finalScore = (home: number, away: number, text: string) => ({ name: 'save_live_scoreboard_atomic', body: {
-  p_game_id: 'game', p_provider_game_id: '0022400062', p_status: 'Final', p_home_score: home, p_away_score: away,
-  p_status_text: text, p_elapsed_seconds: 0,
-} })
+const checkScore = (call: {name:string;body:unknown},home:number,away:number,text:string) => {
+  equal(call.name,'save_final_game_unversioned_atomic')
+  const body=call.body as Record<string,unknown>
+  deepStrictEqual([body.p_home_score,body.p_away_score,body.p_status_text],[home,away,text])
+}
 
-Deno.test('a final box saves its team scores and status text before the final stats', async () => {
+Deno.test('a final box saves team scores and stats in one atomic request', async () => {
   const { result, rpc } = await exercise({ gameStatus: 3, gameStatusText: 'Final', homeScore: 110, awayScore: 103 })
   deepStrictEqual(result.failures, [])
   equal(result.statLines, 2)
-  deepStrictEqual(names(rpc), ['assert_nba_game_unambiguous', 'resolve_player_imports_atomic', 'save_live_scoreboard_atomic', 'save_game_stats_atomic'])
-  deepStrictEqual(rpc[2], finalScore(110, 103, 'Final'))
+  deepStrictEqual(names(rpc), ['assert_nba_game_unambiguous', 'resolve_player_imports_atomic', 'save_final_game_unversioned_atomic'])
+  checkScore(rpc[2],110,103,'Final')
 })
 
 Deno.test('a final box without status text is stored as Final', async () => {
   for (const gameStatusText of [undefined, '', '  ']) {
     const { rpc } = await exercise({ gameStatus: 3, gameStatusText, homeScore: 113, awayScore: 116 })
-    deepStrictEqual(rpc[2], finalScore(113, 116, 'Final'))
+    checkScore(rpc[2],113,116,'Final')
   }
 })
 
@@ -74,16 +75,16 @@ Deno.test('live boxes leave the scoreboard alone and incomplete final scores are
   }
 })
 
-Deno.test('a final recheck repairs a frozen mid-game score and skips a settled one', async () => {
+Deno.test('final rechecks keep scores and stats in the same atomic request', async () => {
   const box = { gameStatus: 3, gameStatusText: 'Final', homeScore: 110, awayScore: 103 }
   const frozen = await exercise(box, undefined, { status: 'Final', home_score: 85, away_score: 76, game_status_text: 'Q4 11:34' })
-  deepStrictEqual(frozen.rpc[2], finalScore(110, 103, 'Final'))
+  checkScore(frozen.rpc[2],110,103,'Final')
   const staleText = await exercise(box, undefined, { status: 'Final', home_score: 110, away_score: 103, game_status_text: 'Q4 0:00' })
-  deepStrictEqual(staleText.rpc[2], finalScore(110, 103, 'Final'))
+  checkScore(staleText.rpc[2],110,103,'Final')
   for (const game_status_text of ['Final', 'Final/OT']) {
     const settled = await exercise(box, undefined, { status: 'Final', home_score: 110, away_score: 103, game_status_text })
     deepStrictEqual(settled.result.failures, [])
-    deepStrictEqual(names(settled.rpc), ['assert_nba_game_unambiguous', 'resolve_player_imports_atomic', 'save_game_stats_atomic'])
+    deepStrictEqual(names(settled.rpc), ['assert_nba_game_unambiguous', 'resolve_player_imports_atomic', 'save_final_game_unversioned_atomic'])
   }
 })
 
@@ -96,15 +97,15 @@ Deno.test('an incomplete final box saves no score', async () => {
 Deno.test('source-lock contention on the final score retries the whole write', async () => {
   const contention = { code: 'PT409', message: 'Game inputs are being updated. Retry this operation.' }
   const { result, rpc } = await exercise({ gameStatus: 3, gameStatusText: 'Final', homeScore: 110, awayScore: 103 },
-    (path, count) => path.endsWith('/save_live_scoreboard_atomic') && count === 1 ? contention : null)
+    (path, count) => path.endsWith('/save_final_game_unversioned_atomic') && count === 1 ? contention : null)
   deepStrictEqual(result.failures, [])
-  deepStrictEqual(names(rpc), ['assert_nba_game_unambiguous', 'resolve_player_imports_atomic', 'save_live_scoreboard_atomic',
-    'assert_nba_game_unambiguous', 'resolve_player_imports_atomic', 'save_live_scoreboard_atomic', 'save_game_stats_atomic'])
+  deepStrictEqual(names(rpc), ['assert_nba_game_unambiguous', 'resolve_player_imports_atomic', 'save_final_game_unversioned_atomic',
+    'assert_nba_game_unambiguous', 'resolve_player_imports_atomic', 'save_final_game_unversioned_atomic'])
 })
 
 Deno.test('a failed final score write leaves the stats unsynced for the next tick', async () => {
   const { result, rpc } = await exercise({ gameStatus: 3, gameStatusText: 'Final', homeScore: 110, awayScore: 103 },
-    path => path.endsWith('/save_live_scoreboard_atomic') ? { code: 'PT409', message: 'Game inputs changed. Retry.' } : null)
+    path => path.endsWith('/save_final_game_unversioned_atomic') ? { code: 'PT409', message: 'Game inputs changed. Retry.' } : null)
   equal(result.failures.length, 1)
   equal(names(rpc).includes('save_game_stats_atomic'), false)
 })
@@ -117,4 +118,10 @@ Deno.test('published final revisions keep scores and stats in one versioned writ
   equal(payload.p_source_updated_at, '2026-10-22T00:33:23.904611Z')
   equal(payload.p_home_score, 103)
   equal(payload.p_away_score, 110)
+})
+
+Deno.test('a final without a source revision cannot leave a separately committed Final score',async()=>{
+  const {result,rpc}=await exercise({gameStatus:3,homeScore:10,awayScore:8})
+  deepStrictEqual(result.failures,[])
+  deepStrictEqual(names(rpc).filter(name=>name.startsWith('save_')),['save_final_game_unversioned_atomic'])
 })

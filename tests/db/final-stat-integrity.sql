@@ -20,6 +20,12 @@ BEGIN
   PERFORM public.save_live_game_stats_atomic(game,provider,rows,600);
   SELECT jsonb_agg(to_jsonb(stat) ORDER BY player_id) INTO before_rows FROM public.player_game_stats stat WHERE game_id=game;
   BEGIN
+    PERFORM public.save_final_game_unversioned_atomic(game,provider,jsonb_build_array(rows->0,rows->2),12,8,'Final');
+  EXCEPTION WHEN SQLSTATE '22023' THEN rejected:=true; END;
+  PERFORM pg_temp.check_rules(rejected,'an unversioned final also rejects incomplete totals');
+  PERFORM pg_temp.check_rules((SELECT status='InProgress' AND home_score=10 FROM public.nba_games WHERE id=game),'an unversioned rejection rolls back its score write');
+  rejected:=false;
+  BEGIN
     PERFORM public.save_final_game_snapshot_atomic(game,provider,jsonb_build_array(rows->0,rows->2),clock_timestamp(),12,8,'Final');
   EXCEPTION WHEN SQLSTATE '22023' THEN rejected:=true; END;
   PERFORM pg_temp.check_rules(rejected,'incomplete final player totals cannot certify a game');

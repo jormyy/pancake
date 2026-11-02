@@ -232,26 +232,6 @@ type FinalBoxScore = BoxScorePlayers & {
 
 const isTeamScore = (score: unknown): score is number => Number.isSafeInteger(score) && (score as number) >= 0
 
-// The scoreboard is the only other writer of nba_games scores, and it stops
-// polling a game once it is Final or drops it from todaysScoreboard, so the
-// last mid-game sample would otherwise stay as the final score. A Final
-// sample always applies and every later non-final sample is refused.
-// Feeds without team scores keep the earlier behavior. Live-poll work rows
-// carry the stored score, so a settled final is not rewritten on each recheck.
-export async function saveFinalScore(game: Pick<StatsSyncGame, 'id' | 'status' | 'home_score' | 'away_score' | 'game_status_text'>, providerGameId: string, boxScore: FinalBoxScore): Promise<void> {
-  const home = boxScore.homeTeam?.score
-  const away = boxScore.awayTeam?.score
-  if (!isTeamScore(home) || !isTeamScore(away)) return
-  if (game.status === 'Final' && game.home_score === home && game.away_score === away &&
-      /^final/i.test(game.game_status_text ?? '')) return
-  const text = typeof boxScore.gameStatusText === 'string' && boxScore.gameStatusText.trim() ? boxScore.gameStatusText : 'Final'
-  const { error } = await supabase.rpc('save_live_scoreboard_atomic', {
-    p_game_id: game.id, p_provider_game_id: providerGameId, p_status: 'Final',
-    p_home_score: home, p_away_score: away, p_status_text: text, p_elapsed_seconds: 0,
-  })
-  if (error) throw error
-}
-
 export async function saveFinalGameStats(
   game: Pick<StatsSyncGame, 'id' | 'status' | 'home_score' | 'away_score' | 'game_status_text'>,
   providerGameId: string,
@@ -260,7 +240,8 @@ export async function saveFinalGameStats(
 ): Promise<number> {
   const home = boxScore.homeTeam?.score
   const away = boxScore.awayTeam?.score
-  if (boxScore.sourceUpdatedAt && isTeamScore(home) && isTeamScore(away)) {
+  if (!isTeamScore(home) || !isTeamScore(away)) throw new Error('A complete final team score is required')
+  if (boxScore.sourceUpdatedAt) {
     const { data, error } = await supabase.rpc('save_final_game_snapshot_atomic', {
       p_game_id: game.id, p_provider_game_id: providerGameId, p_stats: stats,
       p_source_updated_at: boxScore.sourceUpdatedAt, p_home_score: home, p_away_score: away,
@@ -269,8 +250,12 @@ export async function saveFinalGameStats(
     if (error) throw error
     return data
   }
-  await saveFinalScore(game, providerGameId, boxScore)
-  return await saveGameStats(game.id, providerGameId, stats, true)
+  const {data,error}=await supabase.rpc('save_final_game_unversioned_atomic',{
+    p_game_id:game.id,p_provider_game_id:providerGameId,p_stats:stats,p_home_score:home,p_away_score:away,
+    p_status_text:typeof boxScore.gameStatusText==='string' && boxScore.gameStatusText.trim()?boxScore.gameStatusText:'Final',
+  })
+  if(error)throw error
+  return data
 }
 
 export function validateBoxScorePlayers(boxScore: BoxScorePlayers, providerGameId: string): NBABoxScorePlayer[] {

@@ -131,7 +131,7 @@ Deno.test('a final stat write retries its captured game after the attempt stamp'
     assert.equal(result.keepRunning, false)
     assert.equal(calls.filter(name => name === 'record_live_poll_attempts').length, 1)
     assert.equal(calls.filter(name => name === 'get_live_poll_work').length, 1)
-    assert.equal(calls.filter(name => name === 'save_game_stats_atomic').length, 2)
+    assert.equal(calls.filter(name => name === 'save_final_game_unversioned_atomic').length, 2)
   }, (name, count) => {
     if (name === 'get_live_poll_work') return Response.json([{
       id: holder, nba_game_id: '0022600001', status: 'Final', needs_scoreboard: false, needs_stats: true, home_score:10,away_score:10,game_status_text:'Final',
@@ -152,7 +152,7 @@ Deno.test('a final stat write retries its captured game after the attempt stamp'
     }
     if (name === 'resolve_player_imports_atomic') return Response.json({ stale_draft_numbers_cleared: 0,
       results: [1, 2].map((id, index) => ({ index, player_id: 'player-' + id, action: 'updated' })) })
-    assert.equal(name, 'save_game_stats_atomic')
+    assert.equal(name, 'save_final_game_unversioned_atomic')
     return count === 1 ? Response.json(lockTimeout, { status: 500 }) : Response.json(2)
   })
 })

@@ -23,7 +23,7 @@ async function exercise(isFinal: boolean, fail: (path: string, count: number) =>
     equal(url.port, '56221')
     if (url.pathname.endsWith('/assert_nba_game_unambiguous')) return Promise.resolve(Response.json(null))
     if (url.pathname.endsWith('/resolve_player_imports_atomic')) return Promise.resolve(Response.json({ results: [0, 1].map(index => ({ index, player_id: `player-${index}`, action: 'updated' })), stale_draft_numbers_cleared: 0 }))
-    equal(url.pathname, `/rest/v1/rpc/${isFinal ? 'save_game_stats_atomic' : 'save_live_game_stats_atomic'}`)
+    equal(url.pathname, `/rest/v1/rpc/${isFinal ? 'save_final_game_unversioned_atomic' : 'save_live_game_stats_atomic'}`)
     return Promise.resolve(Response.json(2))
   }
   try {
@@ -39,7 +39,7 @@ Deno.test('source-lock contention retries identity validation and atomic persist
     equal(result.statLines, 2)
     equal(calls['/static/json/liveData/boxscore/boxscore_0022500170.json'], 1)
     equal(calls['/rest/v1/rpc/assert_nba_game_unambiguous'], 3)
-    equal(calls[`/rest/v1/rpc/${isFinal ? 'save_game_stats_atomic' : 'save_live_game_stats_atomic'}`], 2)
+    equal(calls[`/rest/v1/rpc/${isFinal ? 'save_final_game_unversioned_atomic' : 'save_live_game_stats_atomic'}`], 2)
   }
 })
 
@@ -54,6 +54,6 @@ Deno.test('identity changes and incomplete data are not retried as lock contenti
   for (const error of [{ code: 'PT409', message: 'Game provider identity changed. Fetch the game again.' }, { code: '22023', message: 'The complete box score omits stored players.' }]) {
     const { result, calls } = await exercise(true, path => path.includes('/save_') ? error : null)
     equal(result.failures.length, 1)
-    equal(calls['/rest/v1/rpc/save_game_stats_atomic'], 1)
+    equal(calls['/rest/v1/rpc/save_final_game_unversioned_atomic'], 1)
   }
 })
