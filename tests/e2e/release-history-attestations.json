@@ -3422,6 +3422,34 @@
       "statementCount": 6,
       "statementsSha256": "144c49e5eba1429017fafb4662df3e7e0fa4830c474ceecde5abaedc13848094",
       "sha256": "4f12698b41931c4ce7d37fc2f8ab28eda1059abccd5ad9ba0628d8abe0650418"
+    },
+    {
+      "name": "preserve_matchup_view_date",
+      "version": "20261214007600",
+      "statementCount": 1,
+      "statementsSha256": "7d3671566cfcb3d63fe5f354f6074783c28e20d40ea8a24f39f4d164c0b648ca",
+      "sha256": "13b735920f842f50062c290eb600caebf58edc4e4bdf0a90286d34ceec58d514"
+    },
+    {
+      "name": "process_late_forecast_corrections",
+      "version": "20261214007700",
+      "statementCount": 1,
+      "statementsSha256": "df4e7c85fcf482e36c5c274db24b4b23a19168f7954b406076df0f3805a671a2",
+      "sha256": "1b03e239a67c28236a664064f0f045ad386d47a25fa6fcc0d33acc6d80a8dd6c"
+    },
+    {
+      "name": "bound_nightly_live_gates",
+      "version": "20261214007800",
+      "statementCount": 8,
+      "statementsSha256": "57f4e216a442fc3ddd3f02ce284a668ac6d95f1803fe8164329172a8504a082d",
+      "sha256": "8bcb9ca963975a2ff2c73f81da1aab0ac96350622cf14fedbee398562511b7f2"
+    },
+    {
+      "name": "preserve_legacy_league_events",
+      "version": "20261214007900",
+      "statementCount": 1,
+      "statementsSha256": "9afd28101fc18a00e78a1dddb295d6e4217e8f5f11034a721e57c7e720646900",
+      "sha256": "cf6474b8fed3e4d7fe57b00774bacc9f24df72cc2b58594c1c6ccfe526424482"
     }
   ]
 }

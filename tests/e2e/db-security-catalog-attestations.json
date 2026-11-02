@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261214007500",
+  "candidateVersion": "20261214007900",
   "common": {
     "functions": [
       {
@@ -618,7 +618,7 @@
           "strict": false,
           "language": "plpgsql",
           "arguments": "p_now timestamp with time zone DEFAULT now()",
-          "bodySha256": "d1141a00e4624f8c38907caba0ca5de683daaa439bce7804835fa066b9e8e8a8",
+          "bodySha256": "e1fc04db836aa46684196a48e9b3ecea79b4eae023922d6deb5b9ee6929281e3",
           "volatility": "v",
           "anonExecute": false,
           "publicExecute": false,
@@ -818,7 +818,7 @@
           "strict": false,
           "language": "plpgsql",
           "arguments": "p_id bigint, p_token uuid",
-          "bodySha256": "5dac56872b8a49a5ee25a4e8df4a0a4ca77e553dacd73e764cb555a01fc09f0a",
+          "bodySha256": "375d7a73c4ff70ef93f90b883c7ebb0c995ff098b7ad4c7d9e62592fcbf057a6",
           "volatility": "v",
           "anonExecute": false,
           "publicExecute": false,
@@ -2582,6 +2582,22 @@
     {
       "filename": "20261214007500_batch_transaction_broadcasts.sql",
       "sha256": "4f12698b41931c4ce7d37fc2f8ab28eda1059abccd5ad9ba0628d8abe0650418"
+    },
+    {
+      "filename": "20261214007600_preserve_matchup_view_date.sql",
+      "sha256": "13b735920f842f50062c290eb600caebf58edc4e4bdf0a90286d34ceec58d514"
+    },
+    {
+      "filename": "20261214007700_process_late_forecast_corrections.sql",
+      "sha256": "1b03e239a67c28236a664064f0f045ad386d47a25fa6fcc0d33acc6d80a8dd6c"
+    },
+    {
+      "filename": "20261214007800_bound_nightly_live_gates.sql",
+      "sha256": "8bcb9ca963975a2ff2c73f81da1aab0ac96350622cf14fedbee398562511b7f2"
+    },
+    {
+      "filename": "20261214007900_preserve_legacy_league_events.sql",
+      "sha256": "cf6474b8fed3e4d7fe57b00774bacc9f24df72cc2b58594c1c6ccfe526424482"
     }
   ],
   "preMigration": {
