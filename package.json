@@ -449,7 +449,8 @@
     "perf:lab:report": "node scripts/perf-lab/report.mjs",
     "test:perf-lab:analyzer": "node scripts/perf-lab/analyzer-test.mjs",
     "test:perf-lab:closure": "node scripts/perf-lab/closure-test.mjs",
-    "test:db:inactive-pickups": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" -X -v ON_ERROR_STOP=1 -f tests/db/inactive-pickups.sql"
+    "test:db:inactive-pickups": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" -X -v ON_ERROR_STOP=1 -f tests/db/inactive-pickups.sql",
+    "generate:live-route": "bun build server/live/vercel.ts --target=node --format=cjs --outfile 'api/live/[date].js'"
   },
   "dependencies": {
     "@expo-google-fonts/outfit": "^0.4.3",

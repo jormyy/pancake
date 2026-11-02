@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import { createLiveHandler } from '../../server/live/handler.ts'
+import { createLiveHandler } from './handler.ts'
 
 const liveHandler = createLiveHandler()
 
