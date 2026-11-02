@@ -12,7 +12,7 @@ const scoreboard = await load('2026-10-30T01-00-49.445Z-scoreboard.json')
 const nba = await load('2026-10-30T01-00-50.022Z-nba-boxscore-0022600144.json')
 const now = Date.parse('2026-10-30T01:00:50Z')
 const game = { id: '00000000-0000-4000-8000-000000000001', nba_game_id: '0022600144', game_date: '2026-10-29', season_year: 2027, week_number: 2, home_team: 'ATL', away_team: 'CLE', status: 'InProgress' }
-const ids = summary.boxscore.players.flatMap((team: { statistics: { athletes: { athlete: { id: string }; didNotPlay: boolean }[] }[] }) => team.statistics[0].athletes.filter(row => !row.didNotPlay).map(row => row.athlete.id))
+const ids = summary.boxscore.players.flatMap((team: { statistics: { athletes: { athlete: { id: string }; didNotPlay: boolean }[] }[] }) => team.statistics[0].athletes.map(row => row.athlete.id))
 
 type Options = { nbaAge?: number; nbaError?: boolean; missing?: boolean; final?: boolean; summaryError?: boolean; identityError?: boolean; espnPost?: boolean; scheduled?: boolean; duplicateNba?: boolean; witness?: boolean }
 async function scenario(options: Options, run: (source: Awaited<ReturnType<typeof prepareLiveSources>>, calls: string[]) => Promise<void>) {
