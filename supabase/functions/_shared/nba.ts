@@ -97,7 +97,7 @@ export async function fetchTodaysGames(timeoutMs?: number): Promise<NBAGame[]> {
   const data = await cdnGet('/liveData/scoreboard/todaysScoreboard_00.json', timeoutMs, value => { modified = value }) as ScoreboardPayload
   const time = data.meta?.time ?? data.scoreboard?.time
   const revision = modified ?? (typeof time === 'string' && /(?:Z|[+-]\d{2}:?\d{2})$/.test(time) ? sourceTimestamp(time) : undefined)
-  return (data?.scoreboard?.games ?? []).filter((game) => isRegularSeasonGameId(game.gameId))
+  return (data?.scoreboard?.games ?? []).filter((game) => isRegularSeasonGameId(game?.gameId))
     .map(game => revision ? { ...game, sourceUpdatedAt: revision } : game)
 }
 

@@ -103,3 +103,19 @@ Deno.test('the request budget also bounds a response body that stalls after head
     await server.shutdown()
   }
 })
+
+Deno.test('a malformed ESPN event cannot discard another healthy game',async()=>{
+  const original=globalThis.fetch
+  globalThis.fetch=async()=>Response.json({events:[raw.events[0],{id:'broken'}]})
+  try {assert.deepEqual((await new EspnLiveSource().scoreboard(['2026-10-29'])).map(row=>row.id),[raw.events[0].id])}
+  finally{globalThis.fetch=original}
+})
+
+Deno.test('malformed ESPN competitors and duplicate identities stay isolated from healthy games',async()=>{
+  const original=globalThis.fetch
+  const broken=structuredClone(raw.events[0]);broken.id='broken';broken.competitions[0].competitors=[null,null]
+  const duplicate=structuredClone(raw.events[0]);duplicate.id='duplicate'
+  globalThis.fetch=async()=>Response.json({events:[raw.events[0],broken,duplicate,duplicate]})
+  try {assert.deepEqual((await new EspnLiveSource().scoreboard(['2026-10-29'])).map(row=>row.id),[raw.events[0].id])}
+  finally{globalThis.fetch=original}
+})

@@ -51,13 +51,21 @@ export class EspnLiveSource {
     return this.request('scoreboard', async () => {
       const range = [...dates].sort().map(date => date.replaceAll('-', ''))
       const payload = await get<{ events: EspnEvent[] }>(`/scoreboard?dates=${range[0]}-${range.at(-1)}&limit=100`, this.timeoutMs)
-      if (!Array.isArray(payload.events) || payload.events.some(event => !event || typeof event.id !== 'string' ||
-        !Number.isFinite(Date.parse(event.date)) || !['pre', 'in', 'post'].includes(event.status?.type?.state) ||
-        !Array.isArray(event.competitions) || event.competitions.length !== 1 || !Array.isArray(event.competitions[0]?.competitors))) {
-        throw new Error('ESPN scoreboard has invalid events')
-      }
-      if (new Set(payload.events.map(event => event.id)).size !== payload.events.length) throw new Error('ESPN scoreboard has duplicate games')
-      return payload.events
+      if (!Array.isArray(payload.events)) throw new Error('ESPN scoreboard has invalid events')
+      const counts=new Map<string,number>()
+      for(const event of payload.events)if(event && typeof event.id==='string')counts.set(event.id,(counts.get(event.id)??0)+1)
+      const events=payload.events.filter(event=>{
+        if(!event || typeof event.id!=='string' || !Number.isFinite(Date.parse(event.date))
+          || !['pre','in','post'].includes(event.status?.type?.state) || !Array.isArray(event.competitions)
+          || event.competitions.length!==1 || !Array.isArray(event.competitions[0]?.competitors) || counts.get(event.id)!==1)return false
+        const sides=event.competitions[0].competitors
+        if(sides.length!==2 || sides.some(side=>!side || !['home','away'].includes(side.homeAway) || !/^[A-Z]{2,4}$/.test(side.team?.abbreviation)))return false
+        if(new Set(sides.map(side=>side.homeAway)).size!==2)return false
+        try {if(event.status.type.state!=='pre')espnGame(event.id,event.competitions[0]);return true}catch{return false}
+      })
+      if(!events.length && payload.events.length)throw new Error([...counts.values()].some(count=>count>1)
+        ?'ESPN scoreboard has duplicate games':'ESPN scoreboard has invalid events')
+      return events
     })
   }
 
