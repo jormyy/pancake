@@ -169,6 +169,7 @@ Home foreground recovery shares its version request and keeps the scheduled read
 
 Release `api`, `refresh-views`, `lineup-optimizer`, and the internal workers that consume `_shared/serve.ts` after SQL.
 The shared invocation wrapper changes in `_shared/syncRuns.ts`.
+Prepare the deployment checkout with `npm ci` and stamp the Edge build before pausing workers or applying migrations.
 Database, then Edge, then merge the frontend.
 The orchestrator ships. This branch does not push or deploy.
 
