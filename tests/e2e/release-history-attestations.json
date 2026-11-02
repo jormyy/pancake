@@ -3492,6 +3492,27 @@
       "statementCount": 2,
       "statementsSha256": "454b5f0da10c2cf9c9dfaf35ede78c99d7e9d4c3fa78b215a4561433ab8dc9cc",
       "sha256": "bc440eaaf2a9d87533a7f40e84246c5d9d7f3661728489835555763a13c6e99b"
+    },
+    {
+      "name": "use_home_change_clock",
+      "version": "20261214008600",
+      "statementCount": 1,
+      "statementsSha256": "c1ebb2e2a714b3167e0111b1f3e24770b99a7d598d0ad73077fef3b6160f4dd2",
+      "sha256": "bc4fb8f7b92332a39a68672ac624610c43b932213106e1eabfb4d329683879f6"
+    },
+    {
+      "name": "omit_terminal_forecast_inputs",
+      "version": "20261214008700",
+      "statementCount": 3,
+      "statementsSha256": "6336f77d3717404009defc009c8c675ee6877d646831469875357ee3f1e5d9ab",
+      "sha256": "f87fad999301df458c04014ad2d888accbaa654cb0e410e4dea0e577959f78e7"
+    },
+    {
+      "name": "read_score_updates_without_lineups",
+      "version": "20261214008800",
+      "statementCount": 1,
+      "statementsSha256": "0c02b171099d30e43c666670e47729b21f40ed21c37be7ada5f3c446993374ca",
+      "sha256": "682ae8b118bfac7c74f793c9b6db99aff2b93bd5d3649c68cfcaa983a6d57c5b"
     }
   ]
 }

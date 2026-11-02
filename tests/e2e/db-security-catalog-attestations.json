@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261214008500",
+  "candidateVersion": "20261214008800",
   "common": {
     "functions": [
       {
@@ -2622,6 +2622,18 @@
     {
       "filename": "20261214008500_read_only_changed_forecasts.sql",
       "sha256": "bc440eaaf2a9d87533a7f40e84246c5d9d7f3661728489835555763a13c6e99b"
+    },
+    {
+      "filename": "20261214008600_use_home_change_clock.sql",
+      "sha256": "bc4fb8f7b92332a39a68672ac624610c43b932213106e1eabfb4d329683879f6"
+    },
+    {
+      "filename": "20261214008700_omit_terminal_forecast_inputs.sql",
+      "sha256": "f87fad999301df458c04014ad2d888accbaa654cb0e410e4dea0e577959f78e7"
+    },
+    {
+      "filename": "20261214008800_read_score_updates_without_lineups.sql",
+      "sha256": "682ae8b118bfac7c74f793c9b6db99aff2b93bd5d3649c68cfcaa983a6d57c5b"
     }
   ],
   "preMigration": {
