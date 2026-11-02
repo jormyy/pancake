@@ -1,5 +1,5 @@
 import { runBounded } from '../_shared/runBounded.ts'
-import { withWorkContext } from '../_shared/workContext.ts'
+import { withWorkContext, withPublicCheckpoint } from '../_shared/workContext.ts'
 import { saveLiveFeedSnapshot } from '../_shared/liveFeed.ts'
 import { gameElapsedSeconds } from '../_shared/gameProgress.ts'
 import { supabase } from '../_shared/supabase.ts'
@@ -53,7 +53,8 @@ export async function saveScoreboardGames(games: NBAGame[], work: StoredScoreboa
       if (error) throw error
     }
     try {
-      if (startsOnly) await withWorkContext({signal:AbortSignal.any([signal!,AbortSignal.timeout(3000)])}, save)
+      if (startsOnly) await withWorkContext({signal:AbortSignal.any([signal!,AbortSignal.timeout(3000)])}, () => withPublicCheckpoint(false,save))
+      else if (stored.status === 'Scheduled' && game.gameStatus === 2) await withPublicCheckpoint(false,save)
       else await save()
     } catch(error) { failures.push({gameId:stored.id,error}) }
   }), startsOnly ? 2 : 1)

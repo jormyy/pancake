@@ -97,3 +97,25 @@ Deno.test('a malformed unrelated start does not stop healthy selected scoreboard
     equal(failures[0].gameId,'broken')
   } finally {globalThis.fetch=nativeFetch}
 })
+
+Deno.test('start receipts publish outside checkpoint suppression for both write paths',async()=>{
+  const {withWorkContext}=await import('../_shared/workContext.ts')
+  const nativeFetch=globalThis.fetch
+  const headers:(string|null)[]=[]
+  globalThis.fetch=async(input,init)=>{
+    const request=new Request(input,init)
+    headers.push(request.headers.get('x-pancake-public-checkpoint'))
+    return Response.json(true)
+  }
+  try {
+    for(const sourceUpdatedAt of [undefined,new Date().toISOString()]) {
+      const game:NBAGame={gameId:'0021',gameStatus:2,gameStatusText:'Q1',period:1,gameClock:'PT10M00S',sourceUpdatedAt,
+        homeTeam:{teamTricode:'BOS',score:2},awayTeam:{teamTricode:'NYK',score:0}}
+      const stored={id:'early',nba_game_id:'0021',status:'Scheduled',home_score:0,away_score:0,game_status_text:'Scheduled'}
+      for(const selected of [new Set<string>(),new Set(['early'])]) {
+        await withWorkContext({signal:AbortSignal.timeout(5000),livePollHolder:'holder',publicCheckpoint:true},()=>saveScoreboardGames([game],[stored],selected))
+      }
+    }
+    deepStrictEqual(headers,[null,null,null,null])
+  }finally{globalThis.fetch=nativeFetch}
+})
