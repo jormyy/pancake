@@ -3,7 +3,7 @@ RETURNS TABLE(id uuid,nba_game_id text,game_date date,status text,game_time time
   checkpoint_at timestamptz,needs_final_check boolean)
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
   WITH candidates AS (
-    SELECT game.*,attempt.checkpoint_at,
+    SELECT game.*,attempt.checkpoint_at,attempt.recovery_failed_at,
       game.status='InProgress' OR game.status='Scheduled' AND (
         COALESCE(game.game_time,game.started_at) BETWEEN p_now-interval '45 minutes' AND p_now+interval '2 minutes'
         OR (COALESCE(game.game_time,game.started_at)<p_now-interval '45 minutes'
@@ -20,5 +20,5 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
   )
   SELECT game.id,game.nba_game_id,game.game_date,game.status,game.game_time,game.home_team,game.away_team,
     game.checkpoint_at,game.status='Final' AND game.stats_due
-  FROM candidates game WHERE game.board_due OR game.stats_due ORDER BY game.game_date,game.id;
+  FROM candidates game WHERE game.board_due OR game.stats_due ORDER BY game.recovery_failed_at NULLS FIRST,game.game_date,game.id;
 $$;
