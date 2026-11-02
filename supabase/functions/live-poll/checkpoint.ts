@@ -56,8 +56,10 @@ export function createCheckpointPoller(dependencies: {
       const fresh = source && source.updatedAt >= now()-120000 && source.updatedAt <= now()+5000
       const starting = game.status === 'Scheduled' && fresh && source.status !== 'Scheduled'
       const eastern = new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',hour:'2-digit',hourCycle:'h23'}).format(new Date(now()))
+      const retryDue = !game.checked_at || now()-Date.parse(game.checked_at) >= CHECKPOINT_INTERVAL_MS
       const scheduled = game.status === 'Scheduled' && (game.game_time ? Date.parse(game.game_time) <= now()
-        : game.game_date < new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York'}).format(new Date(now())) || Number(eastern) >= 11)
+        && (Date.parse(game.game_time) >= now()-45*60*1000 || retryDue)
+        : retryDue && (game.game_date < new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York'}).format(new Date(now())) || Number(eastern) >= 11))
       const overdue = !game.checkpoint_at || now()-Date.parse(game.checkpoint_at) >= CHECKPOINT_INTERVAL_MS
       const active = game.status === 'InProgress' || game.needs_final_check || starting || scheduled
       result.keepRunning ||= Boolean(active)

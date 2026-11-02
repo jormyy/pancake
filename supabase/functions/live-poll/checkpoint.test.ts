@@ -167,3 +167,19 @@ Deno.test('the start phase reserves import time and resumes unfinished receipt o
   assert.equal(attempts[1][0],'early-4')
   assert.equal(imports,2)
 })
+
+Deno.test('overdue scheduled games retain attempt backoff unless a fresh public start arrives',async()=>{
+  let now=start,imports=0,live=false
+  const game={...row(),status:'Scheduled',game_time:new Date(start-5400000).toISOString(),checkpoint_at:null,checked_at:new Date(start-5000).toISOString()}
+  const tick=createCheckpointPoller({now:()=>now,load:async()=>[game],snapshot:async()=>snapshot(now,live?'InProgress':'Scheduled'),
+    attempt:async()=>{game.checked_at=new Date(now).toISOString()},
+    ingest:async()=>{imports++;return {...result(),importedGameIds:[]}},record:async()=>assert.fail()})
+  for(let n=0;n<4;n++){await tick('holder');now+=30000}
+  assert.equal(imports,0)
+  now=start+CHECKPOINT_INTERVAL_MS
+  await tick('holder')
+  assert.equal(imports,1)
+  now+=30000;live=true
+  await tick('holder')
+  assert.equal(imports,2)
+})
