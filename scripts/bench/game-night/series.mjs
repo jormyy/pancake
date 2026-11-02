@@ -47,6 +47,34 @@ export function compareSeries(baselines, candidates, {targetCeiling=61} = {}) {
     passed: gain > noise && trainingTarget && quality }
 }
 
+export function compareRecordedReference(reference,reports,{limits,targetCeiling=35.09}={}) {
+  assert.ok(reference?.version==='game-night-summary-v2' && reference.primaryMetric==='cgroupAnonRefaultsPerSecond'
+    && reference.n>=3 && reference.quality.passed,'A verified three-run cgroup reference is required')
+  assert.ok(Number.isFinite(targetCeiling) && targetCeiling>0,'A positive target ceiling is required')
+  const candidate=summarize(reports)
+  assert.equal(candidate.fixtureSha256,reference.fixtureSha256,'The recorded fixture differs')
+  assert.equal(candidate.memoryMiB,192,'The candidate must retain the fixed cap')
+  assert.equal(reference.memoryMiB,192,'The reference must use the fixed cap')
+  for(const key of ['source','harnessSha256'])assert.equal(new Set(reports.map(row=>row[key])).size,1,`${key} changes within the series`)
+  assert.equal(new Set(reports.map(row=>JSON.stringify(row.runtimeConfiguration))).size,1,'Runtime settings change within the series')
+  assert.ok(reports.every(row=>row.resources?.version===resourceGraderVersion),'Resource graders differ')
+  const actions=reports.flatMap(report=>actionNames.map(name=>{
+    assert.ok(Number.isFinite(limits?.[name]) && limits[name]>0,`A recorded action limit is required for ${name}`)
+    const row=report.actionResults?.records.find(item=>item.name===name)
+    return {run:report.label,name,latencyMs:row?.latencyMs??null,limitMs:limits[name],passed:Boolean(row?.passed && row.latencyMs<=limits[name])}
+  }))
+  const baselineMedian=reference.metrics.cgroupAnonRefaultsPerSecond.median
+  const targetPagesPerSecond=Math.min(targetCeiling,baselineMedian*.05)
+  const trainingTarget=candidate.metrics.cgroupAnonRefaultsPerSecond.median<=targetPagesPerSecond
+  const quality=reports.every(row=>row.quality?.passed && row.quality.gates.injuries.passed && row.quality.gates.forecasts.passed) && actions.every(row=>row.passed)
+  const freePlanTargetPassed=reports.every(row=>row.projectedBudget?.supabaseWithinAcceptedRiskLimits && row.projectedBudget.supabaseQuarterTargets
+    && row.projectedBudget.vercelWithinHalfLimits && row.projectedBudget.vercelInvocationTarget)
+  return {version:'game-night-comparison-v3',paired:false,method:'Three current candidate runs against a recorded reference; not an interleaved causal comparison.',
+    baseline:reference,candidate,limits,actions,targetPagesPerSecond,trainingTarget,quality,freePlanTargetPassed,
+    gainFraction:1-candidate.metrics.cgroupAnonRefaultsPerSecond.median/baselineMedian,
+    passed:trainingTarget && quality && freePlanTargetPassed}
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const { values } = parseArgs({ options: { baseline: { type: 'string', multiple: true }, candidate: { type: 'string', multiple: true }, output: { type: 'string' }, help: { type: 'boolean' } } })
   if (values.help) console.log('Usage: node scripts/bench/game-night/series.mjs --baseline REPORT (at least three) --candidate REPORT (at least three) --output DIRECTORY')

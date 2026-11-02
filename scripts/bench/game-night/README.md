@@ -59,3 +59,11 @@ The unit tests above need no Docker; measurement and SQL commands do.
 See [live scores](../../../docs/live-scores.md) for the production contract, separate rollback paths, hosted settings, and labeled lab results.
 
 The synthetic league and feed both use Eastern dates. A replay waits if its 45-minute preparation, timed window, and settlement allowance would cross midnight. The paired series reserves four hours on one Eastern date before its first stack starts. The waits change no job rates.
+
+## Candidate-only review verification
+
+`node scripts/bench/game-night/candidate-series.mjs --source <checkout> --reference <recorded-summary.json> --limits <recorded-action-limits.json> --evidence <external-directory>` runs three candidates.
+It uses the same fixture, 192 MiB cap, quality gates, and Free-plan checks.
+The comparison records that the reference is historical and the runs are unpaired.
+The default ceiling is 35.09 anonymous refaults per second.
+The Supabase transfer exception permits at most 55%; other limits remain unchanged.
