@@ -18,6 +18,8 @@ const { values }=parseArgs({options:{
   pool:{type:'string',default:'2'},
   ceiling:{type:'string',default:'61'},
   'worker-overlay':{type:'string',multiple:true},
+  'baseline-worker-overlay':{type:'string',multiple:true},
+  'baseline-worker-source':{type:'string',default:repository},
   'baseline-migration':{type:'string',multiple:true},
   'require-budget':{type:'boolean',default:false},
 }})
@@ -33,7 +35,8 @@ for(const [variant,number] of [['baseline',1],['architecture',1],['architecture'
   const report=await isolatedReplay(async attempt=>{
     let stack
     try {
-      stack=activeStack=await startStack(path.join(values.evidence,`${label}-attempt-${attempt}`),{sourceRoot:variant==='baseline'?values.baseline:values.candidate,functionOverlays:values['worker-overlay'] ?? [],
+      stack=activeStack=await startStack(path.join(values.evidence,`${label}-attempt-${attempt}`),{sourceRoot:variant==='baseline'?values.baseline:values.candidate,functionOverlays:variant==='baseline'?[...new Set([...(values['worker-overlay'] ?? []),...(values['baseline-worker-overlay'] ?? [])])]:(values['worker-overlay'] ?? []),
+        functionOverlayRoot:variant==='baseline'?values['baseline-worker-source']:repository,
         migrationOverlays:variant==='baseline'?values['baseline-migration'] ?? []:[],
         ...(variant!=='baseline' && values['shared-buffers']?{sharedBuffers:values['shared-buffers']}:{})})
       stack.qualityEnabled=true

@@ -83,10 +83,12 @@ export async function startPhones(stack, publicFeed) {
     phone.activity = (visible,online) => {phone.visible=visible;phone.online=online;updatePoll();updateRecovery()}
     phone.refresh = (section=undefined) => {
       if (closed || !phone.visible || !phone.online) return Promise.resolve()
-      if (phone.loading) {phone.pending=true;return phone.loading}
+      if (phone.loading) {phone.pendingSection=phone.pending && phone.pendingSection!==section?undefined:section;phone.pending=true;return phone.loading}
       phone.loading=(async()=>{
         do {
           phone.pending=false
+          phone.pendingSection=undefined
+          const requestedVersion=phone.version
           const at=Date.now()
           const partial=phone.view?.matchup?.id?section:undefined
           section=undefined
@@ -99,13 +101,14 @@ export async function startPhones(stack, publicFeed) {
           assert.ok(response.ok,`Phone ${index} cannot read its authorized home (${response.status})`)
           const result=JSON.parse(body)
           assert.ok(result.ok && result.view,`Phone ${index} received an invalid screen response`)
-          const merged=partial==='forecast'?mergeHomeForecast(phone.view,result.view,phone.version)
-            :partial==='scores'?mergeHomeScores(phone.view,decodeSavedLiveView(result.view),phone.version):undefined
+          const merged=partial==='forecast'?mergeHomeForecast(phone.view,result.view,requestedVersion)
+            :partial==='scores'?mergeHomeScores(phone.view,decodeSavedLiveView(result.view),requestedVersion):undefined
           if(partial && merged===undefined){phone.pending=true;continue}
           phone.view=partial?merged:decodeSavedLiveView(result.view)
           phone.version=advancePhoneVersion(phone.version,phone.view.context?.version)
           phone.ready=true
           render();updatePoll();updateRecovery()
+          if(phone.pending)section=phone.pendingSection
         } while(phone.pending && !closed)
       })().catch(error=>{phone.error=error.message}).finally(()=>{phone.loading=null})
       return phone.loading
@@ -120,7 +123,7 @@ export async function startPhones(stack, publicFeed) {
       phone.version=advancePhoneVersion(phone.version,change.version)
       if(change.refresh && !(index===1 && faults.has('phone-refresh'))){
         phone.readReason='broadcast:'+(message.payload?.hints?.map(hint=>hint.row?.topic ?? hint.payload?.table).filter(Boolean).join(',') ?? message.payload?.table ?? 'change')
-        const section=change.forecastOnly?'forecast':change.scoreOnly?'scores':undefined
+        const section=stack.liveArchitecture?(change.forecastOnly?'forecast':change.scoreOnly?'scores':undefined):undefined
         phone.readSection=phone.timer && phone.readSection!==section?undefined:section
         clearTimeout(phone.timer)
         phone.timer=setTimeout(async()=>{

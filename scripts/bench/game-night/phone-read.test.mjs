@@ -54,3 +54,10 @@ test('official score changes use a scoped score read and mixed changes keep a fu
   row.details[0].scope.topics.push('lineup')
   assert.deepEqual(phoneChange(batch(row),'league','30'),{refresh:true,version:'31'})
 })
+
+
+test('unrelated averages can advance the stream while a score read is in flight',()=>{
+  const row={topic:'version',details:[{version:'32',topic:'score',created_at:'2026-11-01T00:00:00Z',
+    scope:{topics:['score'],tables:['matchups'],hints:[{topic:'score',details:[{resource:'averages'}]}]}}]}
+  assert.deepEqual(phoneChange(batch(row),'league','31'),{refresh:false,version:'32'})
+})

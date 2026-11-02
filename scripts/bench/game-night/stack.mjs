@@ -46,7 +46,7 @@ export async function stopRecordedStack(evidence, expectedProject) {
   await removeStack(evidence, project, [`${project}-rest:local`])
 }
 
-export async function startStack(evidence, { sourceRoot = repository, profileMemory = false, sharedBuffers = undefined, migrationOverlays = [],functionOverlays=[] } = {}) {
+export async function startStack(evidence, { sourceRoot = repository, profileMemory = false, sharedBuffers = undefined, migrationOverlays = [],functionOverlays=[],functionOverlayRoot=repository } = {}) {
   if (sharedBuffers != null) assert.match(sharedBuffers, /^[1-9][0-9]*(kB|MB|GB)$/)
   const project = `pancake-game-night-${randomBytes(5).toString('hex')}`
   const base = await freePorts()
@@ -64,7 +64,7 @@ export async function startStack(evidence, { sourceRoot = repository, profileMem
   const migrationFiles=await copyMigrations(path.join(sourceRoot,'supabase/migrations'),path.join(workdir,'supabase/migrations'),migrationOverlays)
   const functionFiles=functionOverlays.length?await copyFunctionFiles({sourceRoot,destination:path.join(workdir,'function-source'),
     baseFiles:(await command('git',['ls-files','--','supabase/functions','types/database.ts'],{cwd:sourceRoot})).stdout.trim().split('\n'),
-    overlays:functionOverlays,overlayRoot:repository}):null
+    overlays:functionOverlays,overlayRoot:functionOverlayRoot}):null
   const container = `supabase_db_${project}`
   const cli = args => command('supabase', [...args, '--workdir', workdir], { file: path.join(evidence, `setup-${args[0]}.log`) })
   const owned = async name => {

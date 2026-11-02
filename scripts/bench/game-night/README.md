@@ -25,6 +25,9 @@ The fixed database cap is 192 MiB with swap available.
 
 `architecture-series.mjs` interleaves baseline and public-mode candidate in ABBAAB order.
 Pass `--baseline` for a separate reference checkout, `--candidate`, and `--evidence`.
+Use `--baseline-worker-overlay` for declared reference-only correctness repairs.
+`--baseline-worker-source` selects their frozen source; each file hash stays in the report.
+The older `--worker-overlay` option applies to both arms.
 `settings-series.mjs` compares settings alone.
 `series.mjs --help` grades existing reports without starting a stack.
 `held-out-series.mjs` and `run.mjs --phase held-out` require passing training evidence.
