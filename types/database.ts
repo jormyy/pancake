@@ -6406,6 +6406,10 @@ export type Database = {
           source: string
         }[]
       }
+      get_compact_matchup_forecast_context: {
+        Args: { p_matchup_id: string }
+        Returns: Json
+      }
       get_dynasty_forecast_inputs: {
         Args: {
           p_league_id: string

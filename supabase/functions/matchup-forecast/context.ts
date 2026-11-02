@@ -1,4 +1,5 @@
 import { supabase } from '../_shared/supabase.ts'
+import { readForecastContext } from './wire.ts'
 import type { ForecastContext } from './compute.ts'
 
 export async function loadForecastContext(matchupId: string): Promise<ForecastContext> {
@@ -9,11 +10,11 @@ export async function loadForecastContext(matchupId: string): Promise<ForecastCo
       const { error } = await supabase.rpc('prepare_matchup_forecast_inputs', { p_matchup_id: matchupId, p_game_date: date })
       if (error) throw error
     }
-    const { data, error } = await supabase.rpc('get_prepared_matchup_forecast_context', { p_matchup_id: matchupId })
+    const { data, error } = await supabase.rpc('get_compact_matchup_forecast_context', { p_matchup_id: matchupId })
     if (error?.code === 'PT409' && attempt < 2) continue
     if (error) throw error
     if (!data) throw new Error('Matchup context is unavailable.')
-    return data as unknown as ForecastContext
+    return readForecastContext(data)
   }
   throw new Error('Forecast inputs keep changing.')
 }
