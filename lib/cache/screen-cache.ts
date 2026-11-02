@@ -33,8 +33,12 @@ function canonical(value: unknown): unknown {
     return value
 }
 
+function cacheScope(scope: ScreenScope) {
+    return { ...scope, leagueId: scope.leagueId ?? null, memberId: scope.memberId ?? null, seasonId: scope.seasonId ?? null, params: scope.params ?? {} }
+}
+
 export function screenCacheKey(scope: ScreenScope): string {
-    return prefix + JSON.stringify(canonical({ ...scope, leagueId: scope.leagueId ?? null, memberId: scope.memberId ?? null, seasonId: scope.seasonId ?? null, params: scope.params ?? {}, ...(scope.screen === 'home' ? { versionClock: 'league' } : {}) }))
+    return prefix + JSON.stringify(canonical({ ...cacheScope(scope), ...(scope.screen === 'home' ? { versionClock: 'league' } : {}) }))
 }
 
 function storage(): Storage | null {
@@ -53,7 +57,15 @@ function restore(): void {
         if ([...entries.values()].some(entry => screenCacheKey(entry.scope) === key)) continue
         try {
             const entry = JSON.parse(local!.getItem(key)!) as ScreenEnvelope<unknown>
-            if (entry.schema === 1 && entry.scope?.accountId && screenCacheKey(entry.scope) === key && /^\d+$/.test(entry.version) && Number.isFinite(entry.savedAt)) {
+            const valid = entry.schema === 1 && entry.scope?.accountId && /^\d+$/.test(entry.version) && Number.isFinite(entry.savedAt)
+            const currentKey = valid ? screenCacheKey(entry.scope) : ''
+            const legacyHome = valid && entry.scope.screen === 'home' && key === prefix + JSON.stringify(canonical(cacheScope(entry.scope)))
+            if (valid && (currentKey === key || legacyHome)) {
+                if (legacyHome) {
+                    entry.version = '0'
+                    entry.dirty = true
+                    try { local?.setItem(currentKey, JSON.stringify(entry)); local?.removeItem(key) } catch {}
+                }
                 const lookup = screenCacheKey(entry.lookupScope ?? entry.scope)
                 const existing = entries.get(lookup)
                 if (!existing || existing.savedAt < entry.savedAt) entries.set(lookup, entry)

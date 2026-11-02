@@ -240,7 +240,7 @@ it('patches official scores and game locks without replacing a saved lineup or f
 })
 
 
-it('discards Home entries written with the old publication counter', () => {
+it('keeps old Home content offline and revalidates its obsolete publication counter online', async () => {
     const selected: ScreenScope = { ...scope, screen: 'home' }
     const key = screenCacheKey(selected)
     const parts = JSON.parse(key.slice('pancake:screen-view:v1:'.length))
@@ -248,10 +248,17 @@ it('discards Home entries written with the old publication counter', () => {
     const legacyKey = 'pancake:screen-view:v1:' + JSON.stringify(parts)
     const values = new Map([[legacyKey, JSON.stringify({ schema: 1, scope: selected, version: '900', savedAt: Date.now(), value: { old: true }, dirty: false })]])
     const localStorage = { get length() { return values.size }, key: (index: number) => [...values.keys()][index],
-        getItem: (name: string) => values.get(name) ?? null, removeItem: (name: string) => values.delete(name) }
+        getItem: (name: string) => values.get(name) ?? null, removeItem: (name: string) => values.delete(name), setItem: (name: string, value: string) => values.set(name, value) }
     vi.stubGlobal('window', { localStorage })
     try {
-        expect(cachedScreenView(selected)).toBeUndefined()
-        expect(values.size).toBe(0)
+        expect(cachedScreenView(selected)).toMatchObject({ value: { old: true }, version: '0', dirty: true })
+        vi.stubGlobal('navigator', { onLine: false })
+        expect(await readScreenView(selected)).toEqual({ old: true })
+        expect(mocks.fetch).not.toHaveBeenCalled()
+        vi.stubGlobal('navigator', { onLine: true })
+        mocks.fetch.mockResolvedValue(Response.json({ ok: true, view: { fresh: true } }))
+        expect(await readScreenView(selected)).toEqual({ fresh: true })
+        expect(mocks.fetch).toHaveBeenCalledOnce()
+        expect(values.has(legacyKey)).toBe(false)
     } finally { vi.stubGlobal('window', undefined) }
 })
