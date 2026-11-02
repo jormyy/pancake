@@ -106,10 +106,13 @@ export async function prepareLiveSources(games: Game[], events: EspnEvent[], sco
       for (const [id, parsed] of primary) {
         const game = games.find(game => game.id === id)!
         try {
-          const mapped = parsed.players.map(row => {
+          const mapped = parsed.players.flatMap(row => {
             const matches = identities.get(row.espnId)
-            if (matches?.length !== 1 || !matches[0].nba_id || !/^\d+$/.test(matches[0].nba_id) || !Number.isSafeInteger(Number(matches[0].nba_id)) || Number(matches[0].nba_id) <= 0) throw new Error(`ESPN athlete ${row.espnId}: missing or ambiguous NBA identity link`)
-            return { ...row, playerId: matches[0].id, player: { ...row.player, personId: Number(matches[0].nba_id) } }
+            if (matches?.length !== 1 || !matches[0].nba_id || !/^\d+$/.test(matches[0].nba_id) || !Number.isSafeInteger(Number(matches[0].nba_id)) || Number(matches[0].nba_id) <= 0) {
+              if (row.player.played === 0 || row.player.played === '0') return []
+              throw new Error(`ESPN athlete ${row.espnId}: missing or ambiguous NBA identity link`)
+            }
+            return [{ ...row, playerId: matches[0].id, player: { ...row.player, personId: Number(matches[0].nba_id) } }]
           })
           if (new Set(mapped.map(row => row.playerId)).size !== mapped.length || new Set(mapped.map(row => row.player.personId)).size !== mapped.length) throw new Error('ESPN athletes resolve to duplicate players')
           const home = mapped.filter(row => row.team === parsed.game.homeTeam.teamTricode)
