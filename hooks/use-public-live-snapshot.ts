@@ -12,7 +12,7 @@ export function usePublicLiveSnapshot(date: string, games: readonly LiveViewGame
     const pollers = useRef(new Map<string, ReturnType<typeof createLivePoller>>())
     const datesKey = [...new Set(games.filter(game => game.status === 'InProgress'
         || game.status === 'Final' && game.stats_synced_at === null
-        || game.status === 'Scheduled' && game.game_time != null && Date.parse(game.game_time) <= time
+        || game.status === 'Scheduled' && game.game_time != null && Date.parse(game.game_time) <= Date.now()
         && !/postpon|cancel/i.test(game.game_status_text ?? '')).map(game => game.game_date || date))].sort().join(',')
     useEffect(() => {
         const next = games.filter(game => game.status === 'Scheduled' && game.game_time)

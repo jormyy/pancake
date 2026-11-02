@@ -41,3 +41,34 @@ it('polls unfinished dates every thirty seconds and stops while hidden or after 
     expect(fetch).toHaveBeenCalledTimes(6)
     expect(latest.active).toBe(false)
 })
+
+it('starts polling when a schedule arrives after its tipoff',async()=>{
+    vi.useFakeTimers({toFake:['Date','setTimeout','clearTimeout']})
+    const opened=Date.parse('2026-10-30T23:00:00Z')
+    vi.setSystemTime(opened)
+    activity.active=true
+    const fetch=vi.fn(async()=>Response.json({version:1,mode:'public',date:'2026-10-30',capturedAt:Date.now(),games:[]}))
+    vi.stubGlobal('fetch',fetch)
+    await act(async()=>{screen=create(React.createElement(Probe,{games:[]}))})
+    await act(async()=>{await vi.advanceTimersByTimeAsync(2000)})
+    await act(async()=>{screen!.update(React.createElement(Probe,{games:[{
+        nba_game_id:'0021',game_date:'2026-10-30',status:'Scheduled',game_time:new Date(opened+1000).toISOString(),stats_synced_at:null,
+    }]}))})
+    expect(latest.active).toBe(true)
+    expect(fetch).toHaveBeenCalledOnce()
+})
+
+it('keeps the wake timer for a future scheduled tipoff',async()=>{
+    vi.useFakeTimers({toFake:['Date','setTimeout','clearTimeout']})
+    const opened=Date.parse('2026-10-30T23:00:00Z')
+    vi.setSystemTime(opened)
+    activity.active=true
+    const fetch=vi.fn(async()=>Response.json({version:1,mode:'public',date:'2026-10-30',capturedAt:Date.now(),games:[]}))
+    vi.stubGlobal('fetch',fetch)
+    await act(async()=>{screen=create(React.createElement(Probe,{games:[{
+        nba_game_id:'0021',game_date:'2026-10-30',status:'Scheduled',game_time:new Date(opened+1000).toISOString(),stats_synced_at:null,
+    }]}))})
+    expect(fetch).not.toHaveBeenCalled()
+    await act(async()=>{await vi.advanceTimersByTimeAsync(1001)})
+    expect(fetch).toHaveBeenCalledOnce()
+})
