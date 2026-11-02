@@ -1,5 +1,4 @@
 import { supabase } from '../_shared/supabase.ts'
-import { saveLiveFeedSnapshot } from '../_shared/liveFeed.ts'
 import { gameElapsedSeconds } from '../_shared/gameProgress.ts'
 import type { LiveSnapshot } from '../_shared/liveSnapshot.ts'
 
@@ -15,11 +14,14 @@ export async function discoverPublicGames(snapshot: LiveSnapshot): Promise<void>
     if (matches.length > 1) throw new Error('Public game discovery is ambiguous')
     const stored = matches[0]
     if (!stored?.nba_game_id || game.status === 'Scheduled') continue
-    await saveLiveFeedSnapshot(stored.id,stored.nba_game_id,{
-      source:game.source ?? 'nba',source_updated_at:new Date(game.updatedAt).toISOString(),
-      elapsed_seconds:game.status === 'Final' ? 2880+Math.max(0,(game.period ?? 4)-4)*300
+    if (game.updatedAt > Date.now()+5000 || game.status !== 'Final' && Date.now()-game.updatedAt > 120000)
+      throw new Error('Public game discovery is stale')
+    const { error } = await supabase.rpc('save_live_scoreboard_atomic',{
+      p_game_id:stored.id,p_provider_game_id:stored.nba_game_id,p_status:'InProgress',
+      p_elapsed_seconds:game.status === 'Final' ? 2880+Math.max(0,(game.period ?? 4)-4)*300
         : gameElapsedSeconds({gameStatus:2,period:game.period,gameClock:game.clock}),
-      status:'InProgress',home_score:game.home.score,away_score:game.away.score,status_text:'Live game discovered',
-    })
+      p_home_score:game.home.score,p_away_score:game.away.score,p_status_text:'Live game discovered',
+    }).abortSignal(AbortSignal.timeout(5000))
+    if (error) throw error
   }
 }
