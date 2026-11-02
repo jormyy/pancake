@@ -5,7 +5,9 @@ PostgreSQL owns authorization, roster legality, scoring, and committed state.
 
 ## Screen views
 
-Screen loaders read one complete JSON view through `GET /views/<screen>`.
+Screen loaders open with one complete JSON view through `GET /views/<screen>`.
+Home refreshes only its forecast for forecast changes, or its score fields for pure game and score changes.
+The same route enforces membership; the client checks matchup, season, league, and version before merging.
 The Edge API forwards the user's bearer token to member-scoped SQL reads.
 Most routes call one view function.
 Other-matchup views use the selected member and date with the same authorization checks.

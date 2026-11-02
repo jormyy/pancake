@@ -3,7 +3,7 @@
 ## Release 2.15: shared live scores
 
 The supplied production head is `20261214006200` at `e5f16211` (release 2.14.7).
-Release 2.15 adds nineteen migrations; the candidate contains 763 migrations through `20261214008100`.
+Release 2.15 adds 26 migrations; the candidate contains 770 migrations through `20261214008800`.
 This is a minor feature release, with application version `2.15.0`.
 
 | Migration | Change |
@@ -27,6 +27,13 @@ This is a minor feature release, with application version `2.15.0`.
 | `20261214007900_preserve_legacy_league_events.sql` | Keep legacy row-event envelopes during rollout and rollback. |
 | `20261214008000_bound_forecast_correction_work.sql` | Remove ineligible requests while retaining late final-score corrections. |
 | `20261214008100_batch_non_context_league_events.sql` | Batch data events while retaining legacy league and membership events. |
+| `20261214008200_scope_forecast_change_events.sql` | Send changed forecast facts only to affected screen readers. |
+| `20261214008300_compact_forecast_context.sql` | Add a compact worker input alongside the compatible raw RPC. |
+| `20261214008400_batch_forecast_publication.sql` | Publish claimed forecasts together with per-result failure isolation. |
+| `20261214008500_read_only_changed_forecasts.sql` | Read forecast-only updates without full screen payloads; keep membership checks. |
+| `20261214008600_use_home_change_clock.sql` | Stamp Home reads with their league broadcast counter. |
+| `20261214008700_omit_terminal_forecast_inputs.sql` | Keep terminal forecasts free of unused player inputs. |
+| `20261214008800_read_score_updates_without_lineups.sql` | Read official score changes without unchanged lineup payloads. |
 
 Old loaded clients keep receiving direct league and membership events. Other data events share compact batches and supported version hints.
 Apply the pending migrations before the matching Edge functions.
@@ -36,10 +43,11 @@ If either is refused, stop before the frontend merge and validate the supported 
 The function catalog, database types, and both release attestations regenerate from a fresh private database.
 The audited baseline and historical security phases remain unchanged.
 
-Final runtime acceptance is 4.73 versus 1,931 anonymous refaults/s, 99.76% lower, with three samples per arm.
+The pre-review runtime measured 4.73 versus 1,931 anonymous refaults/s, 99.76% lower, with three samples per arm.
 The held-out confirmation is 1.92/s.
 The transfer stress projection reaches 51.0% of the 5 GB Free allowance; database size is about 53% of 500 MB.
 Both are named release risks, not hidden failures or claims of production capacity.
+Review corrections require fresh candidate acceptance before release.
 See [release notes](../docs/release-2.15.md), [live scores and rollback](../docs/live-scores.md), and the current release order below.
 
 ## Release 2.14.6
@@ -239,9 +247,9 @@ The [trade curve report](../docs/trade-curve.md) records the real trades, roster
 
 The supplied production head is `20261214006200`, from the recorded 2.14.7 release.
 This lab does not verify hosted state.
-The local candidate ends at `20261214007500`.
+The local candidate ends at `20261214008800`.
 Database, then Edge, then merge the frontend.
-Apply pending migrations through `20261214007500` only during the separately authorized release.
+Apply pending migrations through `20261214008800` only during the separately authorized release.
 Regenerate the catalog, types, and both attestations from a fresh private database before the final release checks.
 
 Deploy compatible database and Edge code before enabling public snapshots.

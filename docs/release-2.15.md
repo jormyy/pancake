@@ -13,8 +13,12 @@ ESPN completion requests authoritative final checks; DNPs remain distinct from m
 Phones reject older game revisions and keep the selected week in multi-week matchups.
 Late corrections cannot starve forecasts; cancelled and stale games cannot block nightly jobs.
 Legacy clients retain league events. Canonical requests share a bounded origin refresh.
+Home reads only changed scores or forecasts and keeps saved lineups.
+Existing Home content stays available offline while its old version counter awaits revalidation.
 
 ## Local acceptance
+
+These figures precede the review corrections. Final candidate verification is pending.
 
 The final training repeat uses the frozen runtime at `e48cae97`.
 Three candidates measure 6.85, 4.04, and 4.73 anonymous refaults/s.
@@ -49,6 +53,6 @@ Unsetting the worker secret restores ordinary ingestion on new invocations; it d
 Phones need a client deployment or the separate Vercel switch to return to database mode.
 There is no access to that Vercel account in this work.
 
-The database release guide lists all nineteen pending migrations and the generated records.
+The database release guide lists all 26 pending migrations and the generated records.
 The operator runbook remains outside the repository because it contains project-specific commands.
 Production changes, pushes, and deployment are not part of release preparation.

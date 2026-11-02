@@ -64,6 +64,10 @@ The rookie draft controller also reads the version.
 These counts exclude shared authentication, membership, and change-stream setup.
 Unchanged versions reuse saved content.
 Changed topics invalidate affected views.
+A forecast-only Home update fetches a forecast section through the same authenticated view route.
+It preserves saved scores and lineups. Pure score updates preserve lineups and forecast values.
+Mixed changes and version gaps require a full read.
+Home cache keys identify the league change clock. Entries with the old publication clock keep their offline content and require an online refresh.
 Background standings, matchup totals, averages, and trade values publish their own version changes.
 Refresh metadata causes no version bump.
 Publication hints do not restart the background refresh.

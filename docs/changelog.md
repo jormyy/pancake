@@ -7,6 +7,8 @@
 - Stale feeds show saved scores with a stale state; completed games keep official results.
 - Background updates follow the approved schedule, with 30-minute recovery checkpoints.
 - Smaller screen responses and fewer unnecessary refreshes reduce transfer and connection churn.
+- Live feeds recover individual games and keep early-start locks and authoritative final-score checks.
+- Saved screens preserve selected weeks and newer scores across reconnects.
 
 See [release notes](release-2.15.md) for local results, operating risks, and rollout requirements.
 Earlier release records remain in [database release history](../supabase/RELEASE-DB.md).

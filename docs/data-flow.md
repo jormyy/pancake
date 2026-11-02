@@ -13,6 +13,9 @@ A screen cache holds at most 48 entries and 4 MiB of JSON.
 Its key includes account, league, member, season, screen, and normalized parameters.
 Saved content renders before background validation.
 A cold screen reads one view; an unchanged version needs no additional view.
+A forecast-only Home change reads just the selected forecast and keeps saved scores and lineups.
+Pure score and game changes fetch their changing fields while preserving lineups and forecast values.
+Mixed changes, missing versions, or mismatched responses require the full view.
 Auth, membership, and change-stream requests are separate.
 Account changes clear private caches and reject late replies.
 
@@ -46,7 +49,8 @@ Current deployment requirements are in the [release guide](../supabase/RELEASE-D
 ## Changes and actions
 
 One changed league transaction advances one version and batches its relevant hints.
-Home filters changes by displayed teams, date, and inputs.
+Home filters changes by displayed teams and inputs.
+Score corrections cover the full multi-week matchup; lineup changes stay scoped to the selected week and date.
 Fresh public mode performs a ten-minute recovery check.
 Stale and database modes retain the 20-second recovery check.
 Missing version ranges require a fresh view; hidden screens defer reads.

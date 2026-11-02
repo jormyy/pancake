@@ -32,6 +32,7 @@ Opening a live screen and reconnecting start a fresh read.
 Each phone retains the last accepted game timestamp and final state across reconnects.
 Older provider revisions cannot reverse a displayed final. Newer final corrections remain eligible.
 A requested date selects its own week within a multi-week matchup.
+Score corrections refresh every week in that matchup; lineup changes remain scoped to the selected week and date.
 
 Postgres receives status transitions, final statistics, corrections, and recovery checkpoints every 30 minutes.
 Public workers discover starts across the full snapshot, including games outside their selected work.
@@ -41,6 +42,13 @@ A missing, stale, or contradictory shared snapshot cannot block due direct-provi
 ESPN completion triggers repeated authoritative checks; only the existing NBA rules certify official finals.
 Final-score corrections remain eligible for forecast refresh within the existing seven-day queue retention.
 Other out-of-window requests are removed, so they cannot block current forecasts.
+Workers decode compact forecast inputs without changing the calculation.
+Claimed results publish in one transaction; one bad result does not roll back healthy results.
+Cache-only renewals do not broadcast. Changed forecasts identify the affected matchup.
+A forecast-only change reads just that forecast and preserves saved scores and lineups.
+Pure score and game changes fetch their scores, stats, and game state without unchanged lineups or forecast values.
+A missed version, mixed change, or mismatched response requires a full authorized screen read.
+Home reads use the league broadcast counter. Old Home content remains available offline; its obsolete counter resets before the next online read.
 Nightly gates ignore unavailable games and live rows outside today or yesterday in Eastern time.
 A normal checkpoint preserves version history but sends no live-only broadcast.
 Tipoffs, finals, corrections, roster changes, and lineup changes retain their relevant broadcasts.
@@ -80,6 +88,8 @@ Keep compatible functions and schema until both clients and workers finish their
 League and membership events retain their legacy envelope during rollout.
 Other data events use compact batches; loaded clients still receive their supported version hints.
 Old loaded clients still receive league-setting changes before the new frontend deploys.
+After workers enter public mode, old clients retain action and final events but show checkpointed intermediate scores.
+They need the new frontend for live overlays; keep database-mode workers during the client update window if needed.
 Worker rollback does not require a schema rollback or change this event compatibility.
 See [release order](../supabase/RELEASE-DB.md#release-order-for-this-release).
 
@@ -112,8 +122,11 @@ Pool three has no demonstrated benefit for this cause.
 
 ## Lab results
 
+The figures below predate the PR review corrections. The current candidate is being reverified.
+
 These are local synthetic results, not production capacity or billing proof.
-The reports use `game-night-cgroup-v1` and the fixed 192 MiB cap.
+The resource reports use `game-night-cgroup-v1` and the fixed 192 MiB cap.
+Public-mode quality uses `game-night-v8`; reference ingestion keeps its existing work checks.
 The primary measure is the database cgroup's `workingset_refault_anon` delta per second.
 VM swap counters remain diagnostics; the kernel exposes no normal per-cgroup swap-out rate.
 A sample fails host isolation below 1 GiB VM available memory.
@@ -191,11 +204,9 @@ The table reserves eleven independent caches.
 Vercel CPU and duration come from the local fake feed, not hosted billing.
 
 Transfer uses measured encoded phone bytes and conservatively decoded database-to-Edge bytes.
-The recovery reserve is 2 KiB per call across 10,800 monthly checks, plus 300 cold openings.
-A separate probe measures 455 combined bytes for the phone, Auth, and version RPC.
-Its rule adds 1 KiB and rounds upward, with a 2 KiB minimum.
-That probe's cold waiver misses its latency limit; it is byte evidence only.
-Original reports keep their older 16 KiB reserve; the separate projection ledger records the adjustment.
+The unchanged budget model reserves 16 KiB per recovery check across 10,800 monthly checks.
+It adds 300 cold openings and counts both phone and internal transfer legs.
+An earlier 455-byte recovery probe does not reduce this conservative reserve.
 Headers and TLS overhead are unmodeled.
 
 The [official egress guidance](https://supabase.com/kb/troubleshooting/all-about-supabase-egress-a_Sg_e) describes outgoing bytes and both transfer legs.

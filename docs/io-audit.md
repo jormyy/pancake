@@ -20,7 +20,7 @@ Read the [lab results](live-scores.md#lab-results) before attributing a gain to 
 | Public live snapshots | Visible phones every 30 seconds; shared 30-second cache | Provider requests, public bytes, function CPU, cache-region misses |
 | Database live import | Status transitions, finals, corrections, 30-minute checkpoints | Changed stat rows, revisions, triggers, totals, WAL |
 | Database fallback | 30-second live ticks, none on idle slates | Per-game saves and unchanged-input checks; retained for rollback |
-| Home views | Opening, relevant committed changes, reconnect, ten-minute public recovery | Auth sessions, SQL view, internal transfer, compressed phone response |
+| Home views | Opening, relevant committed changes, reconnect, ten-minute public recovery | Auth sessions, full or changed-section SQL view, internal transfer, compressed phone response |
 | Dispatcher | Every minute | One cron backend, queue reads, bounded SQL chunks, leased Edge starts |
 | Saved screen publication | At most every two minutes during games | Only changed cache content and relevant version hints |
 | Matchup win odds | Every 30 minutes during games and at matchup end | Input preparation, forecast computation, publication |
@@ -44,6 +44,9 @@ Auth sessions remain required for private screen requests.
 `emit_league_change`, score input revisions, totals, league versions, and notification markers remain on relevant official changes.
 Normal live checkpoints suppress live-only broadcasts but retain version history.
 Batched hints retain their private scopes and events.
+Legacy league and membership events keep their row envelope during rollout.
+Forecast renewals compare result fields before broadcasting; timestamp-only renewals send no event.
+Compact forecast inputs omit unused player data when every scheduled game is terminal.
 Content hashes and exact comparisons prevent unchanged screen and analysis rewrites.
 
 No player-stat index is an exact duplicate.
@@ -55,12 +58,8 @@ These settings affect future maintenance; they do not immediately compact existi
 
 ## Lab cost summary
 
-Four-minute training medians compare the previous and current public architecture.
-Database API calls fall from 343 to 165; Home reads fall from 90 to 14.
-New sessions fall from 83.46 to 19.24 per minute.
-Excluding six local health probes and cron leaves 12.24 sessions per minute.
-WAL remains about 300 KB per minute because real actions, finals, and background work remain.
-Broadcast sends fall from 26 to 16; phone deliveries fall from 240 to 142.
+The [paired results table](live-scores.md#lab-results) records current calls, bytes, sessions, WAL, and broadcasts.
+Home score and forecast updates use smaller authorized reads; mixed changes still require the full view.
 These measurements do not assign causal refault pages to a function or trigger.
 
 The highest remaining costs are official stat imports, authorized actions, forecast delivery, queue dispatch, and managed Realtime.

@@ -26,6 +26,11 @@ Automatic load shedding can defer nonessential work; manual pause stops new disp
 
 Roster moves, lineups and locks, trades, waivers, drafts, login, and their notifications retain their existing event rules.
 Direct trade estimates remain immediate; scheduled re-analysis does not block creating an offer.
+Nightly gates use the shared availability rule for today and yesterday in Eastern time.
+Cancelled games and stale live rows outside those slates do not block nightly work.
+Public workers discover status changes outside selected imports.
+A failed game leaves its checkpoint due while healthy imports continue.
+Due official work can use validated direct ingestion when the shared snapshot fails.
 The [live-score guide](live-scores.md) owns public cache behavior, rollback, and measured usage.
 
 ## Admission and leases
