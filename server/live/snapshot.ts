@@ -60,6 +60,25 @@ function nbaIsCurrent(box: NBABoxScore, event: EspnEvent | undefined, observedAt
     && box.homeTeam.score === board.homeTeam.score && box.awayTeam.score === board.awayTeam.score
 }
 
+function compactProgress(board: NBAGame | undefined, event: EspnEvent | undefined, observedAt: number): PublicLiveGame | undefined {
+  const progress = event && ['in','post'].includes(event.status.type.state)
+    ? espnGame(event.id,{...event.competitions[0],status:event.status}) : board
+  if (!progress || progress.gameStatus === 1) return undefined
+  const complete = progress.gameStatus === 3 || event?.status.type.state === 'post'
+  const period = complete ? progress.period || 4 : progress.period
+  const clock = complete ? 'PT0M00S' : progress.gameClock
+  gameElapsedSeconds({gameStatus:2,period,gameClock:clock})
+  const sides = [progress.homeTeam,progress.awayTeam].map(side => {
+    if (!/^[A-Z]{2,4}$/.test(side.teamTricode) || !Number.isFinite(side.score) || side.score! < 0)
+      throw new Error('Invalid public scoreboard progress')
+    return {team:side.teamTricode,score:side.score!,players:[]}
+  })
+  if (sides[0].team === sides[1].team) throw new Error('Duplicate public scoreboard sides')
+  return {id:board?.gameId ?? `espn:${event!.id}`,nbaId:board?.gameId ?? null,espnId:event?.id ?? null,
+    source:event ? 'espn' : 'nba',status:'InProgress',updatedAt:observedAt,period,clock,
+    ...(complete ? {completionPending:true} : {}),home:sides[0],away:sides[1]}
+}
+
 export function createSnapshotSource(now: () => number = Date.now) {
   const espn = new EspnLiveSource(now,1500)
   return async (date: string): Promise<LiveSnapshot> => {
@@ -104,7 +123,13 @@ export function createSnapshotSource(now: () => number = Date.now) {
           games.push(compactBox(box,board,event,now(),identities))
         } else if (nbaCompact) games.push(nbaCompact)
         else throw new Error('No valid live box')
-      } catch { failures.push(board?.gameId ?? `espn:${event!.id}`) }
+      } catch {
+        failures.push(board?.gameId ?? `espn:${event!.id}`)
+        try {
+          const progress = compactProgress(board,event,now())
+          if (progress) games.push(progress)
+        } catch {}
+      }
     }),8)
     if (catalog.length && !games.length) throw new Error('No public game snapshot is usable')
     return { version: 1, mode: 'public', date, capturedAt: now(), games: games.sort((a,b) => a.id.localeCompare(b.id)),

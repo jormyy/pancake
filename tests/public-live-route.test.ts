@@ -227,3 +227,16 @@ it('rejects duplicate dates, redirects aliases and bounds sequential origin refr
   await handler(new Request(`http://local/api/live/${date}`))
   expect(source).toHaveBeenCalledTimes(2)
 })
+
+it('retains a completion signal when the completed scoreboard has no usable box',async()=>{
+  const completed=structuredClone(event)
+  completed.status={period:4,displayClock:'0:00',type:{state:'post',completed:true} as typeof event.status.type}
+  vi.stubGlobal('fetch',async(input:RequestInfo|URL)=>{
+    const url=new URL(input instanceof Request?input.url:input)
+    if(url.hostname==='site.api.espn.com' && url.pathname.endsWith('scoreboard'))return Response.json({events:[completed]})
+    return Response.json({}, {status:503})
+  })
+  const response=await createLiveHandler({now:()=>now})(new Request(`http://local/api/live/${date}`))
+  expect(response.status).toBe(200)
+  expect((await response.json()).games[0]).toMatchObject({completionPending:true,status:'InProgress',home:{players:[]}})
+})
