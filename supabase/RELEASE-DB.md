@@ -3,28 +3,24 @@
 ## Release 2.15: shared live scores
 
 The supplied production head is `20261214006200` at `e5f16211` (release 2.14.7).
-Release 2.15 adds 31 migrations; the candidate contains 775 migrations through `20261214009300`.
+Release 2.15 adds 23 migrations; the candidate contains 767 migrations through `20261214008900`.
 This is a minor feature release, with application version `2.15.0`.
-Measured runtime candidate: `cd24bce935b02493a065835c2f3a36b5d6c00f18`. The external verification receipt pins the release head and records runtime-equivalence checks.
+Round-three simplification is awaiting final verification. The external verification receipt pins the release candidate.
 
 | Migration | Change |
 | --- | --- |
 | `20261214006300_schedule_half_gig.sql` | Apply the approved background schedule and combine dispatcher work. |
-| `20261214006400_live_path_half_gig.sql` | Skip redundant live-path work while retaining ingestion checks. |
 | `20261214006500_memory_half_gig.sql` | Bound retained history and remove duplicate index work. |
-| `20261214006600_nightly_pick_predictions.sql` | Keep pick predictions in the nightly window. |
 | `20261214006700_live_score_view.sql` | Add the authorized saved basis for client live-score overlays. |
-| `20261214006800_public_live_checkpoints.sql` | Store public-mode checkpoints, transitions, and final imports. |
+| `20261214006800_public_live_checkpoints.sql` | Store checkpoints, select official inputs, and order recovery by recorded attempts. |
 | `20261214006900_limit_live_basis_to_displayed_players.sql` | Limit the live basis to displayed lineup players. |
 | `20261214007000_dispatch_short_work_without_starving_live.sql` | Bound short SQL work and preserve live admission. |
 | `20261214007100_compact_live_dispatch_candidates.sql` | Reduce repeated live candidate reads. |
 | `20261214007200_prioritize_queued_live_ingestion.sql` | Give queued live ingestion the next available worker slot. |
-| `20261214007300_limit_checkpoint_input_reads.sql` | Read provider inputs only for selected checkpoint games. |
 | `20261214007400_scope_and_compact_home_updates.sql` | Scope Home invalidation and compact its payload. |
 | `20261214007500_batch_transaction_broadcasts.sql` | Batch private transaction events without dropping their scopes. |
 | `20261214007600_preserve_matchup_view_date.sql` | Keep the selected date within multi-week matchups. |
 | `20261214007700_process_late_forecast_corrections.sql` | Process old score corrections without starving current forecasts. |
-| `20261214007800_bound_nightly_live_gates.sql` | Use available games from relevant slates in every nightly gate. |
 | `20261214007900_preserve_legacy_league_events.sql` | Keep legacy row-event envelopes during rollout and rollback. |
 | `20261214008000_bound_forecast_correction_work.sql` | Remove ineligible requests while retaining late final-score corrections. |
 | `20261214008100_batch_non_context_league_events.sql` | Batch data events while retaining legacy league and membership events. |
@@ -36,10 +32,6 @@ Measured runtime candidate: `cd24bce935b02493a065835c2f3a36b5d6c00f18`. The exte
 | `20261214008700_omit_terminal_forecast_inputs.sql` | Keep terminal forecasts free of unused player inputs. |
 | `20261214008800_read_score_updates_without_lineups.sql` | Read official score changes without unchanged lineup payloads. |
 | `20261214008900_refresh_decimal_scoring.sql` | Recalculate active custom scores with exact decimal arithmetic. |
-| `20261214009000_retry_live_gated_nightly_work.sql` | Retry temporary live-game gates during the same nightly window. |
-| `20261214009100_protect_complete_final_stats.sql` | Retain NBA participation and reject incomplete official finals. |
-| `20261214009200_atomic_unversioned_final_stats.sql` | Keep finals atomic when provider revision metadata is absent. |
-| `20261214009300_preserve_recovery_fairness.sql` | Keep slow failed games behind untouched recovery work across worker restarts. |
 
 Old loaded clients keep receiving direct league and membership events. Other data events share compact batches and supported version hints.
 Apply the pending migrations before the matching Edge functions.
@@ -256,9 +248,9 @@ The [trade curve report](../docs/trade-curve.md) records the real trades, roster
 
 The supplied production head is `20261214006200`, from the recorded 2.14.7 release.
 This lab does not verify hosted state.
-The local candidate ends at `20261214009300`.
+The local candidate ends at `20261214008900`.
 Database, then Edge, then merge the frontend.
-Apply pending migrations through `20261214009300` only during the separately authorized release.
+Apply pending migrations through `20261214008900` only during the separately authorized release.
 Regenerate the catalog, types, and both attestations from a fresh private database before the final release checks.
 
 Deploy compatible database and Edge code before enabling public snapshots.

@@ -7,6 +7,7 @@ It accepts today and yesterday in Eastern time.
 It reads no Supabase data, credentials, lineups, or user information.
 NBA box scores are preferred; ESPN remains the checked fallback.
 Identity, completeness, and source-order checks apply before publication.
+Malformed rows are skipped independently; unavailable games do not create empty substitute rows.
 Each player line contains only the fields needed by the shared scoring formula.
 Explicit DNP rows contain zero statistics; absent provider rows remain missing.
 Duplicate date parameters fail. Other accepted URL forms redirect to the canonical path.
@@ -39,10 +40,12 @@ Postgres receives status transitions, final statistics, corrections, and recover
 Public workers discover starts across the full snapshot, including games outside their selected work.
 A start receipt locks the lineup before the stored scheduled time when a game starts early.
 Each game imports independently. Only successful imports advance that game's checkpoint.
-New NBA participation observations are retained before checkpoints, then removed after complete official stats replace them.
-Final player points must equal team points; malformed DNP rows and missing witnessed players keep the final pending.
-Every final score and stat update commits atomically, including feeds without revision metadata.
-Slow failed recoveries rotate behind later games on the next tick.
+Official writes use the existing per-game provider ingestion and NBA final certification.
+Versioned final scores and stats commit together; unversioned feeds retain the existing score-then-stats path.
+The base path can accept an incomplete NBA final that omits a player; this remains a known follow-up.
+No new participation table or final-total validator blocks legitimate finals.
+Each attempt is recorded under the existing lease before provider calls.
+Slow failed recoveries rotate behind untouched games on the next tick.
 Their failure order survives worker restarts; a failure never advances a successful checkpoint.
 A missing, stale, or contradictory shared snapshot cannot block due direct-provider recovery.
 ESPN completion triggers repeated authoritative checks; only the existing NBA rules certify official finals.
@@ -55,8 +58,8 @@ A forecast-only change reads just that forecast and preserves saved scores and l
 Pure score and game changes fetch their scores, stats, and game state without unchanged lineups or forecast values.
 A missed version, mixed change, or mismatched response requires a full authorized screen read.
 Home reads use the league broadcast counter. Old Home content remains available offline; its obsolete counter resets before the next online read.
-Nightly gates ignore unavailable games and live rows outside today or yesterday in Eastern time.
-A temporary live-game gate retries within the remaining 04:00–06:00 nightly window.
+Nightly jobs run during 04:00–06:00 Eastern even when a game remains live.
+There is no live-game claim gate or deferral.
 A normal checkpoint preserves version history but sends no live-only broadcast.
 Tipoffs, finals, corrections, roster changes, and lineup changes retain their relevant broadcasts.
 Home ignores changes outside its displayed teams, dates, and score inputs.

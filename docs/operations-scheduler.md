@@ -19,16 +19,15 @@ Automatic load shedding can defer nonessential work; manual pause stops new disp
 | Earlier game-day injury status | Hourly |
 | Off-day injury status | Daily |
 | Projections | Morning and one hour before first game |
-| Rankings, trade values, pick predictions, player details | Nightly, in the 04:00–06:00 Eastern window; defer while games remain live |
+| Rankings, trade values, pick predictions, player details | Nightly, in the 04:00–06:00 Eastern window |
 | Work dispatcher and hint drain | One shared database connection each minute |
 | Cron and operational history cleanup | Hourly at :12, bounded batches |
 | Screen table statistics | Daily at 10:15 UTC, fresh tables skipped |
 
 Roster moves, lineups and locks, trades, waivers, drafts, login, and their notifications retain their existing event rules.
 Direct trade estimates remain immediate; scheduled re-analysis does not block creating an offer.
-Nightly gates use the shared availability rule for today and yesterday in Eastern time.
-Cancelled games and stale live rows outside those slates do not block nightly work.
-A temporary live-game gate retries each minute during 04:00–06:00 Eastern, then waits for the next nightly window.
+Live games do not gate nightly admission or execution.
+Nightly work keeps its existing retry and lease rules without special deferrals.
 Public workers discover status changes outside selected imports.
 A failed game leaves its checkpoint due while healthy imports continue.
 Due official work can use validated direct ingestion when the shared snapshot fails.

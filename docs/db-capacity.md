@@ -31,7 +31,6 @@ No current production growth rate is measured.
 | Private `l1:` broadcasts | 1 day | 4,096 rows per hourly cleanup |
 | Scheduler transitions | 7 days | 512 rows per hourly cleanup |
 | Live recovery failures | Cleared on successful checkpoint; row deleted with the game | One timestamp per existing game-state row |
-| Live NBA participation receipts | Until official final; deleted with the game | First observation per game and player; retries add no rows |
 | Official game statistics and results | No automatic expiry | Product history remains durable |
 
 Cleanup preserves active work, required failure evidence, and protected newest outcomes.

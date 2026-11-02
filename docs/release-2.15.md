@@ -14,7 +14,8 @@ Phones reject older game revisions and keep the selected week in multi-week matc
 Late corrections cannot starve forecasts; cancelled and stale games cannot block nightly jobs.
 Legacy clients retain league events. Canonical requests share a bounded origin refresh.
 Home reads only changed scores or forecasts and keeps saved lineups.
-Official finals verify team totals and retained NBA participation before replacing live rows.
+Official writes retain the existing per-game ingestion and NBA final certification.
+An incomplete NBA final can still omit a player, as on the predecessor; this remains a follow-up.
 Stale public games use short recovery; slow failures cannot keep later games from recovery.
 Exact decimal scoring matches SQL, including custom settings.
 Temporary live-game gates retry during the same nightly window.
