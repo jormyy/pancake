@@ -4,6 +4,12 @@ Live matchup screens use a shared public snapshot while Postgres retains officia
 The snapshot refreshes every 30 seconds while a live screen is visible.
 Hidden screens stop polling; stale data falls back to saved scores with a stale state.
 Other-team views, final corrections, and private action broadcasts retain their correctness checks.
+Unfinished games keep updating after league midnight. Future scheduled players no longer suppress live teammates.
+All-Star projection windows span the full scoring week.
+Trade analysis permits one daily catch-up after matching pick predictions complete.
+Start receipts run across the returned slate before recovery imports.
+Their deadlines isolate slow games, reserve import time, and preserve start broadcasts.
+Live lines remain tied to their lineup date; unavailable games cannot freeze healthy overlays.
 
 ## Review corrections
 
@@ -21,9 +27,10 @@ Exact decimal scoring matches SQL, including custom settings.
 Nightly work runs during 04:00–06:00 Eastern without a live-game gate.
 Existing Home content stays available offline while its old version counter awaits revalidation.
 
-## Local acceptance
+## Earlier local acceptance
 
-The measured runtime is `9e620800836dfad7fa528c0dfa295b3b80ec73cd`.
+These historical measurements use `9e620800836dfad7fa528c0dfa295b3b80ec73cd`.
+Current review fixes require the new candidate measurement in the final verification receipt.
 Three candidates measure 27.193, 1.799, and 14.817 anonymous refaults/s.
 Their median is 14.817 versus the recorded reference median of 1,930.923/s: 99.23% lower.
 The comparison is unpaired and keeps the fixed 35.09/s ceiling.
@@ -54,6 +61,6 @@ Unsetting the worker secret restores ordinary ingestion on new invocations; it d
 Phones need a client deployment or the separate Vercel switch to return to database mode.
 There is no access to that Vercel account in this work.
 
-The database release guide lists all 23 pending migrations and the generated records.
+The database release guide lists all 26 pending migrations and the generated records.
 The operator runbook remains outside the repository because it contains project-specific commands.
 Production changes, pushes, and deployment are not part of release preparation.

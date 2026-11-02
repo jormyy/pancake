@@ -28,6 +28,14 @@ The client adds shared-formula live deltas to its authorized saved score and lin
 The same calculation serves Home and other-team matchups.
 The shared scorer uses exact decimal products and the same cent rounding as SQL.
 Completed official games use saved results, without a public delta.
+A future scheduled player keeps the saved contribution while live teammates continue updating.
+The existing saved game time distinguishes a future game from missing live data.
+Unfinished games in the selected matchup period keep polling across league midnight.
+Each active game date uses the same public cache and stops after official handoff.
+Contributions remain tied to their lineup date when a player appears on consecutive days.
+Cancelled, postponed, and suspended games do not supply live deltas.
+A stale displayed matchup triggers short recovery even when the selected matchup is fresh.
+Late-arriving schedule rows use the current clock when deciding whether polling must start.
 Past days remain available from saved views; the public route is not a history service.
 A snapshot over two minutes old, or unavailable, shows saved scores with a stale state.
 Opening a live screen and reconnecting start a fresh read.
@@ -39,6 +47,9 @@ Score corrections refresh every week in that matchup; lineup changes remain scop
 Postgres receives status transitions, final statistics, corrections, and recovery checkpoints every 30 minutes.
 Public workers discover starts across the full snapshot, including games outside their selected work.
 A start receipt locks the lineup before the stored scheduled time when a game starts early.
+Start receipts run before selected stat imports and recovery, with a separate bounded budget.
+Per-game receipt deadlines isolate slow writes and preserve time for imports.
+Start publication bypasses silent-checkpoint suppression.
 Each game imports independently. Only successful imports advance that game's checkpoint.
 Official writes use the existing per-game provider ingestion and NBA final certification.
 Versioned final scores and stats commit together; unversioned feeds retain the existing score-then-stats path.
@@ -60,6 +71,9 @@ A missed version, mixed change, or mismatched response requires a full authorize
 Home reads use the league broadcast counter. Old Home content remains available offline; its obsolete counter resets before the next online read.
 Nightly jobs run during 04:00–06:00 Eastern even when a game remains live.
 There is no live-game claim gate or deferral.
+All-Star projection windows use the full scoring-week date range.
+Trade analysis waits for pick predictions that match the published value source.
+Their completion can trigger one extra trade-analysis pass per day, including successful retries.
 A normal live-only checkpoint saves data without a screen version or broadcast.
 Stale-mode recovery rereads saved views every 20 seconds; finals and corrections retain their versions.
 Tipoffs, finals, corrections, roster changes, and lineup changes retain their relevant broadcasts.
@@ -135,7 +149,8 @@ Pool three has no demonstrated benefit for this cause.
 ## Lab results
 
 These are local synthetic results, not production capacity or billing proof.
-The measured runtime is `9e620800836dfad7fa528c0dfa295b3b80ec73cd`.
+The following historical measurements use `9e620800836dfad7fa528c0dfa295b3b80ec73cd`.
+They precede the current review fixes; the final verification receipt records the current candidate.
 Three candidates reuse the recorded reference; this comparison is unpaired.
 The resource grader stays `game-night-cgroup-v1`; public quality uses `game-night-v9`.
 Every run uses the same fixture, 192 MiB cap, 32 MB shared buffers, and PostgREST pool two.

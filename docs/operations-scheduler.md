@@ -14,11 +14,11 @@ Automatic load shedding can defer nonessential work; manual pause stops new disp
 | Matchup win odds | Every 30 minutes during games, once at matchup end, off otherwise |
 | Standings | Weekly matchup end; required initial fill and setup changes remain |
 | Season totals and averages | Game end and final-stat corrections |
-| Trade analysis | At creation and nightly re-analysis |
+| Trade analysis | At creation, nightly, and at most one catch-up pass after matching pick predictions complete |
 | Injury status | Every 15 minutes from two hours before first tipoff through last tipoff |
 | Earlier game-day injury status | Hourly |
 | Off-day injury status | Daily |
-| Projections | Morning and one hour before first game |
+| Projections | Morning and one hour before first game, including both halves of All-Star week |
 | Rankings, trade values, pick predictions, player details | Nightly, in the 04:00–06:00 Eastern window |
 | Work dispatcher and hint drain | One shared database connection each minute |
 | Cron and operational history cleanup | Hourly at :12, bounded batches |
@@ -29,6 +29,9 @@ Direct trade estimates remain immediate; scheduled re-analysis does not block cr
 Live games do not gate nightly admission or execution.
 Nightly work keeps its existing retry and lease rules without special deferrals.
 Public workers discover status changes outside selected imports.
+Start receipts use bounded per-game deadlines and leave time for official imports.
+Receipt failures remain separate from successful import checkpoints.
+Long-delayed Scheduled games retain their retry backoff.
 A failed game leaves its checkpoint due while healthy imports continue.
 Due official work can use validated direct ingestion when the shared snapshot fails.
 The [live-score guide](live-scores.md) owns public cache behavior, rollback, and measured usage.

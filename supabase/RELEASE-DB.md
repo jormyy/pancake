@@ -3,9 +3,9 @@
 ## Release 2.15: shared live scores
 
 The supplied production head is `20261214006200` at `e5f16211` (release 2.14.7).
-Release 2.15 adds 23 migrations; the candidate contains 767 migrations through `20261214008900`.
+Release 2.15 adds 26 migrations; the candidate contains 770 migrations through `20261214009200`.
 This is a minor feature release, with application version `2.15.0`.
-Final replay source: `9e620800836dfad7fa528c0dfa295b3b80ec73cd`. The external verification receipt pins the release candidate and final suite results.
+Runtime source: `7fea40a2a517ba7f863a57b291eb298d2513496d`. The operator runbook and external verification receipt pin the final release commit and current test results.
 
 | Migration | Change |
 | --- | --- |
@@ -32,6 +32,9 @@ Final replay source: `9e620800836dfad7fa528c0dfa295b3b80ec73cd`. The external ve
 | `20261214008700_omit_terminal_forecast_inputs.sql` | Keep terminal forecasts free of unused player inputs. |
 | `20261214008800_read_score_updates_without_lineups.sql` | Read official score changes without unchanged lineup payloads. |
 | `20261214008900_refresh_decimal_scoring.sql` | Recalculate active custom scores with exact decimal arithmetic. |
+| `20261214009000_keep_all_star_projection_windows.sql` | Keep both halves of All-Star week eligible for projection windows. |
+| `20261214009100_rearm_trade_analysis_after_values.sql` | Rearm trade analysis after pick predictions finish for the published values, once extra per day. |
+| `20261214009200_keep_unfinished_matchups_live.sql` | Keep unfinished matchup games available across league midnight. |
 
 Old loaded clients keep receiving direct league and membership events. Other data events share compact batches and supported version hints.
 Apply the pending migrations before the matching Edge functions.
@@ -43,9 +46,9 @@ If either is refused, stop before the frontend merge and validate the supported 
 The function catalog, database types, and both release attestations regenerate from a fresh private database.
 The audited baseline and historical security phases remain unchanged.
 
-The corrected training median is 14.817 versus the recorded 1,930.923 anonymous refaults/s, 99.23% lower, with three candidates.
-This is an unpaired local comparison. The final held-out confirmation is 13.976/s.
-Every replay quality gate passes; the dropped-final control fails as intended.
+The earlier round-three training median was 14.817 versus the recorded 1,930.923 anonymous refaults/s, 99.23% lower, with three candidates.
+Those measurements used source `9e620800`; they do not verify the current runtime. The earlier held-out confirmation was 13.976/s.
+The earlier replay passed every quality gate, and its dropped-final control failed as intended. Current acceptance is recorded in the external verification receipt.
 Transfer reaches 53.65% of the 5 GB allowance, within the accepted 55% exception.
 The unchanged database fixture reaches about 53.23% of 500 MB; both remain named release risks.
 See the final verification receipt for suite results and the exact release head.
@@ -249,9 +252,10 @@ The [trade curve report](../docs/trade-curve.md) records the real trades, roster
 
 The supplied production head is `20261214006200`, from the recorded 2.14.7 release.
 This lab does not verify hosted state.
-The local candidate ends at `20261214008900`.
+The local candidate ends at `20261214009200`.
+Prepare the deployment checkout with `npm ci` and stamp the Edge build before pausing workers or applying migrations.
 Database, then Edge, then merge the frontend.
-Apply pending migrations through `20261214008900` only during the separately authorized release.
+Apply pending migrations through `20261214009200` only during the separately authorized release.
 Regenerate the catalog, types, and both attestations from a fresh private database before the final release checks.
 
 Deploy compatible database and Edge code before enabling public snapshots.
