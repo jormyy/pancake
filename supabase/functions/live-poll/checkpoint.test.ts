@@ -59,3 +59,26 @@ Deno.test('stale public data fails before any official write', async () => {
     ingest:async()=>{assert.fail('No write from stale data')},record:async()=>{} })
   await assert.rejects(()=>tick('holder'),/stale or invalid/)
 })
+
+Deno.test('an unavailable game does not block a healthy final or advance its checkpoint', async () => {
+  const missing=row(), healthy={...row(),id:'healthy',nba_game_id:'0022'}
+  const calls:string[][]=[], records:string[][]=[]
+  const body=snapshot(start,'Final');body.games[0].nbaId='0022'
+  const tick=createCheckpointPoller({now:()=>start,load:async()=>[missing,healthy],snapshot:async()=>body,
+    ingest:async(_holder,ids)=>{calls.push([...ids!]);return result()},record:async(_holder,ids)=>{records.push(ids)} })
+  await tick('holder');await tick('holder')
+  assert.equal(calls.filter(ids=>ids.includes('healthy')).length,2)
+  assert.ok(records.every(ids=>!ids.includes('game')))
+})
+
+Deno.test('each import retries independently and records only its own successful checkpoint', async () => {
+  const first=row(),second={...row(),id:'healthy',nba_game_id:'0022'}
+  first.checkpoint_at=null;second.checkpoint_at=null
+  const body=snapshot(start);body.games.push({...body.games[0],id:'0022',nbaId:'0022'})
+  const records:string[][]=[]
+  const tick=createCheckpointPoller({now:()=>start,load:async()=>[first,second],snapshot:async()=>body,
+    ingest:async(_holder,ids)=>ids!.has('game')?{...result(),failures:['first unavailable']}:result(),
+    record:async(_holder,ids)=>{records.push(ids)} })
+  await tick('holder')
+  assert.deepEqual(records,[['healthy']])
+})

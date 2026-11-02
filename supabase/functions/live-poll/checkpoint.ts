@@ -28,32 +28,37 @@ export function createCheckpointPoller(dependencies: {
       work = undefined
       return { ...await dependencies.ingest(holder), sourceMode: 'database' }
     }
-    const due = new Set<string>()
-    let checkpointOnly = true
+    const due = new Map<string,boolean>()
     for (const game of work) {
-      if (game.needs_final_check) { due.add(game.id); checkpointOnly = false; continue }
+      if (game.needs_final_check) { due.set(game.id,false); continue }
       const matches = snapshots.get(game.game_date)!.games.filter(row => row.nbaId === game.nba_game_id
         || row.nbaId == null && row.home.team === game.home_team && row.away.team === game.away_team)
       if (matches.length > 1) throw new Error(`Shared game identity is ambiguous: ${game.nba_game_id}`)
       const snapshot = matches[0]
       if (!snapshot) {
-        if (game.status === 'InProgress') throw new Error(`Shared live game is unavailable: ${game.nba_game_id}`)
         continue
       }
       if (snapshot.status === 'Scheduled') continue
       if (game.status !== snapshot.status || !game.checkpoint_at || now() - Date.parse(game.checkpoint_at) >= CHECKPOINT_INTERVAL_MS) {
-        due.add(game.id)
-        checkpointOnly &&= game.status === 'InProgress' && snapshot.status === 'InProgress' && Boolean(game.checkpoint_at)
+        due.set(game.id,game.status === 'InProgress' && snapshot.status === 'InProgress' && Boolean(game.checkpoint_at))
       }
     }
     let result: LiveTick = { lines: 0, keepRunning: true, worked: true, failures: [], scoreRetries: 0, tickRetries: 0 }
-    if (due.size) {
-      result = await dependencies.ingest(holder,due,checkpointOnly)
-      if (result.worked && !result.failures.length) {
-        await dependencies.record(holder,[...due])
-        work = await dependencies.load()
-      }
+    let reload = false
+    for (const [id,checkpointOnly] of due) {
+      try {
+        const imported = await dependencies.ingest(holder,new Set([id]),checkpointOnly)
+        result.lines += imported.lines
+        result.scoreRetries += imported.scoreRetries
+        result.tickRetries += imported.tickRetries
+        result.failures.push(...imported.failures)
+        if (imported.worked && !imported.failures.length) {
+          await dependencies.record(holder,[id])
+          reload = true
+        }
+      } catch (error) { result.failures.push(String(error)) }
     }
+    if (reload) work = await dependencies.load()
     return { ...result, sourceMode: 'public', keepRunning: work.some(game => game.status !== 'Final' || game.needs_final_check) }
   }
 }
