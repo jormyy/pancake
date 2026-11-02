@@ -53,7 +53,6 @@ export function useMatchupData(current: { id: string; team_name?: string | null;
     const selectedDate = data?.selectedDate ?? requestedDate
     const live = usePublicLiveSnapshot(selectedDate, data?.todaysGames ?? [], Boolean(data?.liveBasis?.length)
         && selectedDate === day && focused && membershipValidated && !membershipError)
-    useEffect(() => { setPublicLive(live.snapshot?.mode === 'public') }, [live.snapshot?.mode])
     const display = useMemo(() => {
         if (!data) return null
         const source = (data.context as HomePayload['context'] & { league?: { scoring_settings?: unknown } }).league?.scoring_settings ?? league?.scoring_settings
@@ -61,6 +60,7 @@ export function useMatchupData(current: { id: string; team_name?: string | null;
             .filter((entry): entry is [string, number] => typeof entry[1] === 'number' && Number.isFinite(entry[1])))
         return liveScoreView(data, live.snapshot, settings, Date.now())
     }, [data, live.snapshot, league?.scoring_settings])
+    useEffect(() => { setPublicLive(live.active && live.snapshot?.mode === 'public' && display?.delayed === false) }, [live.active, live.snapshot?.mode, display?.delayed])
     const matchup = display?.matchup ?? data?.matchup ?? null
     const matchupRef = useRef(matchup)
     matchupRef.current = matchup
