@@ -1,5 +1,5 @@
 type Scope = { season_id?: string; member_id?: string; date?: string | null; week?: number }
-export type HomeSelection = { seasonId?: string | null; memberIds?: string[]; date?: string; week?: number }
+export type HomeSelection = { matchupId?: string; seasonId?: string | null; memberIds?: string[]; date?: string; week?: number }
 type Hint = { topic: string; scopes?: Scope[] | null; details?: { resource: string }[] | null }
 const topics = new Set(['roster', 'lineup', 'score', 'stat', 'player_stats', 'game', 'resources', 'inventory', 'announcement', 'forecast', 'settings', 'member', 'season'])
 
@@ -26,6 +26,9 @@ export function homeVersionAffects(change: { topic: string; scope: Record<string
     return names.some(topic => {
         if (typeof topic !== 'string' || !known.has(topic)) return true
         if (!topics.has(topic)) return false
+        if (topic === 'forecast' && selection.matchupId && Array.isArray(change.scope.forecastMatchupIds)
+            && change.scope.forecastMatchupIds.length && change.scope.forecastMatchupIds.every(id => typeof id === 'string'))
+            return change.scope.forecastMatchupIds.includes(selection.matchupId)
         const scoped = hints.filter(hint => hint.topic === topic)
         return scoped.length === 0 || scoped.some(hint => homeHintAffects(hint, selection))
     })

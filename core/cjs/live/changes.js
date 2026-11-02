@@ -32,6 +32,9 @@ function homeVersionAffects(change, selection) {
             return true;
         if (!topics.has(topic))
             return false;
+        if (topic === 'forecast' && selection.matchupId && Array.isArray(change.scope.forecastMatchupIds)
+            && change.scope.forecastMatchupIds.length && change.scope.forecastMatchupIds.every(id => typeof id === 'string'))
+            return change.scope.forecastMatchupIds.includes(selection.matchupId);
         const scoped = hints.filter(hint => hint.topic === topic);
         return scoped.length === 0 || scoped.some(hint => homeHintAffects(hint, selection));
     });

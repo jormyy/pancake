@@ -124,8 +124,8 @@ function screenAffected(scope: ScreenScope, snapshot: LeagueVersionSnapshot, pre
     if (!changes.length || BigInt(changes[0].version) > BigInt(previous) + 1n) return true
     return changes.some(change => {
         if (scope.screen === 'home') {
-            const view = value as { context?: ViewContext; selectedDate?: string; matchup?: { myMemberId?: string; opponentMemberId?: string } } | undefined
-            return homeVersionAffects(change, { seasonId: view?.context?.seasonId, date: view?.selectedDate,
+            const view = value as { context?: ViewContext; selectedDate?: string; matchup?: { id?: string; myMemberId?: string; opponentMemberId?: string } } | undefined
+            return homeVersionAffects(change, { matchupId: view?.matchup?.id, seasonId: view?.context?.seasonId, date: view?.selectedDate,
                 week: view?.context?.weekNumber ?? undefined,
                 memberIds: [view?.matchup?.myMemberId, view?.matchup?.opponentMemberId].filter((id): id is string => Boolean(id)) })
         }

@@ -24,12 +24,12 @@ BEGIN
   FOREACH table_name IN ARRAY ARRAY['draft_budgets','draft_picks','drafts','league_change_hints','league_members','leagues',
     'matchup_forecasts','nominations','roster_players','snake_draft_picks','trade_block_items','trade_items',
     'trade_participants','trade_vetos','trades','waiver_claims'] LOOP
-    EXECUTE format('CREATE TEMP TABLE %I(id uuid,league_id uuid,member_id uuid,user_id uuid,draft_id uuid,matchup_id uuid,topic text,revision bigint,updated_at timestamptz)',table_name);
+    EXECUTE format('CREATE TEMP TABLE %I(id uuid,league_id uuid,member_id uuid,user_id uuid,draft_id uuid,matchup_id uuid,topic text,revision bigint,updated_at timestamptz,forecast jsonb DEFAULT ''{}''::jsonb)',table_name);
     EXECUTE format('CREATE TRIGGER broadcast_live_change AFTER INSERT OR UPDATE OR DELETE ON pg_temp.%I FOR EACH ROW EXECUTE FUNCTION private.broadcast_live_change()',table_name);
     identity:=CASE table_name WHEN 'leagues' THEN source.league_id WHEN 'drafts' THEN source.draft_id ELSE gen_random_uuid() END;
     EXECUTE format('INSERT INTO pg_temp.%I VALUES($1,$2,$3,$4,$5,$6,$7,$8,clock_timestamp())',table_name)
       USING identity,source.league_id,source.member_id,source.user_id,source.draft_id,identity,'score',1;
-    EXECUTE format('UPDATE pg_temp.%I SET revision=2',table_name);
+    EXECUTE format('UPDATE pg_temp.%I SET revision=2,forecast=''{"changed":true}''::jsonb',table_name);
     EXECUTE format('DELETE FROM pg_temp.%I',table_name);
     SET CONSTRAINTS ALL IMMEDIATE;
     SELECT count(DISTINCT payload->>'eventType') INTO row_count FROM pg_temp.l1_broadcast_events messages

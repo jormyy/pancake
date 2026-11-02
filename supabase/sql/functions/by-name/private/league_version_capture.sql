@@ -7,11 +7,12 @@ RETURNS trigger
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 DECLARE changed_sql text; leagues_sql text; affected record;
   ignored text[] := ARRAY['updated_at','set_at'];
-  home_changes jsonb; home_changed boolean;
+  home_changes jsonb; home_changed boolean; forecast_ids jsonb;
 BEGIN
   IF TG_TABLE_NAME IN ('standings_current','matchup_totals','player_season_averages','trade_value_cache') THEN
     ignored := ignored||ARRAY['version','refreshed_at'];
   END IF;
+  IF TG_TABLE_NAME='matchup_forecasts' THEN ignored:=ignored||ARRAY['calculated_at','valid_until','input_revision']; END IF;
   IF TG_TABLE_NAME='profiles' THEN ignored := ignored||ARRAY['push_token','push_token_revocation_hash']; END IF;
   IF TG_TABLE_NAME='nba_games' THEN
     ignored := ignored||ARRAY['live_stats_elapsed_seconds','live_scoreboard_elapsed_seconds','stats_synced_at'];
@@ -25,6 +26,16 @@ BEGIN
       UNION ALL
       (SELECT to_jsonb(o)-ignored FROM version_old_rows o EXCEPT SELECT to_jsonb(n)-ignored FROM version_new_rows n)) THEN
     RETURN NULL;
+  END IF;
+  IF TG_TABLE_NAME='matchup_forecasts' THEN
+    IF TG_OP='INSERT' THEN SELECT COALESCE(jsonb_agg(matchup_id),'[]') INTO forecast_ids FROM version_new_rows;
+    ELSIF TG_OP='DELETE' THEN SELECT COALESCE(jsonb_agg(matchup_id),'[]') INTO forecast_ids FROM version_old_rows;
+    ELSE SELECT COALESCE(jsonb_agg(matchup_id),'[]') INTO forecast_ids FROM (
+      SELECT matchup_id FROM version_new_rows UNION SELECT matchup_id FROM version_old_rows) changed;
+    END IF;
+    SELECT COALESCE(jsonb_agg(DISTINCT value),'[]') INTO forecast_ids
+      FROM jsonb_array_elements(COALESCE(NULLIF(current_setting('pancake.forecast_changes',true),'')::jsonb,'[]')||forecast_ids);
+    PERFORM set_config('pancake.forecast_changes',forecast_ids::text,true);
   END IF;
   IF TG_TABLE_NAME='standings_current' THEN
     IF TG_OP='INSERT' THEN

@@ -4,7 +4,7 @@
 
 CREATE OR REPLACE FUNCTION private.publish_league_version(p_league_id uuid,p_topics text[],p_sources text[])
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
-DECLARE stored public.league_versions%ROWTYPE; readers uuid[]; change_topic text; change_scope jsonb;
+DECLARE stored public.league_versions%ROWTYPE; readers uuid[]; change_topic text; change_scope jsonb; forecast_ids jsonb;
 BEGIN
     PERFORM 1 FROM public.league_versions WHERE league_id=p_league_id FOR UPDATE;
     SELECT CASE WHEN league.deleted_at IS NULL
@@ -17,6 +17,14 @@ BEGIN
     RETURNING league_id,version,updated_at,reader_ids INTO stored;
     change_topic := CASE WHEN cardinality(p_topics)=1 THEN p_topics[1] ELSE 'batch' END;
     change_scope := jsonb_build_object('topics',p_topics,'tables',p_sources);
+    IF 'matchup_forecasts'=ANY(p_sources) THEN
+      SELECT COALESCE(jsonb_agg(DISTINCT requested.value ORDER BY requested.value),'[]') INTO forecast_ids
+      FROM jsonb_array_elements_text(COALESCE(NULLIF(current_setting('pancake.forecast_changes',true),'')::jsonb,'[]')) requested(value)
+      JOIN public.matchups matchup ON matchup.id=requested.value::uuid AND matchup.league_id=p_league_id;
+      IF jsonb_array_length(forecast_ids) BETWEEN 1 AND 32 THEN
+        change_scope:=change_scope||jsonb_build_object('forecastMatchupIds',forecast_ids);
+      END IF;
+    END IF;
     IF cardinality(p_sources)>0 AND p_sources<@ARRAY['standings_current','matchup_totals','player_season_averages']::text[]
       AND (NOT 'standings_current'=ANY(p_sources)
         OR COALESCE(NULLIF(current_setting('pancake.home_changes',true),'')::jsonb->>'standings_current','true')='false') THEN

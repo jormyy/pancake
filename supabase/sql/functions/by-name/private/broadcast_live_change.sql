@@ -5,6 +5,10 @@ DECLARE current_row jsonb:='{}'; previous_row jsonb:='{}'; payload jsonb; target
 BEGIN
   IF TG_OP<>'DELETE' THEN current_row:=to_jsonb(NEW); END IF;
   IF TG_OP<>'INSERT' THEN previous_row:=to_jsonb(OLD); END IF;
+  IF TG_TABLE_NAME='matchup_forecasts' AND TG_OP='UPDATE'
+    AND current_row->'forecast' IS NOT DISTINCT FROM previous_row->'forecast'
+    AND current_row->'matchup_id' IS NOT DISTINCT FROM previous_row->'matchup_id'
+    AND current_row->'league_id' IS NOT DISTINCT FROM previous_row->'league_id' THEN RETURN NULL; END IF;
   headers:=COALESCE(NULLIF(current_setting('request.headers',true),'')::jsonb,'{}'::jsonb);
   IF TG_TABLE_NAME='league_change_hints' AND auth.role()='service_role'
     AND headers->>'x-pancake-public-checkpoint'='true'

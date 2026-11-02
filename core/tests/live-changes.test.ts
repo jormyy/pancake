@@ -25,3 +25,10 @@ describe('saved home changes', () => {
         expect(homeVersionAffects({ topic: 'roster', scope: {} }, selected)).toBe(true)
     })
 })
+
+it('forecast updates invalidate only the displayed matchup',()=>{
+  const change={topic:'forecast',scope:{topics:['forecast'],forecastMatchupIds:['other']}}
+  expect(homeVersionAffects(change,{...selected,matchupId:'selected'})).toBe(false)
+  expect(homeVersionAffects(change,{...selected,matchupId:'other'})).toBe(true)
+  expect(homeVersionAffects(change,selected)).toBe(true)
+})

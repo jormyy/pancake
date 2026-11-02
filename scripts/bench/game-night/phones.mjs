@@ -109,7 +109,7 @@ export async function startPhones(stack, publicFeed) {
       messages.push({phone:index,at:Date.now(),bytes:Buffer.byteLength(JSON.stringify(message)),score,
         table:message.payload?.table,hints:message.payload?.hints?.map(hint=>({event:hint.event,table:hint.payload?.table,topic:hint.row?.topic,updatedAt:hint.row?.updated_at,scopes:hint.row?.scopes,details:hint.row?.details}))})
       if(score)phone.broadcasts++
-      const change=phoneChange(message,id(1),phone.version,{seasonId:phone.view?.context?.seasonId,date:phone.view?.selectedDate,
+      const change=phoneChange(message,id(1),phone.version,{matchupId:phone.view?.matchup?.id,seasonId:phone.view?.context?.seasonId,date:phone.view?.selectedDate,
         week:phone.view?.context?.weekNumber,memberIds:[phone.view?.matchup?.myMemberId,phone.view?.matchup?.opponentMemberId].filter(Boolean)})
       phone.version=advancePhoneVersion(phone.version,change.version)
       if(change.refresh && !(index===1 && faults.has('phone-refresh'))){
