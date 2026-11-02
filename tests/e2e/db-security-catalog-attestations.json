@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261214008800",
+  "candidateVersion": "20261214009200",
   "common": {
     "functions": [
       {
@@ -818,7 +818,7 @@
           "strict": false,
           "language": "plpgsql",
           "arguments": "p_id bigint, p_token uuid",
-          "bodySha256": "375d7a73c4ff70ef93f90b883c7ebb0c995ff098b7ad4c7d9e62592fcbf057a6",
+          "bodySha256": "81334b6b6760c9850f044c9fec7ba96f5831273f0e8ae8b71e4336067a4b69a0",
           "volatility": "v",
           "anonExecute": false,
           "publicExecute": false,
@@ -2634,6 +2634,22 @@
     {
       "filename": "20261214008800_read_score_updates_without_lineups.sql",
       "sha256": "682ae8b118bfac7c74f793c9b6db99aff2b93bd5d3649c68cfcaa983a6d57c5b"
+    },
+    {
+      "filename": "20261214008900_refresh_decimal_scoring.sql",
+      "sha256": "3811b52e7f9cdd69e3a3a97986c6f7cf4b055d53b472dcdb93d2ebe18a8d8f8b"
+    },
+    {
+      "filename": "20261214009000_retry_live_gated_nightly_work.sql",
+      "sha256": "5eab3b570d3ade01b9c58ed6a531e0e7e0b2d8d27eb6766dccc40b4f599b4ad3"
+    },
+    {
+      "filename": "20261214009100_protect_complete_final_stats.sql",
+      "sha256": "820ccf2106fc1cb18c89dfae798dbf93297dea82889b16af5d01932a57626092"
+    },
+    {
+      "filename": "20261214009200_atomic_unversioned_final_stats.sql",
+      "sha256": "49022c6bc8160224eeac9bcb348283248881c51635f56738ad262829410bddd6"
     }
   ],
   "preMigration": {

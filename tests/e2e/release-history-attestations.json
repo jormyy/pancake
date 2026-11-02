@@ -3513,6 +3513,34 @@
       "statementCount": 1,
       "statementsSha256": "0c02b171099d30e43c666670e47729b21f40ed21c37be7ada5f3c446993374ca",
       "sha256": "682ae8b118bfac7c74f793c9b6db99aff2b93bd5d3649c68cfcaa983a6d57c5b"
+    },
+    {
+      "name": "refresh_decimal_scoring",
+      "version": "20261214008900",
+      "statementCount": 1,
+      "statementsSha256": "1eb552f4c508529c5474a1be807a49194792b2536b9f3994240a6ccea5e9aa08",
+      "sha256": "3811b52e7f9cdd69e3a3a97986c6f7cf4b055d53b472dcdb93d2ebe18a8d8f8b"
+    },
+    {
+      "name": "retry_live_gated_nightly_work",
+      "version": "20261214009000",
+      "statementCount": 6,
+      "statementsSha256": "88af382f373102c2d5c1f0796eba94a88e2a1955beadef1bab0ecab9be1390c2",
+      "sha256": "5eab3b570d3ade01b9c58ed6a531e0e7e0b2d8d27eb6766dccc40b4f599b4ad3"
+    },
+    {
+      "name": "protect_complete_final_stats",
+      "version": "20261214009100",
+      "statementCount": 14,
+      "statementsSha256": "45263ab62deac71f9580af0bb0b52b0947cbcf701bc4716cc222f7407f2b2dd7",
+      "sha256": "820ccf2106fc1cb18c89dfae798dbf93297dea82889b16af5d01932a57626092"
+    },
+    {
+      "name": "atomic_unversioned_final_stats",
+      "version": "20261214009200",
+      "statementCount": 4,
+      "statementsSha256": "a84205328d6c69c674a36773a60b0d56d7a0b5484deccdeed7cf7c01a0c4bbdc",
+      "sha256": "49022c6bc8160224eeac9bcb348283248881c51635f56738ad262829410bddd6"
     }
   ]
 }
