@@ -11,12 +11,12 @@ type Source = { context?: ViewContext; selectedDate?: string; todaysGames?: Game
 export function useLiveViewRecovery(scope: ScreenScope | null, value: unknown, enabled: boolean, generation: number, publicLive = false) {
     const source = value as Source | undefined
     const key = scope?.screen === 'home' && scope.leagueId ? screenCacheKey(scope) : null
-    const external = !Array.isArray(source?.liveGames) && Boolean(source?.context?.today && source.selectedDate !== source.context.today && source.weekDays?.some(day => day.isToday && day.hasGames))
+    const external = !source?.liveGames?.length && Boolean(source?.context?.today && source.selectedDate !== source.context.today && source.weekDays?.some(day => day.isToday && day.hasGames))
     const dayKey = external && key ? JSON.stringify([scope!.accountId, scope!.leagueId, source?.context?.today]) : null
     const [slate, setSlate] = useState<{ key: string; games: Game[] } | null>(null)
     const verificationFailed = useRef(false)
     const slateReady = slate?.key === dayKey
-    const games = (source?.liveGames ?? (external ? slateReady ? slate!.games : [] : source?.todaysGames ?? []))
+    const games = (source?.liveGames?.length ? source.liveGames : external ? slateReady ? slate!.games : [] : source?.todaysGames ?? [])
         .map(game => game.status === 'Final' && game.stats_synced_at === null ? { ...game, status: 'InProgress' } : game)
     const signature = JSON.stringify(games.map(game => [game.id ?? game.nba_game_id, game.status, game.game_time, game.game_status_text]))
     const latest = useRef({ scope, games, source, dayKey, slateReady })

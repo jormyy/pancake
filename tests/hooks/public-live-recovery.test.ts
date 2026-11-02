@@ -47,3 +47,16 @@ it('rereads saved scores when stale public data has no new broadcast version',as
     expect(boundary.read).toHaveBeenCalledTimes(2)
     expect(h.latest.matchup?.myPoints).toBe(12)
 })
+
+it('recovers today while a past day has an empty live-game list',async()=>{
+    source.snapshot=null;source.active=false
+    boundary.read.mockResolvedValue({...homePayload('2026-10-28'),todaysGames:[],liveGames:[],liveBasis:[],
+        weekDays:[{date:'2026-10-29',isToday:true,hasGames:true}]})
+    boundary.games.mockResolvedValue({data:[{id:'upcoming',status:'Scheduled',game_time:new Date(now+10000).toISOString(),game_date:'2026-10-29'}],error:null})
+    await open()
+    expect(boundary.games).toHaveBeenCalledOnce()
+    await act(async()=>{await vi.advanceTimersByTimeAsync(10000)})
+    expect(boundary.checks).toHaveBeenCalledOnce()
+    await act(async()=>{await vi.advanceTimersByTimeAsync(20000)})
+    expect(boundary.checks).toHaveBeenCalledTimes(2)
+})
