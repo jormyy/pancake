@@ -236,7 +236,7 @@ Deno.test('a selected official import never expands to an unrelated ESPN game',a
   globalThis.fetch=async(input,init)=>{
     const request=new Request(input,init);const url=new URL(request.url);const name=url.pathname.split('/').at(-1)!
     if(url.hostname==='espn.invalid')return url.pathname.endsWith('scoreboard')?Response.json(board):Response.json({},{status:503})
-    if(name==='todaysScoreboard_00.json')return Response.json({scoreboard:{games:[]}})
+    if(name==='todaysScoreboard_00.json')return Response.json({scoreboard:{games:[{gameId:'0022600144',gameStatus:1,gameStatusText:'Scheduled',period:0,gameClock:'PT00M00S',homeTeam:{teamTricode:'ATL',score:0},awayTeam:{teamTricode:'CLE',score:0}}]}})
     if(name==='boxscore_0022600144.json'){unrelated++;return Response.json({},{status:403})}
     if(name==='boxscore_0022600001.json') {
       const statistics=Object.fromEntries(['assists','blocks','fieldGoalsAttempted','fieldGoalsMade','foulsPersonal','freeThrowsAttempted','freeThrowsMade','plusMinusPoints','points','reboundsDefensive','reboundsOffensive','reboundsTotal','steals','threePointersAttempted','threePointersMade','turnovers'].map(key=>[key,0]))
@@ -285,4 +285,24 @@ Deno.test('selected recovery records every NBA start before filtering imports',a
     assert.deepEqual(tick.failures,[])
     assert.deepEqual(writes,['early'])
   }finally {globalThis.fetch=original}
+})
+
+Deno.test('NBA start receipts survive an unrelated ESPN discovery failure',async()=>{
+  const original=globalThis.fetch
+  const board=JSON.parse(await Deno.readTextFile('tests/fixtures/live-espn/2026-10-30T01-00-49.445Z-scoreboard.json')).payload
+  board.events=board.events.filter((event:{id:string})=>event.id==='401909893')
+  const writes:string[]=[]
+  let loads=0
+  globalThis.fetch=async(input,init)=>{
+    const request=new Request(input,init);const url=new URL(request.url),name=url.pathname.split('/').at(-1)
+    if(url.hostname==='espn.invalid')return Response.json(board)
+    if(url.hostname==='nba.invalid')return Response.json({scoreboard:{games:[{gameId:'0022600002',gameStatus:2,gameStatusText:'Q1',period:1,gameClock:'PT10M00S',homeTeam:{teamTricode:'BOS',score:0},awayTeam:{teamTricode:'NYK',score:0}}]}})
+    if(name==='get_live_checkpoint_inputs')return Response.json(++loads===1?[{id:holder,nba_game_id:'0022600001',status:'InProgress',needs_scoreboard:true,needs_stats:false,game_date:'2026-10-29',home_team:'UTA',away_team:'LAC'}]:[])
+    if(name==='record_live_poll_attempts')return Response.json(null)
+    if(name==='nba_games')return url.searchParams.has('game_date')?Response.json({message:'Discovery unavailable'},{status:503}):Response.json([{id:'early',nba_game_id:'0022600002',status:'Scheduled',home_score:0,away_score:0,game_status_text:'Scheduled'}])
+    if(name==='save_live_scoreboard_atomic'){writes.push((await request.json()).p_game_id);return Response.json(true)}
+    throw new Error(`Unexpected ${url}`)
+  }
+  try {await ingestTick(holder,undefined,new Set([holder]));assert.deepEqual(writes,['early'])}
+  finally {globalThis.fetch=original}
 })
