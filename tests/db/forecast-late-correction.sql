@@ -8,7 +8,7 @@ DECLARE f record; old_match uuid:=gen_random_uuid(); new_match uuid:=gen_random_
 BEGIN
   SELECT * INTO f FROM pg_temp.rules_fixture(2,9538);
   INSERT INTO public.season_weeks(season_year,week_number,week_start,week_end)
-    VALUES(9538,1,day-10,day-4),(9538,2,day,day+6);
+    VALUES(9538,1,day-10,day-4),(9538,2,day,day+6),(9538,3,day+60,day+66);
   INSERT INTO public.nba_games(nba_game_id,season_year,week_number,game_date,home_team,away_team,status)
     VALUES('002-review-forecast',9538,2,day,'BOS','NYK','InProgress');
   INSERT INTO public.matchups(id,league_id,league_season_id,week_number,home_member_id,away_member_id,is_finalized)
@@ -25,6 +25,10 @@ BEGIN
   PERFORM private.complete_forecast_input_chunk() FROM generate_series(1,20);
   PERFORM pg_temp.check_rules(EXISTS(SELECT 1 FROM private.matchup_forecast_queue WHERE matchup_id=new_match),
     'late correction cannot starve a newer matchup');
+  INSERT INTO public.nba_games(nba_game_id,season_year,week_number,game_date,home_team,away_team,status)
+    VALUES('002-review-future',9538,3,day+60,'BOS','NYK','InProgress');
+  UPDATE public.matchups SET week_number=3,is_finalized=false WHERE id=old_match;
+  PERFORM pg_temp.check_rules(private.refresh_matchup_forecast_input(old_match) IS NULL,'ineligible future work cannot retain an expired deadline');
   UPDATE public.matchups SET is_voided=true WHERE id=old_match;
   PERFORM pg_temp.check_rules(private.refresh_matchup_forecast_input(old_match) IS NULL,'voided request has no expired retry deadline');
 END;

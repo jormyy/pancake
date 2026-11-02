@@ -10,7 +10,13 @@ BEGIN
     SELECT 1 FROM public.matchups matchup
     JOIN public.league_seasons season ON season.id=matchup.league_season_id AND season.is_current
     JOIN public.leagues league ON league.id=matchup.league_id AND league.deleted_at IS NULL
-    WHERE matchup.id=p_matchup_id AND NOT matchup.is_voided
+    JOIN public.season_weeks first_week ON first_week.season_year=season.season_year AND first_week.week_number=matchup.week_number
+    JOIN public.season_weeks last_week ON last_week.season_year=season.season_year AND last_week.week_number=COALESCE(matchup.end_week_number,matchup.week_number)
+    WHERE matchup.id=p_matchup_id AND NOT matchup.is_voided AND (
+      last_week.week_end >= (now() AT TIME ZONE 'America/New_York')::date-1
+        AND first_week.week_start <= (now() AT TIME ZONE 'America/New_York')::date+14
+      OR matchup.is_finalized AND last_week.week_end BETWEEN
+        (now() AT TIME ZONE 'America/New_York')::date-7 AND (now() AT TIME ZONE 'America/New_York')::date)
   ) THEN
     DELETE FROM private.matchup_forecast_queue WHERE matchup_id=p_matchup_id;
     RETURN NULL;
