@@ -7029,6 +7029,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      record_live_recovery_failure: {
+        Args: { p_game_id: string; p_holder: string }
+        Returns: undefined
+      }
       record_notification_outbox_ticket_atomic: {
         Args: {
           p_claim_token: string

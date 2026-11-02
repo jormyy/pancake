@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261214009200",
+  "candidateVersion": "20261214009300",
   "common": {
     "functions": [
       {
@@ -2650,6 +2650,10 @@
     {
       "filename": "20261214009200_atomic_unversioned_final_stats.sql",
       "sha256": "49022c6bc8160224eeac9bcb348283248881c51635f56738ad262829410bddd6"
+    },
+    {
+      "filename": "20261214009300_preserve_recovery_fairness.sql",
+      "sha256": "8b9e1b2ea8252ba4fd34bd408d91c1b5d48598b2bce15b8026b97f5dabdd5bc2"
     }
   ],
   "preMigration": {

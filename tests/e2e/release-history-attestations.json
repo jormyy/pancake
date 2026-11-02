@@ -3541,6 +3541,13 @@
       "statementCount": 4,
       "statementsSha256": "a84205328d6c69c674a36773a60b0d56d7a0b5484deccdeed7cf7c01a0c4bbdc",
       "sha256": "49022c6bc8160224eeac9bcb348283248881c51635f56738ad262829410bddd6"
+    },
+    {
+      "name": "preserve_recovery_fairness",
+      "version": "20261214009300",
+      "statementCount": 7,
+      "statementsSha256": "583843a25812bcb55118737785394f8bc4649f8692a17d08c07c5e1d85862583",
+      "sha256": "8b9e1b2ea8252ba4fd34bd408d91c1b5d48598b2bce15b8026b97f5dabdd5bc2"
     }
   ]
 }

@@ -489,6 +489,7 @@
     "public.record_live_checkpoint(uuid,uuid[])": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.record_live_game_participants(uuid,text,text[],timestamp with time zone)": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.record_live_poll_attempts(uuid,uuid[],uuid[])": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
+    "public.record_live_recovery_failure(uuid,uuid)": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.record_notification_outbox_ticket_atomic(uuid,uuid,text,text,integer)": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.record_pre_tipoff_lineup_failure(timestamp with time zone,uuid,uuid,uuid,uuid,text)": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.refresh_player_search_caches()": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
