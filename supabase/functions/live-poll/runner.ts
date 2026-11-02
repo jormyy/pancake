@@ -17,6 +17,7 @@ import { retryDatabaseContention } from '../_shared/databaseRetry.ts'
 import type { Database } from '../_shared/database.ts'
 import type { LiveGameCache } from '../_shared/liveFeed.ts'
 import { createCheckpointPoller } from './checkpoint.ts'
+import { discoverPublicGames } from './discovery.ts'
 import type { LiveTick } from './checkpoint.ts'
 import { fetchLiveSnapshot } from '../_shared/liveSnapshot.ts'
 
@@ -96,11 +97,11 @@ export async function ingestTick(holder: string, onRetry?: () => void, gameIds?:
   if (boardGames.length) {
     const fallbackBoards = nbaScoreboard.filter(game => game.gameStatus !== 2 ||
       !work.some(stored => stored.nba_game_id === game.gameId && hasEspnLiveGame(stored, events)))
-    await retry(() => saveScoreboardGames(gameIds ? fallbackBoards.filter(board => work.some(game => game.nba_game_id === board.gameId)) : fallbackBoards, work))
+    await retry(() => saveScoreboardGames(fallbackBoards, work))
     work = select(await retry(() => loadWork(gameIds)))
   }
   for (const game of nbaFinalWork) if (!work.some(row => row.id === game.id)) work.push(game)
-  work = gameIds ? work : select(await retry(() => discoverEspnGames(work, events)))
+  work = await retry(() => discoverEspnGames(work, events))
   const statsGames = work.filter(game => game.needs_stats || hasEspnLiveGame(game, events) || nbaFinalWork.some(row => row.id === game.id))
   await retry(() => stampAttempts(holder, [], statsGames.filter(game => game.status === 'Final').map(game => game.id)))
   let lines = 0
@@ -164,6 +165,7 @@ export async function runLivePoll(request: Request): Promise<Response> {
           if (error) throw error
           return data ?? []
         }),
+        discover: discoverPublicGames,
         snapshot: async date => (await fetchLiveSnapshot(new URL(`/api/live/${date}`, sharedUrl).href, AbortSignal.timeout(5000))).body,
         ingest: (holder, gameIds, checkpointOnly) => withPublicCheckpoint(Boolean(checkpointOnly), () => ingestTick(holder, () => { tickRetries++ },gameIds)),
         record: (holder, gameIds) => checkpointRetry(async () => {

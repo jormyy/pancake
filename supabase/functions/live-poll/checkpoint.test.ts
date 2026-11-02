@@ -99,3 +99,13 @@ Deno.test('a shared scheduled regression cannot hide stored live progress', asyn
     ingest:async()=>{writes++;return result()},record:async()=>{} })
   await tick('holder');assert.equal(writes,1)
 })
+
+Deno.test('public discovery includes early starts outside selected work before importing', async () => {
+  let discovered=false, imports=0
+  const early={...row(),id:'early',nba_game_id:'0022',checkpoint_at:null}
+  const body=snapshot(start);body.games.push({...body.games[0],id:'0022',nbaId:'0022'})
+  const tick=createCheckpointPoller({now:()=>start,load:async()=>discovered?[row(),early]:[row()],snapshot:async()=>body,
+    ...{discover:async(value:import('../_shared/liveSnapshot.ts').LiveSnapshot)=>{assert.ok(value.games.some(game=>game.nbaId==='0022'));discovered=true}},
+    ingest:async(_holder,ids)=>{assert.ok(ids!.has('early'));imports++;return result()},record:async()=>{} })
+  await tick('holder');assert.equal(discovered,true);assert.equal(imports,1)
+})

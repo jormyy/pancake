@@ -11,15 +11,16 @@ export function createCheckpointPoller(dependencies: {
   snapshot: (date: string) => Promise<unknown>
   ingest: (holder: string, gameIds?: ReadonlySet<string>, checkpointOnly?: boolean) => Promise<LiveTick>
   record: (holder: string, gameIds: string[]) => Promise<void>
+  discover?: (snapshot: LiveSnapshot) => Promise<void>
   now?: () => number
 }) {
   const now = dependencies.now ?? Date.now
   let work: CheckpointGame[] | undefined
+  const discovered = new Set<string>()
   return async (holder: string): Promise<LiveTick> => {
     work ??= await dependencies.load()
-    if (!work.length) return { lines: 0, keepRunning: false, worked: false, failures: [], scoreRetries: 0, tickRetries: 0 }
     const snapshots = new Map<string,LiveSnapshot>()
-    await Promise.all([...new Set(work.map(game => game.game_date))].map(async date => {
+    await Promise.all([...new Set(work.length ? work.map(game => game.game_date) : [new Date(now()).toLocaleDateString('en-CA',{timeZone:'America/New_York'})])].map(async date => {
       try {
         const snapshot = readLiveSnapshot(await dependencies.snapshot(date),date,now())
         if (snapshot) snapshots.set(date,snapshot)
@@ -28,6 +29,17 @@ export function createCheckpointPoller(dependencies: {
     if ([...snapshots.values()].some(snapshot => snapshot.mode === 'database')) {
       work = undefined
       return { ...await dependencies.ingest(holder), sourceMode: 'database' }
+    }
+    for (const snapshot of snapshots.values()) {
+      const unknown = snapshot.games.filter(game => game.status !== 'Scheduled'
+        && !work!.some(row => row.nba_game_id === game.nbaId || !game.nbaId && row.game_date === snapshot.date
+          && row.home_team === game.home.team && row.away_team === game.away.team)
+        && !discovered.has(`${snapshot.date}:${game.id}`))
+      if (unknown.length && dependencies.discover) {
+        await dependencies.discover({...snapshot,games:unknown})
+        for (const game of unknown) discovered.add(`${snapshot.date}:${game.id}`)
+        work = await dependencies.load()
+      }
     }
     const due = new Map<string,boolean>()
     for (const game of work) {
