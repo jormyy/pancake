@@ -2,6 +2,8 @@ BEGIN;
 SET LOCAL app.supabase_url='http://127.0.0.1:1';
 SET LOCAL app.edge_internal_token='live-dispatch-priority';
 \ir rules-support.sql
+UPDATE public.leagues SET status='setup' WHERE status IN ('active','playoffs','offseason');
+DELETE FROM public.edge_invocations;
 DELETE FROM private.work_items;
 DELETE FROM private.live_matchup_refresh_queue;
 UPDATE private.worker_controls SET paused=false WHERE id;
