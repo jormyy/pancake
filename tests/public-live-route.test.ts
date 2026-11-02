@@ -212,3 +212,18 @@ it('keeps explicit ESPN DNP rows as zero while missing players stay absent', asy
   expect(body.games[0].home.players.find((row:unknown[])=>row[0]==='99')).toEqual(['99',0,0,0,0,0,0,0,0,0,0,0,0,0,1])
   expect(body.games[0].home.players.some((row:unknown[])=>row[0]==='98')).toBe(false)
 })
+
+it('rejects duplicate dates, redirects aliases and bounds sequential origin refresh by date', async () => {
+  let clock=now
+  const source=vi.fn(async()=>({version:1 as const,mode:'public' as const,date,capturedAt:clock,games:[]}))
+  const handler=createLiveHandler({now:()=>clock,source})
+  expect((await handler(new Request(`http://local/api/live/${date}?date=${date}&date=nonce`))).status).toBe(400)
+  const alias=await handler(new Request(`http://local/api/live/${date}?date=${date}`))
+  expect(alias.status).toBe(308)
+  expect(alias.headers.get('location')).toBe(`/api/live/${date}`)
+  for(let index=0;index<5;index++)expect((await handler(new Request(`http://local/api/live/${date}`))).status).toBe(200)
+  expect(source).toHaveBeenCalledTimes(1)
+  clock+=30000
+  await handler(new Request(`http://local/api/live/${date}`))
+  expect(source).toHaveBeenCalledTimes(2)
+})

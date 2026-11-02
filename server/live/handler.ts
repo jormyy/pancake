@@ -13,6 +13,7 @@ export function createLiveHandler(options: { now?: () => number; disabled?: () =
   const disabled = options.disabled ?? offSwitch
   const source = options.source ?? createSnapshotSource(now)
   const lastGood = new Map<string, { body: string; capturedAt: number }>()
+  const refreshAt = new Map<string,number>()
   const inFlight = new Map<string,Promise<LiveSnapshot>>()
   return async (request: Request): Promise<Response> => {
     const headers = { 'content-type': 'application/json', 'access-control-allow-origin': '*', 'x-content-type-options': 'nosniff' }
@@ -21,18 +22,31 @@ export function createLiveHandler(options: { now?: () => number; disabled?: () =
     const date = url.searchParams.get('date') ?? url.pathname.split('/').at(-1) ?? ''
     const day = new Date(now()).toLocaleDateString('en-CA',{timeZone:'America/New_York'})
     const previous = new Date(Date.parse(`${day}T12:00:00Z`)-86400000).toISOString().slice(0,10)
-    for (const key of lastGood.keys()) if (key !== day && key !== previous) lastGood.delete(key)
+    for (const key of refreshAt.keys()) if (key !== day && key !== previous) { lastGood.delete(key); refreshAt.delete(key) }
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || ![day,previous].includes(date)
+      || url.searchParams.getAll('date').length > 1
       || [...url.searchParams.keys()].some(key => key !== 'date')) return Response.json({error:'Date is outside the live window'},{status:400,headers:{...headers,'cache-control':'no-store'}})
+    const canonical = `/api/live/${date}`
+    if (url.pathname !== '/api/live/[date]' && (url.pathname !== canonical || url.search)) {
+      return new Response(null,{status:308,headers:{...headers,location:canonical,'cache-control':'no-store'}})
+    }
     try {
       let snapshot: LiveSnapshot
       if (disabled()) {
         lastGood.clear()
+        refreshAt.clear()
         snapshot = { version:1,mode:'database',date,capturedAt:now(),games:[] }
       }
       else {
         let pending = inFlight.get(date)
         if (!pending) {
+          if (now() < (refreshAt.get(date) ?? 0)) {
+            const saved = lastGood.get(date)
+            if (!saved || now()-saved.capturedAt > 120000) throw new Error('Live refresh is backing off')
+            return new Response(request.method === 'HEAD' ? null : saved.body,{headers:{...headers,
+              'cache-control':`public, max-age=0, s-maxage=${Math.max(1,Math.ceil(Math.min(refreshAt.get(date)!-now(),120000-(now()-saved.capturedAt))/1000))}`}})
+          }
+          refreshAt.set(date,now()+30000)
           pending = source(date).finally(() => { inFlight.delete(date) })
           inFlight.set(date,pending)
         }
