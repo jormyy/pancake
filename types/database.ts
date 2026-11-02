@@ -6087,6 +6087,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      complete_matchup_forecasts: { Args: { p_results: Json }; Returns: Json }
       complete_notification_outbox_atomic: {
         Args: { p_claim_token: string; p_id: string }
         Returns: boolean
