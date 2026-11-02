@@ -2629,11 +2629,11 @@
     },
     {
       "filename": "20261214009100_rearm_trade_analysis_after_values.sql",
-      "sha256": "4d73d067bff46741ca474c794c8b7ae49a7da4dc3f6e3d810e967621974268fc"
+      "sha256": "5ffd7a4127551f6be00a9951d0f6cac8c5763d38c72b41546c7a67036b109380"
     },
     {
       "filename": "20261214009200_keep_unfinished_matchups_live.sql",
-      "sha256": "378261f7083e2f5c87ff96dc75fa081f1cd372c371d95b5f6b9b69014e251f06"
+      "sha256": "beb3b373f3d3d8f1ee35ad59b7f9fb4edbd947cf80b7054775a87a8e335ef8f6"
     }
   ],
   "preMigration": {

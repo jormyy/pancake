@@ -3503,16 +3503,16 @@
     {
       "name": "rearm_trade_analysis_after_values",
       "version": "20261214009100",
-      "statementCount": 1,
-      "statementsSha256": "4a6662fc691d6f6840c7ac200bc70aac900bb5173f6aece784cf271cfe8c8a45",
-      "sha256": "4d73d067bff46741ca474c794c8b7ae49a7da4dc3f6e3d810e967621974268fc"
+      "statementCount": 2,
+      "statementsSha256": "e707067d5ecffc12ab2b9fa00670fd9a2bd41c3b68c5a2e359d34f3fe7d868c7",
+      "sha256": "5ffd7a4127551f6be00a9951d0f6cac8c5763d38c72b41546c7a67036b109380"
     },
     {
       "name": "keep_unfinished_matchups_live",
       "version": "20261214009200",
       "statementCount": 2,
-      "statementsSha256": "6940bec60fbb1be146df0e0bcccef72900149378ecd841324c0f8235445e6c8e",
-      "sha256": "378261f7083e2f5c87ff96dc75fa081f1cd372c371d95b5f6b9b69014e251f06"
+      "statementsSha256": "e1ca357ed5ab3af72d4de180313cd6f6c0d07f7de51b522eb12153d5c514771d",
+      "sha256": "beb3b373f3d3d8f1ee35ad59b7f9fb4edbd947cf80b7054775a87a8e335ef8f6"
     }
   ]
 }
