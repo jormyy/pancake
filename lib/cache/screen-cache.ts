@@ -54,7 +54,7 @@ function savedKeys(): string[] {
 function restore(): void {
     const local = storage()
     for (const key of savedKeys()) {
-        if ([...entries.values()].some(entry => screenCacheKey(entry.scope) === key)) continue
+        if ([...entries.values()].some(entry => screenCacheKey(entry.scope) === key && !(entry.scope.screen === 'home' && entry.version === '0' && entry.dirty))) continue
         try {
             const entry = JSON.parse(local!.getItem(key)!) as ScreenEnvelope<unknown>
             const valid = entry.schema === 1 && entry.scope?.accountId && /^\d+$/.test(entry.version) && Number.isFinite(entry.savedAt)
@@ -64,7 +64,6 @@ function restore(): void {
                 if (legacyHome) {
                     entry.version = '0'
                     entry.dirty = true
-                    try { local?.setItem(currentKey, JSON.stringify(entry)); local?.removeItem(key) } catch {}
                 }
                 const lookup = screenCacheKey(entry.lookupScope ?? entry.scope)
                 const existing = entries.get(lookup)
@@ -109,7 +108,16 @@ export function saveScreenView<T>(scope: ScreenScope, value: T, version: string,
         bytes -= size(JSON.stringify(oldEntry))
         try { storage()?.removeItem(screenCacheKey(oldEntry.scope)) } catch {}
     }
-    try { storage()?.setItem(screenCacheKey(resolvedScope), serialized) } catch {}
+    try {
+        const local = storage()
+        const currentKey = screenCacheKey(resolvedScope)
+        local?.setItem(currentKey, serialized)
+        if (local && scope.screen === 'home') for (const item of [scope, resolvedScope, previous?.scope]) {
+            if (!item) continue
+            const legacyKey = prefix + JSON.stringify(canonical(cacheScope(item)))
+            if (legacyKey !== currentKey) local.removeItem(legacyKey)
+        }
+    } catch {}
     publish(key)
     for (const listener of contextListeners) listener()
 }

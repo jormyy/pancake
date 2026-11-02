@@ -262,3 +262,21 @@ it('keeps old Home content offline and revalidates its obsolete publication coun
         expect(values.has(legacyKey)).toBe(false)
     } finally { vi.stubGlobal('window', undefined) }
 })
+
+it('keeps a newer Home entry when legacy and current cache keys coexist', () => {
+    const selected: ScreenScope = { ...scope, screen: 'home' }
+    const key = screenCacheKey(selected)
+    const parts = JSON.parse(key.slice('pancake:screen-view:v1:'.length))
+    delete parts.versionClock
+    const legacyKey = 'pancake:screen-view:v1:' + JSON.stringify(parts)
+    const entry = (version: string, savedAt: number, value: unknown) => JSON.stringify({ schema: 1, scope: selected, version, savedAt, value, dirty: false })
+    const fresh = entry('3', 2, { fresh: true })
+    const values = new Map([[legacyKey, entry('900', 1, { old: true })], [key, fresh]])
+    const localStorage = { get length() { return values.size }, key: (index: number) => [...values.keys()][index],
+        getItem: (name: string) => values.get(name) ?? null, removeItem: (name: string) => values.delete(name), setItem: (name: string, value: string) => values.set(name, value) }
+    vi.stubGlobal('window', { localStorage })
+    try {
+        expect(cachedScreenView(selected)).toMatchObject({ value: { fresh: true }, version: '3', dirty: false })
+        expect(values.get(key)).toBe(fresh)
+    } finally { vi.stubGlobal('window', undefined) }
+})
