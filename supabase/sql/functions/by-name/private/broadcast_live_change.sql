@@ -54,6 +54,10 @@ BEGIN
         VALUES(pg_current_xact_id(),target,jsonb_build_array(jsonb_build_object('event',TG_OP,
           'row',row_data)))
       ON CONFLICT(transaction_id,topic) DO UPDATE SET changes=pending.changes||EXCLUDED.changes;
+    ELSIF target LIKE 'l1:league:%' AND TG_TABLE_NAME NOT IN ('leagues','league_members') THEN
+      INSERT INTO private.live_hint_broadcasts AS pending(transaction_id,topic,changes)
+        VALUES(pg_current_xact_id(),target,jsonb_build_array(jsonb_build_object('payload',payload)))
+      ON CONFLICT(transaction_id,topic) DO UPDATE SET changes=pending.changes||EXCLUDED.changes;
     ELSE
       PERFORM realtime.send(payload,'change',target,true);
     END IF;
