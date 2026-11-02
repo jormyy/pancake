@@ -152,3 +152,16 @@ Deno.test('packed forecast inputs preserve manual, automatic and frozen projecti
     assert.throws(()=>readForecastContext({...packed,wireVersion:2}),/wire version/)
   }
 })
+
+Deno.test('terminal schedules need no remaining player forecasts', () => {
+  for (const status of ['Final', 'Cancelled', 'Postponed']) {
+    for (const automaticMembers of [[], ['home', 'away']]) {
+      const input = fixture()
+      input.automaticMembers = automaticMembers
+      input.previous = computeForecast(input)
+      input.games[0].status = status
+      const lean = { ...input, roster: [], history: [], projections: [], lineups: [], templates: [], seasonAverages: [], previous: null }
+      assert.deepEqual(computeForecast(lean), computeForecast(input))
+    }
+  }
+})
