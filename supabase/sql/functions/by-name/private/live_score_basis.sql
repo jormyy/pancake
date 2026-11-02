@@ -49,7 +49,8 @@ RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
       AND (game.id=membership.game_id OR membership.game_id IS NULL AND player.nba_team IN (game.home_team,game.away_team))
     LEFT JOIN public.player_game_stats stat ON stat.player_id=player.id AND stat.game_id=game.id
     LEFT JOIN private.live_feed_state feed ON feed.game_id=game.id
-    WHERE selected.game_date=p_date OR game.status='InProgress' OR game.status='Final' AND game.stats_synced_at IS NULL
+    WHERE (selected.game_date=p_date OR game.status='InProgress' OR game.status='Final' AND game.stats_synced_at IS NULL)
+      AND (game.status IS NULL OR private.lineup_game_available(game.status,game.game_status_text))
     GROUP BY selected.id
   )
   SELECT COALESCE(jsonb_agg(jsonb_build_object('id',m.id,'homeMemberId',m.home_member_id,'awayMemberId',m.away_member_id,

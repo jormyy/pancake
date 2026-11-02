@@ -10,7 +10,10 @@ export function liveScoreView(saved: LiveHome, snapshot: LiveSnapshot | readonly
     const current: LiveSnapshot | null = sources.length ? { version: 1, date: saved.selectedDate,
         mode: sources.some(source => source.mode === 'database') ? 'database' : 'public',
         capturedAt: Math.min(...sources.map(source => source.capturedAt)), games: sources.flatMap(source => source.games.map(game => ({ ...game, gameDate: source.date }))) } : null
-    const basis = (saved.liveBasis ?? []).map(matchup => ({ ...matchup, players: matchup.players.map(player => {
+    const basis = (saved.liveBasis ?? []).map(matchup => ({ ...matchup, players: matchup.players.filter(player =>
+        ![...(saved.liveGames ?? []), ...(saved.todaysGames ?? [])].some(game => game.nba_game_id === player.gameId
+            && (!['Scheduled', 'InProgress', 'Final'].includes(game.status)
+                || /postpon|cancel|suspend|(^|[^a-z])ppd([^a-z]|$)/i.test(game.game_status_text ?? '')))).map(player => {
         const game = (saved.liveGames ?? saved.todaysGames)?.find(game => game.nba_game_id === player.gameId)
         return { ...player, scheduledAt: game?.status === 'Scheduled' && game.game_time ? Date.parse(game.game_time) : undefined }
     }) }))

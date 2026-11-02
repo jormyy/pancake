@@ -57,6 +57,13 @@ BEGIN
     'compact forecast keeps only the displayed substitution details');
   SELECT value INTO basis FROM jsonb_array_elements(public.view_home(f.league_id,f.member_ids[1])->'liveBasis') WHERE value->>'id'=own_match::text;
   PERFORM pg_temp.check_rules(basis->'players' @> jsonb_build_array(jsonb_build_object('playerId',bench,'starter',false)),'displayed bench still receives live lines');
+  UPDATE public.nba_games SET status='Postponed' WHERE id=game;
+  SELECT value INTO basis FROM jsonb_array_elements(private.live_score_basis(f.league_id,f.season_id,1,day,other_match)) WHERE value->>'id'=other_match::text;
+  PERFORM pg_temp.check_rules(basis->'players'='[]'::jsonb AND (basis->>'homePoints')::numeric=10,'postponed games retain saved scores without overlay candidates');
+  UPDATE public.nba_games SET status='Scheduled',game_status_text='PPD' WHERE id=game;
+  SELECT value INTO basis FROM jsonb_array_elements(private.live_score_basis(f.league_id,f.season_id,1,day,other_match)) WHERE value->>'id'=other_match::text;
+  PERFORM pg_temp.check_rules(basis->'players'='[]'::jsonb,'unavailable status text also excludes overlay candidates');
+  UPDATE public.nba_games SET status='InProgress',game_status_text=NULL WHERE id=game;
   UPDATE public.player_game_stats SET points=12 WHERE player_id=player_a AND game_id=game;
   SELECT value INTO basis FROM jsonb_array_elements(public.view_home(f.league_id,f.member_ids[1])->'liveBasis') WHERE value->>'id'=other_match::text;
   PERFORM pg_temp.check_rules(NOT (basis->>'ready')::boolean,'unfinished score publication cannot double count new stats');

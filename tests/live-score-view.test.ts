@@ -119,6 +119,19 @@ it('counts a resolved game only once across exact and fallback identities', () =
     expect(view.delayed).toBe(false)
 })
 
+it('preserves unavailable players while the rest of the matchup overlays', () => {
+    for (const status of ['Postponed', 'Canceled', 'Suspended']) {
+        const saved = home()
+        saved.liveBasis![0].players.push({ ...saved.liveBasis![0].players[0], playerId: 'unavailable', nbaId: '11', gameId: '0022', team: 'LAL' })
+        saved.liveGames = [...saved.todaysGames]
+        saved.todaysGames.push({ ...saved.todaysGames[0], id: 'unavailable-game', nba_game_id: '0022', home_team: 'LAL', away_team: 'GSW', status })
+        const view = liveScoreView(saved, snapshot(), { points: 1 }, now)
+        expect(view.matchup?.myPoints).toBe(104)
+        expect(view.delayed).toBe(false)
+        expect(view.liveStats.unavailable).toBeUndefined()
+    }
+})
+
 it('does not match a prior-day provider fallback to the selected game list', () => {
     const saved=home()
     saved.liveBasis=[]
@@ -128,4 +141,13 @@ it('does not match a prior-day provider fallback to the selected game list', () 
     older.games[0].espnId='4001'
     older.games[0].source='espn'
     expect(liveScoreView(saved,[older],{points:1},now).todaysGames).toEqual(saved.todaysGames)
+})
+
+it('keeps postponed and suspended status text out of overlay candidates', () => {
+    for(const game_status_text of ['Postponed','PPD','Game suspended','Canceled']) {
+        const saved=home()
+        saved.liveBasis![0].players.push({...saved.liveBasis![0].players[0],playerId:'unavailable',nbaId:'11',gameId:'0022',team:'LAL'})
+        saved.todaysGames.push({...saved.todaysGames[0],id:'unavailable-game',nba_game_id:'0022',home_team:'LAL',away_team:'GSW',status:'Scheduled',game_status_text})
+        expect(liveScoreView(saved,snapshot(),{points:1},now).matchup?.myPoints).toBe(104)
+    }
 })
