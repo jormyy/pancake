@@ -12,7 +12,13 @@ const payload = (points = 200, slate = games()) => ({ ...homePayload(undefined, 
 const advance = (ms: number) => act(async () => { await vi.advanceTimersByTimeAsync(ms) })
 const changedServer = () => {
     boundary.server = { version: '2', changes: [{ version: '2', topic: 'score', scope: { tables: ['matchup_totals'] }, created_at: '2026-10-30T01:00:00Z' }] }
-    boundary.read.mockResolvedValue(payload(12))
+    boundary.read.mockImplementation(async scope => {
+        const next = { ...payload(12), context: { ...payload(12).context, version: '2' } }
+        if (scope.params.section !== 'scores') return next
+        return { section: 'scores', context: next.context, matchup: next.matchup, selectedDate: next.selectedDate,
+            weekDays: next.weekDays, leagueMatchups: next.leagueMatchups, todaysGames: next.todaysGames,
+            liveStats: {}, liveBasis: [], startedTeams: [], teamMatchups: {}, forecastStale: null }
+    })
 }
 beforeEach(() => {
     vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] })
@@ -46,6 +52,7 @@ it('recovers a silently stale connected matchup through HTTP within twenty secon
     expect(boundary.checks).toHaveBeenCalledOnce()
     expect(h.latest.matchup?.myPoints).toBe(12)
     expect(boundary.read).toHaveBeenCalledTimes(2)
+    expect(boundary.read.mock.lastCall?.[0].params.section).toBe('scores')
 })
 
 it('keeps a twenty-second version guard while connected without rereading unchanged views', async () => {
