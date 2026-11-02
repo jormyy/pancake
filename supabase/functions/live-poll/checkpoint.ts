@@ -1,3 +1,4 @@
+import { runBounded } from '../_shared/runBounded.ts'
 import { readLiveSnapshot } from '../_shared/liveSnapshot.ts'
 import type { Database } from '../_shared/database.ts'
 import type { LiveSnapshot } from '../_shared/liveSnapshot.ts'
@@ -12,7 +13,7 @@ export function createCheckpointPoller(dependencies: {
   ingest: (holder: string, gameIds?: ReadonlySet<string>, checkpointOnly?: boolean) => Promise<LiveTick>
   record: (holder: string, gameIds: string[]) => Promise<void>
   attempt?: (holder: string, gameId: string) => Promise<void>
-  start?: (game: CheckpointGame) => Promise<void>
+  start?: (game: CheckpointGame, signal: AbortSignal) => Promise<void>
   now?: () => number
 }) {
   const now = dependencies.now ?? Date.now
@@ -30,6 +31,16 @@ export function createCheckpointPoller(dependencies: {
       return {...await dependencies.ingest(holder),sourceMode:'database'}
     }
     const result: LiveTick = {lines:0,keepRunning:false,worked:true,failures:[],scoreRetries:0,tickRetries:0,sourceMode:'public'}
+    const startSignal = AbortSignal.timeout(3000)
+    await runBounded(work.map(game => async () => {
+      const matches = (snapshots.get(game.game_date)?.games ?? []).filter(row => row.nbaId === game.nba_game_id
+        || row.nbaId == null && row.home.team === game.home_team && row.away.team === game.away_team)
+      const source = matches.length === 1 ? matches[0] : undefined
+      if (game.status !== 'Scheduled' || !source || source.status === 'Scheduled'
+        || source.updatedAt < now()-120000 || source.updatedAt > now()+5000) return
+      try { startSignal.throwIfAborted(); await dependencies.start?.(game,startSignal) }
+      catch(error) { result.failures.push(String(error)) }
+    }),2)
     for (const game of work) {
       const matches = (snapshots.get(game.game_date)?.games ?? []).filter(row => row.nbaId === game.nba_game_id
         || row.nbaId == null && row.home.team === game.home_team && row.away.team === game.away_team)
@@ -47,7 +58,6 @@ export function createCheckpointPoller(dependencies: {
       if (!due || now() >= deadline) continue
       try {
         await dependencies.attempt?.(holder,game.id)
-        if (starting) await dependencies.start?.(game)
         const checkpointOnly = game.status === 'InProgress' && source?.status === 'InProgress' && !source.completionPending
         const imported = await dependencies.ingest(holder,new Set([game.id]),checkpointOnly)
         result.lines += imported.lines

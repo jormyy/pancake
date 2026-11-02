@@ -181,12 +181,12 @@ export async function runLivePoll(request: Request): Promise<Response> {
           return data ?? []
         }),
         attempt: (holder,gameId) => checkpointRetry(() => stampAttempts(holder,[gameId],[])),
-        start: async game => {
+        start: async (game,signal) => {
           const {error}=await supabase.rpc('save_live_scoreboard_atomic',{
             p_game_id:game.id,p_provider_game_id:game.nba_game_id!,p_status:'InProgress',
             p_home_score:game.home_score ?? 0,p_away_score:game.away_score ?? 0,
             p_status_text:'Live game discovered',p_elapsed_seconds:0,
-          }).abortSignal(AbortSignal.timeout(5000))
+          }).abortSignal(signal)
           if(error)throw error
         },
         snapshot: async date => (await fetchLiveSnapshot(new URL(`/api/live/${date}`, sharedUrl).href, AbortSignal.timeout(5000))).body,

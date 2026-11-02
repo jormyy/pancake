@@ -32,7 +32,7 @@ Deno.test('a public early start records its receipt before selected direct inges
     start:async()=>{calls.push('start')},
     ingest:async(_holder,ids)=>{assert.deepEqual([...ids!],[game.id]);calls.push('import');return {...result(),importedGameIds:[]}},
     record:async()=>assert.fail('A missing direct import cannot advance a checkpoint')})
-  await tick('holder');assert.deepEqual(calls,['attempt','start','import'])
+  await tick('holder');assert.deepEqual(calls,['start','attempt','import'])
 })
 
 Deno.test('the off switch restores unfiltered database ingestion',async()=>{
@@ -112,4 +112,18 @@ Deno.test('expired provider work retains fair order through the real work contex
     assert.ok(healthy>0)
     assert.ok(attempted.size===6)
   }finally {globalThis.fetch=original}
+})
+
+Deno.test('all discovered starts precede a slow recovery import',async()=>{
+  let now=start
+  const calls:string[]=[]
+  const first={...row('first'),checkpoint_at:null}
+  const early={...row('early'),status:'Scheduled',game_time:new Date(start+1800000).toISOString(),checkpoint_at:null}
+  const body={...snapshot(start),games:[{...snapshot(start).games[0],id:'002-early',nbaId:'002-early'}]}
+  const tick=createCheckpointPoller({now:()=>now,load:async()=>[first,early],snapshot:async()=>body,
+    start:async game=>{calls.push(`start:${game.id}`)},attempt:async(_holder,id)=>{calls.push(`attempt:${id}`)},
+    ingest:async(_holder,ids)=>{calls.push(`import:${[...ids!][0]}`);now+=18000;return result('first')},record:async()=>{}})
+  await tick('holder')
+  assert.equal(calls[0],'start:early')
+  assert.ok(calls.includes('import:first'))
 })
