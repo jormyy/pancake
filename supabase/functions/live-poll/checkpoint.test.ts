@@ -54,10 +54,12 @@ Deno.test('a failed save never advances the recovery checkpoint', async () => {
   await tick('holder');assert.equal(writes,2)
 })
 
-Deno.test('stale public data fails before any official write', async () => {
-  const tick=createCheckpointPoller({now:()=>start,load:async()=>[row()],snapshot:async()=>snapshot(start-120001),
-    ingest:async()=>{assert.fail('No write from stale data')},record:async()=>{} })
-  await assert.rejects(()=>tick('holder'),/stale or invalid/)
+Deno.test('stale public data uses direct ingestion for an overdue checkpoint', async () => {
+  const game=row();game.checkpoint_at=null
+  let writes=0
+  const tick=createCheckpointPoller({now:()=>start,load:async()=>[game],snapshot:async()=>snapshot(start-120001),
+    ingest:async()=>{writes++;return result()},record:async()=>{} })
+  await tick('holder');assert.equal(writes,1)
 })
 
 Deno.test('an unavailable game does not block a healthy final or advance its checkpoint', async () => {
@@ -81,4 +83,19 @@ Deno.test('each import retries independently and records only its own successful
     record:async(_holder,ids)=>{records.push(ids)} })
   await tick('holder')
   assert.deepEqual(records,[['healthy']])
+})
+
+Deno.test('route failures leave due final checks independent and healthy checkpoints bounded', async () => {
+  const final={...row(),id:'final',status:'Final',needs_final_check:true}
+  const calls:string[][]=[]
+  const tick=createCheckpointPoller({now:()=>start,load:async()=>[row(),final],snapshot:async()=>{throw new Error('503')},
+    ingest:async(_holder,ids)=>{calls.push([...ids!]);return result()},record:async()=>{} })
+  await tick('holder');assert.deepEqual(calls,[['final']])
+})
+
+Deno.test('a shared scheduled regression cannot hide stored live progress', async () => {
+  let writes=0
+  const tick=createCheckpointPoller({now:()=>start,load:async()=>[row()],snapshot:async()=>snapshot(start,'Scheduled'),
+    ingest:async()=>{writes++;return result()},record:async()=>{} })
+  await tick('holder');assert.equal(writes,1)
 })

@@ -20,9 +20,10 @@ export function createCheckpointPoller(dependencies: {
     if (!work.length) return { lines: 0, keepRunning: false, worked: false, failures: [], scoreRetries: 0, tickRetries: 0 }
     const snapshots = new Map<string,LiveSnapshot>()
     await Promise.all([...new Set(work.map(game => game.game_date))].map(async date => {
-      const snapshot = readLiveSnapshot(await dependencies.snapshot(date),date,now())
-      if (!snapshot) throw new Error('Shared live snapshot is stale or invalid')
-      snapshots.set(date,snapshot)
+      try {
+        const snapshot = readLiveSnapshot(await dependencies.snapshot(date),date,now())
+        if (snapshot) snapshots.set(date,snapshot)
+      } catch { snapshots.delete(date) }
     }))
     if ([...snapshots.values()].some(snapshot => snapshot.mode === 'database')) {
       work = undefined
@@ -31,14 +32,19 @@ export function createCheckpointPoller(dependencies: {
     const due = new Map<string,boolean>()
     for (const game of work) {
       if (game.needs_final_check) { due.set(game.id,false); continue }
-      const matches = snapshots.get(game.game_date)!.games.filter(row => row.nbaId === game.nba_game_id
+      const overdue = !game.checkpoint_at || now() - Date.parse(game.checkpoint_at) >= CHECKPOINT_INTERVAL_MS
+      const matches = (snapshots.get(game.game_date)?.games ?? []).filter(row => row.nbaId === game.nba_game_id
         || row.nbaId == null && row.home.team === game.home_team && row.away.team === game.away_team)
-      if (matches.length > 1) throw new Error(`Shared game identity is ambiguous: ${game.nba_game_id}`)
+      if (matches.length > 1) { due.set(game.id,false); continue }
       const snapshot = matches[0]
       if (!snapshot) {
+        if (overdue) due.set(game.id,game.status === 'InProgress' && Boolean(game.checkpoint_at))
         continue
       }
-      if (snapshot.status === 'Scheduled') continue
+      if (snapshot.status === 'Scheduled') {
+        if (game.status !== 'Scheduled') due.set(game.id,false)
+        continue
+      }
       if (game.status !== snapshot.status || !game.checkpoint_at || now() - Date.parse(game.checkpoint_at) >= CHECKPOINT_INTERVAL_MS) {
         due.set(game.id,game.status === 'InProgress' && snapshot.status === 'InProgress' && Boolean(game.checkpoint_at))
       }
