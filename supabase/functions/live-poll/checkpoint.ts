@@ -32,12 +32,14 @@ export function createCheckpointPoller(dependencies: {
     }
     const discoveryFailures: string[] = []
     for (const snapshot of snapshots.values()) {
-      const unknown = snapshot.games.filter(game => game.status !== 'Scheduled'
-        && !work!.some(row => row.nba_game_id === game.nbaId || !game.nbaId && row.game_date === snapshot.date
+      const starts = snapshot.games.filter(game => {
+        if (game.status === 'Scheduled') return false
+        const stored = work!.find(row => row.nba_game_id === game.nbaId || !game.nbaId && row.game_date === snapshot.date
           && row.home_team === game.home.team && row.away_team === game.away.team)
-        && !discovered.has(`${snapshot.date}:${game.id}`))
-      if (unknown.length && dependencies.discover) {
-        for (const game of unknown) {
+        return stored?.status === 'Scheduled' || !stored && !discovered.has(`${snapshot.date}:${game.id}`)
+      })
+      if (starts.length && dependencies.discover) {
+        for (const game of starts) {
           try {
             await dependencies.discover({...snapshot,games:[game]})
             discovered.add(`${snapshot.date}:${game.id}`)

@@ -125,3 +125,15 @@ Deno.test('a successful request with no imported game cannot advance a checkpoin
     ingest:async()=>({...result(),importedGameIds:[]}),record:async()=>{records++} })
   await tick('holder');assert.equal(records,0)
 })
+
+Deno.test('a public start locks a known scheduled work row before an empty direct import', async()=>{
+  const game={...row(),status:'Scheduled',game_time:null,checkpoint_at:null}
+  const calls:string[]=[]
+  const tick=createCheckpointPoller({now:()=>start,load:async()=>[game],snapshot:async()=>snapshot(start),
+    discover:async body=>{assert.equal(body.games[0].nbaId,game.nba_game_id);calls.push('start');game.status='InProgress'},
+    ingest:async()=>{calls.push('import');return {...result(),importedGameIds:[]}},
+    record:async()=>assert.fail('An empty import cannot advance the checkpoint')})
+  await tick('holder')
+  assert.deepEqual(calls,['start','import'])
+  assert.equal(game.status,'InProgress')
+})
