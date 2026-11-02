@@ -28,7 +28,7 @@ BEGIN
     END IF;
   END IF;
   RETURN private.work_enqueue('trade-revaluation-scan',p_season_id::text||':'||
-    ((CASE WHEN (now() AT TIME ZONE 'America/New_York')::time>=time '04:00' AND (now() AT TIME ZONE 'America/New_York')::time<time '06:00' AND NOT private.live_slate_in_progress(now()) THEN now() ELSE private.trade_revaluation_next_change() END) AT TIME ZONE 'America/New_York')::date::text,(CASE WHEN (now() AT TIME ZONE 'America/New_York')::time>=time '04:00' AND (now() AT TIME ZONE 'America/New_York')::time<time '06:00' AND NOT private.live_slate_in_progress(now()) THEN now() ELSE private.trade_revaluation_next_change() END),
+    ((CASE WHEN (now() AT TIME ZONE 'America/New_York')::time>=time '04:00' AND (now() AT TIME ZONE 'America/New_York')::time<time '06:00' AND NOT private.live_slate_in_progress(now()) THEN now() ELSE private.nightly_work_retry_at(now()) END) AT TIME ZONE 'America/New_York')::date::text,(CASE WHEN (now() AT TIME ZONE 'America/New_York')::time>=time '04:00' AND (now() AT TIME ZONE 'America/New_York')::time<time '06:00' AND NOT private.live_slate_in_progress(now()) THEN now() ELSE private.nightly_work_retry_at(now()) END),
     jsonb_build_object('revaluationScan',true,'leagueId',selected_league,'seasonId',p_season_id,'version',p_version),selected_league) IS NOT NULL;
 END;
 $$;
