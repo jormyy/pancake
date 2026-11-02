@@ -90,3 +90,9 @@ it('keeps accepted game revisions through fallback, reconnect and newer correcti
     expect(updates.at(-1)?.games[0].home.score).toBe(111)
     poller.dispose()
 })
+
+it('keeps a verified game when an unrelated snapshot row is malformed',()=>{
+    const game={id:'nba',nbaId:'0021',espnId:null,status:'InProgress',updatedAt:Date.now(),
+        home:{team:'BOS',score:0,players:[]},away:{team:'NYK',score:0,players:[]}}
+    expect(readLiveSnapshot({...snapshot(),games:[null,game]},date,Date.now())?.games).toEqual([game])
+})

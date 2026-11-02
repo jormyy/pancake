@@ -22,24 +22,32 @@ export function readLiveSnapshot(value: unknown, date: string, now: number): Liv
     if (source.mode === 'database') return source.games.length ? null : { version: 1, mode: 'database', date, capturedAt: source.capturedAt, games: [] }
     const games: PublicLiveGame[] = []
     const ids = new Set<string>()
+    const duplicates = new Set<string>()
     for (const game of source.games) {
-        if (!game || typeof game.id !== 'string' || ids.has(game.id) || !['Scheduled', 'InProgress', 'Final'].includes(game.status)
+        if (!game || typeof game.id !== 'string' || duplicates.has(game.id) || !['Scheduled', 'InProgress', 'Final'].includes(game.status)
             || ![null, 'string'].includes(game.nbaId === null ? null : typeof game.nbaId)
             || ![null, 'string'].includes(game.espnId === null ? null : typeof game.espnId)
             || game.completionPending !== undefined && typeof game.completionPending !== 'boolean'
-            || !['nba', 'espn'].includes(game.source ?? 'nba') || !Number.isFinite(game.updatedAt)) return null
-        ids.add(game.id)
+            || !['nba', 'espn'].includes(game.source ?? 'nba') || !Number.isFinite(game.updatedAt)) continue
         const teams = [game.home, game.away]
         const playerIds = new Set<string>()
         if (teams.some(team => !team || !/^[A-Z]{2,4}$/.test(team.team) || !Number.isFinite(team.score)
-            || !Array.isArray(team.players) || team.players.length > 50) || game.home.team === game.away.team) return null
+            || !Array.isArray(team.players) || team.players.length > 50) || game.home.team === game.away.team) continue
+        let valid = true
         for (const team of teams) for (const row of team.players) {
-            if (!Array.isArray(row) || !liveLineStats(row as LiveLine) || playerIds.has(row[0])) return null
+            if (!Array.isArray(row) || !liveLineStats(row as LiveLine) || playerIds.has(row[0])) { valid = false; break }
             playerIds.add(row[0])
         }
+        if (!valid) continue
+        if (ids.has(game.id)) {
+            games.splice(games.findIndex(previous => previous.id === game.id),1)
+            duplicates.add(game.id)
+            continue
+        }
+        ids.add(game.id)
         games.push(game)
     }
-    return { version: 1, mode: 'public', date, capturedAt: source.capturedAt, games }
+    return source.games.length && !games.length ? null : { version: 1, mode: 'public', date, capturedAt: source.capturedAt, games }
 }
 
 type PollScope = { date: string; active: boolean; visible: boolean; online: boolean }

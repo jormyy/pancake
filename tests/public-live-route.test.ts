@@ -228,7 +228,7 @@ it('rejects duplicate dates, redirects aliases and bounds sequential origin refr
   expect(source).toHaveBeenCalledTimes(2)
 })
 
-it('retains a completion signal when the completed scoreboard has no usable box',async()=>{
+it('does not publish completion without a usable box',async()=>{
   const completed=structuredClone(event)
   completed.status={period:4,displayClock:'0:00',type:{state:'post',completed:true} as typeof event.status.type}
   vi.stubGlobal('fetch',async(input:RequestInfo|URL)=>{
@@ -237,6 +237,34 @@ it('retains a completion signal when the completed scoreboard has no usable box'
     return Response.json({}, {status:503})
   })
   const response=await createLiveHandler({now:()=>now})(new Request(`http://local/api/live/${date}`))
+  expect(response.status).toBe(503)
+})
+
+it('isolates a malformed NBA catalogue row from a healthy game',async()=>{
+  vi.stubGlobal('fetch',async(input:RequestInfo|URL)=>{
+    const url=new URL(input instanceof Request?input.url:input)
+    if(url.hostname==='site.api.espn.com')return Response.json({events:[]})
+    return Response.json(url.pathname.includes('scoreboard')
+      ? {meta:{time:new Date(now).toISOString()},scoreboard:{games:[{gameId:'0022600999',gameStatus:1},box]}}
+      : {meta:{time:new Date(now).toISOString()},game:box})
+  })
+  const response=await createLiveHandler({now:()=>now})(new Request(`http://local/api/live/${date}`))
   expect(response.status).toBe(200)
-  expect((await response.json()).games[0]).toMatchObject({completionPending:true,status:'InProgress',home:{players:[]}})
+  expect((await response.json()).games.map((game:{id:string})=>game.id)).toEqual([box.gameId])
+})
+
+it('does not publish empty progress that can outrank a recovered final',async()=>{
+  let recovered=false,clock=now
+  vi.stubGlobal('fetch',async(input:RequestInfo|URL)=>{
+    const url=new URL(input instanceof Request?input.url:input)
+    if(url.hostname==='site.api.espn.com')return Response.json(url.pathname.endsWith('scoreboard')?{events:[event]}:{},{status:url.pathname.endsWith('scoreboard')?200:503})
+    if(url.pathname.includes('scoreboard'))return Response.json({meta:{time:new Date(now-10000).toISOString()},scoreboard:{games:[box]}})
+    return recovered ? Response.json({meta:{time:new Date(now-10000).toISOString()},game:{...box,gameStatus:3}}) : Response.json({}, {status:503})
+  })
+  const handler=createLiveHandler({now:()=>clock})
+  expect((await handler(new Request(`http://local/api/live/${date}`))).status).toBe(503)
+  recovered=true;clock+=31000
+  const response=await handler(new Request(`http://local/api/live/${date}`))
+  expect(response.status).toBe(200)
+  expect((await response.json()).games[0]).toMatchObject({status:'Final',updatedAt:now-10000})
 })

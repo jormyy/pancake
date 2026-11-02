@@ -3,7 +3,7 @@ import type { NBABoxScore, NBABoxScorePlayer, NBAGame } from '../../supabase/fun
 import { gameElapsedSeconds } from '../../supabase/functions/_shared/gameProgress.ts'
 import { newerNbaSource } from '../../supabase/functions/_shared/liveSourceChoice.ts'
 import { runBounded } from '../../supabase/functions/_shared/runBounded.ts'
-import { EspnLiveSource, espnGame, matchEspnGame, teamCode } from '../../supabase/functions/live-poll/espn.ts'
+import { EspnLiveSource, espnGame, matchEspnGame } from '../../supabase/functions/live-poll/espn.ts'
 import type { EspnEvent } from '../../supabase/functions/live-poll/espn.ts'
 import type { LiveLine, LiveSnapshot, PublicLiveGame } from '../../core/src/live/overlay.ts'
 import { liveLineStats } from '../../core/src/live/codec.ts'
@@ -60,49 +60,32 @@ function nbaIsCurrent(box: NBABoxScore, event: EspnEvent | undefined, observedAt
     && box.homeTeam.score === board.homeTeam.score && box.awayTeam.score === board.awayTeam.score
 }
 
-function compactProgress(board: NBAGame | undefined, event: EspnEvent | undefined, observedAt: number): PublicLiveGame | undefined {
-  const progress = event && ['in','post'].includes(event.status.type.state)
-    ? espnGame(event.id,{...event.competitions[0],status:event.status}) : board
-  if (!progress || progress.gameStatus === 1) return undefined
-  const complete = progress.gameStatus === 3 || event?.status.type.state === 'post'
-  const period = complete ? progress.period || 4 : progress.period
-  const clock = complete ? 'PT0M00S' : progress.gameClock
-  gameElapsedSeconds({gameStatus:2,period,gameClock:clock})
-  const sides = [progress.homeTeam,progress.awayTeam].map(side => {
-    if (!/^[A-Z]{2,4}$/.test(side.teamTricode) || !Number.isFinite(side.score) || side.score! < 0)
-      throw new Error('Invalid public scoreboard progress')
-    return {team:side.teamTricode,score:side.score!,players:[]}
-  })
-  if (sides[0].team === sides[1].team) throw new Error('Duplicate public scoreboard sides')
-  return {id:board?.gameId ?? `espn:${event!.id}`,nbaId:board?.gameId ?? null,espnId:event?.id ?? null,
-    source:event ? 'espn' : 'nba',status:'InProgress',updatedAt:observedAt,period,clock,
-    ...(complete ? {completionPending:true} : {}),home:sides[0],away:sides[1]}
-}
-
 export function createSnapshotSource(now: () => number = Date.now) {
   const espn = new EspnLiveSource(now,1500)
   return async (date: string): Promise<LiveSnapshot> => {
     const results = await Promise.allSettled([fetchTodaysGames(1500),espn.scoreboard([date])])
     if (results.every(result => result.status === 'rejected')) throw new Error('Both public score providers are unavailable')
-    const boards = results[0].status === 'fulfilled' ? results[0].value.filter(game => boardDate(game,now()) === date) : []
+    const boards = results[0].status === 'fulfilled' ? results[0].value : []
     const events = results[1].status === 'fulfilled' ? results[1].value.filter(event => etDate(event.date) === date && event.season?.type === 2) : []
     const year = Number(date.slice(0,4)) + (Number(date.slice(5,7)) >= 10 ? 1 : 0)
-    const catalog: { board?: NBAGame; event?: EspnEvent }[] = boards.map(board => ({ board, event: matchEspnGame({ game_date: date, season_year: year,
-      home_team: board.homeTeam.teamTricode, away_team: board.awayTeam.teamTricode },events) }))
-    for (const event of events) if (!catalog.some(item => item.event?.id === event.id)) catalog.push({ event })
+    const catalog: { board?: NBAGame; event?: EspnEvent }[] = []
+    const failures: string[] = []
+    for (const board of boards) {
+      try {
+        if (boardDate(board,now()) !== date) continue
+        if (![1,2,3].includes(board.gameStatus) || ![board.homeTeam,board.awayTeam].every(team =>
+          team && /^[A-Z]{2,4}$/.test(team.teamTricode) && Number.isFinite(team.score) && team.score! >= 0)
+          || board.homeTeam.teamTricode === board.awayTeam.teamTricode) throw new Error('Invalid scoreboard row')
+        const event = matchEspnGame({game_date:date,season_year:year,
+          home_team:board.homeTeam.teamTricode,away_team:board.awayTeam.teamTricode},events)
+        if (board.gameStatus !== 1 || event && ['in','post'].includes(event.status.type.state)) catalog.push({board,event})
+      } catch { failures.push(board.gameId) }
+    }
+    for (const event of events) if (['in','post'].includes(event.status.type.state) && !catalog.some(item => item.event?.id === event.id)) catalog.push({event})
     if (catalog.length > 15) throw new Error('Public slate is larger than the supported limit')
     const games: PublicLiveGame[] = []
-    const failures: string[] = []
     await runBounded(catalog.map(({board,event}) => async () => {
       try {
-        if (((board?.gameStatus === 1 || !board) && event?.status.type.state === 'pre') || (board?.gameStatus === 1 && !event)) {
-          const sides = event?.competitions[0].competitors
-          games.push({ id: board?.gameId ?? `espn:${event!.id}`, nbaId: board?.gameId ?? null, espnId: event?.id ?? null,
-            source: board ? 'nba' : 'espn', status: 'Scheduled', updatedAt: Date.parse(board?.sourceUpdatedAt ?? '') || now(),
-            home: { team: board?.homeTeam.teamTricode ?? teamCode(sides!.find(side => side.homeAway === 'home')!.team.abbreviation), score: 0, players: [] },
-            away: { team: board?.awayTeam.teamTricode ?? teamCode(sides!.find(side => side.homeAway === 'away')!.team.abbreviation), score: 0, players: [] } })
-          return
-        }
         const nbaResult = await (board ? fetchBoxScore(board.gameId,1500) : Promise.resolve(undefined))
           .then(value => ({status:'fulfilled' as const,value}),reason => ({status:'rejected' as const,reason}))
         let nba = nbaResult.status === 'fulfilled' ? nbaResult.value : undefined
@@ -125,13 +108,9 @@ export function createSnapshotSource(now: () => number = Date.now) {
         else throw new Error('No valid live box')
       } catch {
         failures.push(board?.gameId ?? `espn:${event!.id}`)
-        try {
-          const progress = compactProgress(board,event,now())
-          if (progress) games.push(progress)
-        } catch {}
       }
     }),8)
-    if (catalog.length && !games.length) throw new Error('No public game snapshot is usable')
+    if ((catalog.length || failures.length) && !games.length) throw new Error('No public game snapshot is usable')
     return { version: 1, mode: 'public', date, capturedAt: now(), games: games.sort((a,b) => a.id.localeCompare(b.id)),
       ...(failures.length ? { unavailable: failures.sort() } : {}) }
   }
