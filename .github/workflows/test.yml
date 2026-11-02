@@ -79,6 +79,10 @@ jobs:
     name: Supabase migration and trade integration
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    env:
+      PANCAKE_TEST_DB_PORT: '54322'
+      PANCAKE_TEST_API_PORT: '54321'
+      PANCAKE_TEST_PROJECT_ID: pancake
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
