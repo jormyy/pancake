@@ -136,10 +136,14 @@ export function parseEspnSummary(summary: EspnSummary, event: EspnEvent): { game
     const groups = side.statistics.filter(group => group.names.includes('PTS'))
     if (groups.length !== 1) throw new Error(`ESPN ${event.id}: ambiguous statistics`)
     const group = groups[0]
-    const result = group.athletes.filter(row => !row.didNotPlay).map(row => {
+    const result = group.athletes.map(row => {
       const id = row.athlete.id
       if (!/^\d+$/.test(id) || seen.has(id)) throw new Error(`ESPN ${event.id}: duplicate/invalid athlete ${id}`)
       seen.add(id)
+      if (row.didNotPlay === true) return { espnId:id,team,player:{ personId:0,name:row.athlete.displayName,played:0,
+        statistics:{minutes:'PT0M00S',points:0,reboundsTotal:0,reboundsOffensive:0,reboundsDefensive:0,assists:0,
+          steals:0,blocks:0,turnovers:0,foulsPersonal:0,plusMinusPoints:0,fieldGoalsMade:0,fieldGoalsAttempted:0,
+          threePointersMade:0,threePointersAttempted:0,freeThrowsMade:0,freeThrowsAttempted:0} } }
       const values = Object.fromEntries(group.names.map((name, index) => [name, row.stats[index]]))
       const count = (name: string, signed = false) => {
         if (!(signed ? /^[+-]?\d+$/ : /^\d+$/).test(values[name] ?? '')) throw new Error(`ESPN ${event.id}/${id}: invalid ${name}`)

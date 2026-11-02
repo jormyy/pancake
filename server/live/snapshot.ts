@@ -21,10 +21,10 @@ function compactPlayer(player: NBABoxScorePlayer, id = String(player.personId)):
   if (!/^\d+$/.test(id)) throw new Error('Invalid provider player identity')
   const s = player.statistics
   const minutes = parseNBAMinutes(s.minutes)
-  const didNotPlay = player.played === '0' || player.played === 0 || player.played == null && minutes == null
+  const didNotPlay = player.played === '0' || player.played === 0
   const required = [s.points,s.reboundsTotal,s.assists,s.steals,s.blocks,s.turnovers,s.threePointersMade,
     s.fieldGoalsMade,s.fieldGoalsAttempted,s.freeThrowsMade,s.freeThrowsAttempted,s.foulsPersonal]
-  if (!didNotPlay && required.some(value=>typeof value!=='number' || !Number.isFinite(value) || value<0)) throw new Error('Provider player line is incomplete')
+  if (!didNotPlay && (minutes == null || required.some(value=>typeof value!=='number' || !Number.isFinite(value) || value<0))) throw new Error('Provider player line is incomplete')
   const row: LiveLine = [id,s.points ?? 0,s.reboundsTotal ?? 0,s.assists ?? 0,s.steals ?? 0,s.blocks ?? 0,
     s.turnovers ?? 0,s.threePointersMade ?? 0,s.fieldGoalsMade ?? 0,s.fieldGoalsAttempted ?? 0,
     s.freeThrowsMade ?? 0,s.freeThrowsAttempted ?? 0,s.foulsPersonal ?? 0,minutes ?? 0,didNotPlay ? 1 : 0]

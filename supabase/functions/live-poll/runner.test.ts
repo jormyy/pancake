@@ -83,7 +83,7 @@ Deno.test('ESPN starts a scheduled game even when both NBA endpoints fail', asyn
   const board = JSON.parse(await Deno.readTextFile('tests/fixtures/live-espn/2026-10-30T01-00-49.445Z-scoreboard.json')).payload
   board.events = board.events.filter((event: { id: string }) => event.id === '401909893')
   const summary = JSON.parse(await Deno.readTextFile('tests/fixtures/live-espn/2026-10-30T01-00-49.554Z-summary-401909893.json')).payload
-  const athleteIds: string[] = summary.boxscore.players.flatMap((team: { statistics: { athletes: { athlete: { id: string }; didNotPlay: boolean }[] }[] }) => team.statistics[0].athletes.filter(row => !row.didNotPlay).map(row => row.athlete.id))
+  const athleteIds: string[] = summary.boxscore.players.flatMap((team: { statistics: { athletes: { athlete: { id: string }; didNotPlay: boolean }[] }[] }) => team.statistics[0].athletes.map(row => row.athlete.id))
   let scoreboardCalls = 0, summaryCalls = 0, writes = 0
   globalThis.fetch = async (input, init) => {
     const request = new Request(input, init)

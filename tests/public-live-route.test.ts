@@ -198,3 +198,17 @@ it('preserves ESPN completion as a hint without certifying an NBA final', async 
   const body=await response.json()
   expect(body.games[0]).toMatchObject({status:'InProgress',completionPending:true})
 })
+
+it('keeps explicit ESPN DNP rows as zero while missing players stay absent', async () => {
+  const data=summary()
+  data.boxscore.players[0].statistics[0].athletes.push({athlete:{id:'99',displayName:'DNP'},didNotPlay:true,stats:[]})
+  vi.stubGlobal('fetch',async(input:RequestInfo|URL)=>{
+    const url=new URL(input instanceof Request?input.url:input)
+    if(url.hostname==='cdn.nba.com')return Response.json({}, {status:503})
+    return Response.json(url.pathname.endsWith('scoreboard')?{events:[event]}:data)
+  })
+  const response=await createLiveHandler({now:()=>now})(new Request(`http://local/api/live/${date}`))
+  const body=await response.json()
+  expect(body.games[0].home.players.find((row:unknown[])=>row[0]==='99')).toEqual(['99',0,0,0,0,0,0,0,0,0,0,0,0,0,1])
+  expect(body.games[0].home.players.some((row:unknown[])=>row[0]==='98')).toBe(false)
+})
