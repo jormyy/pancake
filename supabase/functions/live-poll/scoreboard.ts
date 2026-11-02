@@ -13,7 +13,7 @@ let startOffset = 0
 
 export async function saveScoreboardGames(games: NBAGame[], work: StoredScoreboardGame[], selected?: ReadonlySet<string>): Promise<{gameId:string;error:unknown}[]> {
   const storedGames = new Map(work.map(game => [game.nba_game_id, game]))
-  const missing = games.filter(game => game.gameStatus > 1 && !storedGames.has(game.gameId)).map(game => game.gameId)
+  const missing = games.filter(game => game.gameStatus === 2 && !storedGames.has(game.gameId)).map(game => game.gameId)
   if (missing.length) {
     const { data, error } = await supabase.from('nba_games')
       .select('id,nba_game_id,status,home_score,away_score,game_status_text')

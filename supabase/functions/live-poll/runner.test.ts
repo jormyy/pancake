@@ -381,3 +381,23 @@ Deno.test('unrelated start errors do not prevent a selected import checkpoint',a
     assert.equal(records,1)
   }finally {globalThis.fetch=original}
 })
+
+Deno.test('unchanged live ticks do not read finished games for start receipts',async()=>{
+  await withDatabase(async calls=>{
+    for(let tick=0;tick<3;tick++){
+      const result=await ingestTick(holder)
+      assert.deepEqual(result.failures,[])
+    }
+    assert.equal(calls.filter(name=>name==='nba_games').length,0)
+    assert.equal(calls.filter(name=>name==='save_live_scoreboard_atomic').length,0)
+  },name=>{
+    if(name==='get_live_poll_work')return Response.json([{id:holder,nba_game_id:'0022600001',status:'InProgress',needs_scoreboard:true,needs_stats:false,
+      home_score:10,away_score:8,game_status_text:'Q1',game_date:'2026-10-29'}])
+    if(name==='todaysScoreboard_00.json')return Response.json({scoreboard:{games:[
+      {gameId:'0022600001',gameStatus:2,gameStatusText:'Q1',period:1,gameClock:'PT06M00S',homeTeam:{score:10},awayTeam:{score:8}},
+      {gameId:'0022600002',gameStatus:3,gameStatusText:'Final',period:4,gameClock:'PT00M00S',homeTeam:{score:100},awayTeam:{score:98}},
+    ]}})
+    if(name==='nba_games')return Response.json([])
+    assert.fail(`Unexpected ${name}`)
+  })
+})
