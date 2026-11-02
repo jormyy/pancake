@@ -92,7 +92,7 @@ BEGIN
     SELECT COALESCE(jsonb_agg(jsonb_build_array(item->'id',item->'homeMemberId',item->'awayMemberId',item->'homePoints',
       item->'awayPoints',item->'finalized',item->'ready',(SELECT COALESCE(jsonb_agg(jsonb_build_array(player->'playerId',
         CASE WHEN player->>'memberId'=item->>'homeMemberId' THEN 0 ELSE 1 END,player->'nbaId',player->'espnId',player->'team',
-        player->'gameId',player->'savedPoints',player->'savedAt',player->'starter',player->'final')),'[]'::jsonb)
+        player->'gameId',player->'savedPoints',player->'savedAt',player->'starter',player->'final',player->'gameDate')),'[]'::jsonb)
         FROM jsonb_array_elements(item->'players') player))),'[]'::jsonb)
     INTO basis FROM jsonb_array_elements(basis) item;
     context := (context-'member'-'season') || jsonb_build_object('league',jsonb_build_object('id',p_league_id,

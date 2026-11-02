@@ -11,6 +11,7 @@ type PublicLiveGame = {
     id: string
     nbaId: string | null
     espnId: string | null
+    gameDate?: string
     source?: 'nba' | 'espn'
     status: 'Scheduled' | 'InProgress' | 'Final'
     updatedAt: number

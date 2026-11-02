@@ -38,7 +38,7 @@ RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
   ), lines AS MATERIALIZED (
     SELECT selected.id,jsonb_agg(jsonb_build_object('playerId',player.id,'memberId',selected.member_id,
       'nbaId',player.nba_id,'espnId',player.espn_id,'team',COALESCE(membership.nba_team,player.nba_team),
-      'gameId',game.nba_game_id,'savedPoints',public.compute_fantasy_points(stat.id,p_league_id),
+      'gameId',game.nba_game_id,'gameDate',selected.game_date,'savedPoints',public.compute_fantasy_points(stat.id,p_league_id),
       'savedAt',COALESCE(extract(epoch FROM feed.stats_updated_at)*1000,0),'starter',selected.starter,
       'final',game.status='Final' AND game.stats_synced_at IS NOT NULL) ORDER BY selected.member_id,player.id,game.id) AS data
     FROM players selected JOIN public.players player ON player.id=selected.player_id
@@ -150,7 +150,7 @@ BEGIN
     SELECT COALESCE(jsonb_agg(jsonb_build_array(item->'id',item->'homeMemberId',item->'awayMemberId',item->'homePoints',
       item->'awayPoints',item->'finalized',item->'ready',(SELECT COALESCE(jsonb_agg(jsonb_build_array(player->'playerId',
         CASE WHEN player->>'memberId'=item->>'homeMemberId' THEN 0 ELSE 1 END,player->'nbaId',player->'espnId',player->'team',
-        player->'gameId',player->'savedPoints',player->'savedAt',player->'starter',player->'final')),'[]'::jsonb)
+        player->'gameId',player->'savedPoints',player->'savedAt',player->'starter',player->'final',player->'gameDate')),'[]'::jsonb)
         FROM jsonb_array_elements(item->'players') player))),'[]'::jsonb)
     INTO basis FROM jsonb_array_elements(basis) item;
     context := (context-'member'-'season') || jsonb_build_object('league',jsonb_build_object('id',p_league_id,

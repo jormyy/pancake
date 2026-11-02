@@ -9,7 +9,7 @@ export function liveScoreView(saved: LiveHome, snapshot: LiveSnapshot | readonly
         : [readLiveSnapshot(snapshot, saved.selectedDate, now)].filter((source): source is LiveSnapshot => source !== null)
     const current: LiveSnapshot | null = sources.length ? { version: 1, date: saved.selectedDate,
         mode: sources.some(source => source.mode === 'database') ? 'database' : 'public',
-        capturedAt: Math.min(...sources.map(source => source.capturedAt)), games: sources.flatMap(source => source.games) } : null
+        capturedAt: Math.min(...sources.map(source => source.capturedAt)), games: sources.flatMap(source => source.games.map(game => ({ ...game, gameDate: source.date }))) } : null
     const basis = (saved.liveBasis ?? []).map(matchup => ({ ...matchup, players: matchup.players.map(player => {
         const game = (saved.liveGames ?? saved.todaysGames)?.find(game => game.nba_game_id === player.gameId)
         return { ...player, scheduledAt: game?.status === 'Scheduled' && game.game_time ? Date.parse(game.game_time) : undefined }
@@ -30,7 +30,7 @@ export function liveScoreView(saved: LiveHome, snapshot: LiveSnapshot | readonly
     }
     const todaysGames = (saved.todaysGames ?? []).map(game => {
         const fresh = current?.mode === 'public' && !displayed?.stale ? current.games.find(row => row.nbaId === game.nba_game_id
-            || row.nbaId == null && row.home.team === game.home_team && row.away.team === game.away_team) : null
+            || row.nbaId == null && row.gameDate === (game.game_date ?? saved.selectedDate) && row.home.team === game.home_team && row.away.team === game.away_team) : null
         if (!fresh || game.status === 'Final') return game
         const clock = /^PT(?:(\d+)M)?(\d+(?:\.\d+)?)S$/.exec(fresh.clock ?? '')
         const period = fresh.period ?? 1

@@ -16,19 +16,20 @@ function overlayLiveScores(saved, snapshot, settings, now) {
         let stale = !matchup.finalized && mode === 'public' && (!usable || matchup.ready === false);
         const pendingStats = {};
         const seen = new Set();
+        const resolved = new Set();
         if (usable && mode === 'public' && !matchup.finalized)
-            for (const player of matchup.players) {
+            for (const player of [...matchup.players].sort((a, b) => Number(Boolean(b.gameId)) - Number(Boolean(a.gameId)))) {
                 if (player.final)
                     continue;
-                const key = `${player.memberId}:${player.playerId}:${player.gameId}`;
+                const key = `${player.memberId}:${player.playerId}:${player.gameDate}:${player.gameId}`;
                 if (seen.has(key)) {
                     stale = true;
                     continue;
                 }
                 seen.add(key);
-                const games = snapshot.games.filter(game => player.gameId ? game.nbaId === player.gameId
-                    || game.nbaId == null && [game.home.team, game.away.team].includes(player.team ?? '')
-                    : [game.home.team, game.away.team].includes(player.team ?? ''));
+                const games = snapshot.games.filter(game => player.gameId && game.nbaId === player.gameId
+                    || (game.gameDate ?? snapshot.date) === (player.gameDate ?? snapshot.date)
+                        && (!player.gameId || game.nbaId == null) && [game.home.team, game.away.team].includes(player.team ?? ''));
                 if (!games.length) {
                     if (player.gameId && !(Number.isFinite(player.scheduledAt) && player.scheduledAt > now))
                         stale = true;
@@ -39,6 +40,10 @@ function overlayLiveScores(saved, snapshot, settings, now) {
                     continue;
                 }
                 const game = games[0];
+                const resolvedKey = `${player.memberId}:${player.playerId}:${game.gameDate ?? snapshot.date}:${game.id}`;
+                if (resolved.has(resolvedKey))
+                    continue;
+                resolved.add(resolvedKey);
                 if (game.status === 'Scheduled')
                     continue;
                 if (!Number.isFinite(game.updatedAt) || game.updatedAt > now + 5000 || now - game.updatedAt > 120000) {
@@ -56,7 +61,8 @@ function overlayLiveScores(saved, snapshot, settings, now) {
                         stale = true;
                     continue;
                 }
-                pendingStats[player.playerId] = values;
+                if ((game.gameDate ?? snapshot.date) === snapshot.date)
+                    pendingStats[player.playerId] = values;
                 if (!player.starter)
                     continue;
                 const delta = (0, formula_1.calculateFantasyPoints)(values, settings) - player.savedPoints;

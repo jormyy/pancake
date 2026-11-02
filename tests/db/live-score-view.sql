@@ -37,13 +37,13 @@ BEGIN
   PERFORM pg_temp.check_rules(result->'myLineup'->'starters' @> jsonb_build_array(jsonb_build_object('player',jsonb_build_object('playerId',player_a))), 'other-team lineup belongs to displayed member');
   SELECT value INTO basis FROM jsonb_array_elements(result->'liveBasis') WHERE value->>'id'=other_match::text;
   PERFORM pg_temp.check_rules((basis->>'ready')::boolean,'saved score basis agrees with stored official score');
-  PERFORM pg_temp.check_rules(basis->'players' @> jsonb_build_array(jsonb_build_object('nbaId','101','espnId','201','savedPoints',10)), 'live basis includes both provider IDs and saved contribution');
+  PERFORM pg_temp.check_rules(basis->'players' @> jsonb_build_array(jsonb_build_object('nbaId','101','espnId','201','savedPoints',10,'gameDate',day)), 'live basis includes both provider IDs and saved contribution');
   PERFORM pg_temp.check_rules(NOT EXISTS(SELECT 1 FROM jsonb_array_elements(result->'liveBasis') m, jsonb_array_elements(m->'players') p WHERE p->>'playerId'=bench::text),'other matchup bench is absent from live payload');
   compact:=public.view_home(f.league_id,f.member_ids[1],jsonb_build_object('matchupId',other_match,'compact',true));
   SELECT jsonb_agg(jsonb_build_object('id',m->0,'homeMemberId',m->1,'awayMemberId',m->2,'homePoints',m->3,
     'awayPoints',m->4,'finalized',m->5,'ready',m->6,'players',(SELECT COALESCE(jsonb_agg(jsonb_build_object('playerId',p->0,
       'memberId',CASE WHEN p->>1='0' THEN m->1 ELSE m->2 END,'nbaId',p->2,'espnId',p->3,'team',p->4,'gameId',p->5,
-      'savedPoints',p->6,'savedAt',p->7,'starter',p->8,'final',p->9)),'[]'::jsonb) FROM jsonb_array_elements(m->7) p)))
+      'savedPoints',p->6,'savedAt',p->7,'starter',p->8,'final',p->9,'gameDate',p->10)),'[]'::jsonb) FROM jsonb_array_elements(m->7) p)))
     INTO restored FROM jsonb_array_elements(compact->'liveBasis') m;
   PERFORM pg_temp.check_rules(restored=result->'liveBasis','compact basis preserves every scoring input');
   PERFORM pg_temp.check_rules(octet_length(compact::text)<octet_length(result::text),'compact view sends fewer bytes');

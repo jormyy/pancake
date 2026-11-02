@@ -33,3 +33,8 @@ describe('compact saved live scores', () => {
         expect(value.wireVersion).toBeUndefined()
     })
 })
+
+it('preserves the lineup date in compact scores', () => {
+    const decoded = decodeSavedLiveView({ liveBasis: [['m','a','b',10,4,false,true,[['p',0,'1',null,'BOS','0021',10,0,true,false,'2026-10-31']]]] }) as unknown as { liveBasis: Parameters<typeof overlayLiveScores>[0] }
+    expect(decoded.liveBasis[0].players[0].gameDate).toBe('2026-10-31')
+})

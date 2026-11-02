@@ -38,7 +38,7 @@ RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
   ), lines AS MATERIALIZED (
     SELECT selected.id,jsonb_agg(jsonb_build_object('playerId',player.id,'memberId',selected.member_id,
       'nbaId',player.nba_id,'espnId',player.espn_id,'team',COALESCE(membership.nba_team,player.nba_team),
-      'gameId',game.nba_game_id,'savedPoints',public.compute_fantasy_points(stat.id,p_league_id),
+      'gameId',game.nba_game_id,'gameDate',selected.game_date,'savedPoints',public.compute_fantasy_points(stat.id,p_league_id),
       'savedAt',COALESCE(extract(epoch FROM feed.stats_updated_at)*1000,0),'starter',selected.starter,
       'final',game.status='Final' AND game.stats_synced_at IS NOT NULL) ORDER BY selected.member_id,player.id,game.id) AS data
     FROM players selected JOIN public.players player ON player.id=selected.player_id

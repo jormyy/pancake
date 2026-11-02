@@ -96,3 +96,36 @@ describe('home and other-team live scores', () => {
         expect(liveScoreView(partial, null, {}, now).todaysGames).toEqual([])
     })
 })
+
+
+it('keeps each lineup date when the player rests on the selected day', () => {
+    const saved = home()
+    const prior = { ...saved.liveBasis![0].players[0], gameDate: '2026-10-30' }
+    saved.liveBasis![0].players = [prior, { ...prior, gameDate: '2026-10-31', gameId: null, savedPoints: 0 }]
+    const older = snapshot()
+    older.date = '2026-10-30'
+    const view = liveScoreView(saved, [older, { ...snapshot(), games: [] }], { points: 1 }, now)
+    expect(view.matchup?.myPoints).toBe(104)
+    expect(view.delayed).toBe(false)
+    expect(view.liveStats).toEqual({})
+})
+
+it('counts a resolved game only once across exact and fallback identities', () => {
+    const saved = home()
+    const prior = { ...saved.liveBasis![0].players[0], gameDate: '2026-10-31' }
+    saved.liveBasis![0].players = [prior, { ...prior, gameId: null, savedPoints: 0 }]
+    const view = liveScoreView(saved, snapshot(), { points: 1 }, now)
+    expect(view.matchup?.myPoints).toBe(104)
+    expect(view.delayed).toBe(false)
+})
+
+it('does not match a prior-day provider fallback to the selected game list', () => {
+    const saved=home()
+    saved.liveBasis=[]
+    const older=snapshot()
+    older.date='2026-10-30'
+    older.games[0].nbaId=null
+    older.games[0].espnId='4001'
+    older.games[0].source='espn'
+    expect(liveScoreView(saved,[older],{points:1},now).todaysGames).toEqual(saved.todaysGames)
+})

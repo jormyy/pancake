@@ -48,10 +48,10 @@ export function decodeSavedLiveView<T>(value: T): T {
         const homeMemberId = text(row[1]), awayMemberId = text(row[2])
         return { id: text(row[0]), homeMemberId, awayMemberId, homePoints: number(row[3]), awayPoints: number(row[4]),
             finalized: flag(row[5]), ready: flag(row[6]), players: row[7].map((player: unknown) => {
-                if (!Array.isArray(player) || player.length !== 10 || ![0, 1].includes(player[1])) throw new Error('Invalid saved live player')
+                if (!Array.isArray(player) || ![10,11].includes(player.length) || ![0, 1].includes(player[1])) throw new Error('Invalid saved live player')
                 return { playerId: text(player[0]), memberId: player[1] === 0 ? homeMemberId : awayMemberId,
                     nbaId: nullable(player[2]), espnId: nullable(player[3]), team: nullable(player[4]), gameId: nullable(player[5]),
-                    savedPoints: number(player[6]), savedAt: number(player[7]), starter: flag(player[8]), final: flag(player[9], true) }
+                    savedPoints: number(player[6]), savedAt: number(player[7]), starter: flag(player[8]), final: flag(player[9], true), ...(player.length === 11 ? { gameDate: text(player[10]) } : {}) }
             }) }
     })
     return { ...value, liveBasis }
