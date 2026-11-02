@@ -10,6 +10,7 @@ DECLARE context jsonb; matchup public.matchups%ROWTYPE; opponent uuid; subject u
   payload jsonb; lineup_key text; compact_groups jsonb;
 BEGIN
   context := public.view_context(p_league_id, p_member_id, p_params);
+  context := context || jsonb_build_object('version',COALESCE((SELECT version FROM public.league_versions WHERE league_id=p_league_id),0)::text);
   league_today := (now() AT TIME ZONE COALESCE(context->'league'->>'timezone', 'America/Los_Angeles'))::date;
   SELECT week_number INTO league_week FROM public.season_weeks WHERE season_year = (context->>'seasonYear')::integer
     ORDER BY CASE WHEN league_today BETWEEN week_start AND week_end THEN 0 WHEN week_start > league_today THEN 1 ELSE 2 END,
