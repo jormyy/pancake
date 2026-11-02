@@ -4,7 +4,7 @@
 
 CREATE OR REPLACE FUNCTION public.publish_trade_values(p_rows jsonb,p_picks jsonb,p_source_body text,p_fetched_at timestamptz,p_mode text,p_request_id uuid DEFAULT NULL)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
-DECLARE v_state private.trade_value_sync_state%ROWTYPE; v_matched integer; v_duplicates integer; v_scope record; v_scan bigint;
+DECLARE v_state private.trade_value_sync_state%ROWTYPE; v_matched integer; v_duplicates integer;
 BEGIN
   SELECT * INTO v_state FROM private.trade_value_sync_state WHERE id FOR UPDATE;
   IF p_mode IS NULL OR p_mode NOT IN ('live','json','csv')
@@ -75,21 +75,6 @@ BEGIN
     ON CONFLICT(league_id,topic) DO UPDATE SET revision=stored.revision+1,scopes=NULL,details=NULL,updated_at=clock_timestamp();
   PERFORM private.work_enqueue('pick-predictions',to_char(p_fetched_at AT TIME ZONE 'America/New_York','YYYY-MM-DD')||':'||encode(extensions.digest(p_source_body,'sha256'),'hex'),now(),
     jsonb_build_object('sourceVersion',encode(extensions.digest(p_source_body,'sha256'),'hex')));
-  IF v_state.content_sha256 IS DISTINCT FROM encode(extensions.digest(p_source_body,'sha256'),'hex') THEN
-    FOR v_scope IN SELECT DISTINCT queued.league_id,queued.league_season_id,queued.version
-      FROM private.screen_refresh_queue queued JOIN public.trades trade ON trade.league_season_id=queued.league_season_id
-      WHERE trade.status IN ('pending','accepted') LOOP
-      v_scan:=private.work_enqueue('trade-revaluation-scan',v_scope.league_season_id::text||':source:'||
-        (now() AT TIME ZONE 'America/New_York')::date::text,now(),
-        jsonb_build_object('revaluationScan',true,'leagueId',v_scope.league_id,'seasonId',v_scope.league_season_id,
-          'version',v_scope.version,'sourcePublication',true),v_scope.league_id);
-      IF v_scan IS NOT NULL THEN
-        UPDATE private.trade_revaluation_schedule schedule SET next_allowed_at=now()
-          FROM public.trades trade WHERE trade.id=schedule.trade_id AND trade.league_season_id=v_scope.league_season_id
-          AND trade.status IN ('pending','accepted');
-      END IF;
-    END LOOP;
-  END IF;
   RETURN jsonb_build_object('players',450,'matched',v_matched,'unmatched',450-v_matched,'picks',18,'derivedPicks',9);
 END;
 $$;
