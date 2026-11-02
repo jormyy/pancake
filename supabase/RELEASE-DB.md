@@ -3,9 +3,9 @@
 ## Release 2.15: shared live scores
 
 The supplied production head is `20261214006200` at `e5f16211` (release 2.14.7).
-Release 2.15 adds 30 migrations; the candidate contains 774 migrations through `20261214009200`.
+Release 2.15 adds 31 migrations; the candidate contains 775 migrations through `20261214009300`.
 This is a minor feature release, with application version `2.15.0`.
-Executable candidate: `53d4ce6418e14ca38b1e0ca6fae47110a3300024`. Subsequent documentation commits preserve this executable source.
+Executable candidate: `19b362db76bff5adbfd64f62312739ef696e4246`. Subsequent documentation commits preserve this executable source.
 
 | Migration | Change |
 | --- | --- |
@@ -39,6 +39,7 @@ Executable candidate: `53d4ce6418e14ca38b1e0ca6fae47110a3300024`. Subsequent doc
 | `20261214009000_retry_live_gated_nightly_work.sql` | Retry temporary live-game gates during the same nightly window. |
 | `20261214009100_protect_complete_final_stats.sql` | Retain NBA participation and reject incomplete official finals. |
 | `20261214009200_atomic_unversioned_final_stats.sql` | Keep finals atomic when provider revision metadata is absent. |
+| `20261214009300_preserve_recovery_fairness.sql` | Keep slow failed games behind untouched recovery work across worker restarts. |
 
 Old loaded clients keep receiving direct league and membership events. Other data events share compact batches and supported version hints.
 Apply the pending migrations before the matching Edge functions.
@@ -254,9 +255,9 @@ The [trade curve report](../docs/trade-curve.md) records the real trades, roster
 
 The supplied production head is `20261214006200`, from the recorded 2.14.7 release.
 This lab does not verify hosted state.
-The local candidate ends at `20261214009200`.
+The local candidate ends at `20261214009300`.
 Database, then Edge, then merge the frontend.
-Apply pending migrations through `20261214009200` only during the separately authorized release.
+Apply pending migrations through `20261214009300` only during the separately authorized release.
 Regenerate the catalog, types, and both attestations from a fresh private database before the final release checks.
 
 Deploy compatible database and Edge code before enabling public snapshots.

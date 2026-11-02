@@ -43,6 +43,7 @@ New NBA participation observations are retained before checkpoints, then removed
 Final player points must equal team points; malformed DNP rows and missing witnessed players keep the final pending.
 Every final score and stat update commits atomically, including feeds without revision metadata.
 Slow failed recoveries rotate behind later games on the next tick.
+Their failure order survives worker restarts; a failure never advances a successful checkpoint.
 A missing, stale, or contradictory shared snapshot cannot block due direct-provider recovery.
 ESPN completion triggers repeated authoritative checks; only the existing NBA rules certify official finals.
 Final-score corrections remain eligible for forecast refresh within the existing seven-day queue retention.
