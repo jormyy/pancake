@@ -6564,9 +6564,9 @@ export type Database = {
         Args: { p_now?: string }
         Returns: {
           away_team: string
-          checkpoint_at: string
+          checkpoint_at: string | null
           game_date: string
-          game_time: string
+          game_time: string | null
           home_team: string
           id: string
           nba_game_id: string
