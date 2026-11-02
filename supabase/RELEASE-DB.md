@@ -5,7 +5,7 @@
 The supplied production head is `20261214006200` at `e5f16211` (release 2.14.7).
 Release 2.15 adds 31 migrations; the candidate contains 775 migrations through `20261214009300`.
 This is a minor feature release, with application version `2.15.0`.
-Measured runtime candidate: `cd24bce935b02493a065835c2f3a36b5d6c00f18`. The external verification receipt pins the later documentation-only release head.
+Measured runtime candidate: `cd24bce935b02493a065835c2f3a36b5d6c00f18`. The external verification receipt pins the release head and records runtime-equivalence checks.
 
 | Migration | Change |
 | --- | --- |
