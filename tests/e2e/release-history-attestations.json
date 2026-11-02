@@ -3335,16 +3335,9 @@
     {
       "name": "schedule_half_gig",
       "version": "20261214006300",
-      "statementCount": 43,
-      "statementsSha256": "94412a72e3233bd207445280a2ab3445d127862d6fd2d621d8b66e898fdff116",
-      "sha256": "c6e5ce9ad7f957a6f4c863e3ff78bb20288039f45fa238f2dfb83518706bf114"
-    },
-    {
-      "name": "live_path_half_gig",
-      "version": "20261214006400",
-      "statementCount": 21,
-      "statementsSha256": "ab90d9cafb770d661e7df8edd2f5cc2cb2032f10ac63cce0a16429c28e0fda94",
-      "sha256": "31b36405d48a87d7fd8367db63742135f17475ebf56859d95422046a8ab0f208"
+      "statementCount": 42,
+      "statementsSha256": "9dcf6733f4ec4d919077171baabd6c5ae604ba4cb81096e51939fb9b45df9547",
+      "sha256": "bc0b236c97e34be2b3d1b173ad1487fe880ec5a35fd1197b1c7a596ac236b71e"
     },
     {
       "name": "memory_half_gig",
@@ -3352,13 +3345,6 @@
       "statementCount": 13,
       "statementsSha256": "0933685f008bb2c7c23fffb05968f0a337f236a284848c6b53b0ae93bff799b4",
       "sha256": "11e4bb172db9a7670d5caf2c481b934a8c641254ac50c184b63a5fbcc9df5908"
-    },
-    {
-      "name": "nightly_pick_predictions",
-      "version": "20261214006600",
-      "statementCount": 3,
-      "statementsSha256": "8167ed271bd3d14af07cb692630fc8e9c11e051741a6a70b1bedb55efc08ab14",
-      "sha256": "cea5663bd6f445ca9a90c62d5d521eaea5681f05fbb06c7e5bf3c005c5a9edb1"
     },
     {
       "name": "live_score_view",
@@ -3370,9 +3356,9 @@
     {
       "name": "public_live_checkpoints",
       "version": "20261214006800",
-      "statementCount": 9,
-      "statementsSha256": "8a0bf122a36636464bc3a0a1ff3eaeea00744057510017ac3559033f4cb2edc2",
-      "sha256": "0a042e227ec83542681e53a6d85631f60533b15557de58230a5930934bda049b"
+      "statementCount": 13,
+      "statementsSha256": "a31fd11580dece04e2b61b58c124cb8d07502750d6f0bf9d287ce1c25aa89927",
+      "sha256": "308e4ddc9bf44ee0e37994d241cc6fc4f27e694d7b47874ba7be17b55a753720"
     },
     {
       "name": "limit_live_basis_to_displayed_players",
@@ -3391,9 +3377,9 @@
     {
       "name": "compact_live_dispatch_candidates",
       "version": "20261214007100",
-      "statementCount": 2,
-      "statementsSha256": "8c24b7a6434f9e2c22d65eb4dba9e5570f188b635a7d5e7d91a84847050d40a5",
-      "sha256": "a4c3c9057681981a4bb0ab2a7765aa4fba06c1cb1492545270eb0fc272b4ee08"
+      "statementCount": 1,
+      "statementsSha256": "70e17000cdf067ca2e56ccdeb210c7b2c37408a7114739b14cc0b31e2845cb55",
+      "sha256": "0d0c39dd8659982a2039f7ea4827dfb0291a30fe8bc47ba78cb687f56899e788"
     },
     {
       "name": "prioritize_queued_live_ingestion",
@@ -3401,13 +3387,6 @@
       "statementCount": 2,
       "statementsSha256": "215330f1e0017aa8163be3c7903d4bf36a746b712d484c999292c7ff9fcf7378",
       "sha256": "e32b57be46dd2745829c94e311991dfc32096d6319f2899b9049bdfa2ac09d71"
-    },
-    {
-      "name": "limit_checkpoint_input_reads",
-      "version": "20261214007300",
-      "statementCount": 4,
-      "statementsSha256": "5a6abb1c949634a32eb7b7eefc59deab154e3f3119e460be603a162776d72074",
-      "sha256": "7ea0159d1cf90e3a6394349d1ae610abf705eafc3c95394ed3e79a0d3e6b4cee"
     },
     {
       "name": "scope_and_compact_home_updates",
@@ -3436,13 +3415,6 @@
       "statementCount": 1,
       "statementsSha256": "df4e7c85fcf482e36c5c274db24b4b23a19168f7954b406076df0f3805a671a2",
       "sha256": "1b03e239a67c28236a664064f0f045ad386d47a25fa6fcc0d33acc6d80a8dd6c"
-    },
-    {
-      "name": "bound_nightly_live_gates",
-      "version": "20261214007800",
-      "statementCount": 8,
-      "statementsSha256": "57f4e216a442fc3ddd3f02ce284a668ac6d95f1803fe8164329172a8504a082d",
-      "sha256": "8bcb9ca963975a2ff2c73f81da1aab0ac96350622cf14fedbee398562511b7f2"
     },
     {
       "name": "preserve_legacy_league_events",
@@ -3520,34 +3492,6 @@
       "statementCount": 1,
       "statementsSha256": "1eb552f4c508529c5474a1be807a49194792b2536b9f3994240a6ccea5e9aa08",
       "sha256": "3811b52e7f9cdd69e3a3a97986c6f7cf4b055d53b472dcdb93d2ebe18a8d8f8b"
-    },
-    {
-      "name": "retry_live_gated_nightly_work",
-      "version": "20261214009000",
-      "statementCount": 6,
-      "statementsSha256": "88af382f373102c2d5c1f0796eba94a88e2a1955beadef1bab0ecab9be1390c2",
-      "sha256": "5eab3b570d3ade01b9c58ed6a531e0e7e0b2d8d27eb6766dccc40b4f599b4ad3"
-    },
-    {
-      "name": "protect_complete_final_stats",
-      "version": "20261214009100",
-      "statementCount": 14,
-      "statementsSha256": "45263ab62deac71f9580af0bb0b52b0947cbcf701bc4716cc222f7407f2b2dd7",
-      "sha256": "820ccf2106fc1cb18c89dfae798dbf93297dea82889b16af5d01932a57626092"
-    },
-    {
-      "name": "atomic_unversioned_final_stats",
-      "version": "20261214009200",
-      "statementCount": 4,
-      "statementsSha256": "a84205328d6c69c674a36773a60b0d56d7a0b5484deccdeed7cf7c01a0c4bbdc",
-      "sha256": "49022c6bc8160224eeac9bcb348283248881c51635f56738ad262829410bddd6"
-    },
-    {
-      "name": "preserve_recovery_fairness",
-      "version": "20261214009300",
-      "statementCount": 7,
-      "statementsSha256": "583843a25812bcb55118737785394f8bc4649f8692a17d08c07c5e1d85862583",
-      "sha256": "8b9e1b2ea8252ba4fd34bd408d91c1b5d48598b2bce15b8026b97f5dabdd5bc2"
     }
   ]
 }

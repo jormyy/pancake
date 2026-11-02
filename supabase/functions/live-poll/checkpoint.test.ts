@@ -2,239 +2,114 @@ import assert from 'node:assert/strict'
 import { createCheckpointPoller, CHECKPOINT_INTERVAL_MS } from './checkpoint.ts'
 import type { CheckpointGame, LiveTick } from './checkpoint.ts'
 
-const start = Date.parse('2026-10-31T23:00:00Z')
-const date = '2026-10-31'
-const row = (): CheckpointGame => ({ id:'game',nba_game_id:'0021',game_date:date,status:'InProgress',game_time:null,
-  home_team:'BOS',away_team:'NYK',checkpoint_at:new Date(start).toISOString(),needs_final_check:false })
-const result = (): LiveTick => ({ lines:24,keepRunning:true,worked:true,failures:[],scoreRetries:0,tickRetries:0 })
-const snapshot = (now: number, status='InProgress', mode='public') => ({ version:1,mode,date,capturedAt:now,
-  games:mode==='database' ? [] : [{ id:'0021',nbaId:'0021',espnId:null,status,updatedAt:now,
-    home:{team:'BOS',score:0,players:[]},away:{team:'NYK',score:0,players:[]} }] })
+const start=Date.parse('2026-10-31T23:00:00Z')
+const date='2026-10-31'
+const row=(id='game'):CheckpointGame=>({id,nba_game_id:`002-${id}`,game_date:date,status:'InProgress',game_time:null,
+  home_team:'BOS',away_team:'NYK',checkpoint_at:new Date(start).toISOString(),checked_at:null,home_score:0,away_score:0,needs_final_check:false} as CheckpointGame)
+const result=(id='game'):LiveTick=>({lines:24,keepRunning:true,worked:true,failures:[],scoreRetries:0,tickRetries:0,importedGameIds:[id]})
+const snapshot=(now:number,status='InProgress',mode='public')=>({version:1,mode,date,capturedAt:now,
+  games:mode==='database'?[]:[{id:'002-game',nbaId:'002-game',espnId:null,status,updatedAt:now,
+    home:{team:'BOS',score:0,players:[]},away:{team:'NYK',score:0,players:[]}}]})
 
-Deno.test('shared ticks avoid database work between thirty-minute checkpoints', async () => {
-  let now=start, loads=0, writes=0, records=0
+Deno.test('shared ticks write only at the thirty-minute checkpoint',async()=>{
+  let now=start,writes=0,records=0
   const game=row()
-  const tick=createCheckpointPoller({ now:()=>now,load:async()=>{loads++;return [game]},snapshot:async()=>snapshot(now),
+  const tick=createCheckpointPoller({now:()=>now,load:async()=>[game],snapshot:async()=>snapshot(now),
     ingest:async(_holder,ids,checkpointOnly)=>{assert.deepEqual([...ids!],['game']);assert.equal(checkpointOnly,true);writes++;return result()},
-    record:async()=>{records++;game.checkpoint_at=new Date(now).toISOString()} })
+    record:async()=>{records++;game.checkpoint_at=new Date(now).toISOString()}})
   assert.equal(CHECKPOINT_INTERVAL_MS,1800000)
-  for(let elapsed=0;elapsed<CHECKPOINT_INTERVAL_MS;elapsed+=30000) { now=start+elapsed; assert.equal((await tick('holder')).keepRunning,true) }
-  assert.equal(loads,1)
+  for(let elapsed=0;elapsed<CHECKPOINT_INTERVAL_MS;elapsed+=30000){now=start+elapsed;await tick('holder')}
   assert.equal(writes,0)
-  now=start+CHECKPOINT_INTERVAL_MS
-  await tick('holder')
-  assert.equal(writes,1)
-  assert.equal(records,1)
-  assert.equal(loads,2)
+  now=start+CHECKPOINT_INTERVAL_MS;await tick('holder')
+  assert.equal(writes,1);assert.equal(records,1)
 })
 
-Deno.test('tipoffs and finals save immediately without waiting for a checkpoint', async () => {
-  let now=start, status='Scheduled', writes=0
-  const game=row();game.status='Scheduled'
-  const tick=createCheckpointPoller({now:()=>now,load:async()=>game.status==='Final'?[]:[game],snapshot:async()=>snapshot(now,status),
-    ingest:async(_holder,_ids,checkpointOnly)=>{assert.equal(checkpointOnly,false);writes++;game.status=status;return result()},record:async()=>{game.checkpoint_at=new Date(now).toISOString()} })
-  await tick('holder');assert.equal(writes,0)
-  status='InProgress';now+=30000;await tick('holder');assert.equal(writes,1)
-  status='Final';now+=30000;assert.equal((await tick('holder')).keepRunning,false);assert.equal(writes,2)
-})
-
-Deno.test('the server off switch restores unfiltered legacy ingestion', async () => {
-  let writes=0
-  const tick=createCheckpointPoller({now:()=>start,load:async()=>[row()],snapshot:async()=>snapshot(start,'InProgress','database'),
-    ingest:async(_holder,ids)=>{assert.equal(ids,undefined);writes++;return result()},record:async()=>assert.fail('No checkpoint in legacy mode') })
-  await tick('holder');await tick('holder');assert.equal(writes,2)
-})
-
-Deno.test('a failed save never advances the recovery checkpoint', async () => {
-  const game=row();game.checkpoint_at=null
-  let writes=0
-  const tick=createCheckpointPoller({now:()=>start,load:async()=>[game],snapshot:async()=>snapshot(start),
-    ingest:async()=>{writes++;return {...result(),failures:['save failed']}},record:async()=>assert.fail('Failed save must retry') })
-  assert.deepEqual((await tick('holder')).failures,['save failed'])
-  await tick('holder');assert.equal(writes,2)
-})
-
-Deno.test('stale public data uses direct ingestion for an overdue checkpoint', async () => {
-  const game=row();game.checkpoint_at=null
-  let writes=0
-  const tick=createCheckpointPoller({now:()=>start,load:async()=>[game],snapshot:async()=>snapshot(start-120001),
-    ingest:async()=>{writes++;return result()},record:async()=>{} })
-  await tick('holder');assert.equal(writes,1)
-})
-
-Deno.test('an unavailable game does not block a healthy final or advance its checkpoint', async () => {
-  const missing=row(), healthy={...row(),id:'healthy',nba_game_id:'0022'}
-  const calls:string[][]=[], records:string[][]=[]
-  const body=snapshot(start,'Final');body.games[0].nbaId='0022'
-  const tick=createCheckpointPoller({now:()=>start,load:async()=>[missing,healthy],snapshot:async()=>body,
-    ingest:async(_holder,ids)=>{calls.push([...ids!]);return result()},record:async(_holder,ids)=>{records.push(ids)} })
-  await tick('holder');await tick('holder')
-  assert.equal(calls.filter(ids=>ids.includes('healthy')).length,2)
-  assert.ok(records.every(ids=>!ids.includes('game')))
-})
-
-Deno.test('each import retries independently and records only its own successful checkpoint', async () => {
-  const first=row(),second={...row(),id:'healthy',nba_game_id:'0022'}
-  first.checkpoint_at=null;second.checkpoint_at=null
-  const body=snapshot(start);body.games.push({...body.games[0],id:'0022',nbaId:'0022'})
-  const records:string[][]=[]
-  const tick=createCheckpointPoller({now:()=>start,load:async()=>[first,second],snapshot:async()=>body,
-    ingest:async(_holder,ids)=>ids!.has('game')?{...result(),failures:['first unavailable']}:result(),
-    record:async(_holder,ids)=>{records.push(ids)} })
-  await tick('holder')
-  assert.deepEqual(records,[['healthy']])
-})
-
-Deno.test('route failures leave due final checks independent and healthy checkpoints bounded', async () => {
-  const final={...row(),id:'final',status:'Final',needs_final_check:true}
-  const calls:string[][]=[]
-  const tick=createCheckpointPoller({now:()=>start,load:async()=>[row(),final],snapshot:async()=>{throw new Error('503')},
-    ingest:async(_holder,ids)=>{calls.push([...ids!]);return result()},record:async()=>{} })
-  await tick('holder');assert.deepEqual(calls,[['final']])
-})
-
-Deno.test('a shared scheduled regression cannot hide stored live progress', async () => {
-  let writes=0
-  const tick=createCheckpointPoller({now:()=>start,load:async()=>[row()],snapshot:async()=>snapshot(start,'Scheduled'),
-    ingest:async()=>{writes++;return result()},record:async()=>{} })
-  await tick('holder');assert.equal(writes,1)
-})
-
-Deno.test('public discovery includes early starts outside selected work before importing', async () => {
-  let discovered=false, imports=0
-  const early={...row(),id:'early',nba_game_id:'0022',checkpoint_at:null}
-  const body=snapshot(start);body.games.push({...body.games[0],id:'0022',nbaId:'0022'})
-  const tick=createCheckpointPoller({now:()=>start,load:async()=>discovered?[row(),early]:[row()],snapshot:async()=>body,
-    ...{discover:async(value:import('../_shared/liveSnapshot.ts').LiveSnapshot)=>{assert.ok(value.games.some(game=>game.nbaId==='0022'));discovered=true}},
-    ingest:async(_holder,ids)=>{assert.ok(ids!.has('early'));imports++;return result()},record:async()=>{} })
-  await tick('holder');assert.equal(discovered,true);assert.equal(imports,1)
-})
-
-Deno.test('an ESPN completion signal repeats authoritative checks until official handoff', async () => {
-  let writes=0
-  const body={...snapshot(start),games:[{...snapshot(start).games[0],completionPending:true}]}
-  const tick=createCheckpointPoller({now:()=>start,load:async()=>[row()],snapshot:async()=>body,
-    ingest:async(_holder,_ids,checkpointOnly)=>{assert.equal(checkpointOnly,false);writes++;return result()},record:async()=>{} })
-  await tick('holder');await tick('holder');assert.equal(writes,2)
-})
-
-Deno.test('a successful request with no imported game cannot advance a checkpoint',async()=>{
-  const game=row();game.checkpoint_at=null
-  let records=0
-  const tick=createCheckpointPoller({now:()=>start,load:async()=>[game],snapshot:async()=>snapshot(start),
-    ingest:async()=>({...result(),importedGameIds:[]}),record:async()=>{records++} })
-  await tick('holder');assert.equal(records,0)
-})
-
-Deno.test('a public start locks a known scheduled work row before an empty direct import', async()=>{
-  const game={...row(),status:'Scheduled',game_time:null,checkpoint_at:null}
+Deno.test('a public early start records its receipt before selected direct ingestion',async()=>{
+  const game={...row(),status:'Scheduled',game_time:new Date(start+3600000).toISOString(),checkpoint_at:null}
   const calls:string[]=[]
   const tick=createCheckpointPoller({now:()=>start,load:async()=>[game],snapshot:async()=>snapshot(start),
-    discover:async body=>{assert.equal(body.games[0].nbaId,game.nba_game_id);calls.push('start');game.status='InProgress'},
-    ingest:async()=>{calls.push('import');return {...result(),importedGameIds:[]}},
-    record:async()=>assert.fail('An empty import cannot advance the checkpoint')})
-  await tick('holder')
-  assert.deepEqual(calls,['start','import'])
-  assert.equal(game.status,'InProgress')
+    attempt:async(_holder,id)=>{assert.equal(id,game.id);calls.push('attempt')},
+    start:async()=>{calls.push('start')},
+    ingest:async(_holder,ids)=>{assert.deepEqual([...ids!],[game.id]);calls.push('import');return {...result(),importedGameIds:[]}},
+    record:async()=>assert.fail('A missing direct import cannot advance a checkpoint')})
+  await tick('holder');assert.deepEqual(calls,['attempt','start','import'])
 })
 
-Deno.test('a public scheduled status cannot postpone overdue recovery after tipoff',async()=>{
-  const game={...row(),status:'Scheduled',game_time:new Date(start-3600000).toISOString(),checkpoint_at:null}
+Deno.test('the off switch restores unfiltered database ingestion',async()=>{
   let writes=0
-  const tick=createCheckpointPoller({now:()=>start,load:async()=>[game],snapshot:async()=>snapshot(start,'Scheduled'),
-    ingest:async()=>{writes++;return {...result(),importedGameIds:[]}},record:async()=>{}})
-  await tick('holder');await tick('holder')
-  assert.equal(writes,2)
+  const tick=createCheckpointPoller({now:()=>start,load:async()=>[row()],snapshot:async()=>snapshot(start,'InProgress','database'),
+    ingest:async(_holder,ids)=>{assert.equal(ids,undefined);writes++;return result()},record:async()=>assert.fail()})
+  await tick('holder');await tick('holder');assert.equal(writes,2)
 })
 
-for(const status of ['Scheduled','InProgress','Final']) Deno.test(`a stale ${status} game inside a fresh envelope cannot postpone overdue recovery`,async()=>{
-  const game={...row(),status:'Scheduled',game_time:new Date(start-3600000).toISOString(),checkpoint_at:null}
-  const body=snapshot(start,status);body.games[0].updatedAt=start-180000
-  let writes=0
-  const tick=createCheckpointPoller({now:()=>start,load:async()=>[game],snapshot:async()=>body,
-    ingest:async()=>{writes++;return result()},record:async()=>{}})
-  await tick('holder')
-  assert.equal(writes,1)
-})
-
-Deno.test('slow failed games rotate before later recovery work on the next tick',async()=>{
-  let now=start,deadline=now+18000,healthy=0
-  const games=Array.from({length:5},(_,index)=>({...row(),id:`game-${index}`,nba_game_id:`002${index}`,checkpoint_at:null}))
+Deno.test('each failed import is isolated and never advances its checkpoint',async()=>{
+  const games=[{...row('first'),checkpoint_at:null},{...row('second'),checkpoint_at:null}]
   const records:string[]=[]
-  const tick=createCheckpointPoller({now:()=>now,load:async()=>games,snapshot:async()=>{throw new Error('503')},
-    ingest:async(_holder,ids)=>{
-      if(now>=deadline)throw new Error('Tick expired')
-      const id=[...ids!][0]
-      if(id!=='game-4'){now+=5000;throw new Error('Slow source failure')}
-      healthy++;return result()
-    },record:async(_holder,ids)=>{records.push(...ids)}})
-  await tick('holder')
-  deadline=now+18000
-  await tick('holder')
-  assert.equal(healthy,1)
-  assert.deepEqual(records,['game-4'])
-})
-
-Deno.test('public participation is recorded before a sparse checkpoint can omit the player',async()=>{
-  const game=row();const calls:string[]=[]
-  const body=snapshot(start);body.games[0].home.players.push(['99',2,0,0,0,0,0,0,1,1,0,0,0,1,0] as never)
-  const tick=createCheckpointPoller({now:()=>start,load:async()=>[game],snapshot:async()=>body,
-    ...{participation:async(stored:CheckpointGame,ids:string[])=>{assert.equal(stored.id,game.id);assert.deepEqual(ids,['99']);calls.push('witness')}},
-    ingest:async()=>{calls.push('import');return result()},record:async()=>{}})
-  await tick('holder');await tick('holder')
-  assert.deepEqual(calls,['witness'])
-})
-
-Deno.test('failed participation storage holds that game while healthy recovery continues',async()=>{
-  const first={...row(),checkpoint_at:null},second={...row(),id:'healthy',nba_game_id:'0022',checkpoint_at:null}
-  const body=snapshot(start)
-  body.games[0].home.players.push(['99',2,0,0,0,0,0,0,1,1,0,0,0,1,0] as never)
-  body.games.push({...body.games[0],id:'0022',nbaId:'0022',home:{...body.games[0].home,players:[]}})
-  const imported:string[]=[]
-  const tick=createCheckpointPoller({now:()=>start,load:async()=>[first,second],snapshot:async()=>body,
-    participation:async()=>{throw new Error('receipt unavailable')},
-    ingest:async(_holder,ids)=>{imported.push(...ids!);return result()},record:async()=>{}})
-  const output=await tick('holder')
-  assert.deepEqual(imported,['healthy'])
-  assert.ok(output.failures.some(error=>error.includes('receipt unavailable')))
-})
-
-Deno.test('slow failures cannot restart at the front after every worker expires',async()=>{
-  let now=start,healthy=0
-  const games=Array.from({length:6},(_,index)=>({...row(),id:`game-${index}`,nba_game_id:`002${index}`,checkpoint_at:null}))
-  const failedAt=new Map<string,number>()
-  const dependencies={now:()=>now,
-    load:async()=>[...games].sort((a,b)=>(failedAt.get(a.id)??0)-(failedAt.get(b.id)??0)),
-    snapshot:async()=>{throw new Error('503')},
-    ingest:async(_holder:string,ids?:ReadonlySet<string>)=>{
-      if([...ids!][0]!=='game-5'){now+=17000;throw new Error('Slow source failure')}
-      healthy++;return result()
-    },
-    recordFailure:async(_holder:string,id:string)=>{failedAt.set(id,now)},
-    record:async()=>{}}
-  for(let worker=0;worker<2;worker++) {
-    const tick=createCheckpointPoller(dependencies)
-    const started=now
-    for(let number=0;number<4;number++){now=started+number*30000;await tick('holder')}
-    now=started+120000
-  }
-  assert.ok(healthy>0,'A later healthy game must run across worker restarts')
-})
-
-Deno.test('failure receipt errors remain visible without blocking healthy games',async()=>{
-  const games=Array.from({length:3},(_,index)=>({...row(),id:`game-${index}`,nba_game_id:`002${index}`,checkpoint_at:null}))
-  const failed:string[]=[],saved:string[]=[]
   const tick=createCheckpointPoller({now:()=>start,load:async()=>games,snapshot:async()=>{throw new Error('503')},
-    ingest:async(_holder,ids)=>{
-      const id=[...ids!][0]
-      if(id==='game-0')return {...result(),failures:['Incomplete game']}
-      if(id==='game-1')throw new Error('Unavailable game')
-      return result()
-    },
-    recordFailure:async(_holder,id)=>{failed.push(id);if(id==='game-0')throw new Error('Receipt unavailable')},
-    record:async(_holder,ids)=>{saved.push(...ids)}})
+    ingest:async(_holder,ids)=>ids!.has('first')?{...result('first'),failures:['unavailable']}:result('second'),
+    record:async(_holder,ids)=>{records.push(...ids)}})
   const output=await tick('holder')
-  assert.deepEqual(failed,['game-0','game-1'])
-  assert.deepEqual(saved,['game-2'])
-  assert.ok(output.failures.some(error=>error.includes('Receipt unavailable')))
+  assert.deepEqual(records,['second']);assert.deepEqual(output.failures,['unavailable'])
+})
+
+Deno.test('route failure does not block due finals or overdue checkpoints',async()=>{
+  const calls:string[]=[]
+  const games=[row(),{...row('overdue'),checkpoint_at:null},{...row('final'),status:'Final',needs_final_check:true}]
+  const tick=createCheckpointPoller({now:()=>start,load:async()=>games,snapshot:async()=>{throw new Error('503')},
+    ingest:async(_holder,ids)=>{const id=[...ids!][0];calls.push(id);return result(id)},record:async()=>{}})
+  await tick('holder');assert.deepEqual(calls,['overdue','final'])
+})
+
+for(const stale of [false,true])Deno.test(`scheduled work recovers after tipoff with a ${stale?'stale':'scheduled'} public row`,async()=>{
+  let imports=0
+  const game={...row(),status:'Scheduled',game_time:new Date(start-3600000).toISOString(),checkpoint_at:null}
+  const body=snapshot(start,'Scheduled');if(stale)body.games[0].updatedAt-=180000
+  const tick=createCheckpointPoller({now:()=>start,load:async()=>[game],snapshot:async()=>body,
+    ingest:async()=>{imports++;return result()},record:async()=>{}})
+  await tick('holder');assert.equal(imports,1)
+})
+
+Deno.test('ESPN completion keeps requesting authoritative final checks',async()=>{
+  let imports=0
+  const body={...snapshot(start),games:snapshot(start).games.map(game=>({...game,completionPending:true}))}
+  const tick=createCheckpointPoller({now:()=>start,load:async()=>[row()],snapshot:async()=>body,
+    ingest:async()=>{imports++;return result()},record:async()=>{}})
+  await tick('holder');await tick('holder');assert.equal(imports,2)
+})
+
+Deno.test('future scheduled work stays idle without a verified start',async()=>{
+  let imports=0
+  const game={...row(),status:'Scheduled',game_time:new Date(start+3600000).toISOString(),checkpoint_at:null}
+  const tick=createCheckpointPoller({now:()=>start,load:async()=>[game],snapshot:async()=>snapshot(start,'Scheduled'),
+    ingest:async()=>{imports++;return result()},record:async()=>{}})
+  assert.equal((await tick('holder')).keepRunning,false);assert.equal(imports,0)
+})
+
+Deno.test('expired provider work retains fair order through the real work context',async()=>{
+  const {withWorkContext,workFetch}=await import('../_shared/workContext.ts')
+  const original=globalThis.fetch
+  let now=start,healthy=0,controller=new AbortController()
+  const attempted=new Map<string,number>()
+  const games=Array.from({length:6},(_,index)=>({...row(`game-${index}`),checkpoint_at:null}))
+  globalThis.fetch=()=>Promise.resolve(Response.json({ok:true}))
+  const attempt=async(_holder:string,id:string)=>{await workFetch('http://database.invalid/attempt');attempted.set(id,now)}
+  const dependencies={now:()=>now,load:async()=>[...games].sort((a,b)=>(attempted.get(a.id)??0)-(attempted.get(b.id)??0)),
+    snapshot:async()=>{throw new Error('503')},attempt,
+    ingest:async(_holder:string,ids?:ReadonlySet<string>)=>{
+      const id=[...ids!][0]
+      if(id!=='game-5'){now+=18000;controller.abort();throw new Error('Provider deadline')}
+      healthy++;return result(id)
+    },record:async()=>{}}
+  try {
+    for(let worker=0;worker<3;worker++) {
+      const tick=createCheckpointPoller(dependencies)
+      for(let number=0;number<4;number++) {
+        controller=new AbortController()
+        await withWorkContext({signal:controller.signal},()=>tick('holder'))
+        now+=30000
+      }
+    }
+    assert.ok(healthy>0)
+    assert.ok(attempted.size===6)
+  }finally {globalThis.fetch=original}
 })

@@ -20,5 +20,3 @@ BEGIN
   RETURN results;
 END;
 $$;
-REVOKE ALL ON FUNCTION public.complete_matchup_forecasts(jsonb) FROM PUBLIC,anon,authenticated;
-GRANT EXECUTE ON FUNCTION public.complete_matchup_forecasts(jsonb) TO service_role;

@@ -1,9 +1,9 @@
-CREATE OR REPLACE FUNCTION public.get_live_checkpoint_work(p_now timestamptz DEFAULT now())
+CREATE OR REPLACE FUNCTION public.get_live_checkpoint_work(p_now timestamptz DEFAULT now(),p_include_scheduled boolean DEFAULT false)
 RETURNS TABLE(id uuid,nba_game_id text,game_date date,status text,game_time timestamptz,home_team text,away_team text,
-  checkpoint_at timestamptz,needs_final_check boolean)
+  checkpoint_at timestamptz,checked_at timestamptz,home_score integer,away_score integer,needs_final_check boolean)
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
   WITH candidates AS (
-    SELECT game.*,attempt.checkpoint_at,attempt.recovery_failed_at,
+    SELECT game.*,attempt.checkpoint_at,attempt.checked_at,
       game.status='InProgress' OR game.status='Scheduled' AND (
         COALESCE(game.game_time,game.started_at) BETWEEN p_now-interval '45 minutes' AND p_now+interval '2 minutes'
         OR (COALESCE(game.game_time,game.started_at)<p_now-interval '45 minutes'
@@ -19,6 +19,7 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
       AND game.nba_game_id LIKE '002%' AND private.lineup_game_available(game.status,game.game_status_text)
   )
   SELECT game.id,game.nba_game_id,game.game_date,game.status,game.game_time,game.home_team,game.away_team,
-    game.checkpoint_at,game.status='Final' AND game.stats_due
-  FROM candidates game WHERE game.board_due OR game.stats_due ORDER BY game.recovery_failed_at NULLS FIRST,game.game_date,game.id;
+    game.checkpoint_at,game.checked_at,game.home_score,game.away_score,game.status='Final' AND game.stats_due
+  FROM candidates game WHERE game.board_due OR game.stats_due OR p_include_scheduled AND game.status='Scheduled'
+  ORDER BY game.checked_at NULLS FIRST,game.game_date,game.id;
 $$;

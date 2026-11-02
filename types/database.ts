@@ -6554,7 +6554,6 @@ export type Database = {
           home_score: number
           home_team: string
           id: string
-          live_cache: Json
           nba_game_id: string
           needs_scoreboard: boolean
           needs_stats: boolean
@@ -6566,12 +6565,15 @@ export type Database = {
         }[]
       }
       get_live_checkpoint_work: {
-        Args: { p_now?: string }
+        Args: { p_include_scheduled?: boolean; p_now?: string }
         Returns: {
+          away_score: number
           away_team: string
+          checked_at: string | null
           checkpoint_at: string | null
           game_date: string
           game_time: string | null
+          home_score: number
           home_team: string
           id: string
           nba_game_id: string
@@ -6590,7 +6592,6 @@ export type Database = {
           home_score: number
           home_team: string
           id: string
-          live_cache: Json
           nba_game_id: string
           needs_scoreboard: boolean
           needs_stats: boolean
@@ -7012,25 +7013,12 @@ export type Database = {
         Args: { p_game_ids: string[]; p_holder: string }
         Returns: undefined
       }
-      record_live_game_participants: {
-        Args: {
-          p_game_id: string
-          p_observed_at: string
-          p_player_ids: string[]
-          p_provider_game_id: string
-        }
-        Returns: number
-      }
       record_live_poll_attempts: {
         Args: {
           p_checked_ids?: string[]
           p_holder: string
           p_stats_ids?: string[]
         }
-        Returns: undefined
-      }
-      record_live_recovery_failure: {
-        Args: { p_game_id: string; p_holder: string }
         Returns: undefined
       }
       record_notification_outbox_ticket_atomic: {
@@ -7186,17 +7174,6 @@ export type Database = {
           p_home_score: number
           p_provider_game_id: string
           p_source_updated_at: string
-          p_stats: Json
-          p_status_text: string
-        }
-        Returns: number
-      }
-      save_final_game_unversioned_atomic: {
-        Args: {
-          p_away_score: number
-          p_game_id: string
-          p_home_score: number
-          p_provider_game_id: string
           p_stats: Json
           p_status_text: string
         }

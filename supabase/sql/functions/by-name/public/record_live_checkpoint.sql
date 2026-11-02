@@ -4,6 +4,6 @@ BEGIN
   PERFORM private.lock_live_poll_holder(p_holder);
   INSERT INTO private.live_poll_game_state(game_id,checkpoint_at)
     SELECT id,clock_timestamp() FROM public.nba_games WHERE id=ANY(p_game_ids) ORDER BY id
-    ON CONFLICT(game_id) DO UPDATE SET checkpoint_at=EXCLUDED.checkpoint_at,recovery_failed_at=NULL;
+    ON CONFLICT(game_id) DO UPDATE SET checkpoint_at=EXCLUDED.checkpoint_at;
 END;
 $$;

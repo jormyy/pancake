@@ -3,7 +3,7 @@ SET LOCAL app.supabase_url='http://127.0.0.1:1';
 SET LOCAL app.edge_internal_token='live-checkpoints';
 \ir rules-support.sql
 DO $$
-DECLARE game uuid:=gen_random_uuid(); holder uuid; work record;
+DECLARE game uuid:=gen_random_uuid(); second_game uuid:=gen_random_uuid(); future_game uuid:=gen_random_uuid(); holder uuid; work record;
 BEGIN
   INSERT INTO public.nba_games(id,nba_game_id,season_year,week_number,game_date,home_team,away_team,status,game_time)
     VALUES(game,'002live-checkpoints',9569,1,(now() AT TIME ZONE 'America/New_York')::date,'BOS','NYK','InProgress',now());
@@ -13,6 +13,15 @@ BEGIN
   PERFORM pg_temp.reject_rules(format('SELECT public.record_live_checkpoint(%L,ARRAY[%L]::uuid[])',gen_random_uuid(),game),
     'Live poll lease expired or changed','checkpoint requires the live lease');
   holder:=public.try_live_poll_lease(779001,120);
+  PERFORM public.record_live_poll_attempts(holder,ARRAY[game],ARRAY[]::uuid[]);
+  PERFORM pg_temp.check_rules((SELECT checked_at IS NOT NULL AND checkpoint_at IS NULL FROM private.live_poll_game_state WHERE game_id=game),'attempt order persists without advancing successful checkpoints');
+  INSERT INTO public.nba_games(id,nba_game_id,season_year,week_number,game_date,home_team,away_team,status,game_time)
+    VALUES(second_game,'002live-checkpoints-second',9569,1,(now() AT TIME ZONE 'America/New_York')::date,'CHI','CLE','InProgress',now()),
+      (future_game,'002live-checkpoints-future',9569,1,(now() AT TIME ZONE 'America/New_York')::date,'LAL','LAC','Scheduled',now()+interval '3 hours');
+  PERFORM pg_temp.check_rules((SELECT id=second_game FROM public.get_live_checkpoint_work() WHERE id IN (game,second_game) LIMIT 1),'untouched recovery work precedes an attempted game');
+  PERFORM pg_temp.check_rules(NOT EXISTS(SELECT 1 FROM public.get_live_checkpoint_work() WHERE id=future_game),'normal admission excludes a future scheduled game');
+  PERFORM pg_temp.check_rules(EXISTS(SELECT 1 FROM public.get_live_checkpoint_work(now(),true) WHERE id=future_game),'an active worker can detect an early public start');
+  PERFORM pg_temp.check_rules((SELECT count(*)=1 AND bool_and(id=game) FROM public.get_live_checkpoint_inputs(ARRAY[game])),'selected imports stay selected after preattempt stamping');
   PERFORM public.record_live_checkpoint(holder,ARRAY[game]);
   PERFORM pg_temp.check_rules((SELECT checkpoint_at IS NOT NULL FROM public.get_live_checkpoint_work() WHERE id=game),'successful save records checkpoint');
   UPDATE public.nba_games SET status='Final',stats_synced_at=now() WHERE id=game;
@@ -20,7 +29,7 @@ BEGIN
   UPDATE public.nba_games SET stats_synced_at=now()-interval '31 minutes' WHERE id=game;
   PERFORM pg_temp.check_rules((SELECT needs_final_check FROM public.get_live_checkpoint_work() WHERE id=game),'existing final correction cadence stays active');
   PERFORM pg_temp.check_rules(NOT has_function_privilege('authenticated','public.record_live_checkpoint(uuid,uuid[])','EXECUTE'),'clients cannot advance checkpoints');
-  PERFORM pg_temp.check_rules(NOT has_function_privilege('authenticated','public.get_live_checkpoint_work(timestamptz)','EXECUTE'),'clients cannot read worker state');
+  PERFORM pg_temp.check_rules(NOT has_function_privilege('authenticated','public.get_live_checkpoint_work(timestamptz,boolean)','EXECUTE'),'clients cannot read worker state');
 END;
 $$;
 SELECT count(*) AS passed_checks FROM rules_checks;

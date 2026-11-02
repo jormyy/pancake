@@ -31,5 +31,3 @@ BEGIN
   );
 END;
 $$;
-REVOKE ALL ON FUNCTION public.get_compact_matchup_forecast_context(uuid) FROM PUBLIC,anon,authenticated;
-GRANT EXECUTE ON FUNCTION public.get_compact_matchup_forecast_context(uuid) TO service_role;

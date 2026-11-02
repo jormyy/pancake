@@ -15,9 +15,7 @@ import { renewLivePollLease } from './lease.ts'
 import { withWorkContext, withLiveScoreRetries, withPublicCheckpoint } from '../_shared/workContext.ts'
 import { retryDatabaseContention } from '../_shared/databaseRetry.ts'
 import type { Database } from '../_shared/database.ts'
-import type { LiveGameCache } from '../_shared/liveFeed.ts'
 import { createCheckpointPoller } from './checkpoint.ts'
-import { discoverPublicGames } from './discovery.ts'
 import type { LiveTick } from './checkpoint.ts'
 import { fetchLiveSnapshot } from '../_shared/liveSnapshot.ts'
 
@@ -25,7 +23,7 @@ const LIVE_TICK_MS = 30_000
 const LIVE_TICK_BUDGET_MS = 18_000
 const LIVE_RUN_MS = 110_000
 
-type LiveGame = Omit<Database['public']['Functions']['get_live_poll_work']['Returns'][number], 'live_cache'> & { live_cache?: LiveGameCache }
+type LiveGame = Database['public']['Functions']['get_live_poll_work']['Returns'][number]
 
 async function loadWork(gameIds?: ReadonlySet<string>): Promise<LiveGame[]> {
   const request = gameIds
@@ -33,7 +31,7 @@ async function loadWork(gameIds?: ReadonlySet<string>): Promise<LiveGame[]> {
     : supabase.rpc('get_live_poll_work')
   const { data, error } = await request.abortSignal(AbortSignal.timeout(5000))
   if (error) throw error
-  return (data ?? []).map(game => ({ ...game, live_cache: (game.live_cache as LiveGameCache | null) ?? undefined }))
+  return data ?? []
 }
 
 async function stampAttempts(holder: string, checkedIds: string[], statIds: string[]): Promise<void> {
@@ -96,8 +94,8 @@ export async function ingestTick(holder: string, onRetry?: () => void, gameIds?:
   const failures: unknown[] = []
   const nbaFinalWork = work.filter(game => game.status !== 'Final' && nbaScoreboard.some(board => board.gameId === game.nba_game_id && board.gameStatus === 3))
   if (boardGames.length) {
-    const fallbackBoards = nbaScoreboard.filter(game => game.gameStatus !== 2 ||
-      !work.some(stored => stored.nba_game_id === game.gameId && hasEspnLiveGame(stored, events)))
+    const fallbackBoards = nbaScoreboard.filter(game => (!gameIds || work.some(stored => stored.nba_game_id === game.gameId)) && (game.gameStatus !== 2 ||
+      !work.some(stored => stored.nba_game_id === game.gameId && hasEspnLiveGame(stored, events))))
     const boardFailures = await retry(() => saveScoreboardGames(fallbackBoards, work, gameIds), rows => rows.map(row=>row.error))
     for (const failure of boardFailures) {
       console.error('[live-poll] scoreboard game failed:', failure.gameId, errorMessage(failure.error))
@@ -106,7 +104,7 @@ export async function ingestTick(holder: string, onRetry?: () => void, gameIds?:
     work = select(await retry(() => loadWork(gameIds)))
   }
   for (const game of nbaFinalWork) if (!work.some(row => row.id === game.id)) work.push(game)
-  work = await retry(() => discoverEspnGames(work, events))
+  if (!gameIds) work = await retry(() => discoverEspnGames(work, events))
   const statsGames = work.filter(game => game.needs_stats || hasEspnLiveGame(game, events) || nbaFinalWork.some(row => row.id === game.id))
   await retry(() => stampAttempts(holder, [], statsGames.filter(game => game.status === 'Final').map(game => game.id)))
   let lines = 0
@@ -167,24 +165,21 @@ export async function runLivePoll(request: Request): Promise<Response> {
       const sharedUrl = Deno.env.get('LIVE_SNAPSHOT_BASE_URL')
       const checkpointTick = sharedUrl ? createCheckpointPoller({
         load: () => checkpointRetry(async () => {
-          const { data, error } = await supabase.rpc('get_live_checkpoint_work').abortSignal(AbortSignal.timeout(5000))
+          const { data, error } = await supabase.rpc('get_live_checkpoint_work',{p_include_scheduled:true}).abortSignal(AbortSignal.timeout(5000))
           if (error) throw error
           return data ?? []
         }),
-        discover: discoverPublicGames,
-        participation: (game,playerIds,observedAt) => checkpointRetry(async()=>{
-          const {error}=await supabase.rpc('record_live_game_participants',{
-            p_game_id:game.id,p_provider_game_id:game.nba_game_id!,p_player_ids:playerIds,p_observed_at:new Date(observedAt).toISOString(),
+        attempt: (holder,gameId) => checkpointRetry(() => stampAttempts(holder,[gameId],[])),
+        start: async game => {
+          const {error}=await supabase.rpc('save_live_scoreboard_atomic',{
+            p_game_id:game.id,p_provider_game_id:game.nba_game_id!,p_status:'InProgress',
+            p_home_score:game.home_score ?? 0,p_away_score:game.away_score ?? 0,
+            p_status_text:'Live game discovered',p_elapsed_seconds:0,
           }).abortSignal(AbortSignal.timeout(5000))
-          if (error) throw error
-        }),
+          if(error)throw error
+        },
         snapshot: async date => (await fetchLiveSnapshot(new URL(`/api/live/${date}`, sharedUrl).href, AbortSignal.timeout(5000))).body,
         ingest: (holder, gameIds, checkpointOnly) => withPublicCheckpoint(Boolean(checkpointOnly), () => ingestTick(holder, () => { tickRetries++ },gameIds)),
-        recordFailure: (holder,gameId) => checkpointRetry(async()=>{
-          const {error}=await supabase.rpc('record_live_recovery_failure',{p_holder:holder,p_game_id:gameId})
-            .abortSignal(AbortSignal.timeout(5000))
-          if(error)throw error
-        }),
         record: (holder, gameIds) => checkpointRetry(async () => {
           const { error } = await supabase.rpc('record_live_checkpoint',{p_holder:holder,p_game_ids:gameIds}).abortSignal(AbortSignal.timeout(5000))
           if (error) throw error

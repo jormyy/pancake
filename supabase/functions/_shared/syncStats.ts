@@ -1,5 +1,4 @@
-import { changedLiveStats, liveSnapshotKey, saveLiveFeedSnapshot } from './liveFeed.ts'
-import type { LiveFeedSnapshot, LiveGameCache } from './liveFeed.ts'
+import { saveLiveFeedSnapshot } from './liveFeed.ts'
 import type { NBABoxScore } from './nba.ts'
 import { gameElapsedSeconds } from './gameProgress.ts'
 import { assertGameUnambiguous } from './gameIdentity.ts'
@@ -16,7 +15,7 @@ import type { CdnGamePlayer } from './cdnGameFetch.ts'
 export type StatsSyncGame = Pick<
   Database['public']['Tables']['nba_games']['Row'],
   'id' | 'nba_game_id' | 'week_number' | 'season_year' | 'status'
-> & Partial<Pick<Database['public']['Tables']['nba_games']['Row'], 'home_score' | 'away_score' | 'game_status_text'>> & { live_cache?: LiveGameCache }
+> & Partial<Pick<Database['public']['Tables']['nba_games']['Row'], 'home_score' | 'away_score' | 'game_status_text'>>
 
 const FINAL_STATS_RECHECK_MS = 30 * 60 * 1000
 const FINAL_NUMERIC_STATS = [
@@ -136,48 +135,26 @@ async function syncGameBoxScore(
   if (skipScheduled && boxScore.gameStatus === 1) return 0
 
   return await persist(() => retrySourceContention(async () => {
-    const cachedIds = boxScore.gameStatus === 3 ? undefined : cachedBoxPlayerIds(boxScore, game.live_cache)
-    if (!cachedIds) await assertGameUnambiguous(game.id)
+    await assertGameUnambiguous(game.id)
     validateBoxScorePlayers(boxScore, providerGameId)
-    const playerIds = boxScore.liveSource === 'espn' ? boxScore.livePlayerIds
-      : cachedIds ?? await recordBoxSides(boxScore, providerGameId)
+    const playerIds = boxScore.liveSource === 'espn' ? boxScore.livePlayerIds : await recordBoxSides(boxScore, providerGameId)
     const resolved = await resolveBoxScorePlayers(boxScore, providerGameId, playerIds)
     const stats = resolved.map(({ player, playerId }) =>
       buildStatRow(player, playerId, game.id, game.season_year, game.week_number))
-      .sort((left, right) => left.player_id.localeCompare(right.player_id))
-    let changed: number
-    let submitted = stats.length
-    if (boxScore.gameStatus === 3) {
-      changed = await saveFinalGameStats(game, providerGameId, stats, boxScore)
-    } else if (boxScore.liveSourceUpdatedAt ?? boxScore.sourceUpdatedAt) {
-      const snapshot: LiveFeedSnapshot = {
-        source: boxScore.liveSource ?? 'nba', source_updated_at: (boxScore.liveSourceUpdatedAt ?? boxScore.sourceUpdatedAt)!,
-        elapsed_seconds: gameElapsedSeconds(boxScore), stats,
-        nba_witness_player_ids: [...(boxScore.nbaWitnessPlayerIds ?? [])].sort(),
-        ...(isTeamScore(boxScore.homeTeam.score) && isTeamScore(boxScore.awayTeam.score) ? {
-          status: 'InProgress', home_score: boxScore.homeTeam.score, away_score: boxScore.awayTeam.score,
-          status_text: boxScore.gameStatusText ?? '',
-        } : {}),
-      }
-      if (liveSnapshotKey(snapshot) === liveSnapshotKey(game.live_cache?.snapshot)) return 0
-      const delta = changedLiveStats(snapshot, game.live_cache?.snapshot)
-      submitted = delta.length
-      changed = await saveLiveFeedSnapshot(game.id, providerGameId, { ...snapshot, stats: delta, full_stats: stats })
-    } else {
-      changed = await saveGameStats(game.id, providerGameId, stats, false, gameElapsedSeconds(boxScore))
-    }
+    const changed = boxScore.gameStatus === 3
+      ? await saveFinalGameStats(game, providerGameId, stats, boxScore)
+      : (boxScore.liveSourceUpdatedAt ?? boxScore.sourceUpdatedAt)
+        ? await saveLiveFeedSnapshot(game.id, providerGameId, {
+          source: boxScore.liveSource ?? 'nba', source_updated_at: (boxScore.liveSourceUpdatedAt ?? boxScore.sourceUpdatedAt)!,
+          elapsed_seconds: gameElapsedSeconds(boxScore), stats, nba_witness_player_ids: boxScore.nbaWitnessPlayerIds ?? [],
+          ...(isTeamScore(boxScore.homeTeam.score) && isTeamScore(boxScore.awayTeam.score) ? {
+            status: 'InProgress', home_score: boxScore.homeTeam.score, away_score: boxScore.awayTeam.score, status_text: boxScore.gameStatusText ?? '',
+          } : {}),
+        })
+        : await saveGameStats(game.id, providerGameId, stats, false, gameElapsedSeconds(boxScore))
     if (changed > 0) console.log(`[sync-stats] Game ${providerGameId}: ${changed}/${stats.length} stat line(s) changed.`)
-    return submitted
+    return stats.length
   }))
-}
-
-function cachedBoxPlayerIds(box: NBABoxScore, cache?: LiveGameCache): string[] | undefined {
-  if (box.liveSource === 'espn') return box.livePlayerIds
-  if (!cache?.players) return undefined
-  const known = new Map(cache.players.map(row => [`${row.provider_id}:${row.nba_team}`, row.player_id]))
-  const ids = [box.homeTeam, box.awayTeam].flatMap(team => (team.players ?? []).map(player =>
-    [196295686, 1641794].includes(player.personId) ? undefined : known.get(`${player.personId}:${team.teamTricode}`)))
-  return ids.length > 0 && ids.every((id): id is string => !!id) && new Set(ids).size === ids.length ? ids : undefined
 }
 
 async function retrySourceContention<T>(run: () => Promise<T>): Promise<T> {
@@ -194,8 +171,8 @@ async function retrySourceContention<T>(run: () => Promise<T>): Promise<T> {
 
 type BoxScorePlayers = {
   gameStatus?: number
-  homeTeam?: { score?: unknown; players?: NBABoxScorePlayer[]; statistics?: Partial<NBABoxScorePlayer['statistics']> }
-  awayTeam?: { score?: unknown; players?: NBABoxScorePlayer[]; statistics?: Partial<NBABoxScorePlayer['statistics']> }
+  homeTeam?: { players?: NBABoxScorePlayer[] }
+  awayTeam?: { players?: NBABoxScorePlayer[] }
 }
 
 // A box lists each player under his side. His game membership keeps it, so when this game is the stored
@@ -232,6 +209,20 @@ type FinalBoxScore = BoxScorePlayers & {
 
 const isTeamScore = (score: unknown): score is number => Number.isSafeInteger(score) && (score as number) >= 0
 
+export async function saveFinalScore(game: Pick<StatsSyncGame, 'id' | 'status' | 'home_score' | 'away_score' | 'game_status_text'>, providerGameId: string, boxScore: FinalBoxScore): Promise<void> {
+  const home = boxScore.homeTeam?.score
+  const away = boxScore.awayTeam?.score
+  if (!isTeamScore(home) || !isTeamScore(away)) return
+  if (game.status === 'Final' && game.home_score === home && game.away_score === away &&
+      /^final/i.test(game.game_status_text ?? '')) return
+  const text = typeof boxScore.gameStatusText === 'string' && boxScore.gameStatusText.trim() ? boxScore.gameStatusText : 'Final'
+  const { error } = await supabase.rpc('save_live_scoreboard_atomic', {
+    p_game_id: game.id, p_provider_game_id: providerGameId, p_status: 'Final',
+    p_home_score: home, p_away_score: away, p_status_text: text, p_elapsed_seconds: 0,
+  })
+  if (error) throw error
+}
+
 export async function saveFinalGameStats(
   game: Pick<StatsSyncGame, 'id' | 'status' | 'home_score' | 'away_score' | 'game_status_text'>,
   providerGameId: string,
@@ -240,8 +231,7 @@ export async function saveFinalGameStats(
 ): Promise<number> {
   const home = boxScore.homeTeam?.score
   const away = boxScore.awayTeam?.score
-  if (!isTeamScore(home) || !isTeamScore(away)) throw new Error('A complete final team score is required')
-  if (boxScore.sourceUpdatedAt) {
+  if (boxScore.sourceUpdatedAt && isTeamScore(home) && isTeamScore(away)) {
     const { data, error } = await supabase.rpc('save_final_game_snapshot_atomic', {
       p_game_id: game.id, p_provider_game_id: providerGameId, p_stats: stats,
       p_source_updated_at: boxScore.sourceUpdatedAt, p_home_score: home, p_away_score: away,
@@ -250,12 +240,8 @@ export async function saveFinalGameStats(
     if (error) throw error
     return data
   }
-  const {data,error}=await supabase.rpc('save_final_game_unversioned_atomic',{
-    p_game_id:game.id,p_provider_game_id:providerGameId,p_stats:stats,p_home_score:home,p_away_score:away,
-    p_status_text:typeof boxScore.gameStatusText==='string' && boxScore.gameStatusText.trim()?boxScore.gameStatusText:'Final',
-  })
-  if(error)throw error
-  return data
+  await saveFinalScore(game, providerGameId, boxScore)
+  return await saveGameStats(game.id, providerGameId, stats, true)
 }
 
 export function validateBoxScorePlayers(boxScore: BoxScorePlayers, providerGameId: string): NBABoxScorePlayer[] {
@@ -271,23 +257,6 @@ export function validateBoxScorePlayers(boxScore: BoxScorePlayers, providerGameI
     !player.statistics || typeof player.statistics.minutes !== 'string' ||
     FINAL_NUMERIC_STATS.some((key) => !Number.isFinite(player.statistics[key])))) {
     throw new Error(`Final box score has incomplete statistics for ${providerGameId}`)
-  }
-  if (boxScore.gameStatus === 3) {
-    for (const team of [boxScore.homeTeam,boxScore.awayTeam]) {
-      if (!isTeamScore(team?.score) || team?.players?.reduce((sum,player)=>sum+player.statistics.points,0)!==team.score)
-        throw new Error(`Final player points do not match the team score for ${providerGameId}`)
-      for (const player of team.players ?? []) {
-        const minutes=parseNBAMinutes(player.statistics.minutes)
-        if (minutes==null || !Number.isFinite(minutes)) throw new Error(`Final player minutes are incomplete for ${providerGameId}`)
-        if ((player.played==='0' || player.played===0) && (minutes!==0 || FINAL_NUMERIC_STATS.some(key=>player.statistics[key]!==0)))
-          throw new Error(`Final DNP participation contradicts player statistics for ${providerGameId}`)
-      }
-      for (const key of ['assists','blocks','steals','fieldGoalsMade','fieldGoalsAttempted','threePointersMade','threePointersAttempted','freeThrowsMade','freeThrowsAttempted'] as const) {
-        const total=team.statistics?.[key]
-        if (total!=null && (!Number.isFinite(total) || team.players?.reduce((sum,player)=>sum+player.statistics[key],0)!==total))
-          throw new Error(`Final player ${key} do not match the team total for ${providerGameId}`)
-      }
-    }
   }
   return allPlayers
 }

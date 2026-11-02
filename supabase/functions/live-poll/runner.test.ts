@@ -131,7 +131,7 @@ Deno.test('a final stat write retries its captured game after the attempt stamp'
     assert.equal(result.keepRunning, false)
     assert.equal(calls.filter(name => name === 'record_live_poll_attempts').length, 1)
     assert.equal(calls.filter(name => name === 'get_live_poll_work').length, 1)
-    assert.equal(calls.filter(name => name === 'save_final_game_unversioned_atomic').length, 2)
+    assert.equal(calls.filter(name => name === 'save_game_stats_atomic').length, 2)
   }, (name, count) => {
     if (name === 'get_live_poll_work') return Response.json([{
       id: holder, nba_game_id: '0022600001', status: 'Final', needs_scoreboard: false, needs_stats: true, home_score:10,away_score:10,game_status_text:'Final',
@@ -152,7 +152,7 @@ Deno.test('a final stat write retries its captured game after the attempt stamp'
     }
     if (name === 'resolve_player_imports_atomic') return Response.json({ stale_draft_numbers_cleared: 0,
       results: [1, 2].map((id, index) => ({ index, player_id: 'player-' + id, action: 'updated' })) })
-    assert.equal(name, 'save_final_game_unversioned_atomic')
+    assert.equal(name, 'save_game_stats_atomic')
     return count === 1 ? Response.json(lockTimeout, { status: 500 }) : Response.json(2)
   })
 })
@@ -218,4 +218,35 @@ Deno.test('an unrelated malformed scoreboard still permits selected box recovery
     if(name==='boxscore_0022600001.json')return Response.json({},{status:403})
     assert.equal(name,'league_seasons');return Response.json([])
   })
+})
+
+Deno.test('a selected official import never expands to an unrelated ESPN game',async()=>{
+  const original=globalThis.fetch
+  const board=JSON.parse(await Deno.readTextFile('tests/fixtures/live-espn/2026-10-30T01-00-49.445Z-scoreboard.json')).payload
+  board.events=board.events.filter((event:{id:string})=>event.id==='401909893')
+  const selected={id:holder,nba_game_id:'0022600001',status:'InProgress',needs_scoreboard:true,needs_stats:true,
+    game_date:'2026-10-29',season_year:2027,week_number:2,home_team:'BOS',away_team:'NYK'}
+  let unrelated=0
+  globalThis.fetch=async(input,init)=>{
+    const request=new Request(input,init);const url=new URL(request.url);const name=url.pathname.split('/').at(-1)!
+    if(url.hostname==='espn.invalid')return url.pathname.endsWith('scoreboard')?Response.json(board):Response.json({},{status:503})
+    if(name==='todaysScoreboard_00.json')return Response.json({scoreboard:{games:[]}})
+    if(name==='boxscore_0022600144.json'){unrelated++;return Response.json({},{status:403})}
+    if(name==='boxscore_0022600001.json') {
+      const statistics=Object.fromEntries(['assists','blocks','fieldGoalsAttempted','fieldGoalsMade','foulsPersonal','freeThrowsAttempted','freeThrowsMade','plusMinusPoints','points','reboundsDefensive','reboundsOffensive','reboundsTotal','steals','threePointersAttempted','threePointersMade','turnovers'].map(key=>[key,0]))
+      const side=(personId:number,teamTricode:string)=>({teamTricode,score:0,players:[{personId,name:'Fixture',played:0,statistics:{...statistics,minutes:'PT0M00S'}}]})
+      return Response.json({meta:{time:'2026-10-30T01:00:00Z'},game:{gameId:selected.nba_game_id,gameStatus:3,homeTeam:side(1,'BOS'),awayTeam:side(2,'NYK')}})
+    }
+    if(name==='get_live_checkpoint_inputs')return Response.json([selected])
+    if(name==='nba_games')return Response.json([{...selected,id:'unrelated',nba_game_id:'0022600144',status:'Scheduled',home_team:'ATL',away_team:'CLE'}])
+    if(name==='resolve_player_imports_atomic')return Response.json({stale_draft_numbers_cleared:0,results:[1,2].map((value,index)=>({index,player_id:`player-${value}`,action:'updated'}))})
+    if(name==='league_seasons')return Response.json([])
+    return Response.json(name==='save_final_game_snapshot_atomic'?2:null)
+  }
+  try {
+    const result=await ingestTick(holder,undefined,new Set([holder]))
+    assert.equal(unrelated,0)
+    assert.deepEqual(result.importedGameIds,[holder])
+    assert.deepEqual(result.failures,[])
+  }finally {globalThis.fetch=original}
 })

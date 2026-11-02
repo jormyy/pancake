@@ -37,7 +37,7 @@ const nullableRpcArguments = new Map([
     'p_free_roster_player_id',
     'p_slot_type',
   ])],
-  ['get_live_checkpoint_work.Returns', new Set(['checkpoint_at', 'game_time'])],
+  ['get_live_checkpoint_work.Returns', new Set(['checkpoint_at', 'checked_at', 'game_time'])],
 ])
 
 /** @typedef {{ start: number, end: number, text: string }} TextReplacement */
