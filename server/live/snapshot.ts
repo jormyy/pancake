@@ -17,7 +17,7 @@ function boardDate(game: NBAGame, now: number) {
   return date ? `${date[1]}-${date[2]}-${date[3]}` : etDate(now)
 }
 
-function compactPlayer(player: NBABoxScorePlayer, id = String(player.personId)): LiveLine {
+function compactPlayer(player: NBABoxScorePlayer, id = String(player.personId === 196295686 ? 1641794 : player.personId)): LiveLine {
   if (!/^\d+$/.test(id)) throw new Error('Invalid provider player identity')
   const s = player.statistics
   const minutes = parseNBAMinutes(s.minutes)

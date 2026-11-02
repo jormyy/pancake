@@ -268,3 +268,10 @@ it('does not publish empty progress that can outrank a recovered final',async()=
   expect(response.status).toBe(200)
   expect((await response.json()).games[0]).toMatchObject({status:'Final',updatedAt:now-10000})
 })
+
+it('uses the reviewed canonical NBA identity for the known provider alias',async()=>{
+  const aliased=structuredClone(box)
+  aliased.homeTeam.players[0].personId=196295686
+  const result=await sourceSelection(structuredClone(event),now,aliased)
+  expect(result.body.games[0].home.players[0][0]).toBe('1641794')
+})
