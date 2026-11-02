@@ -27,6 +27,7 @@ The shared formula overlays live lines onto the authorized saved lineup and offi
 Past games and official finals use saved results.
 Old or missing snapshots display saved scores with a stale state.
 Postgres imports transitions, finals, corrections, and 30-minute checkpoints.
+It also retains first-observed NBA participation until a complete official final replaces that evidence.
 Normal checkpoint versions do not send live-only broadcasts.
 See [live scores](live-scores.md) for rollback, cache rules, settings, and lab measurements.
 

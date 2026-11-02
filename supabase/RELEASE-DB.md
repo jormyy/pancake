@@ -1,10 +1,11 @@
-# Trade input database contract
+# Database releases
 
 ## Release 2.15: shared live scores
 
 The supplied production head is `20261214006200` at `e5f16211` (release 2.14.7).
-Release 2.15 adds 26 migrations; the candidate contains 770 migrations through `20261214008800`.
+Release 2.15 adds 30 migrations; the candidate contains 774 migrations through `20261214009200`.
 This is a minor feature release, with application version `2.15.0`.
+Executable candidate: `53d4ce6418e14ca38b1e0ca6fae47110a3300024`. Subsequent documentation commits preserve this executable source.
 
 | Migration | Change |
 | --- | --- |
@@ -34,11 +35,17 @@ This is a minor feature release, with application version `2.15.0`.
 | `20261214008600_use_home_change_clock.sql` | Stamp Home reads with their league broadcast counter. |
 | `20261214008700_omit_terminal_forecast_inputs.sql` | Keep terminal forecasts free of unused player inputs. |
 | `20261214008800_read_score_updates_without_lineups.sql` | Read official score changes without unchanged lineup payloads. |
+| `20261214008900_refresh_decimal_scoring.sql` | Recalculate active custom scores with exact decimal arithmetic. |
+| `20261214009000_retry_live_gated_nightly_work.sql` | Retry temporary live-game gates during the same nightly window. |
+| `20261214009100_protect_complete_final_stats.sql` | Retain NBA participation and reject incomplete official finals. |
+| `20261214009200_atomic_unversioned_final_stats.sql` | Keep finals atomic when provider revision metadata is absent. |
 
 Old loaded clients keep receiving direct league and membership events. Other data events share compact batches and supported version hints.
 Apply the pending migrations before the matching Edge functions.
 Keep workers in database mode until the merged public route answers correctly.
 The selected hosted settings are 32 MB shared buffers and PostgREST pool two; verify both after applying them.
+Use logged-in `supabase db query --linked`, `supabase db push --linked`, and `supabase postgres-config` for database release steps.
+The CLI cannot configure the hosted PostgREST pool. Michael must set and confirm it through the dashboard before merge.
 If either is refused, stop before the frontend merge and validate the supported settings separately.
 The function catalog, database types, and both release attestations regenerate from a fresh private database.
 The audited baseline and historical security phases remain unchanged.
@@ -247,9 +254,9 @@ The [trade curve report](../docs/trade-curve.md) records the real trades, roster
 
 The supplied production head is `20261214006200`, from the recorded 2.14.7 release.
 This lab does not verify hosted state.
-The local candidate ends at `20261214008800`.
+The local candidate ends at `20261214009200`.
 Database, then Edge, then merge the frontend.
-Apply pending migrations through `20261214008800` only during the separately authorized release.
+Apply pending migrations through `20261214009200` only during the separately authorized release.
 Regenerate the catalog, types, and both attestations from a fresh private database before the final release checks.
 
 Deploy compatible database and Edge code before enabling public snapshots.

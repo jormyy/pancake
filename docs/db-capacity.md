@@ -30,6 +30,7 @@ No current production growth rate is measured.
 | Failed sync history | 30 days, plus newest outcome | Same cleanup |
 | Private `l1:` broadcasts | 1 day | 4,096 rows per hourly cleanup |
 | Scheduler transitions | 7 days | 512 rows per hourly cleanup |
+| Live NBA participation receipts | Until official final; deleted with the game | First observation per game and player; retries add no rows |
 | Official game statistics and results | No automatic expiry | Product history remains durable |
 
 Cleanup preserves active work, required failure evidence, and protected newest outcomes.

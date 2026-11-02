@@ -28,6 +28,7 @@ Roster moves, lineups and locks, trades, waivers, drafts, login, and their notif
 Direct trade estimates remain immediate; scheduled re-analysis does not block creating an offer.
 Nightly gates use the shared availability rule for today and yesterday in Eastern time.
 Cancelled games and stale live rows outside those slates do not block nightly work.
+A temporary live-game gate retries each minute during 04:00–06:00 Eastern, then waits for the next nightly window.
 Public workers discover status changes outside selected imports.
 A failed game leaves its checkpoint due while healthy imports continue.
 Due official work can use validated direct ingestion when the shared snapshot fails.

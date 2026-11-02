@@ -25,6 +25,7 @@ Visible live screens poll every 30 seconds while a game is live.
 Hidden screens stop polling.
 The client adds shared-formula live deltas to its authorized saved score and lineup basis.
 The same calculation serves Home and other-team matchups.
+The shared scorer uses exact decimal products and the same cent rounding as SQL.
 Completed official games use saved results, without a public delta.
 Past days remain available from saved views; the public route is not a history service.
 A snapshot over two minutes old, or unavailable, shows saved scores with a stale state.
@@ -38,6 +39,10 @@ Postgres receives status transitions, final statistics, corrections, and recover
 Public workers discover starts across the full snapshot, including games outside their selected work.
 A start receipt locks the lineup before the stored scheduled time when a game starts early.
 Each game imports independently. Only successful imports advance that game's checkpoint.
+New NBA participation observations are retained before checkpoints, then removed after complete official stats replace them.
+Final player points must equal team points; malformed DNP rows and missing witnessed players keep the final pending.
+Every final score and stat update commits atomically, including feeds without revision metadata.
+Slow failed recoveries rotate behind later games on the next tick.
 A missing, stale, or contradictory shared snapshot cannot block due direct-provider recovery.
 ESPN completion triggers repeated authoritative checks; only the existing NBA rules certify official finals.
 Final-score corrections remain eligible for forecast refresh within the existing seven-day queue retention.
@@ -50,6 +55,7 @@ Pure score and game changes fetch their scores, stats, and game state without un
 A missed version, mixed change, or mismatched response requires a full authorized screen read.
 Home reads use the league broadcast counter. Old Home content remains available offline; its obsolete counter resets before the next online read.
 Nightly gates ignore unavailable games and live rows outside today or yesterday in Eastern time.
+A temporary live-game gate retries within the remaining 04:00–06:00 nightly window.
 A normal checkpoint preserves version history but sends no live-only broadcast.
 Tipoffs, finals, corrections, roster changes, and lineup changes retain their relevant broadcasts.
 Home ignores changes outside its displayed teams, dates, and score inputs.
@@ -106,13 +112,14 @@ Local Supabase configuration does not set hosted services.
 | Control | Hosted procedure | Verification |
 | --- | --- | --- |
 | `shared_buffers=32MB` | `supabase postgres-config update --project-ref <project-ref> --config shared_buffers=32MB --experimental` | Read `pg_settings.setting`, units, and `pending_restart`; restart is required |
-| PostgREST pool 2 | Management API `PATCH /v1/projects/{ref}/postgrest` with `{"db_pool":2}` | Read the service configuration and observe connections; this is separate from Supavisor |
+| PostgREST pool 2 | Michael sets the Data API pool in the hosted dashboard | Record its configured value; this is separate from Supavisor |
 
 The [Postgres guide](https://supabase.com/docs/guides/database/custom-postgres-config) requires organization Owner or Administrator access.
 The [PostgREST endpoint](https://supabase.com/docs/reference/api/v1-update-postgrest-service-config) requires `rest:write` or `data_api_config_write`.
 Neither document lists a Free-plan exclusion for these controls.
 Actual hosted acceptance and read-back remain unverified.
-Keep the previous values for rollback; CLI updates replace configured defaults.
+The installed CLI cannot configure that service pool. PostgREST does not support `db-pool` through SQL settings.
+Preserve prior values for rollback. The CLI merges overrides unless replacement is requested.
 No hosted setting changes occur during local measurement.
 
 The connection trace finds three short Auth database sessions per authorized Home read.
@@ -222,3 +229,10 @@ The 51.0% stress result is accepted as a release risk; hosted billing still need
 The production-sized synthetic fixture stays unchanged and official history does not expire.
 See [capacity and retention](db-capacity.md) for growth limits.
 The [replay lab](../scripts/bench/game-night/README.md) retains the executable gates and reporting workflow.
+
+## Follow-ups
+
+Two pre-existing cases remain outside this release gate.
+Forecast inputs can omit an unfinished prior-day game after Eastern midnight.
+An unexpectedly early first game remains undiscovered while no live worker is running.
+Public start receipts fix active-worker discovery; they do not start a worker before its admission window.
