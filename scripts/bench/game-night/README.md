@@ -44,6 +44,9 @@ With quality and phone options, it also exercises failing action, broadcast, fre
 `verify-settings.mjs` runs selected SQL schedule checks on its own stack.
 Action comparisons require frozen paired-reference limits through `--limits`.
 The source, fixture, harness, settings, and grader hashes identify each report.
+Quality grader v9 accepts independently timed, valid team scores during official handoff.
+It retains the old simultaneous-state comparison as a diagnostic and records all phone renders.
+Final scores, each official handoff, numerical validity, and the 45-second freshness limit remain mandatory.
 
 ## Cleanup and tests
 

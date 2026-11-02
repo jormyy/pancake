@@ -203,7 +203,10 @@ export async function runWindow(stack, slate, { label, memoryMiB, seconds = slat
     await phones?.refresh()
     const phoneResults = phones ? phoneGrade({ slate,started,ended,renders:phones.renders,phones:phones.snapshot(),requests:phones.requests,reads:phones.reads,messages:phones.messages,refreshes:phones.refreshes,
       frames:phones.frames,finalGameChecks,architecture:Boolean(stack.liveArchitecture) }) : null
-    if(phones)await json(path.join(stack.evidence,`${label}-phone-frames.json`),phones.frames)
+    if(phones) {
+      await json(path.join(stack.evidence,`${label}-phone-frames.json`),phones.frames)
+      await json(path.join(stack.evidence,`${label}-phone-renders.json`),phones.renders)
+    }
     const actionResults = actions ? await actions.done : null
     const minutes = (ended - started) / 60000
     const statements = statementDeltas(before.statements, after.statements)
@@ -231,7 +234,7 @@ export async function runWindow(stack, slate, { label, memoryMiB, seconds = slat
     const sessionsPerMinute=(Number(after.database.sessions)-Number(before.database.sessions))/minutes
     const backendIds=application=>[...new Set(processSamples.flatMap(sample=>sample.processes.filter(row=>application(row.application_name)).map(row=>row.pid)))]
     const failures = { cron: qualityState.cron.filter(row => row.status === 'failed'), jobs: qualityState.work.filter(row => ['failed','dead'].includes(row.status)), workers: qualityState.invocations.filter(row => row.worker_status === 'failed') }
-    const report = { version: 1, grader: { version: stack.liveArchitecture ? 'game-night-v8' : graderVersion,resourceVersion:resources.version, sha256: digest(JSON.stringify([harness['measure.mjs'],harness['checkpoint-grade.mjs'],harness['phone-grade.mjs'],harness['resource-grade.mjs']])) }, resources,harnessSha256: digest(JSON.stringify(harness)), label, slate: slate.name, fixtureSha256: harness[`${slate.name}.json`], source: stack.metadata.source,
+    const report = { version: 1, grader: { version: stack.liveArchitecture ? 'game-night-v9' : graderVersion,resourceVersion:resources.version, sha256: digest(JSON.stringify([harness['measure.mjs'],harness['checkpoint-grade.mjs'],harness['phone-grade.mjs'],harness['resource-grade.mjs']])) }, resources,harnessSha256: digest(JSON.stringify(harness)), label, slate: slate.name, fixtureSha256: harness[`${slate.name}.json`], source: stack.metadata.source,
       startedAt: new Date(started).toISOString(), endedAt: new Date(ended).toISOString(), seconds: (ended - started) / 1000, warmupSeconds: warmupMs / 1000, memoryMiB, databaseSettings, runtimeConfiguration: stack.runtimeConfiguration ?? {},
       shape: prepared.shape, databaseGrowth:{before:before.storage,after:after.storage,bytes:after.storage.databaseBytes-before.storage.databaseBytes,bytesPerMinute:(after.storage.databaseBytes-before.storage.databaseBytes)/minutes,scope:'timed real PostgreSQL database growth; includes index and reusable-page allocation, not only new user rows'}, clock: 'native real time; fixture changes every 20 seconds; no accelerated jobs', observer: 'Seeding session closes before warmup; the measurement session keeps no seed plans',
       swap: { source: 'Linux Docker VM /proc/vmstat pswpin/pswpout; global to the VM, not per-cgroup', pageBytes: 4096, inPagesPerSecond: (last.vm.pswpin - first.vm.pswpin) / elapsed, outPagesPerSecond: (last.vm.pswpout - first.vm.pswpout) / elapsed, available: last.swaps.length > 0, cgroupSwapPeakBytes: Math.max(...samples.map(row => row.swapCurrent)), foreignContainerActivityObserved: containerWatch.initial.length>0 || containerWatch.events.length>0 || samples.some(row => row.foreignContainers.length > 0), cgroupAnonRefaultsPerSecond: (last.cgroup.workingset_refault_anon - first.cgroup.workingset_refault_anon) / elapsed },

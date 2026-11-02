@@ -76,3 +76,29 @@ test('receiving broadcasts without a completed refresh fails invalidation',()=>{
   warm.refreshes=warm.refreshes.map(row=>({...row,at:started-1}))
   assert.equal(phoneGrade(warm).gates.invalidation.passed,false)
 })
+
+test('an official final can advance before the opponent next live snapshot',()=>{
+  const data=fixture()
+  const earlier=fantasyAt(slate,100)
+  const later=fantasyAt(slate,120)
+  const index=later.findIndex((row,i)=>row.home_points!==earlier[i].home_points && row.away_points!==earlier[i].away_points)
+  assert.ok(index>=0)
+  const selected=later[index]
+  const row={...data.phones[index].display,phone:index+1,at:started+121000,
+    homePoints:selected.home_points,awayPoints:earlier[index].away_points}
+  data.renders.push(row)
+  assert.equal(phoneGrade(data).gates.validScores.passed,true)
+  assert.ok(phoneGrade(data).simultaneousStateFailures.some(item=>item.at===row.at && item.phone===row.phone))
+  row.homePoints+=0.13
+  assert.equal(phoneGrade(data).gates.validScores.passed,false)
+})
+
+
+test('a future team score cannot pass as an asynchronous frame',()=>{
+  const data=fixture()
+  const now=fantasyAt(slate,0),future=fantasyAt(slate,40)
+  const index=future.findIndex((row,i)=>row.home_points!==now[i].home_points)
+  assert.ok(index>=0)
+  data.renders.push({...data.phones[index].display,phone:index+1,at:started+1000,homePoints:future[index].home_points})
+  assert.equal(phoneGrade(data).gates.validScores.passed,false)
+})

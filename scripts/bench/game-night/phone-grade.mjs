@@ -25,16 +25,25 @@ function correctFinalFrame(frame,expected) {
 }
 
 export function phoneGrade({slate,started,ended,renders,phones,requests,reads,messages,refreshes=[],frames=[],finalGameChecks=[],architecture=false}) {
-  const observations = [], missing = [], invalid = []
+  const observations = [], missing = [], invalid = [], simultaneousStateFailures = []
   for(const phone of phones) {
     const member = phone.display?.homeMemberId
     const history = renders.filter(row=>row.phone===phone.phone).sort((a,b)=>a.at-b.at)
     const timeline = [0,...Array.from({length:Math.ceil((ended-started)/1000/slate.changeEverySeconds)},(_,index)=>slate.changeOffsetSeconds+index*slate.changeEverySeconds)]
       .map(second=>({second,score:fantasyAt(slate,second).find(row=>[row.home_member_id,row.away_member_id].includes(member))}))
-    const versions = history.map(row=>({row,version:timeline.filter(value=>value.score && started+value.second*1000<=row.at
-      && equal(row.homePoints,points(value.score,row)[0]) && equal(row.awayPoints,points(value.score,row)[1])).at(-1)?.second}))
-    invalid.push(...versions.filter(value=>value.row.at>=started && value.row.at<ended && !value.row.stale && value.row.mode==='public' && value.version==null)
-      .map(value=>({phone:phone.phone,at:value.row.at,reason:'Displayed score has no valid fixture state'})))
+    const versions = history.map(row=>{
+      const available=timeline.filter(value=>value.score && started+value.second*1000<=row.at)
+      const homeValid=available.some(value=>equal(row.homePoints,points(value.score,row)[0]))
+      const awayValid=available.some(value=>equal(row.awayPoints,points(value.score,row)[1]))
+      return {row,valid:homeValid && awayValid,version:available.filter(value=>equal(row.homePoints,points(value.score,row)[0])
+        && equal(row.awayPoints,points(value.score,row)[1])).at(-1)?.second}
+    })
+    const live=versions.filter(value=>value.row.at>=started && value.row.at<ended && !value.row.stale && value.row.mode==='public')
+    simultaneousStateFailures.push(...live.filter(value=>value.version==null).map(value=>({phone:phone.phone,at:value.row.at,
+      homePoints:value.row.homePoints,awayPoints:value.row.awayPoints})))
+    invalid.push(...live.filter(value=>!value.valid)
+      .map(value=>({phone:phone.phone,at:value.row.at,homePoints:value.row.homePoints,awayPoints:value.row.awayPoints,
+        reason:'Displayed team score has no valid fixture state'})))
     let previous = fantasyAt(slate,0).find(row=>[row.home_member_id,row.away_member_id].includes(member))
     for(let second=slate.changeOffsetSeconds;second<(ended-started)/1000;second+=slate.changeEverySeconds) {
       const expected=fantasyAt(slate,second).find(row=>[row.home_member_id,row.away_member_id].includes(member))
@@ -79,7 +88,7 @@ export function phoneGrade({slate,started,ended,renders,phones,requests,reads,me
     })
     gates.finalHandoffs={passed:checks.length>0 && checks.every(row=>row.official && row.delivered),checks}
   }
-  return {version:'phone-v3',passed:Object.values(gates).every(gate=>gate.passed),gates,observations,
+  return {version:'phone-v4',simultaneousStateFailures,passed:Object.values(gates).every(gate=>gate.passed),gates,observations,
     architecture,personalChannels:phones.every(phone=>phone.topics?.length===3),
     requests:timed(requests),viewReads:timed(reads),messages:received,refreshes:refreshed,pollCount:timed(requests).length,
     messageBytes:received.reduce((sum,row)=>sum+row.bytes,0),calculationP95Ms:percentile(timed(renders).map(row=>row.calculationMs).filter(Number.isFinite),.95),
