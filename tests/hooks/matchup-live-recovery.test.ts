@@ -227,3 +227,13 @@ it('validates a saved quiet matchup when an inactive route becomes focused', asy
     await advance(250)
     expect(h.latest.matchup?.myPoints).toBe(12)
 })
+
+
+it('uses the saved unfinished-game dates without another slate read', async () => {
+    boundary.read.mockResolvedValue({ ...payload(), selectedDate: '2026-10-28', todaysGames: [], liveGames: games(),
+        weekDays: [{ date: '2026-10-29', dayLabel: 'Today', dateNum: 29, hasGames: true, isToday: true, playingTeams: ['BOS'] }] })
+    await h.render(); connected()
+    expect(boundary.games).not.toHaveBeenCalled()
+    await advance(20250)
+    expect(boundary.checks).toHaveBeenCalledOnce()
+})

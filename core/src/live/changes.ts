@@ -70,11 +70,13 @@ export function mergeHomeScores<T>(saved: T, update: unknown, version: string): 
         || patch.context?.seasonId !== previous.context.seasonId || String(patch.context?.version) !== version
         || patch.matchup?.id !== previous.matchup.id || patch.selectedDate !== previous.selectedDate
         || !['weekDays', 'leagueMatchups', 'todaysGames', 'startedTeams', 'liveBasis'].every(name => Array.isArray(patch[name]))
+        || Object.hasOwn(patch, 'liveGames') && !Array.isArray(patch.liveGames)
         || !['liveStats', 'teamMatchups'].every(name => patch[name] && typeof patch[name] === 'object' && !Array.isArray(patch[name]))
         || !(typeof patch.forecastStale === 'boolean' || patch.forecastStale === null)) return undefined
     const forecast = previous.forecast
     if (forecast && (typeof forecast !== 'object' || patch.forecastStale === null)) return undefined
     return { ...saved, ...Object.fromEntries(['matchup', 'selectedDate', 'weekDays', 'leagueMatchups', 'todaysGames', 'liveStats', 'startedTeams', 'teamMatchups', 'liveBasis'].map(name => [name, patch[name]])),
+        ...(Array.isArray(patch.liveGames) ? { liveGames: patch.liveGames } : {}),
         context: { ...previous.context, version: patch.context.version },
         ...(forecast ? { forecast: { ...(forecast as object), stale: patch.forecastStale } } : {}) }
 }

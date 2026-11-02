@@ -228,12 +228,12 @@ describe('forecast-only home reads', () => {
 it('patches official scores and game locks without replacing a saved lineup or forecast', async () => {
     const selected: ScreenScope = { ...scope, screen: 'home' }
     const saved = { context: { leagueId: 'league', seasonId: 'season', version: '1' }, selectedDate: '2026-10-27',
-        matchup: { id: 'matchup', myPoints: 42 }, myLineup: { starters: ['locked-player'] }, forecast: { stale: false, teams: ['forecast'] } }
+        matchup: { id: 'matchup', myPoints: 42 }, myLineup: { starters: ['locked-player'] }, liveGames: [{ status: 'InProgress' }], forecast: { stale: false, teams: ['forecast'] } }
     saveScreenView(selected, saved, '1')
     mocks.version = '2'
     mocks.changes = [{ version: '2', topic: 'game', scope: { topics: ['game','stat'], tables: ['nba_games','player_game_stats'] }, created_at: '' }]
     const fields = { matchup: { id: 'matchup', myPoints: 99 }, selectedDate: '2026-10-27', weekDays: [], leagueMatchups: [],
-        todaysGames: [{ status: 'Final' }], liveStats: {}, startedTeams: ['BOS'], teamMatchups: {}, liveBasis: [] }
+        todaysGames: [{ status: 'Final' }], liveStats: {}, startedTeams: ['BOS'], teamMatchups: {}, liveBasis: [], liveGames: [] }
     mocks.fetch.mockResolvedValue(Response.json({ ok: true, view: { section: 'scores', context: { ...saved.context, version: '2' }, ...fields, forecastStale: true } }))
     expect(await readScreenView(selected)).toEqual({ ...saved, ...fields, context: { ...saved.context, version: '2' }, forecast: { ...saved.forecast, stale: true } })
     expect(JSON.parse(new URL(mocks.fetch.mock.calls[0][0]).searchParams.get('params')!).section).toBe('scores')

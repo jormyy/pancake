@@ -5,19 +5,20 @@ import { listenForLeagueChanges } from '@/lib/league-changes'
 import { sessionGeneration } from '@/lib/session-cache-registry'
 import { nextLiveRecovery } from '@pancake/core'
 
-type Game = { id: string; status: string; game_time?: string | null; game_date?: string; game_status_text?: string | null }
-type Source = { context?: ViewContext; selectedDate?: string; todaysGames?: Game[]; weekDays?: { isToday: boolean; hasGames: boolean }[] }
+type Game = { id?: string; nba_game_id?: string | null; stats_synced_at?: string | null; status: string; game_time?: string | null; game_date?: string; game_status_text?: string | null }
+type Source = { context?: ViewContext; selectedDate?: string; todaysGames?: Game[]; liveGames?: Game[]; weekDays?: { isToday: boolean; hasGames: boolean }[] }
 
 export function useLiveViewRecovery(scope: ScreenScope | null, value: unknown, enabled: boolean, generation: number, publicLive = false) {
     const source = value as Source | undefined
     const key = scope?.screen === 'home' && scope.leagueId ? screenCacheKey(scope) : null
-    const external = Boolean(source?.context?.today && source.selectedDate !== source.context.today && source.weekDays?.some(day => day.isToday && day.hasGames))
+    const external = !Array.isArray(source?.liveGames) && Boolean(source?.context?.today && source.selectedDate !== source.context.today && source.weekDays?.some(day => day.isToday && day.hasGames))
     const dayKey = external && key ? JSON.stringify([scope!.accountId, scope!.leagueId, source?.context?.today]) : null
     const [slate, setSlate] = useState<{ key: string; games: Game[] } | null>(null)
     const verificationFailed = useRef(false)
     const slateReady = slate?.key === dayKey
-    const games = external ? slateReady ? slate!.games : [] : source?.todaysGames ?? []
-    const signature = JSON.stringify(games.map(game => [game.id, game.status, game.game_time, game.game_status_text]))
+    const games = (source?.liveGames ?? (external ? slateReady ? slate!.games : [] : source?.todaysGames ?? []))
+        .map(game => game.status === 'Final' && game.stats_synced_at === null ? { ...game, status: 'InProgress' } : game)
+    const signature = JSON.stringify(games.map(game => [game.id ?? game.nba_game_id, game.status, game.game_time, game.game_status_text]))
     const latest = useRef({ scope, games, source, dayKey, slateReady })
     latest.current = { scope, games, source, dayKey, slateReady }
     useEffect(() => {
