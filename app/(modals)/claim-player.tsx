@@ -434,16 +434,22 @@ export default function ClaimPlayerScreen() {
         return rows.map((item, index) => {
             const isSelected = selectedDrop?.id === item.id
             const locks = readAssetLocks(item).filter(lock => lock.sourceId !== claimId)
+            const available = player ? pickupDestinations(player,myRoster,{
+                rosterSize,taxiSlots:currentLeague?.taxi_slots ?? 0,irSlots:currentLeague?.ir_slots ?? 2,
+                allowIR:currentLeague?.status !== 'offseason',
+            },taxiExitIds,item) : null
+            const noRoom = !isSelected && available != null && !available.active && !available.taxi && !available.ir
+            const noRoomReason = noRoom ? `Dropping ${item.players.display_name} does not make room for ${player?.display_name ?? 'this player'}.` : undefined
             return (
                 <View key={item.id}><AssetSelectionRow locks={locks}
-                    style={[styles.rosterRow, index > 0 && styles.rosterRowDivider, isSelected && styles.rosterRowSelected]}
+                    style={[styles.rosterRow, index > 0 && styles.rosterRowDivider, isSelected && styles.rosterRowSelected, noRoom && styles.rosterRowNoRoom]}
                     onPress={() => {
+                        if (noRoomReason) {
+                            showAlert('No room', noRoomReason)
+                            return
+                        }
                         setSelectedDrop(isSelected ? null : item)
-                        if (!isSelected && player && (item.is_on_ir || item.is_on_taxi)) {
-                            const available = pickupDestinations(player,myRoster,{
-                                rosterSize,taxiSlots:currentLeague?.taxi_slots ?? 0,irSlots:currentLeague?.ir_slots ?? 2,
-                                allowIR:currentLeague?.status !== 'offseason',
-                            },taxiExitIds,item)
+                        if (!isSelected && available && (item.is_on_ir || item.is_on_taxi)) {
                             setIRChoice({ owner:ownerKey,value:item.is_on_ir && available.ir })
                             setTaxiChoice({ owner:ownerKey,value:item.is_on_taxi && available.taxi })
                         } else if (!isSelected) {
@@ -455,7 +461,7 @@ export default function ClaimPlayerScreen() {
                     label={`Select ${item.players.display_name} to drop`}
                     accessibilityState={{ selected: isSelected, disabled: locks.length > 0 }}
                     disabled={locks.length > 0}
-                    accessibilityHint={assetLockReason(locks)}
+                    accessibilityHint={assetLockReason(locks) ?? noRoomReason}
                 >
                     <PlayerRowContent locks={locks} name={item.players.display_name} nbaId={item.players.nba_id} team={item.players.nba_team}
                         positions={item.players.eligible_positions?.length ? item.players.eligible_positions : item.players.position ? [item.players.position] : []}
@@ -639,6 +645,7 @@ const styles = StyleSheet.create({
     },
     rosterRowDivider: { borderTopWidth: 1, borderTopColor: colors.separator },
     rosterRowSelected: { backgroundColor: uiColors.dangerSurface },
+    rosterRowNoRoom: { opacity: 0.58 },
     rosterInfo: { flex: 1, minWidth: 0, gap: spacing.xxs },
     rosterName: { ...textStyles.rowTitle },
     rosterMeta: { ...textStyles.meta },
