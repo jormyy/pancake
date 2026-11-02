@@ -31,7 +31,7 @@ test('phone and application policies skip unrelated versions and future lineups'
   const row={topic:'version',details:[{version:'31',topic:'roster',created_at:'2026-11-01T00:00:00Z',
     scope:{topics:['roster'],hints:[{topic:'roster',scopes:[{season_id:'season',member_id:'other'}]}]}}]}
   assert.deepEqual(phoneChange(batch(row),'league','30',selection),{refresh:false,version:'31'})
-  assert.deepEqual(phoneChange(batch(row),'league','29',selection),{refresh:true,version:'31'})
+  assert.deepEqual(phoneChange(batch(row),'league','29',selection),{refresh:true,recover:true,version:'31'})
   assert.equal(phoneChange(batch({topic:'lineup',scopes:[{season_id:'season',date:'2026-11-02'}]}),'league','30',selection).refresh,false)
   assert.equal(phoneChange(batch({topic:'score',scopes:[{season_id:'season'}]}),'league','30',selection).refresh,true)
 })
@@ -41,7 +41,7 @@ test('phones request a forecast patch only for an unbroken forecast-only version
   const row={topic:'version',details:[{version:'31',topic:'forecast',created_at:'2026-11-01T00:00:00Z',
     scope:{topics:['forecast'],tables:['matchup_forecasts'],forecastMatchupIds:['matchup']}}]}
   assert.deepEqual(phoneChange(batch(row),'league','30',{matchupId:'matchup'}),{refresh:true,forecastOnly:true,version:'31'})
-  assert.deepEqual(phoneChange(batch(row),'league','29',{matchupId:'matchup'}),{refresh:true,version:'31'})
+  assert.deepEqual(phoneChange(batch(row),'league','29',{matchupId:'matchup'}),{refresh:true,recover:true,version:'31'})
   row.details[0].scope.topics.push('score')
   assert.deepEqual(phoneChange(batch(row),'league','30',{matchupId:'matchup'}),{refresh:true,version:'31'})
 })
@@ -66,4 +66,13 @@ test('earlier-week corrections refresh a displayed multi-week total',()=>{
   const row={topic:'version',details:[{version:'31',topic:'score',created_at:'2026-11-01T00:00:00Z',
     scope:{topics:['score'],tables:['matchups'],hints:[{topic:'score',scopes:[{season_id:'season',week:1}]}]}}]}
   assert.deepEqual(phoneChange(batch(row),'league','30',{seasonId:'season',week:2,roundStartWeek:1,roundEndWeek:2}),{refresh:true,scoreOnly:true,version:'31'})
+})
+
+
+test('complete recovered versions avoid Home reads for unrelated changes',()=>{
+  const hints=['31','32'].map(version=>({event:'UPDATE',row:{topic:'version',details:[{version,topic:'score',created_at:'2026-11-01T00:00:00Z',scope:{homeChanged:false}}]}}))
+  assert.deepEqual(phoneChange({payload:{hints}},'league','30'),{refresh:false,version:'32'})
+  hints[0].row.details[0].scope={topics:['roster']}
+  assert.deepEqual(phoneChange({payload:{hints}},'league','30'),{refresh:true,version:'32'})
+  assert.deepEqual(phoneChange({payload:{hints:hints.slice(1)}},'league','30'),{refresh:true,recover:true,version:'32'})
 })
