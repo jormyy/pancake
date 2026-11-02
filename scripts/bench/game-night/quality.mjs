@@ -88,11 +88,11 @@ export function startActions(stack, started, { limits = {}, fault = undefined } 
     }),
     schedule(105, 'waiverResult', async () => {
       const claim = await stack.sql(`INSERT INTO public.waiver_claims(league_id,league_season_id,member_id,player_id,drop_player_id,priority_at_submission,process_date,bid_amount,claim_order)
-        SELECT league_id,league_season_id,member_id,'${id(1506)}','${id(1504)}',priority,(now() AT TIME ZONE 'America/Los_Angeles')::date,1,1
+        SELECT league_id,league_season_id,member_id,'${id(1506)}','${id(1504)}',priority,(now() AT TIME ZONE 'America/New_York')::date,1,1
         FROM public.waiver_priorities WHERE member_id='${id(209)}' RETURNING id`)
       assert.ok(claim, 'Waiver claim is missing')
       const at = Date.now()
-      await stack.sql(`SELECT private.work_enqueue('process-waivers',${quote('game-night:'+randomUUID())},now(),jsonb_build_object('timezone','America/Los_Angeles','date',(now() AT TIME ZONE 'America/Los_Angeles')::date));`)
+      await stack.sql(`SELECT private.work_enqueue('process-waivers',${quote('game-night:'+randomUUID())},now(),jsonb_build_object('timezone','America/New_York','date',(now() AT TIME ZONE 'America/New_York')::date));`)
       let state = ''
       while (Date.now() - at < 110000) {
         state = await stack.sql(`SELECT status FROM public.waiver_claims WHERE id=${quote(claim)}`)

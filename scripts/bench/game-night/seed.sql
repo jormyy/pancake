@@ -30,8 +30,8 @@ SET session_replication_role=origin;
 UPDATE public.players SET espn_id='800600',injury_status='Out' WHERE id=game_night.id(1600);
 INSERT INTO auth.users(id,aud,role,email,encrypted_password,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at)
 SELECT game_night.id(100+n),'authenticated','authenticated','game-night-'||n||'@example.test','',now(),'{}','{}',now(),now() FROM generate_series(1,10)n;
-INSERT INTO public.leagues(id,name,slug,commissioner_id,status,roster_size,scoring_settings)
-VALUES(game_night.id(1),'Synthetic game night','game-night',game_night.id(101),'active',20,'{"points":1,"rebounds":1.2,"assists":1.5,"steals":3,"blocks":3,"turnovers":-1}');
+INSERT INTO public.leagues(id,name,slug,commissioner_id,status,roster_size,scoring_settings,timezone)
+VALUES(game_night.id(1),'Synthetic game night','game-night',game_night.id(101),'active',20,'{"points":1,"rebounds":1.2,"assists":1.5,"steals":3,"blocks":3,"turnovers":-1}','America/New_York');
 INSERT INTO public.league_members(id,league_id,user_id,role,team_name)
 SELECT game_night.id(200+n),game_night.id(1),game_night.id(100+n),CASE WHEN n=1 THEN 'commissioner' ELSE 'manager' END::public.league_member_role,'Synthetic team '||n FROM generate_series(1,10)n;
 INSERT INTO public.league_seasons(id,league_id,season_year,is_current)

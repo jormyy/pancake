@@ -1,3 +1,4 @@
+import { waitForFixtureDay } from './calendar.mjs'
 import { watchDocker } from './docker-watch.mjs'
 import assert from 'node:assert/strict'
 import { readFile, readdir } from 'node:fs/promises'
@@ -21,6 +22,7 @@ export async function prepare(stack, slate, label) {
   await stack.sql("ALTER SYSTEM SET cron.launch_active_jobs='off'; SELECT pg_reload_conf();")
   await command('docker', ['update', '--memory=512m', '--memory-swap=1536m', stack.container])
   await stack.sql(await readFile(path.join(directory, 'seed.sql'), 'utf8'))
+  await stack.sql(await readFile(path.join(directory, 'calendar.sql'), 'utf8'))
   const migration = await readFile(path.join(stack.sourceRoot, 'supabase/migrations/20261024100002_live_player_season_totals.sql'), 'utf8')
   await stack.sql(migration.match(/INSERT INTO analytics\.player_season_totals[\s\S]*?;/)[0])
   await stack.sql("UPDATE private.worker_controls SET paused=false,scheduler_level='normal',scheduler_checked_at=NULL,scheduler_healthy_since=NULL,scheduler_last_dispatch_at=NULL,scheduler_health=NULL; TRUNCATE private.scheduler_health_log; UPDATE public.scheduler_health_hint SET level='normal';")
@@ -37,7 +39,7 @@ export async function prepare(stack, slate, label) {
   }
   await stack.sql('ANALYZE public.player_game_stats; ANALYZE analytics.player_season_totals; ANALYZE public.league_activity;')
   await stack.sql('SELECT extensions.pg_stat_statements_reset();')
-  const shape = JSON.parse(await stack.sql("SELECT json_build_object('players',(SELECT count(*) FROM public.players),'teams',(SELECT count(*) FROM public.league_members),'stats',(SELECT count(*) FROM public.player_game_stats),'databaseBytes',pg_database_size(current_database()),'tables',(SELECT json_agg(t) FROM (SELECT schemaname,relname,pg_total_relation_size(relid) bytes,n_live_tup FROM pg_stat_user_tables ORDER BY pg_total_relation_size(relid) DESC LIMIT 25)t))"))
+  const shape = JSON.parse(await stack.sql("SELECT json_build_object('players',(SELECT count(*) FROM public.players),'teams',(SELECT count(*) FROM public.league_members),'stats',(SELECT count(*) FROM public.player_game_stats),'databaseBytes',pg_database_size(current_database()),'calendar',(SELECT json_build_object('date',p.game_date,'timezone',l.timezone) FROM game_night.parameters p CROSS JOIN public.leagues l WHERE l.id=game_night.id(1)),'tables',(SELECT json_agg(t) FROM (SELECT schemaname,relname,pg_total_relation_size(relid) bytes,n_live_tup FROM pg_stat_user_tables ORDER BY pg_total_relation_size(relid) DESC LIMIT 25)t))"))
   assert.equal(Number(shape.players), 2600)
   assert.equal(Number(shape.teams), 10)
   assert.equal(Number(shape.stats), 246000)
@@ -49,6 +51,7 @@ export async function prepare(stack, slate, label) {
 }
 
 export async function runWindow(stack, slate, { label, memoryMiB, seconds = slate.windowSeconds, warmup = 120, ingestionOff = false, broken = false, skipSettlement = false }) {
+  await waitForFixtureDay()
   const settlementLimit=settlementBudget({publicLive:stack.liveArchitecture,ingestionOff,skipSettlement,fault:stack.qualityOptions?.fault,broken})
   const harness = Object.fromEntries(await Promise.all((await readdir(directory)).filter(file => !file.startsWith('.')).map(async file => [file, digest(await readFile(path.join(directory, file)))])))
   for (const file of ['server/live/handler.ts','server/live/snapshot.ts','core/cjs/index.js','core/cjs/scoring/formula.js','core/cjs/live/overlay.js','core/cjs/live/poll.js','core/cjs/live/codec.js','core/cjs/live/recovery.js','core/cjs/live/changes.js','core/cjs/live/saved.js',
