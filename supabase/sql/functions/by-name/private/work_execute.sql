@@ -19,12 +19,6 @@ BEGIN
   IF v_item.kind='trade-revaluation' THEN
     v_payload:=(v_payload-'inputs')||'{"latestInputs":true}'::jsonb;
   END IF;
-  IF v_item.kind IN ('sync-players','sync-trade-values','sync-rankings','pick-predictions','trade-revaluation-scan','trade-revaluation-check')
-    AND NOT ((now() AT TIME ZONE 'America/New_York')::time>=time '04:00' AND (now() AT TIME ZONE 'America/New_York')::time<time '06:00' AND NOT private.live_slate_in_progress(now())) THEN
-    UPDATE private.work_items SET status='pending',due_at=private.nightly_work_retry_at(now()),
-      lease_token=NULL,lease_until=NULL,invocation_key=NULL WHERE id=p_id AND lease_token=p_token;
-    RETURN;
-  END IF;
   IF v_item.kind IN ('forecast-inputs','refresh-views') THEN v_function:=NULL; END IF;
   IF v_item.kind='forecast-inputs' THEN
     v_started:=clock_timestamp();

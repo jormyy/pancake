@@ -57,4 +57,3 @@ BEGIN
   RETURN jsonb_build_object('superseded',replaced,'scans',scans);
 END;
 $$;
-REVOKE ALL ON FUNCTION private.coalesce_trade_revaluation_work() FROM PUBLIC,anon,authenticated,service_role;

@@ -134,7 +134,7 @@ CREATE OR REPLACE FUNCTION private.enqueue_rankings(p_now timestamptz DEFAULT no
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 DECLARE v_local timestamp:=p_now AT TIME ZONE 'America/New_York'; v_view text;
 BEGIN
-  IF NOT ((p_now AT TIME ZONE 'America/New_York')::time>=time '04:00' AND (p_now AT TIME ZONE 'America/New_York')::time<time '06:00' AND NOT EXISTS(SELECT 1 FROM public.nba_games WHERE status='InProgress')) THEN RETURN; END IF;
+  IF NOT ((p_now AT TIME ZONE 'America/New_York')::time>=time '04:00' AND (p_now AT TIME ZONE 'America/New_York')::time<time '06:00') THEN RETURN; END IF;
   FOREACH v_view IN ARRAY ARRAY['POINT_3','ROOKIE','POINT_5'] LOOP
     PERFORM private.work_enqueue('sync-rankings',v_local::date::text||':'||v_view,p_now,jsonb_build_object('view',v_view));
   END LOOP;
@@ -223,7 +223,7 @@ BEGIN
   PERFORM private.enqueue_screen_views(p_now);
   IF v_min%2=0 THEN PERFORM private.enqueue_live_poll(p_now); END IF;
   IF v_min%15=0 THEN
-    IF ((p_now AT TIME ZONE 'America/New_York')::time>=time '04:00' AND (p_now AT TIME ZONE 'America/New_York')::time<time '06:00' AND NOT EXISTS(SELECT 1 FROM public.nba_games WHERE status='InProgress')) THEN
+    IF ((p_now AT TIME ZONE 'America/New_York')::time>=time '04:00' AND (p_now AT TIME ZONE 'America/New_York')::time<time '06:00') THEN
       PERFORM private.enqueue_daily('sync-players',4,0,p_now);
       PERFORM private.enqueue_daily('sync-trade-values',4,0,p_now);
       PERFORM private.enqueue_rankings(p_now);
@@ -305,7 +305,7 @@ BEGIN
     END IF;
   END IF;
   RETURN private.work_enqueue('trade-revaluation-scan',p_season_id::text||':'||
-    ((CASE WHEN (now() AT TIME ZONE 'America/New_York')::time>=time '04:00' AND (now() AT TIME ZONE 'America/New_York')::time<time '06:00' AND NOT EXISTS(SELECT 1 FROM public.nba_games WHERE status='InProgress') THEN now() ELSE private.trade_revaluation_next_change() END) AT TIME ZONE 'America/New_York')::date::text,(CASE WHEN (now() AT TIME ZONE 'America/New_York')::time>=time '04:00' AND (now() AT TIME ZONE 'America/New_York')::time<time '06:00' AND NOT EXISTS(SELECT 1 FROM public.nba_games WHERE status='InProgress') THEN now() ELSE private.trade_revaluation_next_change() END),
+    ((CASE WHEN (now() AT TIME ZONE 'America/New_York')::time>=time '04:00' AND (now() AT TIME ZONE 'America/New_York')::time<time '06:00' THEN now() ELSE private.trade_revaluation_next_change() END) AT TIME ZONE 'America/New_York')::date::text,(CASE WHEN (now() AT TIME ZONE 'America/New_York')::time>=time '04:00' AND (now() AT TIME ZONE 'America/New_York')::time<time '06:00' THEN now() ELSE private.trade_revaluation_next_change() END),
     jsonb_build_object('revaluationScan',true,'leagueId',selected_league,'seasonId',p_season_id,'version',p_version),selected_league) IS NOT NULL;
 END;
 $$;
@@ -718,7 +718,7 @@ BEGIN
   SELECT GREATEST(now(),next_allowed_at) INTO due FROM private.trade_revaluation_schedule WHERE trade_id=trade.id;
   IF due IS NULL THEN
     due:=CASE WHEN EXISTS(SELECT 1 FROM private.trade_value_publications WHERE trade_id=trade.id)
-      THEN (CASE WHEN (now() AT TIME ZONE 'America/New_York')::time>=time '04:00' AND (now() AT TIME ZONE 'America/New_York')::time<time '06:00' AND NOT EXISTS(SELECT 1 FROM public.nba_games WHERE status='InProgress') THEN now() ELSE private.trade_revaluation_next_change() END) ELSE now() END;
+      THEN (CASE WHEN (now() AT TIME ZONE 'America/New_York')::time>=time '04:00' AND (now() AT TIME ZONE 'America/New_York')::time<time '06:00' THEN now() ELSE private.trade_revaluation_next_change() END) ELSE now() END;
   END IF;
   work_key:=trade.id::text||':'||p_model||':latest';
   work_payload:=jsonb_build_object('tradeId',trade.id,'memberId',trade.proposer_member_id,'userId',trade.user_id,
@@ -803,12 +803,6 @@ BEGIN
   v_payload:=v_item.payload;
   IF v_item.kind='trade-revaluation' THEN
     v_payload:=(v_payload-'inputs')||'{"latestInputs":true}'::jsonb;
-  END IF;
-  IF v_item.kind IN ('sync-players','sync-trade-values','sync-rankings','trade-revaluation-scan','trade-revaluation-check')
-    AND NOT ((now() AT TIME ZONE 'America/New_York')::time>=time '04:00' AND (now() AT TIME ZONE 'America/New_York')::time<time '06:00' AND NOT EXISTS(SELECT 1 FROM public.nba_games WHERE status='InProgress')) THEN
-    UPDATE private.work_items SET status='pending',due_at=private.trade_revaluation_next_change(),
-      lease_token=NULL,lease_until=NULL,invocation_key=NULL WHERE id=p_id AND lease_token=p_token;
-    RETURN;
   END IF;
   IF v_item.kind IN ('forecast-inputs','refresh-views') THEN v_function:=NULL; END IF;
   IF v_item.kind='forecast-inputs' THEN
@@ -1111,9 +1105,5 @@ INSERT INTO analytics.player_season_totals(player_id,season_year,games_played,mi
     FROM public.player_game_stats s JOIN public.nba_games g ON g.id=s.game_id
     WHERE g.status='Final' AND NOT s.did_not_play AND public.is_regular_season_game_id(g.nba_game_id)
     GROUP BY s.player_id,s.season_year;
-
-UPDATE private.work_items SET due_at=private.trade_revaluation_next_change()
-WHERE kind IN ('sync-players','sync-trade-values','sync-rankings','trade-revaluation-scan','trade-revaluation-check')
-  AND status IN ('pending','failed') AND due_at<private.trade_revaluation_next_change();
 
 COMMIT;

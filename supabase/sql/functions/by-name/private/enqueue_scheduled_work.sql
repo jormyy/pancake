@@ -84,7 +84,7 @@ BEGIN
   PERFORM private.enqueue_screen_views(p_now);
   IF v_min%2=0 THEN PERFORM private.enqueue_live_poll(p_now); END IF;
   IF v_min%15=0 THEN
-    IF ((p_now AT TIME ZONE 'America/New_York')::time>=time '04:00' AND (p_now AT TIME ZONE 'America/New_York')::time<time '06:00' AND NOT private.live_slate_in_progress(p_now)) THEN
+    IF ((p_now AT TIME ZONE 'America/New_York')::time>=time '04:00' AND (p_now AT TIME ZONE 'America/New_York')::time<time '06:00') THEN
       PERFORM private.enqueue_daily('sync-players',4,0,p_now);
       PERFORM private.enqueue_daily('sync-trade-values',4,0,p_now);
       PERFORM private.enqueue_rankings(p_now);
