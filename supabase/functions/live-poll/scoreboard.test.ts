@@ -71,8 +71,29 @@ Deno.test('selected imports discover starts without saving other live ticks',asy
   try {
     const games:NBAGame[]=['0021','0022'].map(gameId=>({gameId,gameStatus:2,gameStatusText:'Q1',period:1,
       gameClock:'PT10M00S',homeTeam:{teamTricode:'BOS',score:2},awayTeam:{teamTricode:'NYK',score:0}}))
-    const save=saveScoreboardGames as (games:NBAGame[],work:Parameters<typeof saveScoreboardGames>[1],ids?:ReadonlySet<string>)=>Promise<void>
-    await save(games,[],new Set(['selected']))
+    await saveScoreboardGames(games,[],new Set(['selected']))
     deepStrictEqual(writes,['early'])
+  } finally {globalThis.fetch=nativeFetch}
+})
+
+Deno.test('a malformed unrelated start does not stop healthy selected scoreboard writes',async()=>{
+  const nativeFetch=globalThis.fetch
+  const writes:string[]=[]
+  globalThis.fetch=(input,init)=>{
+    const url=new URL(input instanceof Request?input.url:input)
+    if(url.pathname.endsWith('/nba_games'))return Promise.resolve(Response.json([
+      {id:'broken',nba_game_id:'0022',status:'Scheduled',home_score:0,away_score:0,game_status_text:'Scheduled'},
+    ]))
+    writes.push(JSON.parse(String(init?.body)).p_game_id)
+    return Promise.resolve(Response.json(true))
+  }
+  try {
+    const games:NBAGame[]=[{gameId:'0022',gameStatus:2,gameStatusText:'Q1',period:1,gameClock:'broken',
+      homeTeam:{teamTricode:'BOS',score:2},awayTeam:{teamTricode:'NYK',score:0}},
+      {gameId:'0021',gameStatus:2,gameStatusText:'Q1',period:1,gameClock:'PT10M00S',
+        homeTeam:{teamTricode:'UTA',score:2},awayTeam:{teamTricode:'LAC',score:0}}]
+    const failures=await saveScoreboardGames(games,[{id:'healthy',nba_game_id:'0021',status:'InProgress',home_score:0,away_score:0,game_status_text:'Scheduled'}],new Set(['healthy']))
+    deepStrictEqual(writes,['healthy'])
+    equal(failures[0].gameId,'broken')
   } finally {globalThis.fetch=nativeFetch}
 })

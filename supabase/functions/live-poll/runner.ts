@@ -93,11 +93,16 @@ export async function ingestTick(holder: string, onRetry?: () => void, gameIds?:
     return []
   }) : Promise.resolve([])
   const [events, nbaScoreboard] = await Promise.all([espn, nba])
+  const failures: unknown[] = []
   const nbaFinalWork = work.filter(game => game.status !== 'Final' && nbaScoreboard.some(board => board.gameId === game.nba_game_id && board.gameStatus === 3))
   if (boardGames.length) {
     const fallbackBoards = nbaScoreboard.filter(game => game.gameStatus !== 2 ||
       !work.some(stored => stored.nba_game_id === game.gameId && hasEspnLiveGame(stored, events)))
-    await retry(() => saveScoreboardGames(fallbackBoards, work, gameIds))
+    const boardFailures = await retry(() => saveScoreboardGames(fallbackBoards, work, gameIds), rows => rows.map(row=>row.error))
+    for (const failure of boardFailures) {
+      console.error('[live-poll] scoreboard game failed:', failure.gameId, errorMessage(failure.error))
+      if (!gameIds || gameIds.has(failure.gameId)) failures.push(failure.error)
+    }
     work = select(await retry(() => loadWork(gameIds)))
   }
   for (const game of nbaFinalWork) if (!work.some(row => row.id === game.id)) work.push(game)
@@ -107,7 +112,6 @@ export async function ingestTick(holder: string, onRetry?: () => void, gameIds?:
   let lines = 0
   let scoreRetries = 0
   let importedGameIds: string[] = []
-  const failures: unknown[] = []
   if (statsGames.length) {
     try {
       const sources = await prepareLiveSources(statsGames, events, nbaScoreboard)

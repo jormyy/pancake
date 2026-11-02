@@ -197,3 +197,25 @@ Deno.test('checkpoint reads request only the selected games and retain retries',
     assert.deepEqual(requests.map(row=>row.body),[{p_game_ids:[holder]},{p_game_ids:[holder]}])
   }finally {globalThis.fetch=original}
 })
+
+Deno.test('an unrelated malformed scoreboard still permits selected box recovery',async()=>{
+  await withDatabase(async calls=>{
+    const result=await ingestTick(holder,undefined,new Set([holder]))
+    assert.equal(calls.filter(name=>name==='boxscore_0022600001.json').length,1)
+    assert.equal(result.failures.length,1)
+    assert.match(result.failures[0],/0022600001.*403/)
+  },name=>{
+    if(name==='get_live_checkpoint_inputs')return Response.json([{
+      id:holder,nba_game_id:'0022600001',status:'InProgress',needs_scoreboard:true,needs_stats:true,
+      game_date:'2026-10-29',season_year:2027,home_team:'ATL',away_team:'CLE',
+    }])
+    if(name==='record_live_poll_attempts')return Response.json(null)
+    if(name==='todaysScoreboard_00.json')return Response.json({scoreboard:{games:[{
+      gameId:'0022600002',gameStatus:2,gameStatusText:'Q1',period:1,gameClock:'broken',
+      homeTeam:{teamTricode:'BOS',score:2},awayTeam:{teamTricode:'NYK',score:0},
+    }]}})
+    if(name==='nba_games')return Response.json([{id:'other',nba_game_id:'0022600002',status:'Scheduled',home_score:0,away_score:0,game_status_text:'Scheduled'}])
+    if(name==='boxscore_0022600001.json')return Response.json({},{status:403})
+    assert.equal(name,'league_seasons');return Response.json([])
+  })
+})
