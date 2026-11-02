@@ -1,6 +1,8 @@
 \getenv queue_api_url SUPABASE_URL
 BEGIN;
 SELECT set_config('test.queue_api_url',:'queue_api_url',true);
+DELETE FROM cron.job_run_details;
+UPDATE private.worker_controls SET paused=false,scheduler_level='normal',scheduler_last_dispatch_at=NULL WHERE id;
 DELETE FROM private.work_items;
 CREATE TEMP TABLE queue_checks(label text PRIMARY KEY,passed boolean NOT NULL CHECK(passed));
 CREATE FUNCTION pg_temp.check_queue(p_label text,p_passed boolean) RETURNS void LANGUAGE plpgsql AS $$
