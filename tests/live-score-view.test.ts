@@ -31,6 +31,19 @@ describe('home and other-team live scores', () => {
         expect(liveScoreView(saved, snapshot(), { points: 1 }, now).delayed).toBe(true)
     })
 
+    it('combines unfinished prior-day and current-day scores without double counting', () => {
+        const saved = home()
+        saved.liveBasis![0].players.push({ ...saved.liveBasis![0].players[0], playerId: 'other-date', nbaId: '11', gameId: '0022' })
+        const older = snapshot()
+        older.date = '2026-10-30'
+        const current = snapshot()
+        current.games[0] = { ...current.games[0], id: '0022', nbaId: '0022', home: { ...current.games[0].home,
+            players: [['11', 14, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 25, 0]] } }
+        const view = liveScoreView(saved, [older, current], { points: 1 }, now)
+        expect(view.matchup?.myPoints).toBe(108)
+        expect(view.delayed).toBe(false)
+    })
+
     it('uses the same formula for the displayed matchup, other-matchup list, and player line', () => {
         const view = liveScoreView(home(), snapshot(), { points: 1 }, now)
         expect(view.matchup?.myPoints).toBe(104)

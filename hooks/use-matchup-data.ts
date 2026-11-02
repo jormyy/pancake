@@ -51,16 +51,16 @@ export function useMatchupData(current: { id: string; team_name?: string | null;
     const refreshView = view.refresh
     const data = view.data
     const selectedDate = data?.selectedDate ?? requestedDate
-    const live = usePublicLiveSnapshot(selectedDate, data?.todaysGames ?? [], Boolean(data?.liveBasis?.length)
-        && selectedDate === day && focused && membershipValidated && !membershipError)
+    const live = usePublicLiveSnapshot(selectedDate, data?.liveGames ?? data?.todaysGames ?? [], Boolean(data?.liveBasis?.length)
+        && focused && membershipValidated && !membershipError)
     const display = useMemo(() => {
         if (!data) return null
         const source = (data.context as HomePayload['context'] & { league?: { scoring_settings?: unknown } }).league?.scoring_settings ?? league?.scoring_settings
         const settings = Object.fromEntries(Object.entries(source && typeof source === 'object' && !Array.isArray(source) ? source : {})
             .filter((entry): entry is [string, number] => typeof entry[1] === 'number' && Number.isFinite(entry[1])))
-        return liveScoreView(data, live.snapshot, settings, Date.now())
-    }, [data, live.snapshot, league?.scoring_settings])
-    useEffect(() => { setPublicLive(live.active && live.snapshot?.mode === 'public' && display?.delayed === false) }, [live.active, live.snapshot?.mode, display?.delayed])
+        return liveScoreView(data, live.snapshots ?? live.snapshot, settings, Date.now())
+    }, [data, live.snapshot, live.snapshots, league?.scoring_settings])
+    useEffect(() => { setPublicLive(live.active && (live.mode ?? live.snapshot?.mode) === 'public' && display?.delayed === false) }, [live.active, live.mode, live.snapshot?.mode, display?.delayed])
     const matchup = display?.matchup ?? data?.matchup ?? null
     const matchupRef = useRef(matchup)
     matchupRef.current = matchup

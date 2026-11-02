@@ -17,19 +17,24 @@ RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
       AND stat.season_year=season.season_year AND stat.game_date BETWEEN week.week_start AND week.week_end
     GROUP BY m.id,member.member_id
   ), players AS MATERIALIZED (
-    SELECT member.id,member.member_id,lineup.player_id,true AS starter FROM members member
+    SELECT member.id,member.member_id,lineup.player_id,lineup.game_date,true AS starter FROM members member JOIN matches ON matches.id=member.id
       JOIN public.weekly_lineups lineup ON lineup.member_id=member.member_id AND lineup.league_id=p_league_id
-        AND lineup.league_season_id=p_season_id AND lineup.game_date=p_date AND lineup.slot_type NOT IN ('BE','IR')
+        AND lineup.league_season_id=p_season_id AND lineup.week_number BETWEEN matches.week_number AND COALESCE(matches.end_week_number,matches.week_number)
+        AND lineup.slot_type NOT IN ('BE','IR')
+      WHERE lineup.game_date=p_date OR EXISTS(SELECT 1 FROM public.nba_games game WHERE game.game_date=lineup.game_date
+        AND game.season_year=(SELECT season_year FROM public.league_seasons WHERE id=p_season_id)
+        AND (game.status='InProgress' OR game.status='Final' AND game.stats_synced_at IS NULL))
     UNION ALL
-    SELECT member.id,member.member_id,roster.player_id,false FROM members member
+    SELECT member.id,member.member_id,roster.player_id,p_date,false FROM members member
       JOIN public.roster_players roster ON roster.member_id=member.member_id AND roster.league_id=p_league_id
         AND roster.league_season_id=p_season_id
       WHERE member.id=p_detail_matchup_id AND NOT EXISTS(SELECT 1 FROM public.weekly_lineups lineup WHERE lineup.member_id=member.member_id
         AND lineup.league_id=p_league_id AND lineup.league_season_id=p_season_id AND lineup.game_date=p_date
         AND lineup.player_id=roster.player_id AND lineup.slot_type NOT IN ('BE','IR'))
   ), memberships AS MATERIALIZED (
-    SELECT membership.* FROM private.player_game_memberships membership JOIN public.nba_games game ON game.id=membership.game_id
-      WHERE game.game_date=p_date
+    SELECT membership.*,game.game_date AS live_date FROM private.player_game_memberships membership JOIN public.nba_games game ON game.id=membership.game_id
+      WHERE game.season_year=(SELECT season_year FROM public.league_seasons WHERE id=p_season_id)
+        AND game.game_date IN (SELECT game_date FROM players)
   ), lines AS MATERIALIZED (
     SELECT selected.id,jsonb_agg(jsonb_build_object('playerId',player.id,'memberId',selected.member_id,
       'nbaId',player.nba_id,'espnId',player.espn_id,'team',COALESCE(membership.nba_team,player.nba_team),
@@ -38,12 +43,13 @@ RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
       'final',game.status='Final' AND game.stats_synced_at IS NOT NULL) ORDER BY selected.member_id,player.id,game.id) AS data
     FROM players selected JOIN public.players player ON player.id=selected.player_id
     LEFT JOIN public.league_seasons season ON season.id=p_season_id
-    LEFT JOIN memberships membership ON membership.player_id=player.id
-    LEFT JOIN public.nba_games game ON game.game_date=p_date AND game.season_year=season.season_year
+    LEFT JOIN memberships membership ON membership.player_id=player.id AND membership.live_date=selected.game_date
+    LEFT JOIN public.nba_games game ON game.game_date=selected.game_date AND game.season_year=season.season_year
       AND public.is_regular_season_game_id(game.nba_game_id)
       AND (game.id=membership.game_id OR membership.game_id IS NULL AND player.nba_team IN (game.home_team,game.away_team))
     LEFT JOIN public.player_game_stats stat ON stat.player_id=player.id AND stat.game_id=game.id
     LEFT JOIN private.live_feed_state feed ON feed.game_id=game.id
+    WHERE selected.game_date=p_date OR game.status='InProgress' OR game.status='Final' AND game.stats_synced_at IS NULL
     GROUP BY selected.id
   )
   SELECT COALESCE(jsonb_agg(jsonb_build_object('id',m.id,'homeMemberId',m.home_member_id,'awayMemberId',m.away_member_id,

@@ -7,7 +7,7 @@ RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' AS $
 DECLARE context jsonb; matchup public.matchups%ROWTYPE; opponent uuid; subject uuid; selected date;
   requested_week integer := (p_params->>'weekNumber')::integer;
   mine jsonb; theirs jsonb; records jsonb; matchup_data jsonb; league_matchups jsonb; announcements jsonb; league_today date; league_week integer; basis jsonb;
-  payload jsonb; lineup_key text; compact_groups jsonb;
+  payload jsonb; lineup_key text; compact_groups jsonb; live_games jsonb;
 BEGIN
   context := public.view_context(p_league_id, p_member_id, p_params);
   context := context || jsonb_build_object('version',COALESCE((SELECT version FROM public.league_versions WHERE league_id=p_league_id),0)::text);
@@ -76,8 +76,18 @@ BEGIN
     JOIN public.league_members away ON away.id = m.away_member_id
   WHERE m.league_id = p_league_id AND m.league_season_id = matchup.league_season_id AND NOT m.is_voided
     AND m.week_number <= (context->>'weekNumber')::integer AND COALESCE(m.end_week_number, m.week_number) >= (context->>'weekNumber')::integer;
-  basis := CASE WHEN selected=league_today THEN private.live_score_basis(p_league_id,matchup.league_season_id,
+  basis := CASE WHEN selected=league_today OR EXISTS(SELECT 1 FROM public.nba_games game
+    WHERE game.season_year=(context->>'seasonYear')::integer
+      AND game.week_number BETWEEN matchup.week_number AND COALESCE(matchup.end_week_number,matchup.week_number)
+      AND (game.status='InProgress' OR game.status='Final' AND game.stats_synced_at IS NULL)) THEN private.live_score_basis(p_league_id,matchup.league_season_id,
     (context->>'weekNumber')::integer,selected,matchup.id) ELSE '[]'::jsonb END;
+  SELECT COALESCE(jsonb_agg(jsonb_build_object('nba_game_id',game.nba_game_id,
+    'game_date',game.game_date,'game_time',game.game_time,'status',game.status,'stats_synced_at',game.stats_synced_at)), '[]'::jsonb)
+    INTO live_games FROM public.nba_games game WHERE game.season_year=(context->>'seasonYear')::integer
+    AND private.lineup_game_available(game.status,game.game_status_text)
+    AND (game.status<>'Final' OR game.stats_synced_at IS NULL)
+    AND game.nba_game_id IN (SELECT player->>'gameId' FROM jsonb_array_elements(basis) item,
+      jsonb_array_elements(item->'players') player);
   IF p_params->>'compact'='true' THEN
     SELECT COALESCE(jsonb_agg(jsonb_build_array(item->'id',item->'homeMemberId',item->'awayMemberId',item->'homePoints',
       item->'awayPoints',item->'finalized',item->'ready',(SELECT COALESCE(jsonb_agg(jsonb_build_array(player->'playerId',
@@ -93,7 +103,7 @@ BEGIN
     'oppLineup', theirs - ARRAY['context','date','weekDays','games','optimizer','startedTeams','teamMatchups','liveStats'],
     'forecast', public.get_matchup_forecast(matchup.id), 'announcements', announcements, 'todaysGames', mine->'games',
     'liveStats', (mine->'liveStats') || (theirs->'liveStats'), 'startedTeams', mine->'startedTeams', 'teamMatchups', mine->'teamMatchups',
-    'liveBasis',basis);
+    'liveBasis',basis,'liveGames',live_games);
   IF p_params->>'compact'='true' THEN
     FOREACH lineup_key IN ARRAY ARRAY['myLineup','oppLineup'] LOOP
       WITH groups AS (SELECT key,value FROM jsonb_each(payload->lineup_key) WHERE key IN ('starters','bench','ir','taxi')),

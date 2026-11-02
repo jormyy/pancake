@@ -4,10 +4,14 @@ import type { NBAGameRow, LiveStatLine } from '@/lib/games'
 
 type LiveHome = HomeView & { todaysGames: NBAGameRow[]; liveStats: Record<string, LiveStatLine>; liveBasis?: SavedLiveMatchup[] }
 
-export function liveScoreView(saved: LiveHome, snapshot: LiveSnapshot | null, settings: ScoringSettings, now: number) {
-    const current = readLiveSnapshot(snapshot, saved.selectedDate, now)
+export function liveScoreView(saved: LiveHome, snapshot: LiveSnapshot | readonly (LiveSnapshot | null)[] | null, settings: ScoringSettings, now: number) {
+    const sources = Array.isArray(snapshot) ? snapshot.map(source => readLiveSnapshot(source, source?.date ?? saved.selectedDate, now)).filter((source): source is LiveSnapshot => source !== null)
+        : [readLiveSnapshot(snapshot, saved.selectedDate, now)].filter((source): source is LiveSnapshot => source !== null)
+    const current: LiveSnapshot | null = sources.length ? { version: 1, date: saved.selectedDate,
+        mode: sources.some(source => source.mode === 'database') ? 'database' : 'public',
+        capturedAt: Math.min(...sources.map(source => source.capturedAt)), games: sources.flatMap(source => source.games) } : null
     const basis = (saved.liveBasis ?? []).map(matchup => ({ ...matchup, players: matchup.players.map(player => {
-        const game = saved.todaysGames?.find(game => game.nba_game_id === player.gameId)
+        const game = (saved.liveGames ?? saved.todaysGames)?.find(game => game.nba_game_id === player.gameId)
         return { ...player, scheduledAt: game?.status === 'Scheduled' && game.game_time ? Date.parse(game.game_time) : undefined }
     }) }))
     const overlay = overlayLiveScores(basis, current, settings, now)
