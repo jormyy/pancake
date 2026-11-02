@@ -14,6 +14,7 @@ export type PublicLiveGame = {
     source?: 'nba' | 'espn'
     status: 'Scheduled' | 'InProgress' | 'Final'
     updatedAt: number
+    completionPending?: boolean
     period?: number
     clock?: string
     home: { team: string; score: number; players: LiveLine[] }

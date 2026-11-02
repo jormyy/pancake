@@ -185,3 +185,16 @@ describe('public live route', () => {
     expect(api).toBeLessThan(fallback)
   })
 })
+
+it('preserves ESPN completion as a hint without certifying an NBA final', async () => {
+  const completed=structuredClone(event)
+  completed.status={period:4,displayClock:'0:00',type:{state:'post',completed:true} as typeof event.status.type}
+  vi.stubGlobal('fetch',async(input:RequestInfo|URL)=>{
+    const url=new URL(input instanceof Request?input.url:input)
+    if(url.hostname==='cdn.nba.com')return Response.json({}, {status:503})
+    return Response.json(url.pathname.endsWith('scoreboard')?{events:[completed]}:summary(completed))
+  })
+  const response=await createLiveHandler({now:()=>now})(new Request(`http://local/api/live/${date}`))
+  const body=await response.json()
+  expect(body.games[0]).toMatchObject({status:'InProgress',completionPending:true})
+})

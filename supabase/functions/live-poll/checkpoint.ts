@@ -53,6 +53,7 @@ export function createCheckpointPoller(dependencies: {
         if (overdue) due.set(game.id,game.status === 'InProgress' && Boolean(game.checkpoint_at))
         continue
       }
+      if (snapshot.completionPending) { due.set(game.id,false); continue }
       if (snapshot.status === 'Scheduled') {
         if (game.status !== 'Scheduled') due.set(game.id,false)
         continue

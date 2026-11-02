@@ -46,6 +46,7 @@ function compactBox(box: NBABoxScore, board: NBAGame | undefined, event: EspnEve
   if (new Set(identities).size !== identities.length) throw new Error('Provider player appears on both sides')
   return { id: board?.gameId ?? `espn:${event!.id}`, nbaId: board?.gameId ?? null, espnId: event?.id ?? null,
     source: ids ? 'espn' : 'nba', status: box.gameStatus === 3 ? 'Final' : 'InProgress', updatedAt,
+    ...(box.gameStatus !== 3 && event?.status.type.state === 'post' ? {completionPending:true} : {}),
     period: box.period, clock: box.gameClock, home: sides[0], away: sides[1] }
 }
 

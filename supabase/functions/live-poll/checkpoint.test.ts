@@ -109,3 +109,11 @@ Deno.test('public discovery includes early starts outside selected work before i
     ingest:async(_holder,ids)=>{assert.ok(ids!.has('early'));imports++;return result()},record:async()=>{} })
   await tick('holder');assert.equal(discovered,true);assert.equal(imports,1)
 })
+
+Deno.test('an ESPN completion signal repeats authoritative checks until official handoff', async () => {
+  let writes=0
+  const body={...snapshot(start),games:[{...snapshot(start).games[0],completionPending:true}]}
+  const tick=createCheckpointPoller({now:()=>start,load:async()=>[row()],snapshot:async()=>body,
+    ingest:async(_holder,_ids,checkpointOnly)=>{assert.equal(checkpointOnly,false);writes++;return result()},record:async()=>{} })
+  await tick('holder');await tick('holder');assert.equal(writes,2)
+})

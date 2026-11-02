@@ -26,6 +26,7 @@ export function readLiveSnapshot(value: unknown, date: string, now: number): Liv
         if (!game || typeof game.id !== 'string' || ids.has(game.id) || !['Scheduled', 'InProgress', 'Final'].includes(game.status)
             || ![null, 'string'].includes(game.nbaId === null ? null : typeof game.nbaId)
             || ![null, 'string'].includes(game.espnId === null ? null : typeof game.espnId)
+            || game.completionPending !== undefined && typeof game.completionPending !== 'boolean'
             || !['nba', 'espn'].includes(game.source ?? 'nba') || !Number.isFinite(game.updatedAt)) return null
         ids.add(game.id)
         const teams = [game.home, game.away]
