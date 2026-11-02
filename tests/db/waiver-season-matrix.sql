@@ -76,8 +76,8 @@ BEGIN
       AND NOT EXISTS(SELECT 1 FROM waiver_wire_log held WHERE held.league_id=c.league_id
         AND held.player_id=c.player_id AND held.cleared_at IS NULL AND held.clears_at>now());
   UPDATE waiver_wire_log held SET clears_at=LEAST(held.clears_at,
-    (SELECT min(c.process_date)+time '03:00' FROM waiver_claims c WHERE c.league_id=held.league_id
-      AND c.player_id=held.player_id AND c.status='pending') AT TIME ZONE 'America/New_York')
+    (SELECT min(c.process_date)+time '00:00' FROM waiver_claims c WHERE c.league_id=held.league_id
+      AND c.player_id=held.player_id AND c.status='pending') AT TIME ZONE coalesce((SELECT timezone FROM leagues WHERE id=held.league_id),'America/Los_Angeles'))
     WHERE held.cleared_at IS NULL AND held.clears_at<=now();
 END;
 $$;
@@ -297,4 +297,18 @@ BEGIN
   PERFORM pg_temp.expect_error(format('SELECT advance_season_atomic(%L)',f.l),'P0001','before advancing season');
   RAISE NOTICE 'PASS drop timing, future processing, pending rollover guard, balance reset/history/idempotence, priority reset';
 END $$;
+SAVEPOINT dst_fixture;
+DO $$
+DECLARE f pg_temp.fixture; p uuid; c uuid; cutoff timestamptz;
+BEGIN
+  f:=pg_temp.setup();p:=pg_temp.player();c:=pg_temp.claim(f,1,p);
+  UPDATE waiver_claims SET process_date=DATE '2025-11-02' WHERE id=c;
+  UPDATE waiver_wire_log SET clears_at=now() WHERE league_id=f.l AND player_id=p AND cleared_at IS NULL;
+  PERFORM pg_temp.make_due();
+  SELECT (DATE '2025-11-02'+time '00:00') AT TIME ZONE coalesce(timezone,'America/Los_Angeles') INTO cutoff FROM leagues WHERE id=f.l;
+  PERFORM pg_temp.check_that((SELECT clears_at=cutoff FROM waiver_wire_log WHERE league_id=f.l AND player_id=p AND cleared_at IS NULL),
+    'fixture clearance uses the league midnight on the fall daylight-saving boundary');
+END;
+$$;
+ROLLBACK TO SAVEPOINT dst_fixture;
 ROLLBACK;
