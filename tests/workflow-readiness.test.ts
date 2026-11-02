@@ -28,3 +28,14 @@ it.each([
 it.each(['workflow_dispatch', 'repository_dispatch'])('rebuilds both artifacts for a direct %s run', event => {
   expect(conditions.map(condition => evaluate(condition, {}, event))).toEqual([true, true])
 })
+
+it('supplies database CI with its checkout-scoped private target', () => {
+  const workflow = yaml.load(readFileSync('.github/workflows/test.yml', 'utf8'))
+  const config = readFileSync('supabase/config.toml', 'utf8')
+  const port = (section: string) => config.match(new RegExp(`^\\[${section}\\]\\n(?:(?!\\[)[^\\n]*\\n)*?port\\s*=\\s*(\\d+)\\s*$`, 'm'))?.[1]
+  expect(workflow.jobs['test-database'].env).toMatchObject({
+    PANCAKE_TEST_DB_PORT: port('db'),
+    PANCAKE_TEST_API_PORT: port('api'),
+    PANCAKE_TEST_PROJECT_ID: config.match(/^project_id\s*=\s*"([^"]+)"/m)?.[1],
+  })
+})

@@ -13,6 +13,7 @@ BEGIN
   SELECT * INTO f FROM pg_temp.rules_fixture(2,9560);
   INSERT INTO public.season_weeks(season_year,week_number,week_start,week_end)
     VALUES(9560,1,current_date,current_date+6);
+INSERT INTO public.nba_games(nba_game_id,season_year,week_number,game_date,game_time,home_team,away_team,status) VALUES('002forecast-9560',9560,1,current_date,now()-interval '1 hour','BOS','LAL','InProgress');
   INSERT INTO public.matchups(id,league_id,league_season_id,week_number,home_member_id,away_member_id,home_points,away_points)
     VALUES(matchup,f.league_id,f.season_id,1,f.member_ids[1],f.member_ids[2],100,90);
   PERFORM pg_temp.drain_forecast_chunks();
@@ -44,8 +45,9 @@ BEGIN
   PERFORM set_config('request.jwt.claim.sub',outsider::text,true);
   PERFORM pg_temp.reject_rules(format('SELECT public.get_matchup_forecast(%L)',matchup),'This matchup is not available.','outsider cannot read private forecast');
   PERFORM set_config('request.jwt.claim.sub',f.user_ids[1]::text,true);
+  UPDATE public.matchup_forecasts SET calculated_at=now()-interval '31 minutes' WHERE matchup_id=matchup;
   UPDATE public.matchups SET home_points=101 WHERE id=matchup;
-  PERFORM pg_temp.check_rules((public.get_matchup_forecast(matchup)->>'stale')::boolean,'score changes mark result stale immediately');
+  PERFORM pg_temp.check_rules((public.get_matchup_forecast(matchup)->>'stale')::boolean,'the next scheduled cycle marks changed scores stale');
   PERFORM pg_temp.drain_forecast_chunks();
   PERFORM pg_temp.check_rules(EXISTS(SELECT 1 FROM private.matchup_forecast_queue WHERE matchup_id=matchup AND dirty),'score changes queue recalculation');
 END;

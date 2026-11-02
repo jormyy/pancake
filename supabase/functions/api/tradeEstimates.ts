@@ -3,6 +3,7 @@ import { throwDb } from '../_shared/apiRuntime.ts'
 import { analyzeTradeEstimate, type EstimateTerm, type TradeEstimateInputs } from '../_shared/tradeEstimate.ts'
 import { DYNASTY_TRADE_MODEL_VERSION, type DynastyTradeAnalysis } from '../_shared/dynastyEngine.ts'
 import type { Json } from '../_shared/database.ts'
+import { retryDatabaseContention } from '../_shared/databaseRetry.ts'
 
 export type TradeEstimateQuote = {
   id: string
@@ -16,19 +17,19 @@ export type TradeEstimateQuote = {
 }
 
 export async function createTradeEstimate(userId: string, memberId: string, items: Json): Promise<TradeEstimateQuote> {
-  const { data: inputs, error } = await supabase.rpc('get_trade_estimate_inputs', {
+  const { data: inputs, error } = await retryDatabaseContention(() => supabase.rpc('get_trade_estimate_inputs', {
     p_user_id: userId, p_member_id: memberId, p_items: items,
-  })
+  }), { failures: result => result.error ? [result.error] : [] })
   if (error) throwDb(error)
   return saveEstimate(userId, memberId, inputs)
 }
 
 async function saveEstimate(userId: string, memberId: string, inputs: Json): Promise<TradeEstimateQuote> {
   const analysis = analyzeTradeEstimate(inputs as unknown as TradeEstimateInputs, Date.now())
-  const { data: quote, error: saveError } = await supabase.rpc('save_trade_estimate_quote', {
+  const { data: quote, error: saveError } = await retryDatabaseContention(() => supabase.rpc('save_trade_estimate_quote', {
     p_user_id: userId, p_member_id: memberId, p_inputs: inputs,
     p_analysis: analysis as unknown as Json, p_model_version: DYNASTY_TRADE_MODEL_VERSION,
-  })
+  }), { failures: result => result.error ? [result.error] : [] })
   if (saveError) throwDb(saveError)
   return quote as unknown as TradeEstimateQuote
 }
@@ -41,9 +42,9 @@ export async function createSubmittedTradeEstimate(tradeId: string): Promise<voi
   if (tradeError) throwDb(tradeError)
   const { data: member, error: memberError } = await supabase.from('league_members').select('user_id').eq('id', trade.proposer_member_id).single()
   if (memberError) throwDb(memberError)
-  const { data, error } = await supabase.rpc('get_trade_revaluation_inputs', {
+  const { data, error } = await retryDatabaseContention(() => supabase.rpc('get_trade_revaluation_inputs', {
     p_user_id: member.user_id, p_member_id: trade.proposer_member_id, p_trade_id: tradeId,
-  })
+  }), { failures: result => result.error ? [result.error] : [] })
   if (error) throwDb(error)
   if ((data as Record<string, Json>).closed) return
   const inputs = { ...(data as Record<string, Json>) }
@@ -63,9 +64,9 @@ export async function revalueTrade(userId: string, memberId: string, tradeId: st
     if (ready.error) throwDb(ready.error)
     if (!ready.data) return null
   }
-  const { data, error } = preparedInputs ? { data: preparedInputs, error: null } : await supabase.rpc('get_trade_revaluation_inputs', {
+  const { data, error } = preparedInputs ? { data: preparedInputs, error: null } : await retryDatabaseContention(() => supabase.rpc('get_trade_revaluation_inputs', {
     p_user_id: userId, p_member_id: memberId, p_trade_id: tradeId,
-  })
+  }), { failures: result => result.error ? [result.error] : [] })
   if (error) throwDb(error)
   const inputs = data as unknown as TradeEstimateInputs & { inputVersion: string; observedAt: string; closed?: boolean; cachedRevaluation?: { modelVersion: string } }
   if (inputs.closed) return inputFingerprint ? null : inputs.cachedRevaluation ?? null

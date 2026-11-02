@@ -168,3 +168,16 @@ describe('calculateFantasyPoints', () => {
         expect(roundFantasyPoints(-10.075)).toBe(-10.08)
     })
 })
+
+it('matches SQL decimal ties before rounding custom scoring products',()=>{
+    expect(calculateFantasyPoints({...baseStats,points:3},{points:0.075})).toBe(0.23)
+    expect(calculateFantasyPoints({...baseStats,points:3},{points:-0.075})).toBe(-0.23)
+    expect(calculateFantasyPoints({...baseStats,points:3,turnovers:1},{points:0.075,turnovers:-0.005})).toBe(0.22)
+})
+
+it('keeps default scoring exact for integer NBA lines',()=>{
+    for(let points=0;points<=100;points++)for(let rebounds=0;rebounds<=20;rebounds++) {
+        const actual=calculateFantasyPoints({...baseStats,points,rebounds,assists:3,turnovers:2},defaultSettings)
+        expect(actual).toBe((points*10+rebounds*12+45-20)/10)
+    }
+})

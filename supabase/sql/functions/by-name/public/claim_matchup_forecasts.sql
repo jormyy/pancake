@@ -8,6 +8,7 @@ LANGUAGE sql SECURITY DEFINER SET search_path = '' AS $$
   WITH candidates AS (
     SELECT queued.matchup_id FROM private.matchup_forecast_queue queued
     WHERE queued.dirty AND queued.available_at<=now()
+      AND (SELECT due_at FROM private.matchup_forecast_schedule schedule WHERE schedule.matchup_id=queued.matchup_id)<=now()
       AND NOT private.matchup_forecast_refresh_pending(queued.matchup_id)
       AND (queued.claimed_at IS NULL OR queued.claimed_at<now()-interval '3 minutes')
     ORDER BY queued.changed_at,queued.matchup_id

@@ -1,7 +1,7 @@
 {
   "name": "pancake-init",
   "main": "expo-router/entry",
-  "version": "1.0.0",
+  "version": "2.15.0",
   "scripts": {
     "test:db:work-lease-phases": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/work-lease-phases.sql",
     "test:db:work-lease-renewal": "node tests/e2e/work-lease-renewal-db.mjs",

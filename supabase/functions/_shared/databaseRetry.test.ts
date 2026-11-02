@@ -33,6 +33,13 @@ Deno.test('database retries leave permanent partial failures visible', async () 
   assert.equal(calls, 1)
 })
 
+Deno.test('database retries remain bounded without an observation callback', async () => {
+  let calls = 0
+  await assert.rejects(() => retryDatabaseContention(async () => { calls++; throw lock }, { deadline: performance.now() + 1000 }),
+    error => error === lock)
+  assert.equal(calls, 5)
+})
+
 Deno.test('an expired write deadline prevents another database attempt', async () => {
   let calls = 0
   await assert.rejects(() => retryDatabaseContention(async () => { calls++; throw lock }, { deadline: performance.now() }),

@@ -25,6 +25,7 @@ BEGIN
   PERFORM pg_temp.check_rules((SELECT is_home=true FROM public.player_game_stats WHERE player_id=home_player AND game_id=game)
     AND (SELECT is_home=false FROM public.player_game_stats WHERE player_id=away_player AND game_id=game),
     'live ingest stores game sides instead of current NBA teams');
+  UPDATE public.nba_games SET home_score=5,away_score=5 WHERE id=game;
   changed := public.save_game_stats_atomic(p_game_id=>game,p_provider_game_id=>'0029485001',p_stats=>rows,p_is_final=>true);
   PERFORM pg_temp.check_rules(changed=0, 'final ingest preserves identical live team sides without rewriting rows');
   UPDATE public.player_game_stats SET is_home=NULL WHERE game_id=game;

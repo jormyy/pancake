@@ -34,7 +34,7 @@ BEGIN
         (NOT EXISTS(SELECT 1 FROM private.work_items running WHERE running.kind='trade-revaluation'
           AND running.status='running' AND running.lease_until>clock_timestamp() AND running.league_id IS NOT DISTINCT FROM item.league_id)
         AND NOT EXISTS(SELECT 1 FROM private.trade_revaluation_leagues pace WHERE pace.league_id=item.league_id AND pace.next_allowed_at>now())))
-    ORDER BY priority.background,CASE WHEN priority.background THEN kind.last_claimed_at END NULLS FIRST,item.due_at,item.id
+    ORDER BY CASE WHEN item.kind='live-poll' THEN 0 ELSE 1 END,priority.background,CASE WHEN priority.background THEN kind.last_claimed_at END NULLS FIRST,item.due_at,item.id
     LIMIT 1 FOR UPDATE OF item SKIP LOCKED;
     EXIT WHEN NOT FOUND;
     IF v_item.kind='trade-revaluation' THEN

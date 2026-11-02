@@ -30,7 +30,7 @@ export async function syncSource() {
 }
 
 export async function isolatedPhases(limit, execute) {
-  const screens = await execute('walk', limit, { writeDocs: false })
+  const screens = await execute('walk', limit, { writeReports: false })
   const replay = await execute('replay', undefined, { skipSync: true })
   return Math.max(screens ?? 0, replay ?? 0)
 }
@@ -105,7 +105,7 @@ export async function run(mode = 'all', limit, options = {}) {
         const current = receipt?.runId === runId
         const receipts = current ? JSON.parse(await readFile(path.join(evidence, 'walk.json'), 'utf8').catch(() => '[]')) : []
         const simulation = current ? JSON.parse(await readFile(path.join(evidence, 'two-day.json'), 'utf8').catch(() => 'null')) : null
-        await renderReport({ evidenceRoot: evidence, receipts, simulation, writeDocs: options.writeDocs !== false })
+        await renderReport({ evidenceRoot: evidence, receipts, simulation, writeReports: options.writeReports !== false })
         const screenshots = path.join(evidence, '../first-load')
         await mkdir(screenshots, { recursive: true })
         const manifestFile = path.join(screenshots, 'manifest.json')

@@ -1,10 +1,25 @@
 CREATE OR REPLACE FUNCTION private.broadcast_live_change()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
 DECLARE current_row jsonb:='{}'; previous_row jsonb:='{}'; payload jsonb; target text; targets text[]:=ARRAY[]::text[];
-  row_data jsonb; league_id uuid; draft_id uuid; new_data jsonb:='{}'; old_data jsonb:='{}';
+  row_data jsonb; league_id uuid; draft_id uuid; new_data jsonb:='{}'; old_data jsonb:='{}'; headers jsonb;
 BEGIN
   IF TG_OP<>'DELETE' THEN current_row:=to_jsonb(NEW); END IF;
   IF TG_OP<>'INSERT' THEN previous_row:=to_jsonb(OLD); END IF;
+  IF TG_TABLE_NAME='matchup_forecasts' AND TG_OP='UPDATE'
+    AND current_row->'forecast' IS NOT DISTINCT FROM previous_row->'forecast'
+    AND current_row->'matchup_id' IS NOT DISTINCT FROM previous_row->'matchup_id'
+    AND current_row->'league_id' IS NOT DISTINCT FROM previous_row->'league_id' THEN RETURN NULL; END IF;
+  headers:=COALESCE(NULLIF(current_setting('request.headers',true),'')::jsonb,'{}'::jsonb);
+  IF TG_TABLE_NAME='league_change_hints' AND auth.role()='service_role'
+    AND headers->>'x-pancake-public-checkpoint'='true'
+    AND current_setting('pancake.official_broadcast',true) IS DISTINCT FROM 'true'
+    AND EXISTS(SELECT 1 FROM public.live_poll_leases WHERE lock_key=779001
+      AND holder_id::text=headers->>'x-pancake-live-holder' AND expires_at>clock_timestamp())
+    AND (current_row->>'topic' IN ('score','stat','game','player_stats') OR current_row->>'topic'='version'
+      AND jsonb_array_length(COALESCE(current_row->'details'->0->'scope'->'tables','[]'::jsonb))>0
+      AND current_row->'details'->0->'scope'->'tables' <@ '["matchups","matchup_totals","nba_games","player_game_stats"]'::jsonb) THEN
+    RETURN NULL;
+  END IF;
   IF TG_TABLE_NAME='league_change_hints' THEN
     new_data:=current_row;
     IF TG_OP='DELETE' THEN old_data:=previous_row; END IF;
@@ -42,6 +57,10 @@ BEGIN
       INSERT INTO private.live_hint_broadcasts AS pending(transaction_id,topic,changes)
         VALUES(pg_current_xact_id(),target,jsonb_build_array(jsonb_build_object('event',TG_OP,
           'row',row_data)))
+      ON CONFLICT(transaction_id,topic) DO UPDATE SET changes=pending.changes||EXCLUDED.changes;
+    ELSIF target LIKE 'l1:league:%' AND TG_TABLE_NAME NOT IN ('leagues','league_members') THEN
+      INSERT INTO private.live_hint_broadcasts AS pending(transaction_id,topic,changes)
+        VALUES(pg_current_xact_id(),target,jsonb_build_array(jsonb_build_object('payload',payload)))
       ON CONFLICT(transaction_id,topic) DO UPDATE SET changes=pending.changes||EXCLUDED.changes;
     ELSE
       PERFORM realtime.send(payload,'change',target,true);

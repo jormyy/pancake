@@ -6,7 +6,8 @@ CREATE OR REPLACE FUNCTION private.rebuild_game_player_totals()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 DECLARE v_player uuid;
 BEGIN
-  IF public.is_regular_season_game_id(OLD.nba_game_id) IS NOT DISTINCT FROM public.is_regular_season_game_id(NEW.nba_game_id) THEN RETURN NEW; END IF;
+  IF (OLD.status='Final')=(NEW.status='Final') AND OLD.season_year=NEW.season_year
+    AND public.is_regular_season_game_id(OLD.nba_game_id) IS NOT DISTINCT FROM public.is_regular_season_game_id(NEW.nba_game_id) THEN RETURN NEW; END IF;
   FOR v_player IN SELECT DISTINCT player_id FROM public.player_game_stats WHERE game_id=NEW.id ORDER BY player_id LOOP
     PERFORM pg_advisory_xact_lock(hashtextextended('player-season-totals:'||v_player::text,0));
     DELETE FROM analytics.player_season_totals WHERE player_id=v_player AND season_year IN (OLD.season_year,NEW.season_year);
@@ -33,7 +34,7 @@ BEGIN
       count(*) FILTER(WHERE s.triple_double)::bigint AS triple_double
     FROM public.player_game_stats s JOIN public.nba_games g ON g.id=s.game_id
     WHERE s.player_id=v_player AND s.season_year IN (OLD.season_year,NEW.season_year)
-      AND NOT s.did_not_play AND public.is_regular_season_game_id(g.nba_game_id)
+      AND g.status='Final' AND NOT s.did_not_play AND public.is_regular_season_game_id(g.nba_game_id)
     GROUP BY s.player_id,s.season_year;
   END LOOP;
   PERFORM private.emit_player_stats_hint(ARRAY[OLD.season_year,NEW.season_year]);

@@ -64,12 +64,21 @@ The rookie draft controller also reads the version.
 These counts exclude shared authentication, membership, and change-stream setup.
 Unchanged versions reuse saved content.
 Changed topics invalidate affected views.
+A forecast-only Home update fetches a forecast section through the same authenticated view route.
+It preserves saved scores and lineups. Pure score updates preserve lineups and forecast values.
+Mixed changes and version gaps require a full read.
+Home cache keys identify the league change clock. Entries with the old publication clock keep their offline content and require an online refresh.
 Background standings, matchup totals, averages, and trade values publish their own version changes.
 Refresh metadata causes no version bump.
 Publication hints do not restart the background refresh.
 Missing change ranges require a fresh view.
 Foreground and reconnect checks use the version endpoint.
-The screen loaders add no unchanged-data polling timer.
+Live Home screens check versions every ten minutes with fresh public data. Stale and database modes reread saved screens every 20 seconds.
+An unchanged version does not reload the view.
+Visible live screens poll public snapshots every 30 seconds; hidden screens stop.
+A snapshot older than two minutes shows saved scores with a stale state.
+Past-day views and official finals retain stored results.
+See [live scores](live-scores.md) for cache behavior and separate phone/worker rollback.
 Draft countdowns continue to update local display time.
 
 Account changes clear private views and reject late responses.

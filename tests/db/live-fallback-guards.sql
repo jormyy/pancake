@@ -8,7 +8,7 @@ BEGIN
   INSERT INTO public.players(id,first_name,last_name) VALUES(p,'Synthetic',p::text);
   INSERT INTO public.nba_games(id,nba_game_id,season_year,week_number,game_date,home_team,away_team,status)
     VALUES(g,provider,3993,1,'3993-01-01','XXA','XXB','InProgress');
-  stats := jsonb_build_array(jsonb_build_object('player_id',p,'game_id',g,'points',10,'did_not_play',false));
+  stats := jsonb_build_array(jsonb_build_object('player_id',p,'game_id',g,'is_home',true,'points',10,'did_not_play',false));
   sample := jsonb_build_object('source','nba','source_updated_at',t,'elapsed_seconds',1200,'status','InProgress','home_score',40,'away_score',39,'status_text','Q2','stats',stats);
   PERFORM public.save_live_feed_snapshot_atomic(g,provider,sample);
   SELECT count(*) INTO audit_count FROM private.live_feed_audit WHERE game_id=g;
@@ -33,12 +33,12 @@ BEGIN
     OR EXISTS(SELECT 1 FROM private.game_stat_revisions WHERE game_id=g) THEN RAISE EXCEPTION 'Live fallback certified official stats'; END IF;
   IF NOT EXISTS(SELECT 1 FROM private.live_feed_audit WHERE game_id=g AND source='espn' AND stat_rows_changed>0)
     OR NOT EXISTS(SELECT 1 FROM private.live_feed_audit WHERE game_id=g AND source='nba' AND stat_rows_changed>0) THEN RAISE EXCEPTION 'Changed live writes lost their source audit'; END IF;
-  PERFORM public.save_final_game_snapshot_atomic(g,provider,jsonb_set(stats,'{0,points}','7'),t-interval '1 hour',100,99,'Final');
+  PERFORM public.save_final_game_snapshot_atomic(g,provider,jsonb_set(stats,'{0,points}','7'),t-interval '1 hour',7,0,'Final');
   IF (SELECT points<>7 FROM public.player_game_stats WHERE game_id=g) OR NOT EXISTS(SELECT 1 FROM private.game_stat_revisions WHERE game_id=g) THEN RAISE EXCEPTION 'NBA certification did not replace divergent ESPN live values'; END IF;
-  PERFORM public.save_final_game_snapshot_atomic(g,provider,jsonb_set(stats,'{0,points}','8'),t,101,99,'Final');
+  PERFORM public.save_final_game_snapshot_atomic(g,provider,jsonb_set(stats,'{0,points}','8'),t,8,0,'Final');
   IF (SELECT points<>8 FROM public.player_game_stats WHERE game_id=g) THEN RAISE EXCEPTION 'The NBA correction audit could not update an ESPN live game'; END IF;
   PERFORM public.save_live_feed_snapshot_atomic(g,provider,sample||jsonb_build_object('source','espn','source_updated_at',t+interval '4 seconds','elapsed_seconds',2880));
-  IF (SELECT status<>'Final' OR home_score<>101 FROM public.nba_games WHERE id=g) OR (SELECT points<>8 FROM public.player_game_stats WHERE game_id=g) THEN RAISE EXCEPTION 'Late ESPN changed NBA final'; END IF;
+  IF (SELECT status<>'Final' OR home_score<>8 FROM public.nba_games WHERE id=g) OR (SELECT points<>8 FROM public.player_game_stats WHERE game_id=g) THEN RAISE EXCEPTION 'Late ESPN changed NBA final'; END IF;
   IF has_function_privilege('authenticated','public.save_live_feed_snapshot_atomic(uuid,text,jsonb)','EXECUTE') OR has_function_privilege('anon','public.save_live_feed_snapshot_atomic(uuid,text,jsonb)','EXECUTE') THEN RAISE EXCEPTION 'Clients can write feed snapshots'; END IF;
 END;
 $$;

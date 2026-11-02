@@ -90,8 +90,8 @@ Failure follow-up command: `npx vitest run tests/release-history-attestations.te
 The attestation generator check also passed: `node scripts/regenerate-release-history-attestations.mjs --check`.
 
 The real pending Anthony Edwards trade was checked at 390 × 1100 with agent-browser. Both screens show curved totals, team nets, gap, and verdict. The analyzer shows +25 and −25. The charged side also has a 0.000733-point cut, below the displayed precision. There was no horizontal overflow and no production API request.
-[Analyzer screenshot](../tests/evidence/trade-curve/analyzer-390.png) · [Trade card screenshot](../tests/evidence/trade-curve/trade-card-390.png).
-[Structured verification](../tests/evidence/trade-curve/verification.json) records the check counts.
+Analyzer screenshot (external evidence) · Trade card screenshot (external evidence).
+Structured verification (external evidence) records the check counts.
 
 The private migration rehearsal completed with parallel workers disabled. The mini setup now applies these memory limits before restoring data.
 

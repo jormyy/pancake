@@ -12,7 +12,13 @@ const payload = (points = 200, slate = games()) => ({ ...homePayload(undefined, 
 const advance = (ms: number) => act(async () => { await vi.advanceTimersByTimeAsync(ms) })
 const changedServer = () => {
     boundary.server = { version: '2', changes: [{ version: '2', topic: 'score', scope: { tables: ['matchup_totals'] }, created_at: '2026-10-30T01:00:00Z' }] }
-    boundary.read.mockResolvedValue(payload(12))
+    boundary.read.mockImplementation(async scope => {
+        const next = { ...payload(12), context: { ...payload(12).context, version: '2' } }
+        if (scope.params.section !== 'scores') return next
+        return { section: 'scores', context: next.context, matchup: next.matchup, selectedDate: next.selectedDate,
+            weekDays: next.weekDays, leagueMatchups: next.leagueMatchups, todaysGames: next.todaysGames,
+            liveStats: {}, liveBasis: [], startedTeams: [], teamMatchups: {}, forecastStale: null }
+    })
 }
 beforeEach(() => {
     vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] })
@@ -25,6 +31,18 @@ const connected = () => {
     setLeagueChangesConnected('league', true)
 }
 
+it('keeps Home stable for a season-average hint while preserving score corrections', async () => {
+    await h.render(); connected()
+    await act(async () => { notifyLeagueChange('league', { topic: 'score', scopes: null,
+        details: [{ resource: 'averages', season_id: 'season' }] }) })
+    await advance(250)
+    expect(boundary.read).toHaveBeenCalledOnce()
+    boundary.read.mockResolvedValue(payload(12))
+    await act(async () => { notifyLeagueChange('league', { topic: 'score', scopes: null }) })
+    await advance(250)
+    expect(h.latest.matchup?.myPoints).toBe(12)
+})
+
 it('recovers a silently stale connected matchup through HTTP within twenty seconds', async () => {
     await h.render(); connected(); changedServer()
     await advance(19_999)
@@ -34,13 +52,14 @@ it('recovers a silently stale connected matchup through HTTP within twenty secon
     expect(boundary.checks).toHaveBeenCalledOnce()
     expect(h.latest.matchup?.myPoints).toBe(12)
     expect(boundary.read).toHaveBeenCalledTimes(2)
+    expect(boundary.read.mock.lastCall?.[0].params.section).toBeUndefined()
 })
 
-it('keeps a twenty-second version guard while connected without rereading unchanged views', async () => {
+it('rereads saved database scores every twenty seconds while public data is unavailable', async () => {
     await h.render(); connected()
-    await advance(60_000)
+    await advance(60_250)
     expect(boundary.checks).toHaveBeenCalledTimes(3)
-    expect(boundary.read).toHaveBeenCalledOnce()
+    expect(boundary.read).toHaveBeenCalledTimes(4)
 })
 
 it.each(['score', 'stat', 'game', 'player_stats'] as const)('refetches a %s hint without a version packet within two seconds', async topic => {
@@ -207,4 +226,14 @@ it('validates a saved quiet matchup when an inactive route becomes focused', asy
     boundary.focused = true; await h.render()
     await advance(250)
     expect(h.latest.matchup?.myPoints).toBe(12)
+})
+
+
+it('uses the saved unfinished-game dates without another slate read', async () => {
+    boundary.read.mockResolvedValue({ ...payload(), selectedDate: '2026-10-28', todaysGames: [], liveGames: games(),
+        weekDays: [{ date: '2026-10-29', dayLabel: 'Today', dateNum: 29, hasGames: true, isToday: true, playingTeams: ['BOS'] }] })
+    await h.render(); connected()
+    expect(boundary.games).not.toHaveBeenCalled()
+    await advance(20250)
+    expect(boundary.checks).toHaveBeenCalledOnce()
 })

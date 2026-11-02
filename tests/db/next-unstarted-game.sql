@@ -1,7 +1,7 @@
 BEGIN;
 DO $$
 DECLARE u uuid:=gen_random_uuid(); l uuid:=gen_random_uuid(); p uuid:=gen_random_uuid();
-  g uuid:=gen_random_uuid(); later uuid:=gen_random_uuid(); d date:=(now() AT TIME ZONE 'America/New_York')::date;
+  history uuid:=gen_random_uuid(); g uuid:=gen_random_uuid(); later uuid:=gen_random_uuid(); d date:=(now() AT TIME ZONE 'America/New_York')::date;
   v_case record; v_result record;
 BEGIN
   INSERT INTO auth.users(id,email,raw_user_meta_data) VALUES(u,u::text||'@example.test','{}');
@@ -10,7 +10,9 @@ BEGIN
   INSERT INTO nba_games(id,nba_game_id,season_year,week_number,game_date,home_team,away_team,status,game_time) VALUES
     (g,'002next-first',2097,1,d,'NXT','ONE','Scheduled',now()+interval '1 hour'),
     (later,'002next-later',2097,1,d+1,'TWO','NXT','Scheduled',now()+interval '25 hours');
-  INSERT INTO player_game_stats(player_id,game_id,season_year,week_number,points) VALUES(p,g,2097,1,20);
+  INSERT INTO nba_games(id,nba_game_id,season_year,week_number,game_date,home_team,away_team,status,game_time)
+    VALUES(history,'002next-history',2097,1,d-1,'NXT','OLD','Final',now()-interval '1 day');
+  INSERT INTO player_game_stats(player_id,game_id,season_year,week_number,points) VALUES(p,history,2097,1,20);
   PERFORM public.refresh_player_search_caches();
   FOR v_case IN SELECT * FROM (VALUES
     ('Scheduled',interval '1 hour',NULL::interval,d),

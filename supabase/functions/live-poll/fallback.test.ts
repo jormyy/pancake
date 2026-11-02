@@ -12,9 +12,9 @@ const scoreboard = await load('2026-10-30T01-00-49.445Z-scoreboard.json')
 const nba = await load('2026-10-30T01-00-50.022Z-nba-boxscore-0022600144.json')
 const now = Date.parse('2026-10-30T01:00:50Z')
 const game = { id: '00000000-0000-4000-8000-000000000001', nba_game_id: '0022600144', game_date: '2026-10-29', season_year: 2027, week_number: 2, home_team: 'ATL', away_team: 'CLE', status: 'InProgress' }
-const ids = summary.boxscore.players.flatMap((team: { statistics: { athletes: { athlete: { id: string }; didNotPlay: boolean }[] }[] }) => team.statistics[0].athletes.filter(row => !row.didNotPlay).map(row => row.athlete.id))
+const ids = summary.boxscore.players.flatMap((team: { statistics: { athletes: { athlete: { id: string }; didNotPlay: boolean }[] }[] }) => team.statistics[0].athletes.map(row => row.athlete.id))
 
-type Options = { nbaAge?: number; nbaError?: boolean; missing?: boolean; final?: boolean; summaryError?: boolean; identityError?: boolean; espnPost?: boolean; scheduled?: boolean; duplicateNba?: boolean; witness?: boolean }
+type Options = { nbaAge?: number; nbaError?: boolean; missing?: boolean; missingIds?: string[]; final?: boolean; summaryError?: boolean; identityError?: boolean; espnPost?: boolean; scheduled?: boolean; duplicateNba?: boolean; witness?: boolean }
 async function scenario(options: Options, run: (source: Awaited<ReturnType<typeof prepareLiveSources>>, calls: string[]) => Promise<void>) {
   const original = globalThis.fetch
   const calls: string[] = []
@@ -45,7 +45,7 @@ async function scenario(options: Options, run: (source: Awaited<ReturnType<typeo
     }
     assert.equal(url.pathname, '/rest/v1/players')
     if (options.identityError) return Response.json({ code: '55P03', message: 'canceling statement due to lock timeout' }, { status: 500 })
-    return Response.json(ids.slice(options.missing ? 1 : 0).map((id: string, index: number) => ({ id: `00000000-0000-4000-8001-${String(index).padStart(12, '0')}`, espn_id: id, nba_id: options.duplicateNba ? '100' : options.witness && index === 0 ? String(nba.game.homeTeam.players.find((player: { played: string }) => player.played === '1').personId) : String(100 + index) })))
+    return Response.json(ids.slice(options.missing ? 1 : 0).map((id: string, index: number) => ({ id: `00000000-0000-4000-8001-${String(index).padStart(12, '0')}`, espn_id: id, nba_id: options.duplicateNba ? '100' : options.witness && index === 0 ? String(nba.game.homeTeam.players.find((player: { played: string }) => player.played === '1').personId) : String(100 + index) })).filter((row: { espn_id: string }) => !options.missingIds?.includes(row.espn_id)))
   }
   try {
     const source = await prepareLiveSources([game], scoreboard.events, [], now, new EspnLiveSource(() => now))
@@ -144,5 +144,34 @@ Deno.test('NBA participants remain witnessed while ESPN supplies the live values
     const box = await source.loadBoxScore(game)
     assert.equal(box.liveSource, 'espn')
     assert.deepEqual(box.nbaWitnessPlayerIds, ['00000000-0000-4000-8001-000000000000'])
+  })
+})
+
+
+Deno.test('an unmapped ATL-CLE DNP does not reject the ESPN fallback or remove mapped DNPs',async()=>{
+  const athletes=summary.boxscore.players.flatMap((team:{statistics:{athletes:{athlete:{id:string};didNotPlay:boolean}[]}[]})=>team.statistics[0].athletes)
+  assert.equal(athletes.find((row:{athlete:{id:string}})=>row.athlete.id==='5177362')?.didNotPlay,true)
+  await scenario({nbaError:true,missingIds:['5177362']},async source=>{
+    const box=await source.loadBoxScore(game)
+    assert.equal(box.liveSource,'espn')
+    assert.equal(box.livePlayerIds?.length,ids.length-1)
+    const players=[...box.homeTeam.players,...box.awayTeam.players]
+    assert.ok(!players.some(row=>row.personId===100+ids.indexOf('5177362')))
+    for(const row of athletes.filter((row:{athlete:{id:string}})=>row.athlete.id!=='5177362')) {
+      const player=players.find(player=>player.personId===100+ids.indexOf(row.athlete.id))
+      assert.ok(player)
+      assert.equal(player.played,row.didNotPlay?0:1)
+      if(row.didNotPlay){assert.equal(player.statistics.points,0);assert.equal(player.statistics.minutes,'PT0M00S')}
+    }
+    for(const side of [box.homeTeam,box.awayTeam])assert.equal(side.players.reduce((sum,row)=>sum+row.statistics.points,0),side.score)
+    assert.equal(source.observations[0].reason,'espn-primary')
+  })
+})
+
+Deno.test('an unmapped ATL-CLE participant still rejects the ESPN fallback',async()=>{
+  const participant=summary.boxscore.players.flatMap((team:{statistics:{athletes:{athlete:{id:string};didNotPlay:boolean}[]}[]})=>team.statistics[0].athletes)
+    .find((row:{didNotPlay:boolean})=>!row.didNotPlay)!
+  await scenario({nbaError:true,missingIds:[participant.athlete.id]},async source=>{
+    await assert.rejects(()=>source.loadBoxScore(game),error=>liveFailureText(error).includes(`ESPN athlete ${participant.athlete.id}: missing or ambiguous NBA identity link`))
   })
 })

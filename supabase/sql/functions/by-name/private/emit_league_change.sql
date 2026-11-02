@@ -7,6 +7,7 @@ RETURNS trigger
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 DECLARE v_rows text; v_scopes text; v_topic text; v_change record;
   v_ignored text[] := ARRAY['updated_at','set_at'];
+  official_change boolean:=false;
 BEGIN
   IF TG_TABLE_NAME='nba_games' THEN
     v_ignored := v_ignored || ARRAY['live_stats_elapsed_seconds','live_scoreboard_elapsed_seconds'];
@@ -26,6 +27,28 @@ BEGIN
       WHERE (to_jsonb(n)-%L::text[]) IS DISTINCT FROM (to_jsonb(o)-%L::text[])
       UNION ALL SELECT o.* FROM old_rows o JOIN new_rows n USING(id)
       WHERE (to_jsonb(n)-%L::text[]) IS DISTINCT FROM (to_jsonb(o)-%L::text[])$rows$,v_ignored,v_ignored,v_ignored,v_ignored);
+  END IF;
+  IF auth.role()='service_role' AND COALESCE(NULLIF(current_setting('request.headers',true),'')::jsonb,'{}'::jsonb)->>'x-pancake-public-checkpoint'='true' THEN
+    IF TG_TABLE_NAME='player_game_stats' THEN
+      EXECUTE format('SELECT EXISTS(SELECT 1 FROM (%s) changed JOIN public.nba_games game ON game.id=changed.game_id WHERE game.status=''Final'')',v_rows) INTO official_change;
+    ELSIF TG_TABLE_NAME='nba_games' THEN
+      EXECUTE format('SELECT EXISTS(SELECT 1 FROM (%s) changed WHERE status=''Final'')',v_rows) INTO official_change;
+    ELSIF TG_TABLE_NAME='matchups' THEN
+      official_change:=TG_OP<>'UPDATE';
+      IF TG_OP='UPDATE' THEN
+        SELECT EXISTS(SELECT 1 FROM new_rows n JOIN old_rows o USING(id)
+          WHERE n.is_finalized OR o.is_finalized OR EXISTS(SELECT 1 FROM public.player_game_stats stat
+            JOIN public.nba_games game ON game.id=stat.game_id AND game.status='Final'
+            JOIN public.league_seasons season ON season.id=n.league_season_id AND season.season_year=game.season_year
+            JOIN public.season_weeks week ON week.season_year=season.season_year AND week.week_number BETWEEN n.week_number AND COALESCE(n.end_week_number,n.week_number)
+            WHERE stat.game_date BETWEEN week.week_start AND week.week_end AND stat.updated_at>=COALESCE((
+              SELECT min(state.checkpoint_at) FROM private.live_poll_game_state state
+              JOIN public.nba_games active ON active.id=state.game_id
+              WHERE active.status='InProgress' AND active.season_year=season.season_year
+                AND active.game_date BETWEEN week.week_start AND week.week_end),'-infinity'::timestamptz))) INTO official_change;
+      END IF;
+    END IF;
+    IF official_change THEN PERFORM set_config('pancake.official_broadcast','true',true); END IF;
   END IF;
   CASE TG_TABLE_NAME
     WHEN 'weekly_lineups' THEN

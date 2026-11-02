@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261214006200",
+  "candidateVersion": "20261214009200",
   "common": {
     "functions": [
       {
@@ -618,7 +618,7 @@
           "strict": false,
           "language": "plpgsql",
           "arguments": "p_now timestamp with time zone DEFAULT now()",
-          "bodySha256": "4ef37559f447505dc7d3b30861439f9a2e30954a607922f463b6c42163698a80",
+          "bodySha256": "6ef6d15e0e8b88dc66ff92a1a535212b349bf0f9ffb97ec4cfa9eb470371182f",
           "volatility": "v",
           "anonExecute": false,
           "publicExecute": false,
@@ -758,7 +758,7 @@
           "strict": false,
           "language": "plpgsql",
           "arguments": "p_limit integer DEFAULT 64",
-          "bodySha256": "953083a45b2ba19bcc734918ae644245888b6bcfb48ebce7537877dc0303d92e",
+          "bodySha256": "4f8b5a24851815048449340a7f02179d6779ec3cc1bb15f8b035168720833718",
           "volatility": "v",
           "anonExecute": false,
           "publicExecute": false,
@@ -818,7 +818,7 @@
           "strict": false,
           "language": "plpgsql",
           "arguments": "p_id bigint, p_token uuid",
-          "bodySha256": "8b0168028fe7ff615dc5c35c982fdab1338f8794aeb4fe8233818f037e6357a9",
+          "bodySha256": "dad9fa757e7fc35cf362e400b2f568d54f709b960c0d8a5ceff24b69a49d594d",
           "volatility": "v",
           "anonExecute": false,
           "publicExecute": false,
@@ -858,7 +858,7 @@
           "strict": false,
           "language": "plpgsql",
           "arguments": "",
-          "bodySha256": "abba2fc6b82a624d67f4c1ca0fd6a0c630c33c08a75c70676b3a49975527cc1c",
+          "bodySha256": "9a5fa3d964dda386f219911c6c27b9406d99f8fe0372dceb35ccc65a860a7ac8",
           "volatility": "v",
           "anonExecute": false,
           "publicExecute": false,
@@ -2530,6 +2530,110 @@
     {
       "filename": "20261214006200_skip_empty_statement_triggers.sql",
       "sha256": "4c16a82af69531f310ca7f7dd3d37af9a4ccd6c3c45757fbf30878c6913d3b85"
+    },
+    {
+      "filename": "20261214006300_schedule_half_gig.sql",
+      "sha256": "bc0b236c97e34be2b3d1b173ad1487fe880ec5a35fd1197b1c7a596ac236b71e"
+    },
+    {
+      "filename": "20261214006500_memory_half_gig.sql",
+      "sha256": "11e4bb172db9a7670d5caf2c481b934a8c641254ac50c184b63a5fbcc9df5908"
+    },
+    {
+      "filename": "20261214006700_live_score_view.sql",
+      "sha256": "670bcaba61c7763609c025340d54fe538254cb538683beefdfce1dd6abc7d2f0"
+    },
+    {
+      "filename": "20261214006800_public_live_checkpoints.sql",
+      "sha256": "308e4ddc9bf44ee0e37994d241cc6fc4f27e694d7b47874ba7be17b55a753720"
+    },
+    {
+      "filename": "20261214006900_limit_live_basis_to_displayed_players.sql",
+      "sha256": "ee65a00ff4fe25fb55c24513087469564055b3b7b4b4a786bcd0c030862694b0"
+    },
+    {
+      "filename": "20261214007000_dispatch_short_work_without_starving_live.sql",
+      "sha256": "a7d6c5a2de1e53eb473f3e9e0d2125922866a94aaf6703357e8cfb0b2aa328b6"
+    },
+    {
+      "filename": "20261214007100_compact_live_dispatch_candidates.sql",
+      "sha256": "0d0c39dd8659982a2039f7ea4827dfb0291a30fe8bc47ba78cb687f56899e788"
+    },
+    {
+      "filename": "20261214007200_prioritize_queued_live_ingestion.sql",
+      "sha256": "e32b57be46dd2745829c94e311991dfc32096d6319f2899b9049bdfa2ac09d71"
+    },
+    {
+      "filename": "20261214007400_scope_and_compact_home_updates.sql",
+      "sha256": "eef6b9d87af6ac36435fbf1c6a1ec5b272890b1223beaca1513b8f1140ab267c"
+    },
+    {
+      "filename": "20261214007500_batch_transaction_broadcasts.sql",
+      "sha256": "4f12698b41931c4ce7d37fc2f8ab28eda1059abccd5ad9ba0628d8abe0650418"
+    },
+    {
+      "filename": "20261214007600_preserve_matchup_view_date.sql",
+      "sha256": "13b735920f842f50062c290eb600caebf58edc4e4bdf0a90286d34ceec58d514"
+    },
+    {
+      "filename": "20261214007700_process_late_forecast_corrections.sql",
+      "sha256": "1b03e239a67c28236a664064f0f045ad386d47a25fa6fcc0d33acc6d80a8dd6c"
+    },
+    {
+      "filename": "20261214007900_preserve_legacy_league_events.sql",
+      "sha256": "cf6474b8fed3e4d7fe57b00774bacc9f24df72cc2b58594c1c6ccfe526424482"
+    },
+    {
+      "filename": "20261214008000_bound_forecast_correction_work.sql",
+      "sha256": "874451bfe8d29e9f96689a1f85e8b6da25b5024d464c4a38003454409de08b08"
+    },
+    {
+      "filename": "20261214008100_batch_non_context_league_events.sql",
+      "sha256": "015747c1232125cf1d5092d0cc45a91c8bcb22529363dad97193bcbe6a6105a9"
+    },
+    {
+      "filename": "20261214008200_scope_forecast_change_events.sql",
+      "sha256": "98063a34cdea0edda9e6d01a5599236956b0fc6c772aa35cafa4ce2b15c03726"
+    },
+    {
+      "filename": "20261214008300_compact_forecast_context.sql",
+      "sha256": "78330d4c667c5d97bc27b95fdf93c59ba6e68783b0201e20cd674900be75ffe6"
+    },
+    {
+      "filename": "20261214008400_batch_forecast_publication.sql",
+      "sha256": "e0e4e5bcc230dc1cc47a828faa20ab92e863198cb92081b5b442e5adb0b6df77"
+    },
+    {
+      "filename": "20261214008500_read_only_changed_forecasts.sql",
+      "sha256": "bc440eaaf2a9d87533a7f40e84246c5d9d7f3661728489835555763a13c6e99b"
+    },
+    {
+      "filename": "20261214008600_use_home_change_clock.sql",
+      "sha256": "bc4fb8f7b92332a39a68672ac624610c43b932213106e1eabfb4d329683879f6"
+    },
+    {
+      "filename": "20261214008700_omit_terminal_forecast_inputs.sql",
+      "sha256": "f87fad999301df458c04014ad2d888accbaa654cb0e410e4dea0e577959f78e7"
+    },
+    {
+      "filename": "20261214008800_read_score_updates_without_lineups.sql",
+      "sha256": "682ae8b118bfac7c74f793c9b6db99aff2b93bd5d3649c68cfcaa983a6d57c5b"
+    },
+    {
+      "filename": "20261214008900_refresh_decimal_scoring.sql",
+      "sha256": "3811b52e7f9cdd69e3a3a97986c6f7cf4b055d53b472dcdb93d2ebe18a8d8f8b"
+    },
+    {
+      "filename": "20261214009000_keep_all_star_projection_windows.sql",
+      "sha256": "83de8e5ee587f4ce7b6ad2b0764bce9e4683d0d7b64d39be78ec015ba539fd22"
+    },
+    {
+      "filename": "20261214009100_rearm_trade_analysis_after_values.sql",
+      "sha256": "5ffd7a4127551f6be00a9951d0f6cac8c5763d38c72b41546c7a67036b109380"
+    },
+    {
+      "filename": "20261214009200_keep_unfinished_matchups_live.sql",
+      "sha256": "beb3b373f3d3d8f1ee35ad59b7f9fb4edbd947cf80b7054775a87a8e335ef8f6"
     }
   ],
   "preMigration": {

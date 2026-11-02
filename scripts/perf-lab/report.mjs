@@ -1,3 +1,4 @@
+import assert from 'node:assert/strict'
 import { readFile, readdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -106,7 +107,11 @@ export async function accumulatedReceipts(evidenceRoot, current, fingerprint) {
 }
 
 export async function renderReport(options) {
-  const { root = sourceRoot, evidenceRoot, receipts: currentReceipts = [], writeDocs = true } = options ?? {}
+  const { root = sourceRoot, evidenceRoot, receipts: currentReceipts = [], writeReports = true } = options ?? {}
+  if (evidenceRoot) {
+    const relative = path.relative(sourceRoot, path.resolve(evidenceRoot))
+    assert.ok(relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative), 'Report evidence must stay outside the repository')
+  }
   let simulation = options?.simulation ?? null
   const captureReceipt = evidenceRoot ? JSON.parse(await readFile(path.join(evidenceRoot, 'database-run.json'), 'utf8').catch(() => 'null')) : null
   const retained = !simulation?.attempted && !simulation?.passed ? await retainedReplay(evidenceRoot) : null
@@ -117,16 +122,21 @@ export async function renderReport(options) {
   work.controls = sourceControls(work)
   const dataClasses = currentDataClasses(work.dataClasses)
   const receipts = await accumulatedReceipts(evidenceRoot, currentReceipts, work.fingerprint)
-  const coldSurvey = JSON.parse(await readFile(path.join(root, 'scripts/perf-lab/baselines/cold-survey.json'), 'utf8'))
+  const archivedInput = async (name, fallback) => {
+    if (!evidenceRoot) return fallback
+    try { return JSON.parse(await readFile(path.join(evidenceRoot, 'baselines', name), 'utf8')) }
+    catch (error) { if (error.code === 'ENOENT') return fallback; throw error }
+  }
+  const coldSurvey = await archivedInput('cold-survey.json', { source: 'unavailable', evidence: 'unavailable', observations: [] })
   const costReceipts = new Map(coldSurvey.observations.map(row => [row.id, { ...row, archivedSource: coldSurvey.source }]))
-  const sectionArchive = JSON.parse(await readFile(path.join(root, 'scripts/perf-lab/baselines/section-content.json'), 'utf8').catch(() => 'null'))
-  const finalArchive = JSON.parse(await readFile(path.join(root, 'scripts/perf-lab/baselines/final-capture.json'), 'utf8').catch(() => 'null'))
+  const sectionArchive = await archivedInput('section-content.json', null)
+  const finalArchive = await archivedInput('final-capture.json', null)
   const sectionCaptures = [sectionArchive, sectionArchive?.after, ...(sectionArchive?.captures ?? []), finalArchive?.before, finalArchive].filter(Boolean)
-  const cohortDefinition = JSON.parse(await readFile(path.join(root, 'scripts/perf-lab/baselines/release-cohort.json'), 'utf8'))
+  const cohortDefinition = await archivedInput('release-cohort.json', { release: 'external', sources: [] })
   const cohort = captureCohort(cohortDefinition, sectionCaptures)
   const perScreen = screenBaseline(work.surfaces, [...cohort.observations, ...receipts.map(row => ({ ...row, source: row.source ?? captureReceipt?.source, evidence: evidenceRoot ? path.join(evidenceRoot, path.dirname(row.webkit?.har ?? '.')) : undefined }))])
   const perScreenLines = screenBaselineLines(perScreen)
-  const closure = JSON.parse(await readFile(path.join(root, 'scripts/perf-lab/baselines/closure.json'), 'utf8').catch(error => { if (error.code === 'ENOENT') return 'null'; throw error }))
+  const closure = await archivedInput('closure.json', null)
   const closureLines = closure ? ['## Baseline closure', '', closure.summary, '',
     `Baseline source: ${closure.source}. Closed at ${closure.closedAt}.`,
     `Adapter checks: ${closure.adapters.passed}/${closure.adapters.total} across ${closure.adapters.screens} screens. Ranked screen states: ${closure.screenStates.measured}/${closure.screenStates.total}.`,
@@ -137,7 +147,7 @@ export async function renderReport(options) {
     'The captures use different adapter fingerprints. This cost baseline does not establish current coverage.',
     'Before captures and failed attempts remain in the detailed tables below.',
     'Frequency counts requests in this selected workload, not daily usage.',
-    'The source list is in scripts/perf-lab/baselines/release-cohort.json; baseline.json retains each case and evidence path.', '',
+    'Optional historical inputs come from the external evidence baselines directory; baseline.json retains each case and evidence path.', '',
     '| State | Cases | Requests | Down bytes | Up bytes |', '| --- | --- | --- | --- | --- |',
     ...cohort.states.map(row => `| ${row.state} | ${row.samples} | ${row.requests} | ${row.bytesDown} | ${row.bytesUp} |`), '']
   for (const [kind, rows] of Object.entries(cohort.ranking)) cohortLines.push(
@@ -158,7 +168,7 @@ export async function renderReport(options) {
         '| --- | --- | --- | --- |', ...rows.map(row => `| ${cell(row.id)} | ${row.requests} | ${row.bytesPerRequest.toFixed(0)} | ${row.bytesDown} |`), '')
     }
   }
-  const imageTransport = JSON.parse(await readFile(path.join(root, 'scripts/perf-lab/baselines/image-transport.json'), 'utf8').catch(() => 'null'))
+  const imageTransport = await archivedInput('image-transport.json', null)
   if (imageTransport) {
     cohortLines.push('## Local image transport repair', '', 'This restores a blocked image. The added bytes are not a performance gain.', '',
       '| Capture | Requests | Down bytes | Blocked external requests | Evidence |', '| --- | --- | --- | --- | --- |')
@@ -191,9 +201,9 @@ export async function renderReport(options) {
     const breakdown = row.webkit.traffic ?? (rows ? trafficBreakdown(rows) : null)
     return { id: row.id, source: row.archivedSource ?? null, httpCache: row.webkit.httpCache ?? 'disabled-by-routing', requests: row.webkit.requests, bytesDown: row.webkit.bytesIn, bytesUp: row.webkit.bytesOut, breakdown }
   })
-  const archive = JSON.parse(await readFile(path.join(root, 'scripts/perf-lab/baselines/verified-reopen.json'), 'utf8'))
+  const archive = await archivedInput('verified-reopen.json', { source: 'unavailable', evidence: 'unavailable', states: [], ranking: [] })
   const archiveLines = ['## Archived verified reopen', '', `Source: ${archive.source}. Evidence: ${archive.evidence}. These observations do not satisfy the current workload fingerprint.`, '', '| State | Requests | Down bytes | DB ms | Statements | Buffers | First content ms | Settled ms |', '| --- | --- | --- | --- | --- | --- | --- | --- |', ...archive.states.map(row => `| ${row.id} | ${row.requests} | ${row.bytesDown} | ${row.dbMs.toFixed(2)} | ${row.dbCalls} | ${row.dbBuffers} | ${row.firstContentMs.toFixed(1)} | ${row.settledMs.toFixed(1)} |`), '', '| Screen | Observed frequency | Mean DB ms | Cost × frequency (DB ms) |', '| --- | --- | --- | --- |', ...archive.ranking.map(row => `| ${row.id} | ${row.frequency} | ${row.dbMs.toFixed(2)} | ${row.weightedDbMs.toFixed(2)} |`), '']
-  const initialTraffic = JSON.parse(await readFile(path.join(root, 'scripts/perf-lab/baselines/initial-traffic.json'), 'utf8'))
+  const initialTraffic = await archivedInput('initial-traffic.json', [])
   const startingNetwork = rankTraffic(initialTraffic.map(row => ({ breakdown: { resourceTypes: row.resourceTypes, endpoints: row.endpoints } })))
   const trafficLines = ['## Captured traffic by state', '', 'Bytes count HTTP payloads at the local gateway. Browser cache hits do not cross this gateway.', '', 'Each endpoint excludes query values. Durations sum request elapsed time and can overlap.', '', `Archived cold survey: ${coldSurvey.source}. Evidence: ${coldSurvey.evidence}. Archived costs do not satisfy current coverage.`, '']
   for (const row of [...initialTraffic.map(row => ({ ...row, id: `Initial capture · ${row.id}`, breakdown: { resourceTypes: row.resourceTypes, endpoints: row.endpoints } })), ...traffic]) {
@@ -231,7 +241,7 @@ export async function renderReport(options) {
     for (const row of [...layer.endpoints].sort((a, b) => b.durationMs - a.durationMs)) networkLines.push(`| ${cell(row.id)} | ${row.requests} | ${row.bytesDown} / ${row.bytesUp} | ${(row.durationMs / row.requests).toFixed(2)} | ${row.durationMs.toFixed(2)} | ${row.errors} |`)
     networkLines.push('')
   }
-  const normalCache = JSON.parse(await readFile(path.join(root, 'scripts/perf-lab/baselines/normal-cache.json'), 'utf8').catch(() => 'null'))
+  const normalCache = await archivedInput('normal-cache.json', null)
   if (normalCache) {
     networkLines.push('## Archived cache-enabled baseline', '', `Source: ${normalCache.source}. Evidence: ${normalCache.evidence}.`, '', 'This capture uses normal HTTP caching. Later harness changes require fresh coverage proofs.', '', '| State | Requests | Down bytes |', '| --- | --- | --- |', ...normalCache.states.map(row => `| ${cell(row.id)} | ${row.requests} | ${row.bytesDown} |`), '')
     networkLines.push('| Screen | Observed frequency | Mean DB ms | Cost × frequency (DB ms) |', '| --- | --- | --- | --- |', ...normalCache.ranking.map(row => `| ${cell(row.id)} | ${row.frequency} | ${row.dbMs.toFixed(2)} | ${row.weightedDbMs.toFixed(2)} |`), '')
@@ -247,7 +257,7 @@ export async function renderReport(options) {
   const fullCapturePassed = simulation?.captureProfile === 'full' && simulationGatePassed && replayReceipt?.captureComplete !== false
   const simulationPassed = ['full', 'control'].includes(simulation?.captureProfile) && simulationGatePassed
   const currentRunLabel = `${retained ? 'Retained' : 'Current'} ${simulation?.captureProfile === 'control' ? 'control' : 'full'} run`
-  const runtimeBefore = JSON.parse(await readFile(path.join(root, 'scripts/perf-lab/baselines/replay-runtime.json'), 'utf8').catch(() => 'null'))
+  const runtimeBefore = await archivedInput('replay-runtime.json', null)
   const runtimeRows = replayRoot ? (await readFile(path.join(replayRoot, 'edge-invocations.jsonl'), 'utf8').catch(() => '')).trim().split('\n').filter(Boolean).map(line => JSON.parse(line)) : []
   const runtimeCurrent = replayRuntime(runtimeRows)
   const runtimeMatched = runtimeBefore ? replayRuntime(runtimeRows, runtimeBefore.summary.through) : null
@@ -292,7 +302,7 @@ export async function renderReport(options) {
     for (const row of statements) runtimeLines.push(`| ${label} | ${row.queryid} | ${row.calls} | ${(row.total_exec_time / row.calls).toFixed(4)} | ${row.total_exec_time.toFixed(2)} | ${row.rows_returned_or_affected} | ${row.shared_blks_hit + row.shared_blks_read} | ${cell(row.query.replace(/\s+/g, ' ').slice(0, 250))} |`)
   }
   runtimeLines.push('')
-  const attempts = JSON.parse(await readFile(path.join(root, 'scripts/perf-lab/baselines/replay-attempts.json'), 'utf8').catch(() => '[]'))
+  const attempts = await archivedInput('replay-attempts.json', [])
   if (simulation?.attempted || simulation?.passed) {
     const receipt = replayReceipt
     if (!attempts.some(row => row.runId === receipt?.runId)) attempts.push({ runId: receipt?.runId, source: receipt?.source, profile: simulation.captureProfile, passed: simulation.passed, error: simulation.error, gates: simulation.gates, evidence: replayRoot, runtime: runtimeCurrent, clocks: currentClocks })
@@ -402,7 +412,7 @@ export async function renderReport(options) {
     'This ranking combines one cold open and one warm reopen of the starting matchup.',
     'Frequency counts requests in those two captures. It does not estimate daily user activity.',
     'Cost × frequency is total response bytes. These archived results do not prove the current release.',
-    'Source: [starting traffic records](../scripts/perf-lab/baselines/initial-traffic.json).', '')
+    'Source: optional external baselines/initial-traffic.json.', '')
   for (const [kind, rows] of Object.entries(startingNetwork)) {
     opening.push(`| ${kind === 'resourceTypes' ? 'Asset type' : 'Endpoint'} | Requests | Mean bytes | Cost × frequency bytes |`, '| --- | --- | --- | --- |',
       ...rows.slice(0, kind === 'resourceTypes' ? rows.length : 10).map(row => `| ${cell(row.id)} | ${row.requests} | ${row.bytesPerRequest.toFixed(0)} | ${row.bytesDown} |`), '')
@@ -442,7 +452,7 @@ export async function renderReport(options) {
     }
     for (const note of archive.notes ?? []) flow.push('', note, '')
   }
-  const visual = JSON.parse(await readFile(path.join(root, 'scripts/perf-lab/baselines/visual-first-load.json'), 'utf8').catch(() => '[]'))
+  const visual = await archivedInput('visual-first-load.json', [])
   if (visual.length) {
     flow.push('', '## Recorded first-frame observations', '', 'These observations describe the captured pixels. Michael’s review remains pending.', 'A passing content check does not mean the first frame contains screen data.', '', '| State | Source | Visible first frame | Settled frame | Images |', '| --- | --- | --- | --- | --- |')
     for (const row of visual) flow.push(`| ${cell(row.case)} | ${row.source.slice(0, 8)} | ${cell(row.first)} | ${cell(row.settled)} | [First frame](${row.image})${row.settledImage ? `; [settled](${row.settledImage})` : ''} |`)
@@ -454,35 +464,35 @@ export async function renderReport(options) {
     flow.push('', 'These frame observations do not establish current-source coverage or Michael’s approval.', '')
   }
   lines.push(...flow.slice(sectionHistoryStart), ...runtimeLines)
-  if (writeDocs) await writeFile(path.join(root, 'docs/screen-matrix.md'), `${lines.join('\n')}\n`)
-  const rosterInputs = JSON.parse(await readFile(path.join(root, 'scripts/perf-lab/baselines/roster-inputs.json'), 'utf8').catch(() => 'null'))
+  if (writeReports && evidenceRoot) await writeFile(path.join(evidenceRoot, 'screen-matrix.md'), `${lines.join('\n')}\n`)
+  const rosterInputs = await archivedInput('roster-inputs.json', null)
   if (rosterInputs) {
     flow.push('', '## Historical roster input coverage', '', `Evidence: ${rosterInputs.evidence}. Earlier dated observations stay available; the 350-player import guard is unchanged.`, '', '| Date | Trimmed input | Retained input |', '| --- | --- | --- |')
     for (const [date, count] of Object.entries(rosterInputs.retained)) flow.push(`| ${date} | ${rosterInputs.trimmed[date] ?? 'not retained'} | ${count} |`)
   }
-  const isolation = JSON.parse(await readFile(path.join(root, 'scripts/perf-lab/baselines/replay-isolation.json'), 'utf8').catch(() => '[]'))
+  const isolation = await archivedInput('replay-isolation.json', [])
   if (isolation.length) {
     flow.push('', '## Replay database isolation', '', 'The combined command now restores the backup again before replay. These counts describe the database before replay creates its league.', '', '| Capture | Leagues | Players | Game stats | Games | Auth users | Recovered retry items / observed | Phase reached |', '| --- | --- | --- | --- | --- | --- | --- | --- |')
     for (const row of isolation) flow.push(`| ${cell(row.label)} | ${row.database.leagues} | ${row.database.players} | ${row.database.stats} | ${row.database.games} | ${row.database.authUsers} | ${row.retryItems.filter(item => item.recovered).length} / ${row.retryItems.length} | ${cell(row.phase)} |`)
     flow.push('', 'The fresh comparison is incomplete until the two-day gates pass. These are fixture-isolation measurements, not product performance gains.', '')
   }
-  const clockProbe = JSON.parse(await readFile(path.join(root, 'scripts/perf-lab/baselines/clock-capture.json'), 'utf8').catch(() => 'null'))
+  const clockProbe = await archivedInput('clock-capture.json', null)
   if (clockProbe) {
     flow.push('', '## Synthetic clock capture overhead', '', `${clockProbe.scope} Evidence: ${clockProbe.evidence}.`, '', '| Probe | Calls | Execution ms | Shared buffer hits |', '| --- | --- | --- | --- |')
     for (const [name, sample] of Object.entries(clockProbe.samples)) flow.push(`| ${name} | ${clockProbe.callsPerSample} | ${sample.executionMs} | ${sample.sharedHitBlocks} |`)
     flow.push('', 'The archived clock probe keeps product plan logging at zero milliseconds. New bounded captures sample slow plans.', '')
   }
-  const waiver = JSON.parse(await readFile(path.join(root, 'scripts/perf-lab/baselines/waiver-replay.json'), 'utf8').catch(() => 'null'))
+  const waiver = await archivedInput('waiver-replay.json', null)
   if (waiver) {
   flow.push('', '## Waiver replay before and after', '', waiver.cause, '', '| Capture | Starting FAAB | Available FAAB | Bid | HTTP | Evidence |', '| --- | --- | --- | --- | --- | --- |')
     for (const phase of ['before', 'after']) {
       const row = waiver[phase]
       flow.push(row ? `| ${phase} | ${row.startingBudget} | ${row.availableBudget} | ${row.bid} | ${row.status} | ${cell(row.evidence)} |` : `| ${phase} | unmeasured | unmeasured | unmeasured | unmeasured | pending replay |`)
     }
-    flow.push('', 'The stored request body and server receipt are in `scripts/perf-lab/baselines/waiver-replay.json`. Request IDs and actors match in the before capture.', '')
+    flow.push('', 'The stored request body and server receipt are in the external `baselines/waiver-replay.json`. Request IDs and actors match in the before capture.', '')
   }
   flow.push(...runtimeLines)
-  if (writeDocs) await writeFile(path.join(root, 'docs/data-flow.md'), `${flow.join('\n')}\n`)
+  if (writeReports && evidenceRoot) await writeFile(path.join(evidenceRoot, 'data-flow.md'), `${flow.join('\n')}\n`)
   const controlCoverage = Object.fromEntries(['webkit'].map(engine => {
     const ids = new Set(receipts.filter(row => row[engine]?.passed).flatMap(row => (row[engine].interactions ?? []).filter(control => sequenceControlProved(control, row[engine])).map(control => control.id)))
     return [engine, { measured: work.controls.filter(control => ids.has(control.id)).length, total: work.controls.length }]
@@ -505,7 +515,7 @@ export async function renderReport(options) {
     const summary = ['# Baseline measurements', '', `${passed}/${results.length} complete screen-state proofs. Results below cover only measured WebKit observations.`, '', '| Screen | Samples | Requests | Down bytes | Up bytes | DB ms | DB buffers | Cost × frequency (DB ms) |', '| --- | --- | --- | --- | --- | --- | --- | --- |', ...report.ranking.map(row => `| ${row.id} | ${row.frequency} | ${row.requests.toFixed(1)} | ${row.bytesIn.toFixed(0)} | ${row.bytesOut.toFixed(0)} | ${row.dbMs.toFixed(2)} | ${row.dbBuffers.toFixed(0)} | ${row.weightedDbMs.toFixed(2)} |`)]
     summary.push('', ...cohortLines, ...networkLines, '## Interaction cost × observed frequency', '', '| Control | Samples | Mean requests | Mean down bytes | Mean result ms | Total down bytes | Over budget |', '| --- | --- | --- | --- | --- | --- | --- |', ...interactionRanking.map(row => `| ${cell(row.id)} | ${row.frequency} | ${row.requests.toFixed(1)} | ${row.bytesDown.toFixed(0)} | ${row.resultsMs.toFixed(1)} | ${row.weightedBytes} | ${row.overBudget} |`), '', ...trafficLines, '', ...archiveLines, ...runtimeLines)
     const ranked = ['## Measured cost × frequency', '', ...summary.slice(4, 6 + report.ranking.length), '']
-    if (writeDocs) await writeFile(path.join(root, 'docs/data-flow.md'), `${[...flow, '', ...ranked].join('\n')}\n`)
+    if (writeReports && evidenceRoot) await writeFile(path.join(evidenceRoot, 'data-flow.md'), `${[...flow, '', ...ranked].join('\n')}\n`)
     await writeFile(path.join(evidenceRoot, 'baseline.md'), `${summary.join('\n')}\n`)
   }
   return { work, report }

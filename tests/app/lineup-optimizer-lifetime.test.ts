@@ -15,7 +15,6 @@ vi.mock('@/hooks/use-lineup-actions', () => ({ useLineupActions: () => ({
     selected: null, setSelected: vi.fn(), saving: false, autoSetModalVisible: true,
     setAutoSetModalVisible: vi.fn(), handleTap: vi.fn(), handleAutoSet: vi.fn(),
 }) }))
-vi.mock('@/hooks/use-live-stats', () => ({ useLiveStats: () => ({ startedTeams: new Set(), liveTeams: new Set(), teamMatchups: new Map() }) }))
 vi.mock('@/lib/cache/screen-cache', () => ({
     cachedScreenView: () => undefined, subscribeScreenView: () => () => {},
     readScreenView: async (scope: { leagueId: string; params: { date: string } }) => ({

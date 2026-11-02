@@ -455,7 +455,7 @@ The final live-cycle comparison includes a populated forecast season cache. Sepa
 
 The final catalog check found and restored two discarded trial definitions left installed in the lab. Affected dispatcher measurements were repeated. Earlier dispatcher prototype measurements are retained as rejected trials, not acceptance evidence.
 
-The [portable local results](pipeline-night-local-results.json) retain 95 pairs, per-arm backend IDs, statement counts, buffer counts, writes, WAL, function names, relation names, follow-up counts where collected, and exact comparison hashes. Function counts track executed user functions. Relation counts track application tables and indexes held by the backend after the call. These are catalog-footprint proxies; syscache misses were not directly measured. The hint-drain function count includes its test wrapper. WAL differences in unchanged A/A cases reflect full-page images and hint bits and are not claimed as gains.
+The portable local results (external evidence: `pipeline-night-local-results.json`) retain 95 pairs, per-arm backend IDs, statement counts, buffer counts, writes, WAL, function names, relation names, follow-up counts where collected, and exact comparison hashes. Function counts track executed user functions. Relation counts track application tables and indexes held by the backend after the call. These are catalog-footprint proxies; syscache misses were not directly measured. The hint-drain function count includes its test wrapper. WAL differences in unchanged A/A cases reflect full-page images and hint bits and are not claimed as gains.
 
 The active worker's prepared read, preparation, completion, ingest, matchup write, and score capture have no retained gain in this follow-up. The legacy compatibility read retains a 55% fresh buffer reduction; the current worker does not call it. Trade inputs and player sync were measured in the original round and received no new change here.
 
@@ -489,7 +489,7 @@ Fresh paired differences are baseline minus candidate milliseconds, in interleav
 
 Final validation used Node 22. The single full Vitest run passed 4,918 tests and skipped 48. One test failed because the running stack had changed local config ports. After stopping the stack and restoring config, that file and the three affected contract files passed all 55 tests. The full suite was not repeated. Lint, app and test typechecks, Knip, canonical source parity, live catalog, and 716 migration attestations passed. Thirteen focused SQL recipes, ten timeout/locking checks, seven lease-parity cases, two cron policy checks, and four deliberate negative controls passed. Two broader SQL recipes retain their reproduced baseline failures, recorded above.
 
-[Local cleanup proof](pipeline-night-local-cleanup.json) confirms that only project `pt4bafablel7` was stopped. Its containers, volumes, and network are absent. Config is restored. Copied backups and the generated native fixture payload are deleted. Original backup hashes still match the restore receipt. No push, deployment, production request, or external notification occurred.
+Local cleanup proof (external evidence: `pipeline-night-local-cleanup.json`) confirms that only project `pt4bafablel7` was stopped. Its containers, volumes, and network are absent. Config is restored. Copied backups and the generated native fixture payload are deleted. Original backup hashes still match the restore receipt. No push, deployment, production request, or external notification occurred.
 
 ## Forecast wakeup follow-up
 
@@ -504,7 +504,7 @@ The statement reduction clears the 10% floor. Buffers and fresh-backend time do 
 
 The truncated slow REST rows share `p_league_id,p_member_id,p_params`, matching 26 view functions and no forecast RPC. Exact names need the untruncated statement. The [forecast report](pipeline-night-forecast.md) contains paired times, expiry rules, reproduction commands, portable results, and read-only diagnostic SQL. No production connection or out-of-scope edit was made.
 
-The [forecast cleanup proof](pipeline-night-forecast-cleanup.json) confirms the private stack and copied backups are removed, local config is restored, and original backup hashes are unchanged.
+The forecast cleanup proof (external evidence: `pipeline-night-forecast-cleanup.json`) confirms the private stack and copied backups are removed, local config is restored, and original backup hashes are unchanged.
 
 ## Forecast input recovery on release 2.12
 
@@ -528,9 +528,9 @@ Five alternating day pairs retain identical returned forecasts at all 84 checkpo
 | Settled idle | 28 → 28 | 5,106 → 5,106 | 1 → 1 | 11 → 11 | 110 → 110 |
 | Two held slots and legacy empty job | 71 → 95 | 7,455 → 7,618 | 6 → 10 | 19 → 19 | 190 → 190 |
 
-The held-input statement reduction is 21.8%. Buffers and fresh time do not clear noise. The last profile dispatches the required input worker only in candidate arms, adding its statements and writes. It isolates claim priority; the held-input profile compares all four changed scheduler helpers with production main. The [portable results](pipeline-night-input-recovery-results.json) retain all 15 fresh pairs, backend IDs, running work kinds, writes, WAL, and paired times.
+The held-input statement reduction is 21.8%. Buffers and fresh time do not clear noise. The last profile dispatches the required input worker only in candidate arms, adding its statements and writes. It isolates claim priority; the held-input profile compares all four changed scheduler helpers with production main. The portable results (external evidence: `pipeline-night-input-recovery-results.json`) retain all 15 fresh pairs, backend IDs, running work kinds, writes, WAL, and paired times.
 
-The final full Vitest run passes 4,953 tests, skips 48, and fails zero. It runs once after restoring local config and stopping the private stack. Code commit `9894ce0c` includes the ready-priority correction; do not ship `6029f978` alone. The [recovery cleanup proof](pipeline-night-recovery-cleanup.json) confirms the private stack, worker listeners, and backup copies are removed, config is restored, and original backup hashes match.
+The final full Vitest run passes 4,953 tests, skips 48, and fails zero. It runs once after restoring local config and stopping the private stack. Code commit `9894ce0c` includes the ready-priority correction; do not ship `6029f978` alone. The recovery cleanup proof (external evidence: `pipeline-night-recovery-cleanup.json`) confirms the private stack, worker listeners, and backup copies are removed, config is restored, and original backup hashes match.
 
 ## L7-5 queue fairness
 

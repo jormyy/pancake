@@ -2,7 +2,6 @@ import { useMemo, type ReactNode } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 import { SectionBand } from '@/components/ui/SectionBand'
 import { MatchupColumnHeader, MatchupRow, type MatchupGame } from '@/components/MatchupRow'
-import type { MatchupForecast } from '@/hooks/use-matchup-forecast'
 import type { LineupPlayer, LineupMoveData, LineupSelection, LineupMoveTargetState } from '@/lib/lineup'
 import type { LiveStatLine } from '@/lib/games'
 import type { StatColumn } from '@/lib/score-breakdown'
@@ -23,7 +22,6 @@ function LineupHeading() {
 }
 
 export function MatchupLineupView({
-    playerForecasts, forecastStale, myMemberId, opponentMemberId,
     myLineup,
     oppLineup,
     selected,
@@ -47,10 +45,6 @@ export function MatchupLineupView({
     footer,
     readOnly = false,
 }: {
-    playerForecasts: Map<string, MatchupForecast['games'][number]>
-    forecastStale: boolean
-    myMemberId: string
-    opponentMemberId: string
     myLineup: Required<LineupMoveData>
     oppLineup: Required<LineupMoveData>
     selected: LineupSelection | null
@@ -174,10 +168,6 @@ export function MatchupLineupView({
                                     <MatchupRow
                                         key={row.key}
                                         myPlayer={row.myPlayer}
-                                        myProjection={row.myPlayer ? playerForecasts.get(`${myMemberId}:${row.myPlayer.playerId}`) : undefined}
-                                        oppProjection={row.oppPlayer ? playerForecasts.get(`${opponentMemberId}:${row.oppPlayer.playerId}`) : undefined}
-                                        forecastStale={forecastStale}
-                                        showProjections
                                         oppPlayer={row.oppPlayer}
                                         slotType={row.slotType}
                                         selKind={row.selKind}

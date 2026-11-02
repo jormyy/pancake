@@ -8,7 +8,10 @@ Each document owns one contract or operating topic. Generated reports remain out
 - [Architecture](architecture.md): Screen views, versioned cache, receipts, workers, events, and retention.
 - [Rookie drafts](draft.md): Linear order, traded slots, and points-per-game ties.
 - [Player sources](player-sources.md): Birthdates, injuries, experience, and exact identity matching.
-- [IO audit](io-audit.md): Write reductions, final integration counts, and measurement limits.
+- [Live scores](live-scores.md): Public snapshots, rollback, hosted settings, lab results, and Free-plan budgets.
+- [IO model](io-audit.md): Work frequencies, retained write costs, and measurement limits.
+- [Database capacity](db-capacity.md): Fixture size, growth limits, and retention.
+- [Scheduler operations](operations-scheduler.md): Approved cadences, leases, and load shedding.
 - [Database readiness catalog](database-readiness-catalog.md): Attested migration phases and database security checks.
 - [Dynasty decision tools](dynasty-decision-tools.md): Published ranks, value calculations, Trade Analyzer, and cache rules.
 - [Loading rules](instant-loading.md): Saved content, empty results, errors, and layout checks.
@@ -28,6 +31,8 @@ Each document owns one contract or operating topic. Generated reports remain out
 
 ## Related guides
 
+- [Release 2.15](release-2.15.md): Shared live scores, local acceptance, and named Free-plan risks.
+
 - [Database release steps](../supabase/RELEASE-DB.md): Baselines, migration order, Edge deployment, operator pause, and rollback.
 - [Release 2.4 integration](release-2.4-integration.md): Preserved integration decisions and verification results.
 - [Installed iPhone checks](ios-simulator-testing.md): Home Screen installation, native interactions, and captures.
@@ -38,6 +43,7 @@ Each document owns one contract or operating topic. Generated reports remain out
 - [Browser and soak checks](../tests/e2e/README.md): Browser fixtures and release acceptance.
 - [Layout measurements](../tests/e2e/layout-stability-README.md): Local layout setup and reporting.
 - [Benchmarks](../scripts/bench/README.md): Capacity fixtures and comparisons.
+- [Game-night replay](../scripts/bench/game-night/README.md): Disposable synthetic memory-pressure lab.
 - [Simulator setup](../scripts/season-sim/README.md): Collection, replay, and cleanup commands.
 - [Font generation](../assets/fonts/README.md): Public font assets.
 - [Player identity correction](../supabase/functions/_shared/playerIdentityCorrections.md): Reviewed identity mapping and history preservation.

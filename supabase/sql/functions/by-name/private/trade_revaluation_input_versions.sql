@@ -53,4 +53,3 @@ RETURNS TABLE(trade_id uuid,input_version text) LANGUAGE sql STABLE SECURITY DEF
   LEFT JOIN asset_values asset ON asset.trade_id=trade.id LEFT JOIN pick_values pick ON pick.trade_id=trade.id
   LEFT JOIN balance_values balance ON balance.trade_id=trade.id;
 $$;
-REVOKE ALL ON FUNCTION private.trade_revaluation_input_versions(uuid) FROM PUBLIC,anon,authenticated,service_role;

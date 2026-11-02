@@ -46,16 +46,6 @@ it('mirrors names and badges outward from the centre headshots', async () => {
     expect(Number(flatStyle(names[0].props.style).fontWeight)).toBeGreaterThan(Number(flatStyle(detail[0].props.style).fontWeight))
 })
 
-it('keeps earned points and game lines without per-player projections', async () => {
-    await act(async () => { screen = create(React.createElement(MatchupRow, { ...rowProps(), showProjections: true,
-        myProjection: { gameId: 'g', playerId: 'Mine', memberId: 'm', date: '2026-10-25', projection: 23.4, source: 'Sleeper', sourceAt: null, remainingFraction: 1 },
-    })) })
-    const texts = screen.root.findAllByType('Text' as React.ElementType).map(node => node.props.children)
-    expect(texts.filter(value => value === 'TOR @ OKC')).toHaveLength(2)
-    expect(texts.join(' ')).not.toContain('Proj')
-    expect(texts.join(' ')).not.toContain('23.4')
-})
-
 const flatStyle = (style: unknown) => Object.assign({}, ...[style].flat(Infinity).filter(Boolean))
 it.each([true, false])('reserves two fixed lines for game and no-game players at compact=%s', async compact => {
     const props = rowProps()

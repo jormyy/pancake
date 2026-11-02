@@ -1,3 +1,4 @@
+import { evidencePath } from '../helpers/evidence-path.mjs'
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
@@ -114,9 +115,9 @@ const lines = [
   '## Verification', '',
   'Run the mini setup with node tests/e2e/trade-curve-mini.mjs setup. Run SQL checks with node tests/e2e/trade-curve-mini.mjs verify. Generate this report with node tests/e2e/trade-curve-report.mjs. Build with the prepare-web mode. Browser evidence uses node tests/e2e/trade-curve-browser.mjs.', '',
 ]
-mkdirSync('tests/evidence/trade-curve', { recursive: true })
-writeFileSync('tests/evidence/trade-curve/report.json', JSON.stringify({ league, model: TRADE_FORMULA_VERSION, previousModel: previous.model, imported, updated, maxSpot, maxRatio, changed, releaseChanged, rows }, null, 2) + '\n')
+mkdirSync(evidencePath('trade-curve'), { recursive: true })
+writeFileSync(evidencePath('trade-curve/report.json'), JSON.stringify({ league, model: TRADE_FORMULA_VERSION, previousModel: previous.model, imported, updated, maxSpot, maxRatio, changed, releaseChanged, rows }, null, 2) + '\n')
 const existing = readFileSync('docs/trade-curve.md', 'utf8')
 const verification = existing.includes('\nFocused Vitest:') ? existing.slice(existing.indexOf('\nFocused Vitest:')) : ''
-writeFileSync('docs/trade-curve.md', lines.join('\n') + verification)
+writeFileSync(evidencePath('trade-curve/report.md'), lines.join('\n') + verification)
 console.log(JSON.stringify({ trades: rows.length, updated, changed, releaseChanged, maxSpot, maxRatio }))

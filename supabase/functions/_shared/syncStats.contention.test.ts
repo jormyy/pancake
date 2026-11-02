@@ -18,7 +18,7 @@ async function exercise(isFinal: boolean, fail: (path: string, count: number) =>
     if (error) return Promise.resolve(Response.json(error, { status: 409 }))
     if (url.port === '56280') {
       const player = (personId: number) => ({ personId, name: `Synthetic ${personId}`, played: '1', statistics: { ...statistics, minutes: 'PT1M00.00S' } })
-      return Promise.resolve(Response.json({ game: { gameStatus: isFinal ? 3 : 2, period: 1, gameClock: 'PT11M00.00S', homeTeam: { players: [player(1)] }, awayTeam: { players: [player(2)] } } }))
+      return Promise.resolve(Response.json({ game: { gameStatus: isFinal ? 3 : 2, period: 1, gameClock: 'PT11M00.00S', homeTeam: { score:0, players: [player(1)] }, awayTeam: { score:0, players: [player(2)] } } }))
     }
     equal(url.port, '56221')
     if (url.pathname.endsWith('/assert_nba_game_unambiguous')) return Promise.resolve(Response.json(null))
@@ -27,7 +27,7 @@ async function exercise(isFinal: boolean, fail: (path: string, count: number) =>
     return Promise.resolve(Response.json(2))
   }
   try {
-    const result = await syncLiveStatsGames([{ id: 'game', nba_game_id: '0022500170', season_year: 2026, week_number: 3, status: isFinal ? 'Final' : 'InProgress' }])
+    const result = await syncLiveStatsGames([{ id: 'game', nba_game_id: '0022500170', season_year: 2026, week_number: 3, status: isFinal ? 'Final' : 'InProgress', home_score:0,away_score:0,game_status_text:'Final' }])
     return { result, calls }
   } finally { globalThis.fetch = nativeFetch }
 }

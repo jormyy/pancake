@@ -1,6 +1,8 @@
 \getenv queue_api_url SUPABASE_URL
 BEGIN;
 SELECT set_config('test.queue_api_url',:'queue_api_url',true);
+DELETE FROM cron.job_run_details;
+UPDATE private.worker_controls SET paused=false,scheduler_level='normal',scheduler_last_dispatch_at=NULL WHERE id;
 DELETE FROM private.work_items;
 CREATE TEMP TABLE queue_checks(label text PRIMARY KEY,passed boolean NOT NULL CHECK(passed));
 CREATE FUNCTION pg_temp.check_queue(p_label text,p_passed boolean) RETURNS void LANGUAGE plpgsql AS $$
@@ -78,12 +80,12 @@ BEGIN
   PERFORM private.work_finish(v_id,v_token);
   PERFORM set_config('app.supabase_url',current_setting('test.queue_api_url'),true);
   PERFORM set_config('app.edge_internal_token','queue-outcome-test',true);
-  v_id:=private.work_enqueue('sync-players','correlated');
+  v_id:=private.work_enqueue('sync-scores','correlated');
   SELECT lease_token INTO v_token FROM private.work_claim();
   PERFORM private.work_execute(v_id,v_token);
   SELECT invocation_key INTO v_invocation FROM private.work_items WHERE id=v_id;
   PERFORM pg_temp.check_queue('dispatch binds the lease to its invocation',v_invocation IS NOT NULL);
-  PERFORM public.start_edge_invocation(v_invocation,'sync-players');
+  PERFORM public.start_edge_invocation(v_invocation,'sync-scores');
   PERFORM public.finish_edge_invocation(v_invocation,'success');
   PERFORM pg_temp.check_queue('worker outcome completes queue work',(SELECT status='succeeded' FROM private.work_items WHERE id=v_id));
   PERFORM public.finish_edge_invocation(v_invocation,'success');

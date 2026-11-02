@@ -1,3 +1,4 @@
+import { evidencePath } from '../helpers/evidence-path.mjs'
 import assert from 'node:assert/strict'
 import { readFile, readdir, writeFile } from 'node:fs/promises'
 import { createHash } from 'node:crypto'
@@ -99,7 +100,7 @@ async function report() {
   const quotas = [await load('installed-1-quota.json'), await load('installed-quarter-quota.json')]
   const result = { baseline: '628c7def', migrationSha256: createHash('sha256').update(await readFile(candidateFile)).digest('hex'), measurements, installed, quotas, comparisons, nested,
     parity: parityResults.map(({ rows: _rows, ...row }) => row), negative: negative.map(({ rows: _rows, ...row }) => row), misses, installedMisses }
-  await writeFile('tests/db/slow-screens-results.json', `${JSON.stringify(result, null, 2)}\n`)
+  await writeFile(evidencePath('slow-screens-results.json'), `${JSON.stringify(result, null, 2)}\n`)
   const lines = ['# Slow screen measurements', '', 'Each cell gives p50 / p95 in milliseconds. Five pairs alternate order.', '', '| CPU | Manager | Function | Before fresh | After fresh | Before warm | After warm | Before / after warm buffers |', '| --- | --- | --- | ---: | ---: | ---: | ---: | ---: |']
   const cell = row => `${row.milliseconds.p50.toFixed(2)} / ${row.milliseconds.p95.toFixed(2)}`
   for (const cpu of [1, 0.25]) for (const member of [1, 2, 3]) for (const name of names) {
@@ -107,7 +108,7 @@ async function report() {
     lines.push(`| ${cpu} | ${member} | ${name} | ${cell(find('baseline', 'fresh'))} | ${cell(find('candidate', 'fresh'))} | ${cell(find('baseline', 'warm'))} | ${cell(find('candidate', 'warm'))} | ${find('baseline', 'warm').buffers.p95} / ${find('candidate', 'warm').buffers.p95} |`)
   }
   lines.push('', 'The JSON results include every variant and nested statement, with separate planning and execution times.', '')
-  await writeFile('tests/db/slow-screens-tables.md', lines.join('\n'))
+  await writeFile(evidencePath('slow-screens-tables.md'), lines.join('\n'))
   console.log(JSON.stringify({ groups: measurements.length, samples: measurements.reduce((sum, row) => sum + row.n, 0), nested: nested.length, misses, installedMisses, parity: 264 }))
   assert.deepEqual(misses, [], 'A screen variant misses its one-CPU target')
   assert.deepEqual(installedMisses, [], 'An installed screen misses its one-CPU target')

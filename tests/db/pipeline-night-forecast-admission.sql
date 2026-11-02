@@ -1,6 +1,15 @@
 BEGIN;
 \ir rules-support.sql
-CREATE TEMP TABLE forecast_admission AS SELECT matchup_id FROM private.matchup_forecast_queue ORDER BY matchup_id LIMIT 1;
+\ir scheduler-chunk-support.sql
+CREATE TEMP TABLE admission_fixture AS SELECT * FROM pg_temp.rules_fixture(2,9634);
+INSERT INTO public.season_weeks(season_year,week_number,week_start,week_end) VALUES(9634,1,current_date,current_date+6);
+INSERT INTO public.nba_games(nba_game_id,season_year,week_number,game_date,game_time,home_team,away_team,status)
+VALUES('002forecast-admission',9634,1,current_date,now()-interval '1 hour','BOS','LAL','InProgress');
+CREATE TEMP TABLE forecast_admission AS WITH added AS (
+INSERT INTO public.matchups(league_id,league_season_id,week_number,home_member_id,away_member_id)
+SELECT league_id,season_id,1,member_ids[1],member_ids[2] FROM admission_fixture RETURNING id)
+SELECT id AS matchup_id FROM added;
+SELECT pg_temp.drain_forecast_chunks();
 DELETE FROM private.work_items;
 DELETE FROM private.forecast_refresh_requests;
 DELETE FROM private.matchup_forecast_expiries;

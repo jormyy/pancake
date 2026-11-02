@@ -17,6 +17,7 @@ BEGIN
   INSERT INTO public.waiver_wire_log(league_id,league_season_id,player_id,placed_on_waivers_at)
     VALUES(fixture.league_id,fixture.season_id,player,'2026-10-30 07:00Z');
   claim:=public.create_waiver_claim_atomic(fixture.league_id,fixture.member_ids[1],player,NULL,fixture.user_ids[1],0);
+  UPDATE public.waiver_claims SET submitted_at='2026-11-01 14:00Z' WHERE id=claim;
   PERFORM set_config('request.jwt.claim.sub',fixture.user_ids[1]::text,true);
   PERFORM public.update_league_settings_atomic(fixture.league_id,'{"timezone":"Asia/Tokyo"}');
   SELECT clears_at INTO clears FROM public.waiver_wire_log WHERE league_id=fixture.league_id AND player_id=player;

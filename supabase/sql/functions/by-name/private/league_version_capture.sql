@@ -7,10 +7,12 @@ RETURNS trigger
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 DECLARE changed_sql text; leagues_sql text; affected record;
   ignored text[] := ARRAY['updated_at','set_at'];
+  home_changes jsonb; home_changed boolean; forecast_ids jsonb;
 BEGIN
   IF TG_TABLE_NAME IN ('standings_current','matchup_totals','player_season_averages','trade_value_cache') THEN
     ignored := ignored||ARRAY['version','refreshed_at'];
   END IF;
+  IF TG_TABLE_NAME='matchup_forecasts' THEN ignored:=ignored||ARRAY['calculated_at','valid_until','input_revision']; END IF;
   IF TG_TABLE_NAME='profiles' THEN ignored := ignored||ARRAY['push_token','push_token_revocation_hash']; END IF;
   IF TG_TABLE_NAME='nba_games' THEN
     ignored := ignored||ARRAY['live_stats_elapsed_seconds','live_scoreboard_elapsed_seconds','stats_synced_at'];
@@ -24,6 +26,34 @@ BEGIN
       UNION ALL
       (SELECT to_jsonb(o)-ignored FROM version_old_rows o EXCEPT SELECT to_jsonb(n)-ignored FROM version_new_rows n)) THEN
     RETURN NULL;
+  END IF;
+  IF TG_TABLE_NAME='matchup_forecasts' THEN
+    IF TG_OP='INSERT' THEN SELECT COALESCE(jsonb_agg(matchup_id),'[]') INTO forecast_ids FROM version_new_rows;
+    ELSIF TG_OP='DELETE' THEN SELECT COALESCE(jsonb_agg(matchup_id),'[]') INTO forecast_ids FROM version_old_rows;
+    ELSE SELECT COALESCE(jsonb_agg(matchup_id),'[]') INTO forecast_ids FROM (
+      SELECT matchup_id FROM version_new_rows UNION SELECT matchup_id FROM version_old_rows) changed;
+    END IF;
+    SELECT COALESCE(jsonb_agg(DISTINCT value),'[]') INTO forecast_ids
+      FROM jsonb_array_elements(COALESCE(NULLIF(current_setting('pancake.forecast_changes',true),'')::jsonb,'[]')||forecast_ids);
+    PERFORM set_config('pancake.forecast_changes',forecast_ids::text,true);
+  END IF;
+  IF TG_TABLE_NAME='standings_current' THEN
+    IF TG_OP='INSERT' THEN
+      SELECT EXISTS(SELECT 1 FROM version_new_rows WHERE COALESCE(wins,0)<>0 OR COALESCE(losses,0)<>0) INTO home_changed;
+    ELSIF TG_OP='DELETE' THEN
+      SELECT EXISTS(SELECT 1 FROM version_old_rows WHERE COALESCE(wins,0)<>0 OR COALESCE(losses,0)<>0) INTO home_changed;
+    ELSE
+      SELECT EXISTS(
+        (SELECT jsonb_build_array(n.member_id,n.league_season_id,n.wins,n.losses) FROM version_new_rows n
+          EXCEPT SELECT jsonb_build_array(o.member_id,o.league_season_id,o.wins,o.losses) FROM version_old_rows o)
+        UNION ALL
+        (SELECT jsonb_build_array(o.member_id,o.league_season_id,o.wins,o.losses) FROM version_old_rows o
+          EXCEPT SELECT jsonb_build_array(n.member_id,n.league_season_id,n.wins,n.losses) FROM version_new_rows n)
+      ) INTO home_changed;
+    END IF;
+    home_changes:=COALESCE(NULLIF(current_setting('pancake.home_changes',true),'')::jsonb,'{}'::jsonb);
+    PERFORM set_config('pancake.home_changes',jsonb_set(home_changes,ARRAY[TG_TABLE_NAME],
+      to_jsonb(COALESCE((home_changes->>TG_TABLE_NAME)::boolean,false) OR home_changed))::text,true);
   END IF;
   IF TG_OP='INSERT' THEN changed_sql := 'SELECT to_jsonb(n) AS data FROM version_new_rows n';
   ELSIF TG_OP='DELETE' THEN changed_sql := 'SELECT to_jsonb(o) AS data FROM version_old_rows o';

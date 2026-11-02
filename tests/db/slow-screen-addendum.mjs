@@ -1,3 +1,4 @@
+import { evidencePath } from '../helpers/evidence-path.mjs'
 import assert from 'node:assert/strict'
 import { readFile, writeFile, readdir } from 'node:fs/promises'
 import { createHash } from 'node:crypto'
@@ -177,7 +178,7 @@ else {
       const data = await load(file)
       for (const value of data.values.filter(value => value.phase)) historical.push({ capture: file, state: value.phase, statements: value.statements.filter(s => !s.toplevel && !/^EXPLAIN/.test(s.query)).sort((a, b) => b.total_plan_time + b.total_exec_time - a.total_plan_time - a.total_exec_time).slice(0, 8).map(s => ({ query: s.query.replaceAll(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, '<fixture>'), plans: s.plans, calls: s.calls, planning: s.total_plan_time, execution: s.total_exec_time, buffers: s.buffers })) })
     }
-    await writeFile('tests/db/slow-screen-addendum-results.json', `${JSON.stringify({ baseline: option('base') ?? '75196628', releaseBaseline: '628c7def', migrationSha256: createHash('sha256').update(await readFile(candidateFile)).digest('hex'), measurements, installed, release, releaseParity, nested, historical, parity: parityResults, sql: { passed: true, checks: Number(sql.stdout.trim().split('\n').at(-1)) }, misses, installedMisses }, null, 2)}\n`)
+    await writeFile(evidencePath('slow-screen-addendum-results.json'), `${JSON.stringify({ baseline: option('base') ?? '75196628', releaseBaseline: '628c7def', migrationSha256: createHash('sha256').update(await readFile(candidateFile)).digest('hex'), measurements, installed, release, releaseParity, nested, historical, parity: parityResults, sql: { passed: true, checks: Number(sql.stdout.trim().split('\n').at(-1)) }, misses, installedMisses }, null, 2)}\n`)
     const table = ['# Extended slow screen measurements', '', 'Each time is the largest p95 across three managers and the tested variants.']
     for (const [title, data] of [['Addendum changes from 75196628', measurements], ['Combined changes from release 2.8, 628c7def', release]]) {
       if (!data.length) continue
@@ -188,7 +189,7 @@ else {
         table.push(`| ${cpu} | ${name} | ${maximum('baseline', 'fresh', 'milliseconds').toFixed(2)} | ${maximum('candidate', 'fresh', 'milliseconds').toFixed(2)} | ${maximum('baseline', 'warm', 'milliseconds').toFixed(2)} | ${maximum('candidate', 'warm', 'milliseconds').toFixed(2)} | ${maximum('baseline', 'warm', 'buffers')} / ${maximum('candidate', 'warm', 'buffers')} |`)
       }
     }
-    await writeFile('tests/db/slow-screen-addendum-tables.md', `${table.join('\n')}\n`)
+    await writeFile(evidencePath('slow-screen-addendum-tables.md'), `${table.join('\n')}\n`)
     console.log(JSON.stringify({ samples: measurements.reduce((sum, row) => sum + row.n, 0), installedSamples: installed.reduce((sum, row) => sum + row.n, 0), captures: nested.length, parity: parityResults.reduce((sum, row) => sum + row.cases, 0), misses, installedMisses }))
     assert.deepEqual(misses, [])
     assert.deepEqual(installedMisses, [])

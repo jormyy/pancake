@@ -10,6 +10,6 @@ RETURNS void LANGUAGE sql SECURITY DEFINER SET search_path = '' AS $$
   WHERE p_league_id IS NULL OR season.league_id = p_league_id
   ORDER BY season.id
   ON CONFLICT (league_season_id) DO UPDATE SET version = queued.version + 1,
-    dirty = true, changed_at = now(), available_at = LEAST(queued.available_at, now())
+    dirty = true, changed_at = now(), available_at = GREATEST(COALESCE(queued.last_refreshed_at,'-infinity'::timestamptz)+interval '2 minutes',now())
   WHERE NOT queued.dirty OR queued.claimed_at IS NOT NULL AND queued.changed_at IS DISTINCT FROM now();
 $$;

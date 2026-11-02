@@ -58,7 +58,8 @@ Deno.test('one bounded attempt times out and enters backoff', async () => {
   let calls = 0
   globalThis.fetch = (_input, init) => new Promise((_resolve, reject) => {
     calls++
-    init?.signal?.addEventListener('abort', () => reject(init.signal?.reason), { once: true })
+    const signal = (init as { signal?: AbortSignal } | undefined)?.signal
+    signal?.addEventListener('abort', () => reject(signal.reason), { once: true })
   })
   try {
     await assert.rejects(() => source.summary(event), /timeout|timed out/i)
@@ -101,4 +102,20 @@ Deno.test('the request budget also bounds a response body that stalls after head
     globalThis.fetch = original
     await server.shutdown()
   }
+})
+
+Deno.test('a malformed ESPN event cannot discard another healthy game',async()=>{
+  const original=globalThis.fetch
+  globalThis.fetch=async()=>Response.json({events:[raw.events[0],{id:'broken'}]})
+  try {assert.deepEqual((await new EspnLiveSource().scoreboard(['2026-10-29'])).map(row=>row.id),[raw.events[0].id])}
+  finally{globalThis.fetch=original}
+})
+
+Deno.test('malformed ESPN competitors and duplicate identities stay isolated from healthy games',async()=>{
+  const original=globalThis.fetch
+  const broken=structuredClone(raw.events[0]);broken.id='broken';broken.competitions[0].competitors=[null,null]
+  const duplicate=structuredClone(raw.events[0]);duplicate.id='duplicate'
+  globalThis.fetch=async()=>Response.json({events:[raw.events[0],broken,duplicate,duplicate]})
+  try {assert.deepEqual((await new EspnLiveSource().scoreboard(['2026-10-29'])).map(row=>row.id),[raw.events[0].id])}
+  finally{globalThis.fetch=original}
 })

@@ -1,3 +1,4 @@
+import { retryDatabaseContention } from '../_shared/databaseRetry.ts'
 import { supabase } from '../_shared/supabase.ts'
 import type { Database } from '../_shared/database.ts'
 import { serveInternal } from '../_shared/serve.ts'
@@ -14,19 +15,19 @@ async function processWaiverClaims(): Promise<number> {
   const throughDate = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10)
 
   const rows = await drainDueClaims<WaiverProcessRow>(async () => {
-    const { data, error } = await supabase.rpc('process_due_waiver_claims_atomic', {
+    const { data, error } = await retryDatabaseContention(() => supabase.rpc('process_due_waiver_claims_atomic', {
       p_process_date: throughDate,
       p_limit: PROCESS_BATCH_LIMIT,
-    }).select('processed')
+    }).select('processed'), { failures: result => result.error ? [result.error] : [] })
     if (error) throw error
     return data ?? []
   }, async () => {
-    const { data, error } = await supabase.rpc('count_due_waiver_claims', { p_process_date: throughDate })
+    const { data, error } = await retryDatabaseContention(() => supabase.rpc('count_due_waiver_claims', { p_process_date: throughDate }), { failures: result => result.error ? [result.error] : [] })
     if (error) throw error
     return data ?? 0
   })
 
-  const { error: expiredErr } = await supabase.rpc('expire_waiver_wire_logs')
+  const { error: expiredErr } = await retryDatabaseContention(() => supabase.rpc('expire_waiver_wire_logs'), { failures: result => result.error ? [result.error] : [] })
   if (expiredErr) throw expiredErr
 
   return rows.filter((row) => row.processed).length

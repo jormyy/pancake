@@ -2,11 +2,13 @@ BEGIN;
 \ir rules-support.sql
 \ir perf-l4-trade-batch-fixture.sql
 SELECT pg_temp.l4_batch_fixture(10,true);
+DELETE FROM private.work_items WHERE key LIKE '%:created';
 DO $$
 DECLARE f record; v_trade uuid; v_work bigint; v_version bigint;
 BEGIN
   SELECT * INTO f FROM l4_batch_context;
   PERFORM private.refresh_queue_trade_revaluations(f.season_id,1,'batch-fixture');
+  DELETE FROM private.work_items WHERE kind='trade-revaluation-scan' AND league_id=f.league_id;
   PERFORM pg_temp.check_rules(NOT private.enqueue_trade_revaluation_scan(f.season_id,2,'batch-fixture'),
     'unchanged sources create no scan');
   PERFORM pg_temp.check_rules(NOT EXISTS(SELECT 1 FROM private.work_items WHERE league_id=f.league_id),
@@ -19,6 +21,7 @@ BEGIN
   PERFORM pg_temp.check_rules(private.enqueue_trade_revaluation_scan(f.season_id,4,'changed-model'),
     'a changed model creates a scan');
   PERFORM private.refresh_queue_trade_revaluations(f.season_id,4,'changed-model');
+  DELETE FROM private.work_items WHERE kind='trade-revaluation-scan' AND league_id=f.league_id;
   PERFORM pg_temp.check_rules(NOT private.enqueue_trade_revaluation_scan(f.season_id,5,'changed-model'),
     'already queued matching valuations need no second scan');
   v_trade:=f.trade_ids[1];
@@ -26,17 +29,20 @@ BEGIN
     AND payload->>'tradeId'=v_trade::text;
   UPDATE private.work_items SET status='dead' WHERE id=v_work;
   PERFORM pg_temp.check_rules(private.enqueue_trade_revaluation_scan(f.season_id,6,'changed-model'),
-    'dead unpublished work remains recoverable');
+    'dead unpublished work remains recoverable in a new scan cycle');
   PERFORM private.refresh_queue_trade_revaluations(f.season_id,6,'changed-model');
+  DELETE FROM private.work_items WHERE kind='trade-revaluation-scan' AND league_id=f.league_id;
   UPDATE private.work_items SET status='running',lease_token=gen_random_uuid(),lease_until=now()+interval '5 minutes' WHERE id=v_work;
   UPDATE public.trade_items SET faab_amount=faab_amount+1 WHERE trade_id=v_trade AND faab_amount>0;
   PERFORM pg_temp.check_rules(private.enqueue_trade_revaluation_scan(f.season_id,7,'changed-model'),
     'changed sources create a scan');
   PERFORM private.refresh_queue_trade_revaluations(f.season_id,7,'changed-model');
+  DELETE FROM private.work_items WHERE kind='trade-revaluation-scan' AND league_id=f.league_id;
   PERFORM pg_temp.check_rules(private.enqueue_trade_revaluation_scan(f.season_id,8,'changed-model'),
     'a running older fingerprint cannot suppress its successor');
   UPDATE private.work_items SET status='succeeded',lease_token=NULL,lease_until=NULL,completed_at=now() WHERE id=v_work;
   PERFORM private.refresh_queue_trade_revaluations(f.season_id,8,'changed-model');
+  DELETE FROM private.work_items WHERE kind='trade-revaluation-scan' AND league_id=f.league_id;
   PERFORM pg_temp.check_rules((SELECT status='pending' AND payload->>'inputFingerprint'=private.trade_revaluation_input_version(v_trade)
     FROM private.work_items WHERE id=v_work),'the successor uses the current fingerprint');
   PERFORM pg_temp.check_rules(NOT private.enqueue_trade_revaluation_scan(f.season_id,9,'changed-model'),
@@ -45,6 +51,7 @@ BEGIN
   PERFORM pg_temp.check_rules(private.enqueue_trade_revaluation_scan(f.season_id,10,'changed-model'),
     'a temporal fingerprint deadline opens the gate');
   PERFORM private.refresh_queue_trade_revaluations(f.season_id,10,'changed-model');
+  DELETE FROM private.work_items WHERE kind='trade-revaluation-scan' AND league_id=f.league_id;
   PERFORM pg_temp.check_rules(private.enqueue_trade_revaluation_scan(f.season_id,11),
     'older workers without a model remain compatible');
   UPDATE public.trades SET status='completed' WHERE league_season_id=f.season_id;

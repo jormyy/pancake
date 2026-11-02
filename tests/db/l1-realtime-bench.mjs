@@ -119,7 +119,7 @@ const joinTopics = {}
 const receive = index => payload => {
   const batch = payload.hints ?? payload.payload?.hints
   if (Array.isArray(batch)) {
-    for (const change of batch) receive(index)({ new: change.row })
+    for (const change of batch) receive(index)(change.payload ?? { new: change.row })
     return
   }
   if (measuring) {

@@ -195,3 +195,102 @@ it('keeps the published schedule version when the first push baseline has not ar
     expect(await readScreenView(scheduleScope)).toEqual(value)
     expect(mocks.fetch).toHaveBeenCalledOnce()
 })
+
+
+describe('forecast-only home reads', () => {
+    const selected: ScreenScope = { ...scope, screen: 'home' }
+    const saved = { context: { leagueId: 'league', seasonId: 'season', version: '1' }, matchup: { id: 'matchup', myPoints: 42 }, myLineup: { starters: ['player'] }, forecast: { stale: true } }
+    function forecast() {
+        mocks.version = '2'
+        mocks.changes = [{ version: '2', topic: 'forecast', scope: { topics: ['forecast'], tables: ['matchup_forecasts'], forecastMatchupIds: ['matchup'] }, created_at: '' }]
+    }
+    it('reads only forecast facts and preserves the saved scores and lineup', async () => {
+        saveScreenView(selected, saved, '1')
+        forecast()
+        mocks.fetch.mockResolvedValue(Response.json({ ok: true, view: { section: 'forecast', context: { leagueId: 'league', seasonId: 'season', version: '2' }, matchup: { id: 'matchup' }, forecast: { stale: false } } }))
+        expect(await readScreenView(selected)).toEqual({ ...saved, context: { ...saved.context, version: '2' }, forecast: { stale: false } })
+        const query = new URL(mocks.fetch.mock.calls[0][0]).searchParams
+        expect(JSON.parse(query.get('params')!)).toMatchObject({ section: 'forecast', matchupId: 'matchup' })
+    })
+    it.each(['newer-version', 'wrong-matchup', 'full-invalidation'])('falls back to a full authorized read for %s', async cause => {
+        saveScreenView(selected, saved, '1')
+        forecast()
+        if (cause === 'full-invalidation') invalidateScreenViews('league')
+        const patch = { section: 'forecast', context: { leagueId: 'league', seasonId: 'season', version: cause === 'newer-version' ? '3' : '2' }, matchup: { id: cause === 'wrong-matchup' ? 'other' : 'matchup' }, forecast: { stale: false } }
+        const full = { ...saved, context: { ...saved.context, version: '3' }, matchup: { ...saved.matchup, myPoints: 99 } }
+        mocks.fetch.mockImplementation(async (url: string) => Response.json({ ok: true, view: JSON.parse(new URL(url).searchParams.get('params')!).section ? patch : full }))
+        expect(await readScreenView(selected)).toEqual(full)
+        expect(JSON.parse(new URL(mocks.fetch.mock.lastCall![0]).searchParams.get('params')!).section).toBeUndefined()
+    })
+})
+
+
+it('patches official scores and game locks without replacing a saved lineup or forecast', async () => {
+    const selected: ScreenScope = { ...scope, screen: 'home' }
+    const saved = { context: { leagueId: 'league', seasonId: 'season', version: '1' }, selectedDate: '2026-10-27',
+        matchup: { id: 'matchup', myPoints: 42 }, myLineup: { starters: ['locked-player'] }, liveGames: [{ status: 'InProgress' }], forecast: { stale: false, teams: ['forecast'] } }
+    saveScreenView(selected, saved, '1')
+    mocks.version = '2'
+    mocks.changes = [{ version: '2', topic: 'game', scope: { topics: ['game','stat'], tables: ['nba_games','player_game_stats'] }, created_at: '' }]
+    const fields = { matchup: { id: 'matchup', myPoints: 99 }, selectedDate: '2026-10-27', weekDays: [], leagueMatchups: [],
+        todaysGames: [{ status: 'Final' }], liveStats: {}, startedTeams: ['BOS'], teamMatchups: {}, liveBasis: [], liveGames: [] }
+    mocks.fetch.mockResolvedValue(Response.json({ ok: true, view: { section: 'scores', context: { ...saved.context, version: '2' }, ...fields, forecastStale: true } }))
+    expect(await readScreenView(selected)).toEqual({ ...saved, ...fields, context: { ...saved.context, version: '2' }, forecast: { ...saved.forecast, stale: true } })
+    expect(JSON.parse(new URL(mocks.fetch.mock.calls[0][0]).searchParams.get('params')!).section).toBe('scores')
+})
+
+
+it('keeps old Home content offline and revalidates its obsolete publication counter online', async () => {
+    const selected: ScreenScope = { ...scope, screen: 'home' }
+    const key = screenCacheKey(selected)
+    const parts = JSON.parse(key.slice('pancake:screen-view:v1:'.length))
+    delete parts.versionClock
+    const legacyKey = 'pancake:screen-view:v1:' + JSON.stringify(parts)
+    const values = new Map([[legacyKey, JSON.stringify({ schema: 1, scope: selected, version: '900', savedAt: Date.now(), value: { old: true }, dirty: false })]])
+    const localStorage = { get length() { return values.size }, key: (index: number) => [...values.keys()][index],
+        getItem: (name: string) => values.get(name) ?? null, removeItem: (name: string) => values.delete(name), setItem: (name: string, value: string) => values.set(name, value) }
+    vi.stubGlobal('window', { localStorage })
+    try {
+        expect(cachedScreenView(selected)).toMatchObject({ value: { old: true }, version: '0', dirty: true })
+        vi.stubGlobal('navigator', { onLine: false })
+        expect(await readScreenView(selected)).toEqual({ old: true })
+        expect(mocks.fetch).not.toHaveBeenCalled()
+        vi.stubGlobal('navigator', { onLine: true })
+        mocks.fetch.mockResolvedValue(Response.json({ ok: true, view: { fresh: true } }))
+        expect(await readScreenView(selected)).toEqual({ fresh: true })
+        expect(mocks.fetch).toHaveBeenCalledOnce()
+        expect(values.has(legacyKey)).toBe(false)
+    } finally { vi.stubGlobal('window', undefined) }
+})
+
+it('keeps a newer Home entry when legacy and current cache keys coexist', () => {
+    const selected: ScreenScope = { ...scope, screen: 'home' }
+    const key = screenCacheKey(selected)
+    const parts = JSON.parse(key.slice('pancake:screen-view:v1:'.length))
+    delete parts.versionClock
+    const legacyKey = 'pancake:screen-view:v1:' + JSON.stringify(parts)
+    const entry = (version: string, savedAt: number, value: unknown) => JSON.stringify({ schema: 1, scope: selected, version, savedAt, value, dirty: false })
+    const fresh = entry('3', 2, { fresh: true })
+    const values = new Map([[legacyKey, entry('900', 1, { old: true })], [key, fresh]])
+    const localStorage = { get length() { return values.size }, key: (index: number) => [...values.keys()][index],
+        getItem: (name: string) => values.get(name) ?? null, removeItem: (name: string) => values.delete(name), setItem: (name: string, value: string) => values.set(name, value) }
+    vi.stubGlobal('window', { localStorage })
+    try {
+        expect(cachedScreenView(selected)).toMatchObject({ value: { fresh: true }, version: '3', dirty: false })
+        expect(values.get(key)).toBe(fresh)
+    } finally { vi.stubGlobal('window', undefined) }
+})
+
+it('reads a multi-week total after a change to its earlier week', async () => {
+    const selected: ScreenScope = { ...scope, screen: 'home' }
+    const saved = { context: { leagueId: 'league', seasonId: 'season', version: '1', weekNumber: 2 }, selectedDate: '2026-10-27',
+        matchup: { id: 'matchup', myPoints: 42, roundStartWeek: 1, roundEndWeek: 2 }, myLineup: { starters: ['saved'] }, forecast: null }
+    saveScreenView(selected, saved, '1')
+    mocks.version = '2'
+    mocks.changes = [{ version: '2', topic: 'score', scope: { topics: ['score'], tables: ['matchups'], hints: [{ topic: 'score', scopes: [{ season_id: 'season', week: 1 }] }] }, created_at: '' }]
+    const fields = { matchup: { ...saved.matchup, myPoints: 99 }, selectedDate: saved.selectedDate, weekDays: [], leagueMatchups: [],
+        todaysGames: [], liveStats: {}, startedTeams: [], teamMatchups: {}, liveBasis: [] }
+    mocks.fetch.mockResolvedValue(Response.json({ ok: true, view: { section: 'scores', context: { ...saved.context, version: '2' }, ...fields, forecastStale: null } }))
+    expect(await readScreenView(selected)).toMatchObject({ ...fields, myLineup: saved.myLineup })
+    expect(mocks.fetch).toHaveBeenCalledOnce()
+})

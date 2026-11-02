@@ -34,4 +34,3 @@ RETURNS text LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
       WHERE member.league_id=context.league_id AND member.id IN(SELECT from_member_id FROM assets))
   )::text) FROM context WHERE EXISTS(SELECT 1 FROM open_trades);
 $$;
-REVOKE ALL ON FUNCTION private.trade_revaluation_source_version(uuid) FROM PUBLIC,anon,authenticated,service_role;

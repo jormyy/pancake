@@ -1,6 +1,7 @@
 BEGIN;
 \ir rules-support.sql
 \ir trade-values-fixture.sql
+UPDATE public.nba_games SET status='Final' WHERE status='InProgress';
 DO $$
 DECLARE rows jsonb; picks jsonb; fetched timestamptz; snapshot_hash text; outcome jsonb; failed boolean;
 BEGIN
@@ -54,13 +55,13 @@ BEGIN
   PERFORM pg_temp.check_rules(NOT has_function_privilege('authenticated','public.publish_trade_values(jsonb,jsonb,text,timestamptz,text,uuid)','EXECUTE'),'members cannot publish source snapshots');
   PERFORM pg_temp.check_rules(NOT has_table_privilege('anon','public.trade_value_reviews','SELECT'),'anonymous users cannot read the review list');
   DELETE FROM private.work_items WHERE kind='sync-trade-values';
-  PERFORM private.enqueue_scheduled_work('2026-03-08 07:00 America/New_York');
-  PERFORM pg_temp.check_rules(NOT EXISTS(SELECT 1 FROM private.work_items WHERE kind='sync-trade-values'),'daily sync waits until seven fifteen ET');
-  PERFORM private.enqueue_scheduled_work('2026-03-08 07:15 America/New_York');
-  PERFORM private.enqueue_scheduled_work('2026-03-08 07:30 America/New_York');
+  PERFORM private.enqueue_scheduled_work('2026-03-08 03:59 America/New_York');
+  PERFORM pg_temp.check_rules(NOT EXISTS(SELECT 1 FROM private.work_items WHERE kind='sync-trade-values'),'daily sync waits until four ET');
+  PERFORM private.enqueue_scheduled_work('2026-03-08 04:00 America/New_York');
+  PERFORM private.enqueue_scheduled_work('2026-03-08 04:30 America/New_York');
   PERFORM pg_temp.check_rules((SELECT count(*)=1 FROM private.work_items WHERE kind='sync-trade-values'),'daily sync is enqueued once across catch-up ticks');
   UPDATE private.work_items SET status='succeeded' WHERE kind='sync-trade-values';
-  PERFORM private.enqueue_scheduled_work('2026-03-09 07:15 America/New_York');
+  PERFORM private.enqueue_scheduled_work('2026-03-09 04:00 America/New_York');
   PERFORM pg_temp.check_rules((SELECT count(*)=2 FROM private.work_items WHERE kind='sync-trade-values'),'next daily sync is enqueued');
   UPDATE public.trade_value_reviews SET resolved_player_id=candidate_ids[1] WHERE source_id='alexcaruso';
   PERFORM public.publish_trade_values(rows,picks,'review-race-fixture',clock_timestamp(),'json');

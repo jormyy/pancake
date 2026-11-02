@@ -1,3 +1,4 @@
+import { evidencePath } from '../helpers/evidence-path.mjs'
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
@@ -33,10 +34,9 @@ for (const [name, args] of [
   checks.push({ name, passed: true })
   console.log(result.stdout.trim())
 }
-const report = JSON.parse(await readFile('tests/db/screens-after-211-results.json', 'utf8'))
+const report = JSON.parse(await readFile(evidencePath('screens-after-211-results.json'), 'utf8'))
 assert.ok(report.comparison.every(row => row.passes))
 assert.ok(report.installedBuffers.every(row => row.passes))
 const result = { migrationSha256: createHash('sha256').update(await readFile('supabase/migrations/20261214003900_screens_after_211.sql')).digest('hex'), checks, samples: Object.values(report.summaries).reduce((sum, rows) => sum + rows.reduce((count, row) => count + row.count, 0), 0), parity: report.parity.reduce((sum, row) => sum + row.count, 0), parityControls: report.parity.length, targets: true }
-await mkdir('tests/evidence', { recursive: true })
-await writeFile('tests/evidence/screens-after-211.json', `${JSON.stringify(result, null, 2)}\n`)
+await writeFile(evidencePath('screens-after-211.json'), `${JSON.stringify(result, null, 2)}\n`)
 console.log(JSON.stringify(result))

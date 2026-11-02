@@ -26,13 +26,19 @@ BEGIN
     RAISE EXCEPTION 'A complete versioned forecast is required.' USING ERRCODE='22023';
   END IF;
   INSERT INTO public.matchup_forecasts(matchup_id,league_id,input_revision,forecast,calculated_at,valid_until)
-  VALUES(p_matchup_id,forecast_league_id,p_revision,p_forecast,now(),GREATEST(LEAST(COALESCE(p_valid_until,now()+interval '1 day'),
-    (queued.claimed_fingerprint->>'validUntil')::timestamptz),now()+interval '1 second'))
+  VALUES(p_matchup_id,forecast_league_id,p_revision,p_forecast,now(),CASE WHEN (SELECT is_finalized FROM public.matchups WHERE id=p_matchup_id) THEN now()+interval '100 years'
+    ELSE GREATEST(LEAST(COALESCE(p_valid_until,now()+interval '1 day'),
+      (queued.claimed_fingerprint->>'validUntil')::timestamptz),now()+interval '1 second') END)
   ON CONFLICT(matchup_id) DO UPDATE SET input_revision=EXCLUDED.input_revision,forecast=EXCLUDED.forecast,
     calculated_at=EXCLUDED.calculated_at,valid_until=EXCLUDED.valid_until;
   UPDATE private.matchup_forecast_queue SET dirty=false,claim_token=NULL,claimed_at=NULL,claimed_revision=NULL,last_error=NULL,
-    computed_fingerprint=queued.claimed_fingerprint,claimed_fingerprint=NULL
+    computed_fingerprint=queued.claimed_fingerprint,claimed_fingerprint=NULL,
+    finalized=(SELECT is_finalized FROM public.matchups WHERE id=p_matchup_id),
+    available_at=now()+interval '30 minutes'
   WHERE matchup_id=p_matchup_id;
+  IF (SELECT is_finalized FROM public.matchups WHERE id=p_matchup_id) THEN
+    DELETE FROM private.forecast_refresh_requests WHERE matchup_id=p_matchup_id;
+  END IF;
   RETURN true;
 END;
 $$;

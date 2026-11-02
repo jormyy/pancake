@@ -66,7 +66,8 @@ The owned Edge runtime and gateway stop after the proof. No paired realtime capt
 
 ## Retained verification
 
-The workers recipe runs all nineteen SQL files listed in `docs/perf-l4.md`.
+The historical worker recipe runs nineteen SQL files; its recorded commands remain in Git history.
+Current operating checks are in [scheduler operations](operations-scheduler.md).
 All nineteen pass. All four fixed SQL regressions also pass.
 Taxi auction passes on this empty local schema. The supplied pre-existing failure remains recorded and its test stays.
 The SQL sweep totals 24 passing recipes and zero failures.
@@ -118,6 +119,6 @@ The local Auth issuer is aligned with the HTTPS harness address.
 Mac copy-on-write clones keep the installed workspace modules inside each Metro checkout.
 The first HTTP-probe cleanup query used a nonexistent column; the corrected probe and cleanup pass.
 [Cleanup accounting](release-2.14-cleanup.md) lists removed paths, byte sizes, retained coverage and commit line counts.
-[Realtime](perf-l1.md), [workers](perf-l4.md), [Home recovery](../tests/e2e/pwa-live-game.md)
+[Realtime](architecture.md#versioned-cache-and-push-invalidation), [workers](operations-scheduler.md), [Home recovery](../tests/e2e/pwa-live-game.md)
 and [pre-tipoff](pre-tipoff-trade-offer-fix.md) retain one summary per lane.
 Stop the owned runtime and stack through Supabase after final verification.

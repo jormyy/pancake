@@ -3,6 +3,9 @@
   "buildCommand": "EXPO_UNSTABLE_METRO_OPTIMIZE_GRAPH=1 npm run build:web:release",
   "outputDirectory": "dist",
   "framework": null,
+  "functions": {
+    "api/live/[date].ts": { "maxDuration": 10 }
+  },
   "git": {
     "deploymentEnabled": {
       "main": true,
@@ -10,6 +13,10 @@
     }
   },
   "routes": [
+    {
+      "src": "^/api/live/([^/]+)$",
+      "dest": "/api/live/[date]?date=$1"
+    },
     {
       "src": "^/(?:_expo/static|assets)/.*$",
       "headers": {

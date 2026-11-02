@@ -1,3 +1,4 @@
+import { evidencePath } from '../helpers/evidence-path.mjs'
 import assert from 'node:assert/strict'
 import {createHash} from 'node:crypto'
 import {readFileSync,readdirSync,writeFileSync} from 'node:fs'
@@ -35,7 +36,7 @@ const report={version:1,baseline:'505d7734',candidate:'f765a6d8',host:'Docker De
  slowRpcRows:{reportedMeansMs:[750,342,176],recordedParameters:['p_league_id','p_member_id','p_params'],signatureMatches,
   attribution:'Truncated SQL cannot uniquely resolve these names. All matching signatures are view functions; none is a forecast RPC.'},
  verification:{sql:verification,vitest:{passed:42,failed:0},controls:['baseline blocked admission rejected','A/A checkpoint equality','mutated returned stale flag rejected'],fullSuite:'Not rerun; only focused tests requested'}}
-writeFileSync('tests/db/pipeline-night-forecast-results.json',JSON.stringify(report,null,2)+'\n')
+writeFileSync(evidencePath('pipeline-night-forecast-results.json'),JSON.stringify(report,null,2)+'\n')
 const table=['| Scenario | Forecast jobs/hour | Forecast invocations/hour | Dispatcher statements | Shared hit + read | Rows written |',
  '|---|---:|---:|---:|---:|---:|']
 for(const [index,name] of ['Blocked input scope','Settled idle'].entries()){

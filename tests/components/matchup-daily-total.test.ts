@@ -49,7 +49,6 @@ it.each([
 })
 
 const props = (): React.ComponentProps<typeof MatchupLineupView> => ({
-    playerForecasts: new Map(), forecastStale: false, myMemberId: 'my-team', opponentMemberId: 'their-team',
     myLineup: { starters: [starter('Mine'), starter('Other')], bench: [player('Bench player')], ir: [], taxi: [] },
     oppLineup: { starters: [starter('Theirs'), starter('Out')], bench: [], ir: [], taxi: [] },
     selected: null, getTargetState: () => null, onTap: vi.fn(), saving: false,

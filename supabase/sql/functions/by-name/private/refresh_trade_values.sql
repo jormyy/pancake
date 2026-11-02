@@ -20,6 +20,9 @@ BEGIN
       PERFORM private.refresh_queue_trade_revaluation(trade.id,inputs->>'inputVersion',value->>'modelVersion');
       CONTINUE;
     END IF;
+    INSERT INTO private.trade_revaluation_schedule AS schedule(trade_id,model_version,next_allowed_at)
+      VALUES(trade.id,value->>'modelVersion',private.trade_revaluation_next_change())
+    ON CONFLICT(trade_id) DO UPDATE SET model_version=EXCLUDED.model_version,next_allowed_at=EXCLUDED.next_allowed_at;
     IF EXISTS(SELECT 1 FROM private.trade_value_publications WHERE trade_id=trade.id
       AND input_fingerprint=value->>'inputVersion' AND model_version=value->>'modelVersion') THEN
       published:=true;

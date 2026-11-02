@@ -7,7 +7,7 @@ it('finishes and preserves the screen workload before starting a separate replay
   expect(await isolatedPhases(35, execute)).toBe(1)
   expect(completed).toEqual(['walk', 'replay'])
   expect(execute.mock.calls).toEqual([
-    ['walk', 35, { writeDocs: false }],
+    ['walk', 35, { writeReports: false }],
     ['replay', undefined, { skipSync: true }],
   ])
 })

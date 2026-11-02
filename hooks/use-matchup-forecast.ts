@@ -28,6 +28,11 @@ export type MatchupForecast = MatchupEstimate & {
     }[]
 }
 
+export type MatchupForecastDisplay = Pick<MatchupForecast, 'stale' | 'tieProbability' | 'missingInputs'> & {
+    teams: Pick<MatchupForecast['teams'][number], 'memberId' | 'projectedFinal' | 'currentPoints' | 'winProbability'>[]
+    games: Pick<MatchupForecast['games'][number], 'gameId' | 'playerId' | 'memberId'>[]
+}
+
 type ForecastState = { key: string; value: MatchupForecast | null; pending: boolean; error: boolean }
 
 export function useMatchupForecast(userId?: string, leagueId?: string, matchup?: Matchup | null, enabled = true) {

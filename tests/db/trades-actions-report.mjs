@@ -1,3 +1,4 @@
+import { evidencePath } from '../helpers/evidence-path.mjs'
 import assert from 'node:assert/strict'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
@@ -115,6 +116,6 @@ if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) 
   const controlFile = option('--controls', null)
   const controls = controlFile ? JSON.parse(readFileSync(controlFile, 'utf8')) : []
   const report = { concurrentWithOtherLanes: true, aggregates: aggregate(results), comparisons: paired(results, controls) }
-  writeFileSync(option('--output', 'tests/db/trades-actions-results.json'), `${JSON.stringify(report, null, 2)}\n`)
+  writeFileSync(option('--output', evidencePath('trades-actions-results.json')), `${JSON.stringify(report, null, 2)}\n`)
   for (const row of report.comparisons) console.log(JSON.stringify(row))
 }

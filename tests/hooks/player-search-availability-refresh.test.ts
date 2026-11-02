@@ -9,7 +9,6 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@/hooks/use-screen-view', () => ({ useScreenView: vi.fn() }))
-vi.mock('@/hooks/use-live-stats', () => ({ readCachedLiveTeams: () => null }))
 vi.mock('react-native', () => ({
     AppState: {
         currentState: 'active',

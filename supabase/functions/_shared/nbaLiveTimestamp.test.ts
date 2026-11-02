@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 
 Deno.env.set('NBA_CDN_BASE_URL', 'http://nba.invalid')
-const { fetchBoxScore } = await import('./nba.ts')
+const { fetchBoxScore, fetchTodaysGames } = await import('./nba.ts')
 
 Deno.test('live NBA ordering uses the actual ET snapshot time while official revisions keep their existing representation', async () => {
   const original = globalThis.fetch
@@ -21,4 +21,10 @@ Deno.test('missing source timezone metadata uses the object timestamp for live o
   try {
     assert.equal((await fetchBoxScore('0022600144', 2500)).liveSourceUpdatedAt, '2026-10-30T01:00:43.000Z')
   } finally { globalThis.fetch = original }
+})
+
+Deno.test('a null scoreboard row cannot discard a healthy NBA game',async()=>{
+  const original=globalThis.fetch
+  globalThis.fetch=async()=>Response.json({scoreboard:{games:[null,{gameId:'0022600001',gameStatus:2}]}})
+  try {assert.equal((await fetchTodaysGames()).length,1)}finally{globalThis.fetch=original}
 })

@@ -17,7 +17,7 @@ export function identityPairResults(pairs, rows) {
 }
 
 export async function captureIdentityPairs(evidence) {
-  const pairs = JSON.parse(await readFile(new URL('./baselines/identity-pairs.json', import.meta.url), 'utf8'))
+  const pairs = JSON.parse(await readFile(new URL('./fixtures/identity-pairs.json', import.meta.url), 'utf8'))
   assert.ok(pairs.every(row => [row.nbaId, row.sleeperId, row.espnId].every(id => /^\d+$/.test(id))
     && row.candidateIds.every(id => /^[a-f0-9-]{36}$/.test(id))), 'Invalid identity fixture')
   const nba = pairs.map(row => `'${row.nbaId}'`).join(',')

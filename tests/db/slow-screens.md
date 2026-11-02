@@ -99,8 +99,8 @@ It is throttled in 3 of 62 one-CPU periods, for 2.03 milliseconds.
 These counters cover the whole container, including its psql client processes.
 They confirm the large quarter-CPU spread comes with sustained quota waits.
 
-[Full measurements](slow-screens-tables.md) give defaults for every manager and CPU limit.
-[Generated results](slow-screens-results.json) include summaries of all 3,000 comparison samples,
+Full measurements (external evidence) give defaults for every manager and CPU limit.
+Generated results (external evidence) include summaries of all 3,000 comparison samples,
 240 installed samples, 96 fresh/warm statement captures, and the four kept rounds.
 Raw plans remain in the mini's `slow-screens-evidence` directory.
 
@@ -316,8 +316,8 @@ The trade response assembly reaches 93.90 ms, including child work.
 Those are instrumented statement totals at quarter CPU. Parent and child times overlap.
 They identify the remaining delays without adding their totals together.
 
-[Complete tables](slow-screen-addendum-tables.md) include the broader variant comparison.
-[Generated addendum results](slow-screen-addendum-results.json) include distributions, installed calls, planning/execution splits, and historical traces.
+Complete tables (external evidence) include the broader variant comparison.
+Generated addendum results (external evidence) include distributions, installed calls, planning/execution splits, and historical traces.
 
 ### Addendum verification
 

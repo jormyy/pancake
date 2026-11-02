@@ -51,6 +51,7 @@ BEGIN
   SELECT version INTO revision FROM private.screen_refresh_queue WHERE league_season_id = f.season_id;
   PERFORM private.refresh_standings(f.league_id, f.season_id, revision);
   PERFORM private.refresh_matchup_totals(f.league_id, f.season_id, revision);
+  UPDATE public.nba_games SET status='Final' WHERE nba_game_id='002screen-parity';
   PERFORM private.refresh_player_averages(f.league_id, f.season_id, revision);
   PERFORM private.refresh_trade_values(f.league_id, f.season_id, revision,
     jsonb_build_array(jsonb_build_object('tradeId', f.trade_id, 'revaluation', '{"analysis":{"teams":[]}}'::jsonb)));
@@ -66,6 +67,7 @@ BEGIN
   PERFORM pg_temp.check_rules((SELECT cached.avg_fantasy_points IS NOT DISTINCT FROM original.avg_fantasy_points
     FROM public.player_season_averages cached JOIN public.v_player_avg_fantasy_points original USING(league_id, player_id, season_year)
     WHERE cached.league_id = f.league_id AND cached.player_id = f.player_id), 'stored fantasy average matches original read');
+  UPDATE public.nba_games SET status='InProgress' WHERE nba_game_id='002screen-parity';
   UPDATE public.matchups SET matchup_type = 'playoff_final', home_points = 9999 WHERE id = f.matchup_id;
   SELECT version INTO revision FROM private.screen_refresh_queue WHERE league_season_id = f.season_id;
   PERFORM private.refresh_standings(f.league_id, f.season_id, revision);
@@ -78,7 +80,7 @@ BEGIN
   PERFORM pg_temp.check_rules(jsonb_array_length(public.view_roster(f.league_id, f.member_ids[1])->'roster') = 1, 'offseason keeps latest roster');
   PERFORM pg_temp.check_rules(public.view_claims(f.league_id, f.member_ids[1])->'claims' = '[]', 'offseason has no active claims');
   INSERT INTO public.nba_games(nba_game_id, season_year, week_number, game_date, home_team, away_team, status)
-    VALUES('002screen-offseason', public.current_season_year_et(), 1, (now() AT TIME ZONE 'America/Los_Angeles')::date, 'VST', 'OTH', 'InProgress');
+    VALUES('002screen-offseason', public.current_season_year_et(), 1, (now() AT TIME ZONE 'America/Los_Angeles')::date, 'VST', 'OTH', 'Final');
   INSERT INTO public.player_game_stats(player_id, game_id, season_year, week_number, points, minutes_played)
     SELECT f.player_id, id, public.current_season_year_et(), 1, 9, 12 FROM public.nba_games WHERE nba_game_id = '002screen-offseason';
   result := public.view_roster(f.league_id, f.member_ids[1]);

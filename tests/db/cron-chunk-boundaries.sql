@@ -53,10 +53,10 @@ BEGIN
   UPDATE private.worker_controls SET paused=false,scheduler_level='normal',scheduler_healthy_since=NULL WHERE id;
   INSERT INTO private.player_stats_hint_pending(league_id) VALUES(fixture.league_id) ON CONFLICT DO NOTHING;
   UPDATE public.league_change_hints SET updated_at=clock_timestamp()-interval '2 minutes' WHERE league_id=fixture.league_id AND topic='score';
-  EXECUTE (SELECT command FROM cron.job WHERE jobname='io-hint-drain');
-  PERFORM public.dispatch_work();
+  PERFORM private.flush_player_stats_hints();
+  PERFORM private.enqueue_scheduled_work(now());
   PERFORM pg_temp.check_rules(EXISTS(SELECT 1 FROM private.work_items WHERE kind='forecast-inputs'),
-    'minute crons enqueue forecast input work without fingerprinting');
+    'minute admission queues forecast work without fingerprinting');
   PERFORM pg_temp.check_rules(EXISTS(SELECT 1 FROM private.work_items WHERE kind='notification-scan'),
     'minute crons enqueue notification work without scanning candidates');
   PERFORM pg_temp.check_rules(private.matchup_forecast_refresh_pending(fixture.matchup_id),
@@ -79,13 +79,12 @@ BEGIN
     processed:=processed+(result->>'processed')::integer;
     EXIT WHEN NOT (result->>'remaining')::boolean;
   END LOOP;
-  PERFORM pg_temp.check_rules(processed>=3,'separate chunks visit the two current matchups and the future period');
+  PERFORM pg_temp.check_rules(processed>=2,'separate chunks visit both current matchups');
   PERFORM pg_temp.check_rules((SELECT input_fingerprint->>'inputs'=private.matchup_forecast_input_fingerprint(matchup_id)->>'inputs'
     FROM private.matchup_forecast_queue WHERE matchup_id=fixture.matchup_id),'the worker preserves the forecast fingerprint');
   PERFORM pg_temp.check_rules(NOT private.matchup_forecast_refresh_pending(fixture.matchup_id),'a completed refresh clears the stale gate');
-  PERFORM pg_temp.check_rules(EXISTS(SELECT 1 FROM private.forecast_refresh_requests WHERE matchup_id=fixture.future_matchup_id
-    AND available_at=((now() AT TIME ZONE 'America/New_York')::date+7)::timestamp AT TIME ZONE 'America/New_York'),
-    'a future period wakes when it enters the preview window');
+  PERFORM pg_temp.check_rules(NOT EXISTS(SELECT 1 FROM private.forecast_refresh_requests WHERE matchup_id=fixture.future_matchup_id AND available_at<=now()),
+    'a future period without games stays outside the current forecast cycle');
 END;
 $$;
 CREATE TEMP TABLE chunk_race_fired(matchup_id uuid);

@@ -31,17 +31,13 @@ describe('baseline publication', () => {
     const { renderReport } = await import('../../scripts/perf-lab/report.mjs')
     const directory = await mkdtemp(path.join(tmpdir(), 'perf-lab-report-'))
     try {
-      const options = { evidenceRoot: directory, writeDocs: false }
+      const options = { evidenceRoot: directory, writeReports: false }
       const { report } = await renderReport(options)
       expect(report.done).toBe(false)
       expect(report.passed).toBe(0)
       const markdown = await readFile(path.join(directory, 'baseline.md'), 'utf8')
-      expect(markdown).toContain('4500930 bytes down')
-      expect(markdown).toContain('GET /functions/v1/api/views/home')
-      expect(markdown).toContain('JavaScript | 22 | 4123954')
-      const archived = JSON.parse(await readFile('scripts/perf-lab/baselines/normal-cache.json', 'utf8'))
-      expect(markdown).toContain(archived.source)
-      expect(markdown).toContain('Archived cache-enabled baseline')
+      expect(markdown).toContain('0/')
+      expect(markdown).toContain('Results below cover only measured WebKit observations.')
       expect(report.networkRanking.endpoints).toEqual([])
       const simulation = { captureProfile: 'control', passed: true, days: 2, fidelity: 'production-cadence', gates: Object.fromEntries(['liveTicks', 'overnightFinalization', 'preTipoff', 'waivers', 'tradeProposed', 'tradeCountered', 'tradeAccepted', 'forecasts', 'realtime'].map(key => [key, true])) }
       const controlOptions = { ...options, simulation }
@@ -150,11 +146,17 @@ describe('frozen batch accumulation', () => {
 describe('network cost ranking', () => {
   it('keeps archived release costs out of the current baseline', async () => {
     const { renderReport } = await import('../../scripts/perf-lab/report.mjs')
-    const { report } = await renderReport({ writeDocs: false })
-    expect(report.ranking).toEqual([])
-    expect(report.networkRanking.endpoints).toEqual([])
-    expect(report.archivedColdRanking.length).toBeGreaterThanOrEqual(39)
-    expect(report.archivedColdRanking.some((row: { id: string }) => row.id.startsWith('interaction.perf-filter-'))).toBe(true)
+    const directory = await mkdtemp(path.join(tmpdir(), 'perf-lab-history-'))
+    try {
+      await mkdir(path.join(directory, 'baselines'))
+      await writeFile(path.join(directory, 'baselines/cold-survey.json'), JSON.stringify({ source: 'a'.repeat(40), observations: [{
+        id: 'home-cold', surface: 'matchup-home', webkit: { passed: true, dbMs: 7, requests: 2, bytesIn: 80, bytesOut: 4, dbCalls: 1, dbRows: 3, dbBuffers: 5, pushBytes: 0 },
+      }] }))
+      const { report } = await renderReport({ evidenceRoot: directory, writeReports: false })
+      expect(report.ranking).toEqual([])
+      expect(report.networkRanking.endpoints).toEqual([])
+      expect(report.archivedColdRanking).toMatchObject([{ id: 'matchup-home', dbMs: 7, weightedDbMs: 7 }])
+    } finally { await rm(directory, { recursive: true, force: true }) }
   })
   it('ranks total traffic cost instead of a single expensive request', async () => {
     const { rankTraffic } = await import('../../scripts/perf-lab/traffic.mjs')

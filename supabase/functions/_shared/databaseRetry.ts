@@ -20,7 +20,8 @@ export async function retryDatabaseContention<T>(run: () => PromiseLike<T>, opti
     const pause = Math.min(25 * 2 ** retries, (options.deadline ?? Infinity) - performance.now())
     if (retries >= 4 || pause <= 0) return false
     await renewCurrentWorkLease()
-    options.onRetry?.(error, ++retries)
+    retries++
+    options.onRetry?.(error, retries)
     await new Promise(resolve => setTimeout(resolve, pause))
     await renewCurrentWorkLease()
     return performance.now() < (options.deadline ?? Infinity)

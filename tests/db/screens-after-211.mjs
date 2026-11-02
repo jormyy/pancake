@@ -1,3 +1,4 @@
+import { evidencePath } from '../helpers/evidence-path.mjs'
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import { readFile, writeFile } from 'node:fs/promises'
@@ -199,7 +200,7 @@ else {
     assert.ok(parity.every(row => row.mismatches.length === 0 && row.negative === 1))
     assert.ok(comparison.every(row => row.passes))
     const result = { baseline: '892b6bca', release: '1e696f25', migrationSha256: createHash('sha256').update(candidate).digest('hex'), methodology: { cpus: 1, memoryBytes: 1073741824, samplesPerCase: 5, fresh: 'new connection', warm: 'same connection after five priming calls', timing: 'planning plus execution; nested logging disabled', buffers: 'shared hit plus shared read', fixturePreparation: 'vacuum and analyze fixture tables before synthetic samples' }, summaries, comparison, installedBuffers, parity }
-    await writeFile('tests/db/screens-after-211-results.json', `${JSON.stringify(result, null, 2)}\n`)
+    await writeFile(evidencePath('screens-after-211-results.json'), `${JSON.stringify(result, null, 2)}\n`)
     console.log(JSON.stringify(result))
   } else throw new Error('Choose --inventory, --capture, --trace, --parity, or --report')
 }

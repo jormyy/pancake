@@ -209,12 +209,6 @@ type FinalBoxScore = BoxScorePlayers & {
 
 const isTeamScore = (score: unknown): score is number => Number.isSafeInteger(score) && (score as number) >= 0
 
-// The scoreboard is the only other writer of nba_games scores, and it stops
-// polling a game once it is Final or drops it from todaysScoreboard, so the
-// last mid-game sample would otherwise stay as the final score. A Final
-// sample always applies and every later non-final sample is refused.
-// Feeds without team scores keep the earlier behavior. Live-poll work rows
-// carry the stored score, so a settled final is not rewritten on each recheck.
 export async function saveFinalScore(game: Pick<StatsSyncGame, 'id' | 'status' | 'home_score' | 'away_score' | 'game_status_text'>, providerGameId: string, boxScore: FinalBoxScore): Promise<void> {
   const home = boxScore.homeTeam?.score
   const away = boxScore.awayTeam?.score
@@ -367,9 +361,10 @@ export function buildStatRow(
   }
 }
 
-export async function syncLiveStatsGames(games: StatsSyncGame[], options: { loadBoxScore?: (game: StatsSyncGame) => Promise<NBABoxScore> } = {}): Promise<{ statLines: number; failures: unknown[] }> {
+export async function syncLiveStatsGames(games: StatsSyncGame[], options: { loadBoxScore?: (game: StatsSyncGame) => Promise<NBABoxScore> } = {}): Promise<{ statLines: number; failures: unknown[]; importedGameIds: string[] }> {
   let statLines = 0
   const failures: unknown[] = []
+  const importedGameIds: string[] = []
   let writes: Promise<number> = Promise.resolve(0)
   const persist = (write: () => Promise<number>) => {
     const pending = writes.then(write, write)
@@ -378,13 +373,19 @@ export async function syncLiveStatsGames(games: StatsSyncGame[], options: { load
   }
   await runBounded(games.map(game => async () => {
     try {
-      const lines = await syncGameBoxScore(game, true, persist, options.loadBoxScore)
+      let available = false
+      const lines = await syncGameBoxScore(game, true, persist, async item => {
+        const box = await (options.loadBoxScore ? options.loadBoxScore(item) : fetchBoxScore(item.nba_game_id!))
+        available = box.gameStatus !== 1
+        return box
+      })
       statLines += lines
+      if (available) importedGameIds.push(game.id)
     } catch (error) {
       const failure = new Error(`NBA game ${game.nba_game_id}: ${errorMessage(error)}`, { cause: error })
       Object.assign(failure, { code: (error as { code?: string })?.code })
       failures.push(failure)
     }
   }), 4)
-  return { statLines, failures }
+  return { statLines, failures, importedGameIds }
 }

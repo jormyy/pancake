@@ -21,7 +21,7 @@ The 300-second cap leaves six times that budget.
 The bench does not reproduce the production 60-second timeout.
 The new phase notices identify any remaining production delay without another blind timeout.
 
-[Every phase](unpartition-migration-tables.md) and [all measurements](unpartition-migration-results.json) include the full comparison.
+Every phase (external evidence) and all measurements (external evidence) include the full comparison.
 These results supersede the earlier one-CPU migration estimate.
 
 ## Cause and change

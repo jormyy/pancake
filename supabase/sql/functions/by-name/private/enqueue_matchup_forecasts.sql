@@ -10,6 +10,7 @@ BEGIN
     PERFORM private.work_enqueue('forecast-inputs',date_trunc('minute',p_now)::text,p_now,'{"schedulerChunk":"forecasts"}');
   END IF;
   IF EXISTS(SELECT 1 FROM private.matchup_forecast_queue WHERE dirty AND available_at<=p_now
+    AND (SELECT due_at FROM private.matchup_forecast_schedule schedule WHERE schedule.matchup_id=private.matchup_forecast_queue.matchup_id)<=p_now
     AND NOT private.matchup_forecast_refresh_pending(matchup_id)
     AND (claimed_at IS NULL OR claimed_at<p_now-interval '3 minutes')) THEN
     PERFORM private.work_enqueue('matchup-forecasts',date_trunc('minute',p_now)::text,p_now);

@@ -21,6 +21,7 @@ export type LineupPlayer = {
     careerGames?: number | null
     injuryStatus: string | null
     nbaId: string | null
+    espnId?: string | null
 }
 
 export type LineupSlot = {
@@ -42,14 +43,6 @@ export type WeekDay = {
     hasGames: boolean    // any NBA games scheduled
     isToday: boolean
     playingTeams: string[]
-}
-
-// Returns the set of NBA team abbreviations whose game has already started on the given date.
-/** The one client reading of "this game has started" (the server's is private.lineup_game_started). */
-export function gameHasStarted(game: { status: string | null; game_time: string | null; started_at: string | null }, now: string): boolean {
-    return ['InProgress', 'Final'].includes(game.status ?? '')
-        || (game.game_time != null && game.game_time <= now)
-        || (game.started_at != null && game.started_at <= now)
 }
 
 export async function getLineupContext(

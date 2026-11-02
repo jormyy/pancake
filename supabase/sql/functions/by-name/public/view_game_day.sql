@@ -14,7 +14,7 @@ BEGIN
   )
   SELECT COALESCE((SELECT jsonb_agg(jsonb_build_object('id', id, 'nba_game_id', nba_game_id, 'home_team', home_team,
       'away_team', away_team, 'home_score', home_score, 'away_score', away_score, 'status', status,
-      'game_status_text', game_status_text, 'game_date', game_date) ORDER BY game_time, id) FROM slate WHERE nba_game_id LIKE '002%'), '[]'),
+      'game_status_text', game_status_text, 'game_date', game_date, 'game_time',game_time) ORDER BY game_time, id) FROM slate WHERE nba_game_id LIKE '002%'), '[]'),
     COALESCE(jsonb_agg(DISTINCT team) FILTER (WHERE started AND team IS NOT NULL), '[]'),
     COALESCE(jsonb_object_agg(team, jsonb_build_object('opponent', opponent, 'isHome', home) ORDER BY id) FILTER (WHERE team IS NOT NULL AND opponent IS NOT NULL), '{}')
   INTO games, started_teams, opponents FROM teams;

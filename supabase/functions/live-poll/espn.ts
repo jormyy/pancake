@@ -2,8 +2,9 @@ import { workFetch } from '../_shared/workContext.ts'
 import { sourceTimestamp } from '../_shared/sourceTimestamp.ts'
 import { gameElapsedSeconds } from '../_shared/gameProgress.ts'
 import type { NBAGame, NBABoxScorePlayer } from '../_shared/nba.ts'
+import { sourceEnvironment } from '../_shared/sourceEnvironment.ts'
 
-const ESPN = Deno.env.get('ESPN_LIVE_BASE_URL') ?? 'https://site.api.espn.com/apis/site/v2/sports/basketball/nba'
+const ESPN = sourceEnvironment('ESPN_LIVE_BASE_URL') ?? 'https://site.api.espn.com/apis/site/v2/sports/basketball/nba'
 const teamCode = (code: string) => ({ GS: 'GSW', NY: 'NYK', NO: 'NOP', SA: 'SAS', UTAH: 'UTA', WSH: 'WAS' })[code] ?? code
 
 type Status = { period: number; displayClock: string; type: { state: string; completed?: boolean; detail?: string } }
@@ -50,13 +51,21 @@ export class EspnLiveSource {
     return this.request('scoreboard', async () => {
       const range = [...dates].sort().map(date => date.replaceAll('-', ''))
       const payload = await get<{ events: EspnEvent[] }>(`/scoreboard?dates=${range[0]}-${range.at(-1)}&limit=100`, this.timeoutMs)
-      if (!Array.isArray(payload.events) || payload.events.some(event => !event || typeof event.id !== 'string' ||
-        !Number.isFinite(Date.parse(event.date)) || !['pre', 'in', 'post'].includes(event.status?.type?.state) ||
-        !Array.isArray(event.competitions) || event.competitions.length !== 1 || !Array.isArray(event.competitions[0]?.competitors))) {
-        throw new Error('ESPN scoreboard has invalid events')
-      }
-      if (new Set(payload.events.map(event => event.id)).size !== payload.events.length) throw new Error('ESPN scoreboard has duplicate games')
-      return payload.events
+      if (!Array.isArray(payload.events)) throw new Error('ESPN scoreboard has invalid events')
+      const counts=new Map<string,number>()
+      for(const event of payload.events)if(event && typeof event.id==='string')counts.set(event.id,(counts.get(event.id)??0)+1)
+      const events=payload.events.filter(event=>{
+        if(!event || typeof event.id!=='string' || !Number.isFinite(Date.parse(event.date))
+          || !['pre','in','post'].includes(event.status?.type?.state) || !Array.isArray(event.competitions)
+          || event.competitions.length!==1 || !Array.isArray(event.competitions[0]?.competitors) || counts.get(event.id)!==1)return false
+        const sides=event.competitions[0].competitors
+        if(sides.length!==2 || sides.some(side=>!side || !['home','away'].includes(side.homeAway) || !/^[A-Z]{2,4}$/.test(side.team?.abbreviation)))return false
+        if(new Set(sides.map(side=>side.homeAway)).size!==2)return false
+        try {if(event.status.type.state!=='pre')espnGame(event.id,event.competitions[0]);return true}catch{return false}
+      })
+      if(!events.length && payload.events.length)throw new Error([...counts.values()].some(count=>count>1)
+        ?'ESPN scoreboard has duplicate games':'ESPN scoreboard has invalid events')
+      return events
     })
   }
 
@@ -76,7 +85,7 @@ export class EspnLiveSource {
 
 export const liveEspnSource = new EspnLiveSource()
 
-function espnGame(id: string, competition: Competition): NBAGame {
+export function espnGame(id: string, competition: Competition): NBAGame {
   const home = competition.competitors.find(team => team.homeAway === 'home')
   const away = competition.competitors.find(team => team.homeAway === 'away')
   const status = competition.status
@@ -135,10 +144,14 @@ export function parseEspnSummary(summary: EspnSummary, event: EspnEvent): { game
     const groups = side.statistics.filter(group => group.names.includes('PTS'))
     if (groups.length !== 1) throw new Error(`ESPN ${event.id}: ambiguous statistics`)
     const group = groups[0]
-    const result = group.athletes.filter(row => !row.didNotPlay).map(row => {
+    const result = group.athletes.map(row => {
       const id = row.athlete.id
       if (!/^\d+$/.test(id) || seen.has(id)) throw new Error(`ESPN ${event.id}: duplicate/invalid athlete ${id}`)
       seen.add(id)
+      if (row.didNotPlay === true) return { espnId:id,team,player:{ personId:0,name:row.athlete.displayName,played:0,
+        statistics:{minutes:'PT0M00S',points:0,reboundsTotal:0,reboundsOffensive:0,reboundsDefensive:0,assists:0,
+          steals:0,blocks:0,turnovers:0,foulsPersonal:0,plusMinusPoints:0,fieldGoalsMade:0,fieldGoalsAttempted:0,
+          threePointersMade:0,threePointersAttempted:0,freeThrowsMade:0,freeThrowsAttempted:0} } }
       const values = Object.fromEntries(group.names.map((name, index) => [name, row.stats[index]]))
       const count = (name: string, signed = false) => {
         if (!(signed ? /^[+-]?\d+$/ : /^\d+$/).test(values[name] ?? '')) throw new Error(`ESPN ${event.id}/${id}: invalid ${name}`)

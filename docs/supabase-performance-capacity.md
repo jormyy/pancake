@@ -19,7 +19,8 @@ They retain the existing participant and league access rules.
 
 Current-season player search reads stored player averages through the screen view.
 Historical searches retain their season-specific calculations.
-The database remains the source of scoring and ownership.
+The database remains the source of official scoring and ownership.
+Visible live screens overlay [public snapshots](live-scores.md); they do not change official results.
 
 ## Measurements
 

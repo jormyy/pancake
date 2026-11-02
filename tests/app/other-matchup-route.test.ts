@@ -21,7 +21,7 @@ const { handleViewRoute } = await import(routeModule) as { handleViewRoute: (req
 beforeEach(() => {
     vi.clearAllMocks()
     fixture.rpc.mockImplementation(async (name, args) => {
-        if (name === 'view_home') return { data: { context: { seasonId: 'season', seasonYear: 2026, weekNumber: 1 }, selectedDate: '2026-10-27', leagueMatchups: [{ id: fixture.matchup, homeMemberId: 'home', awayMemberId: 'away', homeTeamName: 'Owls', awayTeamName: 'Foxes', homePoints: 12, awayPoints: 10 }] } }
+        if (name === 'view_home') return { data: { context: { seasonId: 'season', seasonYear: 2026, weekNumber: 1 }, selectedDate: '2026-10-27', matchup: { id: fixture.matchup, myMemberId: 'home', opponentMemberId: 'away' }, myLineup: { starters: ['home'] }, oppLineup: { starters: ['away'] } } }
         if (name === 'view_standings') return { data: { standings: [] } }
         if (name === 'get_matchup_forecast') return { data: { matchupId: fixture.matchup } }
         return { data: { starters: [args.p_params.targetMemberId], bench: [], weekDays: [], liveStats: {} } }
@@ -31,14 +31,14 @@ beforeEach(() => {
     fixture.from.mockReturnValue(query)
 })
 const request = (matchupId?: string) => new Request(`http://127.0.0.1/views/home?params=${encodeURIComponent(JSON.stringify(matchupId ? { matchupId } : {}))}`)
-it('serves the parameterised view through one endpoint while retaining actor authorization on every lineup read', async () => {
+it('serves the complete parameterised view through one authorized database read', async () => {
     const response = await handleViewRoute(request(fixture.matchup), '/views/home')
     const result = await response!.json()
     expect(result.view.matchup).toMatchObject({ id: fixture.matchup, myMemberId: 'home', opponentMemberId: 'away' })
-    const lineups = fixture.rpc.mock.calls.filter(([name]) => name === 'view_lineup')
-    expect(lineups).toHaveLength(2)
-    expect(lineups.map(([, args]) => args.p_member_id)).toEqual([fixture.actor, fixture.actor])
-    expect(lineups.map(([, args]) => args.p_params.targetMemberId)).toEqual(['home', 'away'])
+    expect(fixture.rpc).toHaveBeenCalledExactlyOnceWith('view_home', {
+        p_league_id: fixture.league, p_member_id: fixture.actor, p_params: { matchupId: fixture.matchup },
+    })
+    expect(fixture.from).not.toHaveBeenCalled()
     expect(result.view.myLineup.starters).toEqual(['home'])
     expect(result.view.oppLineup.starters).toEqual(['away'])
 })
@@ -48,11 +48,12 @@ it('leaves the existing Home read unchanged', async () => {
     expect(fixture.rpc.mock.calls[0][0]).toBe('view_home')
 })
 it('rejects another league or week before requesting a target lineup', async () => {
+    fixture.rpc.mockResolvedValue({ data: { matchup: null } })
     await expect(handleViewRoute(request('44444444-4444-4444-4444-444444444444'), '/views/home')).rejects.toThrow('not available')
     expect(fixture.rpc).toHaveBeenCalledOnce()
     expect(fixture.from).not.toHaveBeenCalled()
 })
-it('propagates lineup errors without returning a partial view', async () => {
-    fixture.rpc.mockImplementation(async name => name === 'view_home' ? { data: { leagueMatchups: [{ id: fixture.matchup }], context: {} } } : { error: { message: 'Unavailable' } })
+it('propagates view errors without returning a partial view', async () => {
+    fixture.rpc.mockResolvedValue({ error: { message: 'Unavailable' } })
     await expect(handleViewRoute(request(fixture.matchup), '/views/home')).rejects.toThrow('Unavailable')
 })

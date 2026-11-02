@@ -1,3 +1,4 @@
+import { evidencePath } from '../helpers/evidence-path.mjs'
 import assert from 'node:assert/strict'
 import {execFileSync} from 'node:child_process'
 import {createHash} from 'node:crypto'
@@ -46,5 +47,5 @@ const result={verifiedCode:'4f24d4b1',source:execFileSync('git',['rev-parse','HE
   sql:read('worker-verification'),catalog:read('worker-catalog'),restart:read('worker-restart'),
   productionWithinKindBypassReproduced:false}
 assert.ok(result.sql.every(row=>row.passed))
-writeFileSync('tests/db/pipeline-night-worker-results.json',JSON.stringify(result,null,2)+'\n')
+writeFileSync(evidencePath('pipeline-night-worker-results.json'),JSON.stringify(result,null,2)+'\n')
 process.stdout.write(JSON.stringify({native:result.native.byKind,forecastsCompared:result.native.forecastsCompared,pairs:5,noiseMs:result.fresh.noiseMs})+'\n')

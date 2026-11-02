@@ -1,5 +1,4 @@
 import { useFittedText } from '@/components/ui/useFittedText'
-import type { MatchupForecast } from '@/hooks/use-matchup-forecast'
 import { memo, type ReactNode } from 'react'
 import { View, Text, StyleSheet, Platform } from 'react-native'
 import { LineupPlayer, type LineupSelection, type LineupMoveTargetState } from '@/lib/lineup'
@@ -190,9 +189,6 @@ function PlayerSide({
     onOpenPlayer,
     onOpenDetails,
 }: {
-    projection?: MatchupForecast['games'][number]
-    forecastStale?: boolean
-    showProjection?: boolean
     side: 'left' | 'right'
     player: LineupPlayer | null
     slotType: string
@@ -298,10 +294,6 @@ function PlayerSide({
 }
 
 type MatchupRowProps = {
-    myProjection?: MatchupForecast['games'][number]
-    oppProjection?: MatchupForecast['games'][number]
-    forecastStale?: boolean
-    showProjections?: boolean
     myPlayer: LineupPlayer | null
     oppPlayer: LineupPlayer | null
     slotType: string
@@ -328,7 +320,6 @@ type MatchupRowProps = {
 }
 
 function MatchupRowImpl({
-    myProjection, oppProjection, forecastStale, showProjections = false,
     myPlayer,
     oppPlayer,
     slotType,
@@ -383,9 +374,6 @@ function MatchupRowImpl({
             <View style={[styles.rowSideLeft, compact && styles.rowSideCompact]}>
                 <PlayerSide
                     side="left"
-                    projection={myProjection}
-                    forecastStale={forecastStale}
-                    showProjection={showProjections && !reserveSlot}
                     player={myPlayer}
                     slotType={slotType}
                     placeholderOnly={isExtraOppRow}
@@ -431,9 +419,6 @@ function MatchupRowImpl({
             <View style={[styles.rowSideRight, compact && styles.rowSideCompact]}>
                 <PlayerSide
                     side="right"
-                    projection={oppProjection}
-                    forecastStale={forecastStale}
-                    showProjection={showProjections && !reserveSlot}
                     player={oppPlayer}
                     slotType={slotType}
                     placeholderOnly={false}

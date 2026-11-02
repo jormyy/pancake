@@ -131,3 +131,37 @@ Deno.test('a started game without a frozen value or row uses recent games, then 
   assert.ok(result.teams.every(team => Number.isFinite(team.winProbability)))
   assert.equal(result.status, 'limited')
 })
+
+Deno.test('packed forecast inputs preserve manual, automatic and frozen projections', async()=>{
+  const {readForecastContext}=await import('./wire.ts')
+  for(const automatic of [[],['home','away']]) {
+    const input=fixture();input.automaticMembers=automatic
+    input.previous=computeForecast(input)
+    input.games[0].status='InProgress';input.games[0].live_stats_elapsed_seconds=1400
+    const packed={...input,wireVersion:1,
+      teams:input.teams.map(r=>[r.memberId,r.currentPoints]),
+      roster:input.roster.map(r=>[r.member_id,r.player_id,r.is_on_ir,r.is_on_taxi,r.nba_team,r.eligible_positions,r.injury_status]),
+      games:input.games.map(r=>[r.id,r.game_date,r.home_team,r.away_team,r.status,r.game_time,r.started_at,r.live_scoreboard_elapsed_seconds,r.live_stats_elapsed_seconds]),
+      history:input.history.map(r=>[r.player_id,r.scores]),
+      projections:input.projections.map(r=>[r.requested_date,r.player_id,r.projection_fantasy_points,r.projection_source_label,r.projection_fetched_at,r.projection_date,r.projection_is_fresh]),
+      lineups:input.lineups.map(r=>[r.member_id,r.player_id,r.game_date,r.slot_type,r.is_auto_set]),
+      templates:input.templates.map(r=>[r.slot_type,r.slot_count]),seasonAverages:[],
+      previous:input.previous.games!.map(r=>[r.playerId,r.gameId,r.projection,r.source,r.sourceAt,r.substituted??null])}
+    assert.deepEqual(computeForecast(readForecastContext(packed)),computeForecast(input))
+    assert.throws(()=>readForecastContext({...packed,roster:[[1]]}),/wire rows/)
+    assert.throws(()=>readForecastContext({...packed,wireVersion:2}),/wire version/)
+  }
+})
+
+Deno.test('terminal schedules need no remaining player forecasts', () => {
+  for (const status of ['Final', 'Cancelled', 'Postponed']) {
+    for (const automaticMembers of [[], ['home', 'away']]) {
+      const input = fixture()
+      input.automaticMembers = automaticMembers
+      input.previous = computeForecast(input)
+      input.games[0].status = status
+      const lean = { ...input, roster: [], history: [], projections: [], lineups: [], templates: [], seasonAverages: [], previous: null }
+      assert.deepEqual(computeForecast(lean), computeForecast(input))
+    }
+  }
+})

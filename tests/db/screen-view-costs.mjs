@@ -1,3 +1,4 @@
+import { evidencePath } from '../helpers/evidence-path.mjs'
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import { access, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
@@ -319,7 +320,7 @@ async function report() {
   result.parityNegative = paritySummary(await load('parity-negative.json'))
   result.timingNegative = await load('timing-control.json')
   result.warmSweep = await load('warm-sweep.json').catch(()=>null)
-  await writeFile('tests/db/screen-view-cost-results.json',`${JSON.stringify(result,null,2)}\n`)
+  await writeFile(evidencePath('screen-view-cost-results.json'),`${JSON.stringify(result,null,2)}\n`)
   const lines = ['# Screen read measurements','',
     'Postgres uses one CPU and 1 GiB. Each cell uses five samples.',
     'Cold samples restart Postgres. The host file cache stays available.',
@@ -345,7 +346,7 @@ async function report() {
     for (const row of rows) lines.push(`| ${row.function} | ${row.query.replaceAll(/\s+/g,' ').replaceAll('|','/').slice(0,110)} | ${row.buffers} | ${row.milliseconds.toFixed(2)} | ${row.rows} |`)
     lines.push('')
   }
-  await writeFile('tests/db/screen-view-cost-tables.md',`${lines.join('\n')}\n`)
+  await writeFile(evidencePath('screen-view-cost-tables.md'),`${lines.join('\n')}\n`)
   console.log(JSON.stringify({ measurements: result.measurements.length,comparisons: result.comparisons.length,nestedCaptures: result.nested.length }))
 }
 
