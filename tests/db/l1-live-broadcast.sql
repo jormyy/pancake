@@ -60,8 +60,8 @@ BEGIN
   INSERT INTO pg_temp.league_change_hints(id,league_id,topic,revision,updated_at)
     VALUES(gen_random_uuid(),source.league_id,'roster',1,clock_timestamp());
   SET CONSTRAINTS ALL IMMEDIATE;
-  IF (SELECT count(*) FROM realtime.messages WHERE topic='l1:league:'||source.league_id::text)<>row_count+1 THEN
-    RAISE EXCEPTION 'One transaction emits more than one compact broadcast'; END IF;
+  IF (SELECT count(*) FROM realtime.messages WHERE topic='l1:league:'||source.league_id::text)<>row_count+3 THEN
+    RAISE EXCEPTION 'Legacy row events and compact hints must each remain deliverable'; END IF;
   holder:=public.try_live_poll_lease(779001,600);
   IF holder IS NULL THEN RAISE EXCEPTION 'Checkpoint test requires its own live lease'; END IF;
   ALTER TABLE pg_temp.league_change_hints ADD COLUMN details jsonb;
