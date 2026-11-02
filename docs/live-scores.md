@@ -8,6 +8,9 @@ It reads no Supabase data, credentials, lineups, or user information.
 NBA box scores are preferred; ESPN remains the checked fallback.
 Identity, completeness, and source-order checks apply before publication.
 Each player line contains only the fields needed by the shared scoring formula.
+Explicit DNP rows contain zero statistics; absent provider rows remain missing.
+Duplicate date parameters fail. Other accepted URL forms redirect to the canonical path.
+Each warm origin limits provider refreshes to once per date every 30 seconds, including failed attempts.
 
 Vercel serves the function beside the static Expo export.
 The API rewrite precedes the static-page fallback in `vercel.json`.
@@ -26,8 +29,18 @@ Completed official games use saved results, without a public delta.
 Past days remain available from saved views; the public route is not a history service.
 A snapshot over two minutes old, or unavailable, shows saved scores with a stale state.
 Opening a live screen and reconnecting start a fresh read.
+Each phone retains the last accepted game timestamp and final state across reconnects.
+Older provider revisions cannot reverse a displayed final. Newer final corrections remain eligible.
+A requested date selects its own week within a multi-week matchup.
 
 Postgres receives status transitions, final statistics, corrections, and recovery checkpoints every 30 minutes.
+Public workers discover starts across the full snapshot, including games outside their selected work.
+A start receipt locks the lineup before the stored scheduled time when a game starts early.
+Each game imports independently. Only successful imports advance that game's checkpoint.
+A missing, stale, or contradictory shared snapshot cannot block due direct-provider recovery.
+ESPN completion triggers repeated authoritative checks; only the existing NBA rules certify official finals.
+Old score corrections remain eligible for forecast refresh outside the rolling discovery window.
+Nightly gates ignore unavailable games and live rows outside today or yesterday in Eastern time.
 A normal checkpoint preserves version history but sends no live-only broadcast.
 Tipoffs, finals, corrections, roster changes, and lineup changes retain their relevant broadcasts.
 Home ignores changes outside its displayed teams, dates, and score inputs.
@@ -63,6 +76,9 @@ Capture the previous configuration before release.
 Restore the saved public origin to enable checkpoints again.
 A code revert does not undo database migrations or hosted memory settings.
 Keep compatible functions and schema until both clients and workers finish their rollback.
+Database row events retain their legacy envelope during rollout; compact hint batches remain supported.
+Old loaded clients still receive league-setting changes before the new frontend deploys.
+Worker rollback does not require a schema rollback or change this event compatibility.
 See [release order](../supabase/RELEASE-DB.md#release-order-for-this-release).
 
 The ordinary ingestion functions remain for database mode, checkpoint imports, finals, and corrections.

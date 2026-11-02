@@ -5,6 +5,15 @@ The snapshot refreshes every 30 seconds while a live screen is visible.
 Hidden screens stop polling; stale data falls back to saved scores with a stale state.
 Other-team views, final corrections, and private action broadcasts retain their correctness checks.
 
+## Review corrections
+
+Public workers discover early starts and recover due official imports without the shared route.
+One unavailable game cannot block healthy games or advance failed checkpoints.
+ESPN completion requests authoritative final checks; DNPs remain distinct from missing lines.
+Phones reject older game revisions and keep the selected week in multi-week matchups.
+Late corrections cannot starve forecasts; cancelled and stale games cannot block nightly jobs.
+Legacy clients retain league events. Canonical requests share a bounded origin refresh.
+
 ## Local acceptance
 
 The final training repeat uses the frozen runtime at `e48cae97`.
@@ -15,7 +24,7 @@ Every quality gate passes; the deliberately broken final write fails its control
 The final held-out confirmation measures 1.92/s and passes its gates.
 These are local synthetic results at a 192 MiB cap, 32 MB shared buffers, and PostgREST pool two.
 They are not production capacity or billing proof.
-No measurement series is repeated for release preparation.
+The review fixes require a new paired training series and one final held-out confirmation.
 
 ## Named risks
 
@@ -40,6 +49,6 @@ Unsetting the worker secret restores ordinary ingestion on new invocations; it d
 Phones need a client deployment or the separate Vercel switch to return to database mode.
 There is no access to that Vercel account in this work.
 
-The database release guide lists all thirteen pending migrations and the generated records.
+The database release guide lists all seventeen pending migrations and the generated records.
 The operator runbook remains outside the repository because it contains project-specific commands.
 Production changes, pushes, and deployment are not part of release preparation.

@@ -3,7 +3,7 @@
 ## Release 2.15: shared live scores
 
 The supplied production head is `20261214006200` at `e5f16211` (release 2.14.7).
-Release 2.15 adds thirteen migrations; the candidate contains 757 migrations through `20261214007500`.
+Release 2.15 adds seventeen migrations; the candidate contains 761 migrations through `20261214007900`.
 This is a minor feature release, with application version `2.15.0`.
 
 | Migration | Change |
@@ -21,7 +21,12 @@ This is a minor feature release, with application version `2.15.0`.
 | `20261214007300_limit_checkpoint_input_reads.sql` | Read provider inputs only for selected checkpoint games. |
 | `20261214007400_scope_and_compact_home_updates.sql` | Scope Home invalidation and compact its payload. |
 | `20261214007500_batch_transaction_broadcasts.sql` | Batch private transaction events without dropping their scopes. |
+| `20261214007600_preserve_matchup_view_date.sql` | Keep the selected date within multi-week matchups. |
+| `20261214007700_process_late_forecast_corrections.sql` | Process old score corrections without starving current forecasts. |
+| `20261214007800_bound_nightly_live_gates.sql` | Use available games from relevant slates in every nightly gate. |
+| `20261214007900_preserve_legacy_league_events.sql` | Keep legacy row-event envelopes during rollout and rollback. |
 
+Old loaded clients keep receiving direct row events, including league settings. Only change-hint rows use compact batches.
 Apply the pending migrations before the matching Edge functions.
 Keep workers in database mode until the merged public route answers correctly.
 The selected hosted settings are 32 MB shared buffers and PostgREST pool two; verify both after applying them.
