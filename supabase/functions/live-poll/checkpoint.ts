@@ -30,14 +30,19 @@ export function createCheckpointPoller(dependencies: {
       work = undefined
       return { ...await dependencies.ingest(holder), sourceMode: 'database' }
     }
+    const discoveryFailures: string[] = []
     for (const snapshot of snapshots.values()) {
       const unknown = snapshot.games.filter(game => game.status !== 'Scheduled'
         && !work!.some(row => row.nba_game_id === game.nbaId || !game.nbaId && row.game_date === snapshot.date
           && row.home_team === game.home.team && row.away_team === game.away.team)
         && !discovered.has(`${snapshot.date}:${game.id}`))
       if (unknown.length && dependencies.discover) {
-        await dependencies.discover({...snapshot,games:unknown})
-        for (const game of unknown) discovered.add(`${snapshot.date}:${game.id}`)
+        for (const game of unknown) {
+          try {
+            await dependencies.discover({...snapshot,games:[game]})
+            discovered.add(`${snapshot.date}:${game.id}`)
+          } catch (error) { discoveryFailures.push(String(error)) }
+        }
         work = await dependencies.load()
       }
     }
@@ -62,7 +67,7 @@ export function createCheckpointPoller(dependencies: {
         due.set(game.id,game.status === 'InProgress' && snapshot.status === 'InProgress' && Boolean(game.checkpoint_at))
       }
     }
-    let result: LiveTick = { lines: 0, keepRunning: true, worked: true, failures: [], scoreRetries: 0, tickRetries: 0 }
+    let result: LiveTick = { lines: 0, keepRunning: true, worked: true, failures: discoveryFailures, scoreRetries: 0, tickRetries: 0 }
     let reload = false
     for (const [id,checkpointOnly] of due) {
       try {

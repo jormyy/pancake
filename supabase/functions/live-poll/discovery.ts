@@ -17,7 +17,8 @@ export async function discoverPublicGames(snapshot: LiveSnapshot): Promise<void>
     if (!stored?.nba_game_id || game.status === 'Scheduled') continue
     await saveLiveFeedSnapshot(stored.id,stored.nba_game_id,{
       source:game.source ?? 'nba',source_updated_at:new Date(game.updatedAt).toISOString(),
-      elapsed_seconds:gameElapsedSeconds({gameStatus:2,period:game.period,gameClock:game.clock}),
+      elapsed_seconds:game.status === 'Final' ? 2880+Math.max(0,(game.period ?? 4)-4)*300
+        : gameElapsedSeconds({gameStatus:2,period:game.period,gameClock:game.clock}),
       status:'InProgress',home_score:game.home.score,away_score:game.away.score,status_text:'Live game discovered',
     })
   }
