@@ -39,7 +39,8 @@ A start receipt locks the lineup before the stored scheduled time when a game st
 Each game imports independently. Only successful imports advance that game's checkpoint.
 A missing, stale, or contradictory shared snapshot cannot block due direct-provider recovery.
 ESPN completion triggers repeated authoritative checks; only the existing NBA rules certify official finals.
-Old score corrections remain eligible for forecast refresh outside the rolling discovery window.
+Final-score corrections remain eligible for forecast refresh within the existing seven-day queue retention.
+Other out-of-window requests are removed, so they cannot block current forecasts.
 Nightly gates ignore unavailable games and live rows outside today or yesterday in Eastern time.
 A normal checkpoint preserves version history but sends no live-only broadcast.
 Tipoffs, finals, corrections, roster changes, and lineup changes retain their relevant broadcasts.
@@ -76,7 +77,8 @@ Capture the previous configuration before release.
 Restore the saved public origin to enable checkpoints again.
 A code revert does not undo database migrations or hosted memory settings.
 Keep compatible functions and schema until both clients and workers finish their rollback.
-Database row events retain their legacy envelope during rollout; compact hint batches remain supported.
+League and membership events retain their legacy envelope during rollout.
+Other data events use compact batches; loaded clients still receive their supported version hints.
 Old loaded clients still receive league-setting changes before the new frontend deploys.
 Worker rollback does not require a schema rollback or change this event compatibility.
 See [release order](../supabase/RELEASE-DB.md#release-order-for-this-release).

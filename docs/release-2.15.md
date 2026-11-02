@@ -49,6 +49,6 @@ Unsetting the worker secret restores ordinary ingestion on new invocations; it d
 Phones need a client deployment or the separate Vercel switch to return to database mode.
 There is no access to that Vercel account in this work.
 
-The database release guide lists all seventeen pending migrations and the generated records.
+The database release guide lists all nineteen pending migrations and the generated records.
 The operator runbook remains outside the repository because it contains project-specific commands.
 Production changes, pushes, and deployment are not part of release preparation.

@@ -3,7 +3,7 @@
 ## Release 2.15: shared live scores
 
 The supplied production head is `20261214006200` at `e5f16211` (release 2.14.7).
-Release 2.15 adds seventeen migrations; the candidate contains 761 migrations through `20261214007900`.
+Release 2.15 adds nineteen migrations; the candidate contains 763 migrations through `20261214008100`.
 This is a minor feature release, with application version `2.15.0`.
 
 | Migration | Change |
@@ -25,8 +25,10 @@ This is a minor feature release, with application version `2.15.0`.
 | `20261214007700_process_late_forecast_corrections.sql` | Process old score corrections without starving current forecasts. |
 | `20261214007800_bound_nightly_live_gates.sql` | Use available games from relevant slates in every nightly gate. |
 | `20261214007900_preserve_legacy_league_events.sql` | Keep legacy row-event envelopes during rollout and rollback. |
+| `20261214008000_bound_forecast_correction_work.sql` | Remove ineligible requests while retaining late final-score corrections. |
+| `20261214008100_batch_non_context_league_events.sql` | Batch data events while retaining legacy league and membership events. |
 
-Old loaded clients keep receiving direct row events, including league settings. Only change-hint rows use compact batches.
+Old loaded clients keep receiving direct league and membership events. Other data events share compact batches and supported version hints.
 Apply the pending migrations before the matching Edge functions.
 Keep workers in database mode until the merged public route answers correctly.
 The selected hosted settings are 32 MB shared buffers and PostgREST pool two; verify both after applying them.
