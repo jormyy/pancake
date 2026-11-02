@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261214007900",
+  "candidateVersion": "20261214008500",
   "common": {
     "functions": [
       {
@@ -2598,6 +2598,30 @@
     {
       "filename": "20261214007900_preserve_legacy_league_events.sql",
       "sha256": "cf6474b8fed3e4d7fe57b00774bacc9f24df72cc2b58594c1c6ccfe526424482"
+    },
+    {
+      "filename": "20261214008000_bound_forecast_correction_work.sql",
+      "sha256": "874451bfe8d29e9f96689a1f85e8b6da25b5024d464c4a38003454409de08b08"
+    },
+    {
+      "filename": "20261214008100_batch_non_context_league_events.sql",
+      "sha256": "015747c1232125cf1d5092d0cc45a91c8bcb22529363dad97193bcbe6a6105a9"
+    },
+    {
+      "filename": "20261214008200_scope_forecast_change_events.sql",
+      "sha256": "d77f89e0aba850b113cfd5c158718ad69e1b60d3fa62318adb9f34b97d8e4340"
+    },
+    {
+      "filename": "20261214008300_compact_forecast_context.sql",
+      "sha256": "78330d4c667c5d97bc27b95fdf93c59ba6e68783b0201e20cd674900be75ffe6"
+    },
+    {
+      "filename": "20261214008400_batch_forecast_publication.sql",
+      "sha256": "e0e4e5bcc230dc1cc47a828faa20ab92e863198cb92081b5b442e5adb0b6df77"
+    },
+    {
+      "filename": "20261214008500_read_only_changed_forecasts.sql",
+      "sha256": "bc440eaaf2a9d87533a7f40e84246c5d9d7f3661728489835555763a13c6e99b"
     }
   ],
   "preMigration": {

@@ -3450,6 +3450,48 @@
       "statementCount": 1,
       "statementsSha256": "9afd28101fc18a00e78a1dddb295d6e4217e8f5f11034a721e57c7e720646900",
       "sha256": "cf6474b8fed3e4d7fe57b00774bacc9f24df72cc2b58594c1c6ccfe526424482"
+    },
+    {
+      "name": "bound_forecast_correction_work",
+      "version": "20261214008000",
+      "statementCount": 1,
+      "statementsSha256": "5bd90c61cc0ccdb6b367ffd97a382bc109f0f74d40425ad0aa40fbcfb27925e7",
+      "sha256": "874451bfe8d29e9f96689a1f85e8b6da25b5024d464c4a38003454409de08b08"
+    },
+    {
+      "name": "batch_non_context_league_events",
+      "version": "20261214008100",
+      "statementCount": 1,
+      "statementsSha256": "99b48fbafca8134ab78f892de3eb74b413102a866cfc79307f434bf4606b7e85",
+      "sha256": "015747c1232125cf1d5092d0cc45a91c8bcb22529363dad97193bcbe6a6105a9"
+    },
+    {
+      "name": "scope_forecast_change_events",
+      "version": "20261214008200",
+      "statementCount": 3,
+      "statementsSha256": "b7e5f94688b2251c7fd5cdd856226186f76258c0a6b64818a87314da88c6c3f6",
+      "sha256": "d77f89e0aba850b113cfd5c158718ad69e1b60d3fa62318adb9f34b97d8e4340"
+    },
+    {
+      "name": "compact_forecast_context",
+      "version": "20261214008300",
+      "statementCount": 3,
+      "statementsSha256": "565e67103bea03b0644cd08c3f647a4f5788e85ecadc3367a8f3bb1129aa2ccb",
+      "sha256": "78330d4c667c5d97bc27b95fdf93c59ba6e68783b0201e20cd674900be75ffe6"
+    },
+    {
+      "name": "batch_forecast_publication",
+      "version": "20261214008400",
+      "statementCount": 3,
+      "statementsSha256": "7b982c3da6eed60676f1f6b7a40ad129f9dca3670be08588d346bc4dde10d243",
+      "sha256": "e0e4e5bcc230dc1cc47a828faa20ab92e863198cb92081b5b442e5adb0b6df77"
+    },
+    {
+      "name": "read_only_changed_forecasts",
+      "version": "20261214008500",
+      "statementCount": 2,
+      "statementsSha256": "454b5f0da10c2cf9c9dfaf35ede78c99d7e9d4c3fa78b215a4561433ab8dc9cc",
+      "sha256": "bc440eaaf2a9d87533a7f40e84246c5d9d7f3661728489835555763a13c6e99b"
     }
   ]
 }
