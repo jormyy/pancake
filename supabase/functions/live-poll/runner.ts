@@ -1,4 +1,4 @@
-import { liveEspnSource, matchEspnGame } from './espn.ts'
+import { liveEspnSource, matchEspnGame, espnGame } from './espn.ts'
 import type { EspnEvent } from './espn.ts'
 import { prepareLiveSources, liveFailureText } from './fallback.ts'
 import { shouldKeepPolling } from './policy.ts'
@@ -92,6 +92,17 @@ export async function ingestTick(holder: string, onRetry?: () => void, gameIds?:
   }) : Promise.resolve([])
   const [events, nbaScoreboard] = await Promise.all([espn, nba])
   const failures: unknown[] = []
+  let discovered = work
+  try {
+    discovered = await retry(() => discoverEspnGames(work, events))
+    const starts = discovered.filter(game => game.status === 'Scheduled' && hasEspnLiveGame(game,events)
+      && !nbaScoreboard.some(board => board.gameId === game.nba_game_id)).map(game => ({
+        ...espnGame(game.nba_game_id!,matchEspnGame(game,events)!.competitions[0]),gameId:game.nba_game_id!,
+      }))
+    const startFailures = await withWorkContext({signal:AbortSignal.timeout(3000)},
+      () => saveScoreboardGames([...nbaScoreboard,...starts],discovered,new Set()))
+    failures.push(...startFailures.map(row=>row.error))
+  } catch(error) { failures.push(error) }
   const nbaFinalWork = work.filter(game => game.status !== 'Final' && nbaScoreboard.some(board => board.gameId === game.nba_game_id && board.gameStatus === 3))
   if (boardGames.length) {
     const fallbackBoards = nbaScoreboard.filter(game => (!gameIds || work.some(stored => stored.nba_game_id === game.gameId)) && (game.gameStatus !== 2 ||
@@ -104,7 +115,7 @@ export async function ingestTick(holder: string, onRetry?: () => void, gameIds?:
     work = select(await retry(() => loadWork(gameIds)))
   }
   for (const game of nbaFinalWork) if (!work.some(row => row.id === game.id)) work.push(game)
-  if (!gameIds) work = await retry(() => discoverEspnGames(work, events))
+  if (!gameIds) for (const game of discovered) if (!work.some(row => row.id === game.id)) work.push(game)
   const statsGames = work.filter(game => game.needs_stats || hasEspnLiveGame(game, events) || nbaFinalWork.some(row => row.id === game.id))
   await retry(() => stampAttempts(holder, [], statsGames.filter(game => game.status === 'Final').map(game => game.id)))
   let lines = 0
