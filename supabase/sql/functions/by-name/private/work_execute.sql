@@ -20,7 +20,7 @@ BEGIN
     v_payload:=(v_payload-'inputs')||'{"latestInputs":true}'::jsonb;
   END IF;
   IF v_item.kind IN ('sync-players','sync-trade-values','sync-rankings','pick-predictions','trade-revaluation-scan','trade-revaluation-check')
-    AND NOT ((now() AT TIME ZONE 'America/New_York')::time>=time '04:00' AND (now() AT TIME ZONE 'America/New_York')::time<time '06:00' AND NOT EXISTS(SELECT 1 FROM public.nba_games WHERE status='InProgress')) THEN
+    AND NOT ((now() AT TIME ZONE 'America/New_York')::time>=time '04:00' AND (now() AT TIME ZONE 'America/New_York')::time<time '06:00' AND NOT private.live_slate_in_progress(now())) THEN
     UPDATE private.work_items SET status='pending',due_at=private.trade_revaluation_next_change(),
       lease_token=NULL,lease_until=NULL,invocation_key=NULL WHERE id=p_id AND lease_token=p_token;
     RETURN;
