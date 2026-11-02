@@ -7012,6 +7012,15 @@ export type Database = {
         Args: { p_game_ids: string[]; p_holder: string }
         Returns: undefined
       }
+      record_live_game_participants: {
+        Args: {
+          p_game_id: string
+          p_observed_at: string
+          p_player_ids: string[]
+          p_provider_game_id: string
+        }
+        Returns: number
+      }
       record_live_poll_attempts: {
         Args: {
           p_checked_ids?: string[]

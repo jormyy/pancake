@@ -10,7 +10,8 @@ BEGIN
   INSERT INTO nba_games(id,nba_game_id,season_year,week_number,game_date,home_team,away_team,status)
     VALUES(v_game,'0022600903',2027,1,'2026-10-25','BOS','MIN','Scheduled'),
       (v_second,'0022600913',2027,1,'2026-10-26','BOS','MIN','Final');
-  v_stats:=jsonb_build_array(jsonb_build_object('player_id',v_player,'game_id',v_game,'minutes_played',12,'did_not_play',true));
+  UPDATE nba_games SET home_score=0,away_score=0 WHERE id=v_game;
+  v_stats:=jsonb_build_array(jsonb_build_object('player_id',v_player,'game_id',v_game,'is_home',true,'points',0,'minutes_played',12,'did_not_play',true));
   PERFORM save_game_stats_atomic(v_game,'0022600903',v_stats,true);
   IF (SELECT career_regular_season_games FROM players WHERE id=v_player) IS NOT NULL THEN RAISE EXCEPTION 'Unknown veteran gets an unverified total'; END IF;
   IF NOT claim_player_career_base_atomic(p_player_id=>v_player,p_now=>v_at) THEN RAISE EXCEPTION 'First base attempt refused'; END IF;

@@ -29,12 +29,12 @@ BEGIN
     three_pointers_attempted, free_throws_made, free_throws_attempted, plus_minus, double_double, triple_double, did_not_play)
   VALUES(inactive_player, game, 2099, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, false, false, true);
   stats := jsonb_build_array(jsonb_build_object('player_id', active_player, 'game_id', game,
-    'did_not_play', false, 'minutes_played', 30, 'points', 25));
+    'did_not_play', false, 'is_home', true, 'minutes_played', 30, 'points', 25));
   SELECT to_jsonb(s) INTO removed_row FROM public.player_game_stats s WHERE game_id=game;
   BEGIN
     PERFORM public.save_final_game_snapshot_atomic(game, provider,
       stats || jsonb_build_array(jsonb_build_object('player_id', gen_random_uuid(), 'game_id', game,
-        'did_not_play', false, 'minutes_played', 1, 'points', 2)), revision, 100, 90, 'Final');
+        'did_not_play', false, 'is_home', true, 'minutes_played', 1, 'points', 2)), revision, 27, 0, 'Final');
   EXCEPTION WHEN foreign_key_violation THEN rejected := true;
   END;
   PERFORM pg_temp.check_certification(rejected, 'A bad player must fail after the cleanup');
@@ -44,7 +44,7 @@ BEGIN
     'A later failure rolls back the cleanup receipt');
   PERFORM pg_temp.check_certification((SELECT status='InProgress' AND stats_synced_at IS NULL FROM public.nba_games WHERE id=game),
     'A later failure rolls back certification');
-  changed := public.save_final_game_snapshot_atomic(game, provider, stats, revision, 100, 90, 'Final');
+  changed := public.save_final_game_snapshot_atomic(game, provider, stats, revision, 25, 0, 'Final');
   PERFORM pg_temp.check_certification(changed=1, 'Changed count preserves the inserted and updated row contract');
   PERFORM pg_temp.check_certification(NOT EXISTS(SELECT FROM public.player_game_stats WHERE game_id=game AND player_id=inactive_player),
     'Absent inactive zero row must be deleted');
@@ -55,7 +55,7 @@ BEGIN
     WHERE details->>'game_id'=game::text), 'The transaction records the exact removed row in its run receipt');
   PERFORM pg_temp.check_certification((SELECT revision_at=revision FROM private.game_stat_revisions WHERE game_id=game),
     'The final revision commits with the cleanup');
-  PERFORM pg_temp.check_certification(public.save_final_game_snapshot_atomic(game, provider, stats, revision, 100, 90, 'Final')=0,
+  PERFORM pg_temp.check_certification(public.save_final_game_snapshot_atomic(game, provider, stats, revision, 25, 0, 'Final')=0,
     'An identical revision changes no rows');
   PERFORM pg_temp.check_certification((SELECT count(*)=1 FROM public.sync_runs WHERE details->>'game_id'=game::text),
     'An identical revision does not duplicate the cleanup receipt');
@@ -90,7 +90,7 @@ BEGIN
   SELECT player, game, 2099, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, false, false, true
   FROM unnest(ARRAY[missing_player, inactive_player]) player;
   stats := jsonb_build_array(jsonb_build_object('player_id', active_player, 'game_id', game,
-    'did_not_play', false, 'minutes_played', 30, 'points', 25));
+    'did_not_play', false, 'is_home', true, 'minutes_played', 30, 'points', 25));
   FOR scenario IN SELECT jsonb_build_object(key, CASE WHEN key IN ('double_double','triple_double') THEN 'true'::jsonb
       WHEN key='did_not_play' THEN 'false'::jsonb ELSE '1'::jsonb END)
     FROM unnest(ARRAY['minutes_played','points','rebounds','offensive_rebounds','defensive_rebounds','assists',
@@ -107,7 +107,7 @@ BEGIN
     SELECT to_jsonb(g) INTO before_game FROM public.nba_games g WHERE id=game;
     rejected := false;
     BEGIN
-      PERFORM public.save_final_game_snapshot_atomic(game, provider, stats, clock_timestamp(), 100, 90, 'Final');
+      PERFORM public.save_final_game_snapshot_atomic(game, provider, stats, clock_timestamp(), 25, 0, 'Final');
     EXCEPTION WHEN SQLSTATE '22023' THEN
       rejected := SQLERRM='The complete box score omits stored players. Resolve the game inputs before certifying it.';
     END;

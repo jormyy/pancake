@@ -172,6 +172,12 @@ export async function runLivePoll(request: Request): Promise<Response> {
           return data ?? []
         }),
         discover: discoverPublicGames,
+        participation: (game,playerIds,observedAt) => checkpointRetry(async()=>{
+          const {error}=await supabase.rpc('record_live_game_participants',{
+            p_game_id:game.id,p_provider_game_id:game.nba_game_id!,p_player_ids:playerIds,p_observed_at:new Date(observedAt).toISOString(),
+          }).abortSignal(AbortSignal.timeout(5000))
+          if (error) throw error
+        }),
         snapshot: async date => (await fetchLiveSnapshot(new URL(`/api/live/${date}`, sharedUrl).href, AbortSignal.timeout(5000))).body,
         ingest: (holder, gameIds, checkpointOnly) => withPublicCheckpoint(Boolean(checkpointOnly), () => ingestTick(holder, () => { tickRetries++ },gameIds)),
         record: (holder, gameIds) => checkpointRetry(async () => {

@@ -9,28 +9,28 @@ DECLARE
 BEGIN
   INSERT INTO public.players(id,first_name,last_name,nba_id) VALUES(v_player,'Revision','Fixture',v_player::text);
   INSERT INTO public.nba_games(id,nba_game_id,season_year,week_number,game_date,home_team,away_team,status,home_score,away_score)
-    VALUES(v_game,'0029800999',2099,1,'2098-10-01','BOS','NYK','Final',120,110);
-  v_stats:=jsonb_build_array(jsonb_build_object('player_id',v_player,'game_id',v_game,'did_not_play',false,'minutes_played',20,'points',2,'field_goals_made',1,'field_goals_attempted',1,'three_pointers_made',0,'free_throws_made',0,'rebounds',0,'offensive_rebounds',0,'defensive_rebounds',0,'blocks',1));
+    VALUES(v_game,'0029800999',2099,1,'2098-10-01','BOS','NYK','Final',2,0);
+  v_stats:=jsonb_build_array(jsonb_build_object('player_id',v_player,'game_id',v_game,'did_not_play',false,'is_home',true,'minutes_played',20,'points',2,'field_goals_made',1,'field_goals_attempted',1,'three_pointers_made',0,'free_throws_made',0,'rebounds',0,'offensive_rebounds',0,'defensive_rebounds',0,'blocks',1));
   PERFORM public.save_game_stats_atomic(v_game,'0029800999',v_stats,true);
   INSERT INTO private.game_stat_revisions VALUES(v_game,v_verified);
   v_count:=public.save_final_game_snapshot_atomic(v_game,'0029800999',jsonb_set(v_stats,'{0,blocks}','0'),v_old,90,80,'Final');
   IF v_count<>0 OR (SELECT blocks FROM public.player_game_stats WHERE game_id=v_game)<>1
-    OR (SELECT home_score FROM public.nba_games WHERE id=v_game)<>120 THEN
+    OR (SELECT home_score FROM public.nba_games WHERE id=v_game)<>2 THEN
     RAISE EXCEPTION 'An old feed overwrote verified corrections';
   END IF;
-  v_count:=public.save_final_game_snapshot_atomic(v_game,'0029800999',jsonb_set(v_stats,'{0,blocks}','2'),v_new,121,111,'Final');
+  v_count:=public.save_final_game_snapshot_atomic(v_game,'0029800999',jsonb_set(jsonb_set(v_stats,'{0,blocks}','2'),'{0,points}','3'),v_new,3,0,'Final');
   IF v_count<>1 OR (SELECT blocks FROM public.player_game_stats WHERE game_id=v_game)<>2
-    OR (SELECT home_score FROM public.nba_games WHERE id=v_game)<>121 THEN
+    OR (SELECT home_score FROM public.nba_games WHERE id=v_game)<>3 THEN
     RAISE EXCEPTION 'A newer feed revision did not apply';
   END IF;
   SELECT revision_at INTO v_revision FROM private.game_stat_revisions WHERE game_id=v_game;
   IF v_revision<>v_new THEN RAISE EXCEPTION 'Applied revision was not recorded'; END IF;
   v_rejected:=false;
   BEGIN
-    PERFORM public.save_final_game_snapshot_atomic(v_game,'0029800999','[]',clock_timestamp(),122,112,'Final');
+    PERFORM public.save_final_game_snapshot_atomic(v_game,'0029800999','[]',clock_timestamp(),4,0,'Final');
   EXCEPTION WHEN SQLSTATE '22023' THEN v_rejected:=true;
   END;
-  IF NOT v_rejected OR (SELECT home_score FROM public.nba_games WHERE id=v_game)<>121
+  IF NOT v_rejected OR (SELECT home_score FROM public.nba_games WHERE id=v_game)<>3
     OR (SELECT revision_at FROM private.game_stat_revisions WHERE game_id=v_game)<>v_new THEN
     RAISE EXCEPTION 'A failed snapshot left partial scores or revision state';
   END IF;

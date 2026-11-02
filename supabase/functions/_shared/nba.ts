@@ -200,6 +200,7 @@ export interface NBABoxScore {
 }
 
 interface NBABoxScoreTeam {
+  statistics?: Partial<NBABoxScorePlayer['statistics']>
   score?: number
   teamTricode: string
   players: NBABoxScorePlayer[]

@@ -174,3 +174,27 @@ Deno.test('slow failed games rotate before later recovery work on the next tick'
   assert.equal(healthy,1)
   assert.deepEqual(records,['game-4'])
 })
+
+Deno.test('public participation is recorded before a sparse checkpoint can omit the player',async()=>{
+  const game=row();const calls:string[]=[]
+  const body=snapshot(start);body.games[0].home.players.push(['99',2,0,0,0,0,0,0,1,1,0,0,0,1,0] as never)
+  const tick=createCheckpointPoller({now:()=>start,load:async()=>[game],snapshot:async()=>body,
+    ...{participation:async(stored:CheckpointGame,ids:string[])=>{assert.equal(stored.id,game.id);assert.deepEqual(ids,['99']);calls.push('witness')}},
+    ingest:async()=>{calls.push('import');return result()},record:async()=>{}})
+  await tick('holder');await tick('holder')
+  assert.deepEqual(calls,['witness'])
+})
+
+Deno.test('failed participation storage holds that game while healthy recovery continues',async()=>{
+  const first={...row(),checkpoint_at:null},second={...row(),id:'healthy',nba_game_id:'0022',checkpoint_at:null}
+  const body=snapshot(start)
+  body.games[0].home.players.push(['99',2,0,0,0,0,0,0,1,1,0,0,0,1,0] as never)
+  body.games.push({...body.games[0],id:'0022',nbaId:'0022',home:{...body.games[0].home,players:[]}})
+  const imported:string[]=[]
+  const tick=createCheckpointPoller({now:()=>start,load:async()=>[first,second],snapshot:async()=>body,
+    participation:async()=>{throw new Error('receipt unavailable')},
+    ingest:async(_holder,ids)=>{imported.push(...ids!);return result()},record:async()=>{}})
+  const output=await tick('holder')
+  assert.deepEqual(imported,['healthy'])
+  assert.ok(output.failures.some(error=>error.includes('receipt unavailable')))
+})

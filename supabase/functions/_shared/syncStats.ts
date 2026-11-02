@@ -194,8 +194,8 @@ async function retrySourceContention<T>(run: () => Promise<T>): Promise<T> {
 
 type BoxScorePlayers = {
   gameStatus?: number
-  homeTeam?: { players?: NBABoxScorePlayer[] }
-  awayTeam?: { players?: NBABoxScorePlayer[] }
+  homeTeam?: { score?: unknown; players?: NBABoxScorePlayer[]; statistics?: Partial<NBABoxScorePlayer['statistics']> }
+  awayTeam?: { score?: unknown; players?: NBABoxScorePlayer[]; statistics?: Partial<NBABoxScorePlayer['statistics']> }
 }
 
 // A box lists each player under his side. His game membership keeps it, so when this game is the stored
@@ -286,6 +286,23 @@ export function validateBoxScorePlayers(boxScore: BoxScorePlayers, providerGameI
     !player.statistics || typeof player.statistics.minutes !== 'string' ||
     FINAL_NUMERIC_STATS.some((key) => !Number.isFinite(player.statistics[key])))) {
     throw new Error(`Final box score has incomplete statistics for ${providerGameId}`)
+  }
+  if (boxScore.gameStatus === 3) {
+    for (const team of [boxScore.homeTeam,boxScore.awayTeam]) {
+      if (!isTeamScore(team?.score) || team?.players?.reduce((sum,player)=>sum+player.statistics.points,0)!==team.score)
+        throw new Error(`Final player points do not match the team score for ${providerGameId}`)
+      for (const player of team.players ?? []) {
+        const minutes=parseNBAMinutes(player.statistics.minutes)
+        if (minutes==null || !Number.isFinite(minutes)) throw new Error(`Final player minutes are incomplete for ${providerGameId}`)
+        if ((player.played==='0' || player.played===0) && (minutes!==0 || FINAL_NUMERIC_STATS.some(key=>player.statistics[key]!==0)))
+          throw new Error(`Final DNP participation contradicts player statistics for ${providerGameId}`)
+      }
+      for (const key of ['assists','blocks','steals','fieldGoalsMade','fieldGoalsAttempted','threePointersMade','threePointersAttempted','freeThrowsMade','freeThrowsAttempted'] as const) {
+        const total=team.statistics?.[key]
+        if (total!=null && (!Number.isFinite(total) || team.players?.reduce((sum,player)=>sum+player.statistics[key],0)!==total))
+          throw new Error(`Final player ${key} do not match the team total for ${providerGameId}`)
+      }
+    }
   }
   return allPlayers
 }

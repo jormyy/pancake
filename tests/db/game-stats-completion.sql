@@ -12,7 +12,7 @@ $$;
 CREATE FUNCTION pg_temp.stat_row(p_player uuid, p_game uuid, p_points int)
 RETURNS jsonb LANGUAGE sql AS $$
   SELECT jsonb_build_object(
-    'player_id', p_player, 'game_id', p_game,
+    'player_id', p_player, 'game_id', p_game, 'is_home', true,
     'season_year', 1900, 'week_number', 999,
     'game_date', '1900-01-01',
     'minutes_played', 30.00, 'points', p_points,
@@ -83,6 +83,10 @@ BEGIN
   v_payload_b := jsonb_build_array(pg_temp.stat_row(v_p3,v_b,30), pg_temp.stat_row(v_p4,v_b,40));
   v_live_payload := jsonb_build_array(pg_temp.stat_row(v_p4,v_live,5));
 
+  UPDATE public.nba_games SET home_score=30,away_score=0 WHERE id=v_a;
+  UPDATE public.nba_games SET home_score=70,away_score=0 WHERE id=v_b;
+  UPDATE public.nba_games SET home_score=5,away_score=0 WHERE id=v_live;
+
   -- Full Final payload inserts both rows and derives calendar from the game.
   v_changed := public.save_game_stats_atomic(v_a,v_pa,v_payload,true);
   PERFORM pg_temp.must(v_changed=2, 'first full import writes two rows');
@@ -109,6 +113,7 @@ BEGIN
 
   -- Full payload with one changed row must write exactly one row.
   v_payload := jsonb_build_array(pg_temp.stat_row(v_p1,v_a,11), pg_temp.stat_row(v_p2,v_a,20));
+  UPDATE public.nba_games SET home_score=31 WHERE id=v_a;
   v_changed := public.save_game_stats_atomic(v_a,v_pa,v_payload,true);
   PERFORM pg_temp.must(v_changed=1 AND (SELECT points=11 FROM public.player_game_stats
     WHERE game_id=v_a AND player_id=v_p1), 'one correction writes one row');
@@ -127,6 +132,7 @@ BEGIN
     FROM public.player_game_stats s WHERE game_id=v_a;
   PERFORM pg_temp.must(v_after=v_before, 'omitted-player rejection preserves every stat');
 
+  UPDATE public.nba_games SET home_score=120 WHERE id=v_a;
   -- A valid update plus a bad foreign-key row must roll back the entire RPC.
   PERFORM pg_temp.expect_error(format('SELECT public.save_game_stats_atomic(%L::uuid,%L,%L::jsonb,true)',
     v_a,v_pa,jsonb_build_array(pg_temp.stat_row(v_p1,v_a,99),pg_temp.stat_row(v_p2,v_a,20),
@@ -137,6 +143,7 @@ BEGIN
     (SELECT stats_synced_at=v_stamp FROM public.nba_games WHERE id=v_a),
     'foreign-key failure preserves prior rows and exact stamp');
 
+  UPDATE public.nba_games SET home_score=31 WHERE id=v_a;
   PERFORM pg_temp.expect_error(format('SELECT public.save_game_stats_atomic(%L::uuid,%L,%L::jsonb,true)',
     v_a,v_pa||'-stale',v_payload), ARRAY['PT409'], 'old provider identity rejected');
   PERFORM pg_temp.must((SELECT stats_synced_at=v_stamp FROM public.nba_games WHERE id=v_a),
@@ -167,6 +174,7 @@ BEGIN
     AND (SELECT count(*)=1 FROM public.player_game_stats WHERE game_id=v_a),
     'partial deletion clears completion');
   -- The complete payload restores the deleted row despite a formerly empty client diff.
+  UPDATE public.nba_games SET home_score=32 WHERE id=v_a;
   v_payload := jsonb_build_array(pg_temp.stat_row(v_p1,v_a,12),pg_temp.stat_row(v_p2,v_a,20));
   v_changed := public.save_game_stats_atomic(v_a,v_pa,v_payload,true);
   PERFORM pg_temp.must(v_changed=1 AND
@@ -252,6 +260,7 @@ BEGIN
   PERFORM pg_temp.must((SELECT stats_synced_at IS NULL FROM public.nba_games WHERE id=v_a)
     AND (SELECT stats_synced_at IS NULL FROM public.nba_games WHERE id=v_b),
     'merge permits data repair and invalidates affected completion');
+  UPDATE public.nba_games SET home_score=12 WHERE id=v_a;
   PERFORM public.save_game_stats_atomic(v_a,v_pa,jsonb_build_array(pg_temp.stat_row(v_p1,v_a,12)),true);
   PERFORM public.save_game_stats_atomic(v_b,v_pb,
     jsonb_build_array(pg_temp.stat_row(v_p1,v_b,30),pg_temp.stat_row(v_p4,v_b,40)),true);

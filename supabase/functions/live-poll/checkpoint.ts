@@ -12,12 +12,14 @@ export function createCheckpointPoller(dependencies: {
   ingest: (holder: string, gameIds?: ReadonlySet<string>, checkpointOnly?: boolean) => Promise<LiveTick>
   record: (holder: string, gameIds: string[]) => Promise<void>
   discover?: (snapshot: LiveSnapshot) => Promise<void>
+  participation?: (game: CheckpointGame, playerIds: string[], observedAt: number) => Promise<void>
   now?: () => number
 }) {
   const now = dependencies.now ?? Date.now
   let work: CheckpointGame[] | undefined
   const discovered = new Set<string>()
   let nextGameId: string | undefined
+  const participants = new Map<string,Set<string>>()
   return async (holder: string): Promise<LiveTick> => {
     const deadline=now()+16000
     work ??= await dependencies.load()
@@ -50,8 +52,25 @@ export function createCheckpointPoller(dependencies: {
         work = await dependencies.load()
       }
     }
+    const participantFailures=new Set<string>()
+    if (dependencies.participation) for (const game of work) {
+      if (game.status==='Final') continue
+      const source=snapshots.get(game.game_date)?.games.find(row=>row.nbaId===game.nba_game_id)
+      if (!source || source.status!=='InProgress' || source.source==='espn' || source.updatedAt<now()-120000 || source.updatedAt>now()+5000) continue
+      const seen=participants.get(game.id) ?? new Set<string>()
+      const ids=[...source.home.players,...source.away.players]
+        .filter(row=>row[14]===0 && row.slice(1,14).some(value=>typeof value==='number' && value>0))
+        .map(row=>row[0]).filter(id=>!seen.has(id))
+      if (!ids.length) continue
+      try {
+        await dependencies.participation(game,ids,source.updatedAt)
+        for (const id of ids) seen.add(id)
+        participants.set(game.id,seen)
+      } catch(error) { discoveryFailures.push(String(error));participantFailures.add(game.id) }
+    }
     const due = new Map<string,boolean>()
     for (const game of work) {
+      if (participantFailures.has(game.id)) continue
       if (game.needs_final_check) { due.set(game.id,false); continue }
       const overdue = !game.checkpoint_at || now() - Date.parse(game.checkpoint_at) >= CHECKPOINT_INTERVAL_MS
       const matches = (snapshots.get(game.game_date)?.games ?? []).filter(row => row.nbaId === game.nba_game_id

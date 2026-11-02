@@ -23,8 +23,8 @@ for (const gameStatus of [2, 3]) {
       const player = (personId: number, status?: string) => ({ personId, name: `Player ${personId}`, status,
         played: '0', statistics: { ...statistics, minutes: 'PT00M00.00S' } }) as unknown as NBABoxScorePlayer
       const result = await resolveBoxScorePlayers({ gameStatus,
-        homeTeam: { players: [player(1, 'INACTIVE'), player(2, 'ACTIVE')] },
-        awayTeam: { players: [player(3), player(4, 'INACTIVE')] },
+        homeTeam: { score:0, players: [player(1, 'INACTIVE'), player(2, 'ACTIVE')] },
+        awayTeam: { score:0, players: [player(3), player(4, 'INACTIVE')] },
       }, '0022600142')
       deepStrictEqual(result.map(row => [row.playerId, row.player.isHome]), gameStatus === 2
         ? [['2', true], ['3', false]] : [['1', true], ['2', true], ['3', false], ['4', false]])

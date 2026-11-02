@@ -5,7 +5,7 @@ Deno.env.set('PANCAKE_SUPABASE_SECRET_KEY', 'synthetic-unit-test')
 Deno.env.set('NBA_CDN_BASE_URL', 'http://127.0.0.1:56280/static/json')
 const { syncLiveStatsGames } = await import('./syncStats.ts')
 const statistics = Object.fromEntries(['assists', 'blocks', 'fieldGoalsAttempted', 'fieldGoalsMade', 'foulsPersonal', 'freeThrowsAttempted', 'freeThrowsMade', 'plusMinusPoints', 'points', 'reboundsDefensive', 'reboundsOffensive', 'reboundsTotal', 'steals', 'threePointersAttempted', 'threePointersMade', 'turnovers'].map(key => [key, 0]))
-const player = (personId: number) => ({ personId, name: `Synthetic ${personId}`, played: '1', statistics: { ...statistics, minutes: 'PT1M00.00S' } })
+const player = (personId: number, points=0) => ({ personId, name: `Synthetic ${personId}`, played: '1', statistics: { ...statistics, points, minutes: 'PT1M00.00S' } })
 type Box = { sourceTime?: string; gameStatus: number; gameStatusText?: string; homeScore?: unknown; awayScore?: unknown; homePlayers?: unknown[] }
 
 type Stored = { status: string; home_score?: number; away_score?: number; game_status_text?: string | null }
@@ -23,7 +23,7 @@ async function exercise(box: Box, fail: (path: string, count: number) => object 
     if (error) return Response.json(error, { status: 409 })
     if (url.port === '56280') {
       return Response.json({ meta: { time: box.sourceTime }, game: { gameStatus: box.gameStatus, gameStatusText: box.gameStatusText, period: 4, gameClock: 'PT00M00.00S',
-        homeTeam: { score: box.homeScore, players: box.homePlayers ?? [player(1)] }, awayTeam: { score: box.awayScore, players: [player(2)] } } })
+        homeTeam: { score: box.homeScore, players: box.homePlayers ?? [player(1, typeof box.homeScore === 'number' ? box.homeScore : 0)] }, awayTeam: { score: box.awayScore, players: [player(2, typeof box.awayScore === 'number' ? box.awayScore : 0)] } } })
     }
     equal(url.port, '56221')
     if (url.pathname.endsWith('/assert_nba_game_unambiguous')) return Response.json(null)
@@ -58,7 +58,7 @@ Deno.test('a final box without status text is stored as Final', async () => {
   }
 })
 
-Deno.test('live boxes and final boxes without valid team scores leave the scoreboard score alone', async () => {
+Deno.test('live boxes leave the scoreboard alone and incomplete final scores are rejected', async () => {
   const cases: Box[] = [
     { gameStatus: 2, gameStatusText: 'Q4 0:01', homeScore: 100, awayScore: 101 },
     { gameStatus: 3, gameStatusText: 'Final' },
@@ -69,7 +69,7 @@ Deno.test('live boxes and final boxes without valid team scores leave the scoreb
   ]
   for (const box of cases) {
     const { result, rpc } = await exercise(box)
-    deepStrictEqual(result.failures, [])
+    equal(result.failures.length, box.gameStatus === 3 ? 1 : 0)
     equal(names(rpc).includes('save_live_scoreboard_atomic'), false)
   }
 })

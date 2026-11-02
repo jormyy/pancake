@@ -49,6 +49,7 @@ BEGIN
   END IF;
 
   IF p_is_final THEN
+    PERFORM private.assert_final_player_totals(p_game_id,p_stats,v_game.home_score,v_game.away_score);
     WITH removed AS (
       DELETE FROM public.player_game_stats AS stored
       WHERE stored.game_id = p_game_id
@@ -114,6 +115,7 @@ BEGIN
     UPDATE public.nba_games SET stats_synced_at = clock_timestamp(), status = 'Final',
       updated_at = CASE WHEN status <> 'Final' THEN clock_timestamp() ELSE updated_at END
     WHERE id = p_game_id;
+    DELETE FROM private.live_game_participants WHERE game_id=p_game_id;
   ELSE
     UPDATE public.nba_games SET stats_synced_at = NULL WHERE id = p_game_id AND stats_synced_at IS NOT NULL;
   END IF;

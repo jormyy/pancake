@@ -134,7 +134,7 @@ Deno.test('a final stat write retries its captured game after the attempt stamp'
     assert.equal(calls.filter(name => name === 'save_game_stats_atomic').length, 2)
   }, (name, count) => {
     if (name === 'get_live_poll_work') return Response.json([{
-      id: holder, nba_game_id: '0022600001', status: 'Final', needs_scoreboard: false, needs_stats: true,
+      id: holder, nba_game_id: '0022600001', status: 'Final', needs_scoreboard: false, needs_stats: true, home_score:10,away_score:10,game_status_text:'Final',
       season_year: 2027, week_number: 1,
     }])
     if (name === 'record_live_poll_attempts' || name === 'assert_nba_game_unambiguous') return Response.json(null)
@@ -146,7 +146,7 @@ Deno.test('a final stat write retries its captured game after the attempt stamp'
         'reboundsDefensive', 'reboundsOffensive', 'reboundsTotal', 'steals',
         'threePointersAttempted', 'threePointersMade', 'turnovers',
       ].map(key => [key, 0]))
-      const team = (personId: number) => ({ players: [{ personId, name: 'Player ' + personId,
+      const team = (personId: number) => ({ score:10, players: [{ personId, name: 'Player ' + personId,
         statistics: { ...statistics, points: 10, minutes: 'PT06M00.00S' } }] })
       return Response.json({ game: { gameStatus: 3, homeTeam: team(1), awayTeam: team(2) } })
     }

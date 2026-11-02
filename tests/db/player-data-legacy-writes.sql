@@ -35,8 +35,9 @@ BEGIN
   END IF;
   INSERT INTO nba_games(id,nba_game_id,season_year,week_number,game_date,home_team,away_team,status)
     VALUES(v_game,'0022600918',2027,1,'2026-10-25','BOS','MIN','Final');
+  UPDATE nba_games SET home_score=0,away_score=0 WHERE id=v_game;
   PERFORM save_game_stats_atomic(p_game_id=>v_game,p_provider_game_id=>'0022600918',
-    p_stats=>jsonb_build_array(jsonb_build_object('player_id',v_based,'game_id',v_game,'minutes_played',12,'did_not_play',false)),p_is_final=>true);
+    p_stats=>jsonb_build_array(jsonb_build_object('player_id',v_based,'game_id',v_game,'is_home',true,'points',0,'minutes_played',12,'did_not_play',false)),p_is_final=>true);
   IF (SELECT career_regular_season_games FROM players WHERE id=v_based) IS DISTINCT FROM 21 THEN
     RAISE EXCEPTION 'A stats save no longer recounts a based player';
   END IF;

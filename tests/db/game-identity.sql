@@ -62,7 +62,7 @@ END $setup$;
 GRANT SELECT ON identity39_context TO service_role,anon,authenticated;
 
 CREATE FUNCTION pg_temp.stats(game uuid,home_points int) RETURNS jsonb LANGUAGE sql SECURITY DEFINER AS $$
-SELECT jsonb_agg(jsonb_build_object('player_id',player,'game_id',game,'did_not_play',false,'minutes_played',30,
+SELECT jsonb_agg(jsonb_build_object('player_id',player,'game_id',game,'did_not_play',false,'is_home',ord=1,'minutes_played',30,
   'points',CASE WHEN ord=1 THEN home_points ELSE 7 END,'rebounds',0,'offensive_rebounds',0,'defensive_rebounds',0,
   'assists',0,'steals',0,'blocks',0,'turnovers',0,'personal_fouls',0,'field_goals_made',0,'field_goals_attempted',0,
   'three_pointers_made',0,'three_pointers_attempted',0,'free_throws_made',0,'free_throws_attempted',0,'plus_minus',0,
@@ -121,11 +121,13 @@ BEGIN
   PERFORM public.assert_nba_game_imports(imports);
   PERFORM public.assert_nba_game_unambiguous(c.games[2]);
   FOR i IN 1..2 LOOP
+    UPDATE public.nba_games SET home_score=12,away_score=7 WHERE id=c.games[i];
     count_changed:=public.save_game_stats_atomic(c.games[i],c.nba_ids[i],pg_temp.stats(c.games[i],12),true);
     PERFORM pg_temp.ok(count_changed=2,'complete same-provider initial stats');
   END LOOP;
   count_changed:=public.save_game_stats_atomic(c.games[2],c.nba_ids[2],pg_temp.stats(c.games[2],12),true);
   PERFORM pg_temp.ok(count_changed=0,'exact same-provider retry writes no stat rows');
+  UPDATE public.nba_games SET home_score=13 WHERE id=c.games[2];
   count_changed:=public.save_game_stats_atomic(c.games[2],c.nba_ids[2],pg_temp.stats(c.games[2],13),true);
   PERFORM pg_temp.ok(count_changed=1,'valid same-provider points correction writes one changed row');
   FOR i IN 1..2 LOOP
@@ -240,6 +242,7 @@ DECLARE c identity39_context%ROWTYPE; changed int;
 BEGIN
  SELECT * INTO c FROM identity39_context;
  PERFORM public.assert_nba_game_unambiguous(c.games[1]);
+ UPDATE public.nba_games SET home_score=14 WHERE id=c.games[1];
  changed:=public.save_game_stats_atomic(c.games[1],c.nba_ids[1],pg_temp.stats(c.games[1],14),true);
  PERFORM pg_temp.ok(changed=1,'unrelated-week valid same-provider correction succeeds');
  PERFORM public.capture_score_inputs(c.season,1);
