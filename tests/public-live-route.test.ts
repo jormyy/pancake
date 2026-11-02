@@ -178,7 +178,7 @@ describe('public live route', () => {
 
   it('routes the function before the static application fallback', () => {
     const config = JSON.parse(readFileSync('vercel.json','utf8'))
-    expect(config.functions['api/live/[date].ts'].maxDuration).toBe(10)
+    expect(config.functions['api/live/[date].js'].maxDuration).toBe(10)
     const api = config.routes.findIndex((row: { dest?: string }) => row.dest?.startsWith('/api/live/'))
     const fallback = config.routes.findIndex((row: { dest?: string }) => row.dest === '/+not-found.html')
     expect(api).toBeGreaterThanOrEqual(0)

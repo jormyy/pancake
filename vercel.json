@@ -4,7 +4,7 @@
   "outputDirectory": "dist",
   "framework": null,
   "functions": {
-    "api/live/[date].ts": { "maxDuration": 10 }
+    "api/live/[date].js": { "maxDuration": 10 }
   },
   "git": {
     "deploymentEnabled": {
