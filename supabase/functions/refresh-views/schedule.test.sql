@@ -169,12 +169,12 @@ BEGIN
   INSERT INTO public.nba_games(nba_game_id,season_year,week_number,game_date,game_time,home_team,away_team,status)
     VALUES('002-schedule-late-game',2027,1,current_date,now()-interval '1 hour','CHI','NYK','InProgress');
   INSERT INTO private.work_items(kind,key,status,lease_token,lease_until,payload)
-    VALUES('sync-rankings','test-defer','running',gen_random_uuid(),now()+interval '5 minutes','{}') RETURNING * INTO item;
+    VALUES('sync-rankings','test-live-night','running',gen_random_uuid(),now()+interval '5 minutes','{}') RETURNING * INTO item;
   PERFORM private.work_execute(item.id,item.lease_token);
-  PERFORM pg_temp.check_rules((SELECT status='pending' AND due_at>now() FROM private.work_items WHERE id=item.id),
-    'late nightly work defers while games run');
-  PERFORM pg_temp.check_rules(NOT EXISTS(SELECT 1 FROM public.edge_invocations WHERE work_item_id=item.id),
-    'deferred nightly work starts no edge worker');
+  PERFORM pg_temp.check_rules((SELECT status='running' AND lease_token=item.lease_token FROM private.work_items WHERE id=item.id),
+    'late nightly work keeps its lease while games run');
+  PERFORM pg_temp.check_rules(EXISTS(SELECT 1 FROM public.edge_invocations WHERE work_item_id=item.id),
+    'late nightly work starts its edge worker despite a live game');
   DELETE FROM private.work_items;
   INSERT INTO private.work_items(kind,key,status,lease_token,lease_until,payload)
     VALUES('refresh-views','test-inline','running',gen_random_uuid(),now()+interval '5 minutes','{}') RETURNING * INTO item;

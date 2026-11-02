@@ -31,10 +31,10 @@ Deno.test('CDN game sides survive identity resolution and both final and live st
     if (rows[0].is_home !== true || rows[1].is_home !== false) throw new Error('Provider team grouping was lost')
     await saveFinalGameStats({id:'game',status:'InProgress'},'002fixture',rows,game)
     await saveGameStats('game', '002fixture', rows, false, 720)
-    if (writes.length !== 2 || writes[0].rpc !== 'save_final_game_unversioned_atomic' || writes[1].rpc !== 'save_live_game_stats_atomic') {
+    if (writes.length !== 3 || writes[0].rpc !== 'save_live_scoreboard_atomic' || writes[1].rpc !== 'save_game_stats_atomic' || writes[2].rpc !== 'save_live_game_stats_atomic') {
       throw new Error('Both ingestion paths must save the team side')
     }
-    for (const write of writes) {
+    for (const write of writes.slice(1)) {
       const payload = write.body.p_stats as { is_home: boolean }[]
       if (payload[0].is_home !== true || payload[1].is_home !== false) throw new Error('Saved rows lose game team sides')
     }

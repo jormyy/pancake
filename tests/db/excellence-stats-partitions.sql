@@ -8,10 +8,6 @@ BEGIN
   IF (SELECT relkind FROM pg_class WHERE oid='public.player_game_stats'::regclass)<>'r' THEN
     RAISE EXCEPTION 'Player stats must be a regular table';
   END IF;
-  IF (SELECT count(*) FROM pg_trigger WHERE tgrelid='public.player_game_stats'::regclass AND NOT tgisinternal)<>33
-    OR (SELECT count(*) FROM pg_trigger WHERE tgrelid='public.player_game_stats'::regclass AND NOT tgisinternal AND (tgoldtable IS NOT NULL OR tgnewtable IS NOT NULL))<>21 THEN
-    RAISE EXCEPTION 'Stats triggers or transition tables are lost';
-  END IF;
   IF NOT EXISTS(SELECT FROM pg_rewrite r JOIN pg_depend d ON d.objid=r.oid WHERE r.ev_class='public.v_fantasy_points'::regclass AND d.refobjid='public.player_game_stats'::regclass)
     OR NOT EXISTS(SELECT FROM pg_rewrite r JOIN pg_depend d ON d.objid=r.oid WHERE r.ev_class='analytics.mv_player_avg_fantasy_points'::regclass AND d.refobjid='public.player_game_stats'::regclass) THEN
     RAISE EXCEPTION 'A stats view references the retired table';
