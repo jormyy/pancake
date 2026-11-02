@@ -114,7 +114,7 @@ export async function startStack(evidence, { sourceRoot = repository, profileMem
       await sql("SET pg_stat_statements.track='none';")
     }
     const sqlFile = async (file, { allowFailure = false, output = undefined } = {}) => {
-      const testEnv = { ...env, PGUSER: 'postgres', PANCAKE_TEST_DB_PORT: String(ports.db), SUPABASE_DB_URL: db.href }
+      const testEnv = { ...env, PGUSER: 'postgres', PANCAKE_TEST_DB_PORT: String(ports.db), PANCAKE_TEST_API_PORT: String(ports.edge), SUPABASE_URL: `http://127.0.0.1:${ports.edge}`, SUPABASE_DB_URL: db.href }
       const input = (await readFile(file, 'utf8')).replaceAll("'http://127.0.0.1:1'", quote(`http://127.0.0.1:${ports.edge}`)).replace(/^\\getenv (\w+) (\w+)$/gm, (_, variable, name) => {
         assert.ok(name === 'PANCAKE_TEST_DB_PORT', `Unsupported test environment variable: ${name}`)
         return `\\set ${variable} ${testEnv[name]}`

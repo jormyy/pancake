@@ -1,12 +1,7 @@
 BEGIN;
+\ir require-loopback-api.sql
 SET LOCAL statement_timeout='15s';
 SET LOCAL lock_timeout='500ms';
-\getenv concurrency_api_url SUPABASE_URL
-\if :{?concurrency_api_url}
-SELECT set_config('app.supabase_url',:'concurrency_api_url',true);
-\else
-SELECT set_config('app.supabase_url','http://127.0.0.1:1',true);
-\endif
 SET LOCAL app.edge_internal_token='worker-bound-fixture';
 DELETE FROM private.work_items;
 DO $$

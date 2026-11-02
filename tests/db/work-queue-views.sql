@@ -1,16 +1,11 @@
 BEGIN;
+\ir require-loopback-api.sql
 \ir rules-support.sql
 DELETE FROM private.work_items;
 DELETE FROM private.screen_refresh_queue;
 INSERT INTO private.screen_refresh_queue(league_id,league_season_id,dirty)
   SELECT season.league_id,season.id,false FROM public.league_seasons season
   JOIN public.leagues league ON league.id=season.league_id AND league.deleted_at IS NULL;
-\getenv queue_api_url SUPABASE_URL
-\if :{?queue_api_url}
-SELECT set_config('app.supabase_url',:'queue_api_url',true);
-\else
-SELECT set_config('app.supabase_url','http://127.0.0.1:1',true);
-\endif
 SELECT set_config('app.edge_internal_token','queue-view-fixture',true);
 DO $$
 DECLARE f record; item private.work_items%ROWTYPE;
