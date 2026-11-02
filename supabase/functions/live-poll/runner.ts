@@ -69,7 +69,7 @@ async function discoverEspnGames(work: LiveGame[], events: EspnEvent[]): Promise
   return [...work, ...extra]
 }
 
-export async function ingestTick(holder: string, onRetry?: () => void, gameIds?: ReadonlySet<string>): Promise<LiveTick> {
+export async function ingestTick(holder: string, onRetry?: () => void, gameIds?: ReadonlySet<string>, receiptSignal?: AbortSignal): Promise<LiveTick> {
   let tickRetries = 0
   const retry = <T>(run: () => Promise<T>, failures?: (result: T) => unknown[]) => retryDatabaseContention(run, {
     failures, onRetry: () => { tickRetries++; onRetry?.() },
@@ -94,15 +94,18 @@ export async function ingestTick(holder: string, onRetry?: () => void, gameIds?:
   const failures: unknown[] = []
   let discovered = work
   try {
-    const nbaStarts = await saveScoreboardGames(nbaScoreboard,work,new Set())
-    for (const failure of nbaStarts) console.error('[live-poll] start receipt failed:', failure.gameId, errorMessage(failure.error))
-    discovered = await withWorkContext({signal:AbortSignal.timeout(3000)}, () => retry(() => discoverEspnGames(work, events)))
-    const starts = discovered.filter(game => game.status === 'Scheduled' && hasEspnLiveGame(game,events)
-      && !nbaScoreboard.some(board => board.gameId === game.nba_game_id && board.gameStatus > 1)).map(game => ({
-      ...espnGame(game.nba_game_id!,matchEspnGame(game,events)!.competitions[0]),gameId:game.nba_game_id!,
-      }))
-    const espnStarts = await saveScoreboardGames(starts,discovered,new Set())
-    for (const failure of espnStarts) console.error('[live-poll] start receipt failed:', failure.gameId, errorMessage(failure.error))
+    const startSignal = receiptSignal ?? AbortSignal.timeout(5000)
+    await withWorkContext({signal:startSignal},async () => {
+      const nbaStarts = await saveScoreboardGames(nbaScoreboard,work,new Set(),startSignal)
+      for (const failure of nbaStarts) console.error('[live-poll] start receipt failed:', failure.gameId, errorMessage(failure.error))
+      discovered = await withWorkContext({signal:AbortSignal.timeout(3000)}, () => retry(() => discoverEspnGames(work, events)))
+      const starts = discovered.filter(game => game.status === 'Scheduled' && hasEspnLiveGame(game,events)
+        && !nbaScoreboard.some(board => board.gameId === game.nba_game_id && board.gameStatus > 1)).map(game => ({
+        ...espnGame(game.nba_game_id!,matchEspnGame(game,events)!.competitions[0]),gameId:game.nba_game_id!,
+        }))
+      const espnStarts = await saveScoreboardGames(starts,discovered,new Set(),startSignal)
+      for (const failure of espnStarts) console.error('[live-poll] start receipt failed:', failure.gameId, errorMessage(failure.error))
+    })
   } catch(error) { console.error('[live-poll] start discovery failed:', errorMessage(error)) }
   const nbaFinalWork = work.filter(game => game.status !== 'Final' && nbaScoreboard.some(board => board.gameId === game.nba_game_id && board.gameStatus === 3))
   if (boardGames.length) {
@@ -191,7 +194,7 @@ export async function runLivePoll(request: Request): Promise<Response> {
           if(error)throw error
         },
         snapshot: async date => (await fetchLiveSnapshot(new URL(`/api/live/${date}`, sharedUrl).href, AbortSignal.timeout(5000))).body,
-        ingest: (holder, gameIds, checkpointOnly) => withPublicCheckpoint(Boolean(checkpointOnly), () => ingestTick(holder, () => { tickRetries++ },gameIds)),
+        ingest: (holder, gameIds, checkpointOnly, startSignal) => withPublicCheckpoint(Boolean(checkpointOnly), () => ingestTick(holder, () => { tickRetries++ },gameIds,startSignal)),
         record: (holder, gameIds) => checkpointRetry(async () => {
           const { error } = await supabase.rpc('record_live_checkpoint',{p_holder:holder,p_game_ids:gameIds}).abortSignal(AbortSignal.timeout(5000))
           if (error) throw error

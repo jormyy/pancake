@@ -10,7 +10,7 @@ export const CHECKPOINT_INTERVAL_MS = 30 * 60 * 1000
 export function createCheckpointPoller(dependencies: {
   load: () => Promise<CheckpointGame[]>
   snapshot: (date: string) => Promise<unknown>
-  ingest: (holder: string, gameIds?: ReadonlySet<string>, checkpointOnly?: boolean) => Promise<LiveTick>
+  ingest: (holder: string, gameIds?: ReadonlySet<string>, checkpointOnly?: boolean, startSignal?: AbortSignal) => Promise<LiveTick>
   record: (holder: string, gameIds: string[]) => Promise<void>
   attempt?: (holder: string, gameId: string) => Promise<void>
   start?: (game: CheckpointGame, signal: AbortSignal) => Promise<void>
@@ -32,17 +32,23 @@ export function createCheckpointPoller(dependencies: {
       return {...await dependencies.ingest(holder),sourceMode:'database'}
     }
     const result: LiveTick = {lines:0,keepRunning:false,worked:true,failures:[],scoreRetries:0,tickRetries:0,sourceMode:'public'}
-    const offset = work.length ? startOffset++ % work.length : 0
+    const offset = work.length ? startOffset % work.length : 0
+    let nextOffset = offset
+    const startDeadline = Math.min(now()+5000,deadline-5000)
+    const startSignal = AbortSignal.timeout(Math.max(0,startDeadline-now()))
     const startWork = [...work.slice(offset), ...work.slice(0, offset)]
-    await runBounded(startWork.map(game => async () => {
+    await runBounded(startWork.map((game,index) => async () => {
+      if (now() >= startDeadline || startSignal.aborted) return
       const matches = (snapshots.get(game.game_date)?.games ?? []).filter(row => row.nbaId === game.nba_game_id
         || row.nbaId == null && row.home.team === game.home_team && row.away.team === game.away_team)
       const source = matches.length === 1 ? matches[0] : undefined
       if (game.status !== 'Scheduled' || !source || source.status === 'Scheduled'
         || source.updatedAt < now()-120000 || source.updatedAt > now()+5000) return
-      try { await dependencies.start?.(game,AbortSignal.timeout(3000)) }
+      nextOffset = (offset+index+1) % work.length
+      try { await dependencies.start?.(game,AbortSignal.any([startSignal,AbortSignal.timeout(3000)])) }
       catch(error) { result.failures.push(String(error)) }
     }),2)
+    startOffset = startSignal.aborted || now() >= startDeadline ? nextOffset : offset+1
     for (const game of work) {
       const matches = (snapshots.get(game.game_date)?.games ?? []).filter(row => row.nbaId === game.nba_game_id
         || row.nbaId == null && row.home.team === game.home_team && row.away.team === game.away_team)
@@ -61,7 +67,7 @@ export function createCheckpointPoller(dependencies: {
       try {
         await dependencies.attempt?.(holder,game.id)
         const checkpointOnly = game.status === 'InProgress' && source?.status === 'InProgress' && !source.completionPending
-        const imported = await dependencies.ingest(holder,new Set([game.id]),checkpointOnly)
+        const imported = await dependencies.ingest(holder,new Set([game.id]),checkpointOnly,startSignal)
         result.lines += imported.lines
         result.scoreRetries += imported.scoreRetries
         result.tickRetries += imported.tickRetries

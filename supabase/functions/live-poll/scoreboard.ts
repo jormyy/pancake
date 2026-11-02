@@ -11,24 +11,29 @@ type StoredScoreboardGame = Pick<Database['public']['Tables']['nba_games']['Row'
 
 let startOffset = 0
 
-export async function saveScoreboardGames(games: NBAGame[], work: StoredScoreboardGame[], selected?: ReadonlySet<string>): Promise<{gameId:string;error:unknown}[]> {
+export async function saveScoreboardGames(games: NBAGame[], work: StoredScoreboardGame[], selected?: ReadonlySet<string>, startSignal?: AbortSignal): Promise<{gameId:string;error:unknown}[]> {
+  const startsOnly = selected?.size === 0
+  const signal = startsOnly ? startSignal ?? AbortSignal.timeout(5000) : undefined
   const storedGames = new Map(work.map(game => [game.nba_game_id, game]))
   const missing = games.filter(game => game.gameStatus === 2 && !storedGames.has(game.gameId)).map(game => game.gameId)
   if (missing.length) {
-    const { data, error } = await supabase.from('nba_games')
+    const request = supabase.from('nba_games')
       .select('id,nba_game_id,status,home_score,away_score,game_status_text')
       .in('nba_game_id', missing)
+    const { data, error } = await (signal ? request.abortSignal(signal) : request)
     if (error) throw error
     for (const game of data ?? []) storedGames.set(game.nba_game_id, game)
   }
   const failures:{gameId:string;error:unknown}[]=[]
-  const startsOnly = selected?.size === 0
-  const offset = startsOnly && games.length ? startOffset++ % games.length : 0
+  const offset = startsOnly && games.length ? startOffset % games.length : 0
+  let nextOffset = offset
   const ordered = [...games.slice(offset), ...games.slice(0, offset)]
-  await runBounded(ordered.map(game => async () => {
+  await runBounded(ordered.map((game,index) => async () => {
+    if (signal?.aborted) return
     const stored = storedGames.get(game.gameId)
     if (!stored || stored.status === 'Final' || game.gameStatus === 3) return
     if (selected && !selected.has(stored.id) && stored.status !== 'Scheduled') return
+    nextOffset = (offset+index+1) % games.length
     const save = async () => {
       const status = mapGameStatus(game.gameStatus)
       const home = game.homeTeam.score ?? 0
@@ -48,9 +53,10 @@ export async function saveScoreboardGames(games: NBAGame[], work: StoredScoreboa
       if (error) throw error
     }
     try {
-      if (startsOnly) await withWorkContext({signal:AbortSignal.timeout(3000)}, save)
+      if (startsOnly) await withWorkContext({signal:AbortSignal.any([signal!,AbortSignal.timeout(3000)])}, save)
       else await save()
     } catch(error) { failures.push({gameId:stored.id,error}) }
   }), startsOnly ? 2 : 1)
+  if (startsOnly && games.length) startOffset = signal?.aborted ? nextOffset : offset+1
   return failures
 }

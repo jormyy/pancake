@@ -139,3 +139,31 @@ Deno.test('public start receipts use separate deadlines and rotate across ticks'
   assert.equal(new Set(signals).size,6)
   assert.notEqual(orders[0][0],orders[1][0])
 })
+
+Deno.test('the start phase reserves import time and resumes unfinished receipt order',async()=>{
+  const now=Date.now
+  const healthy={...row('healthy'),checkpoint_at:null}
+  const early=Array.from({length:12},(_,n)=>({...row(`early-${n}`),status:'Scheduled',game_time:new Date(now()+3600000).toISOString()}))
+  const attempts:string[][]=[]
+  let imports=0
+  const tick=createCheckpointPoller({now,load:async()=>[healthy,...early],
+    snapshot:async()=>({...snapshot(now()),games:early.map(game=>({...snapshot(now()).games[0],id:game.nba_game_id,nbaId:game.nba_game_id}))}),
+    start:async(game,signal)=>{
+      attempts.at(-1)!.push(game.id)
+      await new Promise<void>((_resolve,reject)=>{
+        if(signal.aborted)reject(signal.reason)
+        else signal.addEventListener('abort',()=>reject(signal.reason),{once:true})
+      })
+    },
+    ingest:async(_holder,ids,...args)=>{assert.equal(((args as unknown[])[1] as AbortSignal|undefined)?.aborted,true);if(ids!.has('healthy'))imports++;return {...result(),importedGameIds:[]}},record:async()=>assert.fail()})
+  attempts.push([])
+  const began=now()
+  await tick('holder')
+  assert.equal(imports,1,'Slow receipts must leave time for a healthy import')
+  assert.ok(now()-began<6000,'The receipt phase has one five-second budget')
+  assert.deepEqual(attempts[0],['early-0','early-1','early-2','early-3'])
+  attempts.push([])
+  await tick('holder')
+  assert.equal(attempts[1][0],'early-4')
+  assert.equal(imports,2)
+})

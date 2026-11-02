@@ -401,3 +401,18 @@ Deno.test('unchanged live ticks do not read finished games for start receipts',a
     assert.fail(`Unexpected ${name}`)
   })
 })
+
+Deno.test('selected recovery does not restart an exhausted receipt budget',async()=>{
+  await withDatabase(async calls=>{
+    const tick=await ingestTick(holder,undefined,new Set([holder]),AbortSignal.abort())
+    assert.deepEqual(tick.failures,[])
+    assert.equal(calls.filter(name=>name==='nba_games').length,0)
+  },(name,count)=>{
+    if(name==='get_live_checkpoint_inputs')return Response.json(count===1?[{id:holder,nba_game_id:'0022600001',status:'InProgress',needs_scoreboard:true,needs_stats:false,
+      home_score:0,away_score:0,game_status_text:'Q1',game_date:'2026-10-29'}]:[])
+    if(name==='todaysScoreboard_00.json')return Response.json({scoreboard:{games:[{gameId:'0022600002',gameStatus:2,gameStatusText:'Q1',period:1,
+      gameClock:'PT10M00S',homeTeam:{score:0},awayTeam:{score:0}}]}})
+    if(name==='nba_games')return Response.json([])
+    assert.fail(`Unexpected ${name}`)
+  })
+})
