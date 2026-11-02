@@ -84,16 +84,7 @@ export function subscribeLeagueVersion(leagueId: string, listener: (snapshot: Le
     if (!stops.has(leagueId)) {
         stops.set(leagueId, listenForLeagueChanges(leagueId, change => {
             if (change.topic === 'version' && change.version && change.changes) {
-                const current = leagueVersionSnapshot(leagueId).version
-                if (current !== '0' && BigInt(change.version) > BigInt(current) + 1n) {
-                    const generation = sessionGeneration()
-                    void readLeagueVersion(leagueId, current).then(snapshot => {
-                        if (generation === sessionGeneration() && compareLeagueVersions(snapshot.version, change.version!) < 0)
-                            applyLeagueVersion(leagueId, { version: change.version, changes: change.changes })
-                    }).catch(() => {
-                        if (generation === sessionGeneration()) applyLeagueVersion(leagueId, { version: change.version, changes: change.changes })
-                    })
-                } else applyLeagueVersion(leagueId, { version: change.version, changes: change.changes })
+                applyLeagueVersion(leagueId, { version: change.version, changes: change.changes })
             }
         }, replayVersion))
     }

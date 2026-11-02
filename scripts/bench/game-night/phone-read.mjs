@@ -18,7 +18,6 @@ export function phoneChange(message,leagueId,since='0',selection={}) {
       ? ['INSERT','UPDATE'].includes(payload.eventType) ? [payload.new] : []
       : []
   let refresh=false,forecastOnly=true,scoreOnly=true,version='0'
-  const received=new Set()
   for(const row of rows) {
     if(!row || row.league_id!==leagueId)continue
     if(row.topic==='version') {
@@ -27,11 +26,9 @@ export function phoneChange(message,leagueId,since='0',selection={}) {
         || typeof change.version!=='string' || typeof change.topic!=='string' || typeof change.created_at!=='string'
         || advancePhoneVersion('0',change.version)==='0')continue
       version=advancePhoneVersion(version,change.version)
-      if(BigInt(change.version)>BigInt(since))received.add(change.version)
       if(BigInt(change.version)>BigInt(since) && homeVersionAffects(change,selection)){refresh=true;forecastOnly &&= homeForecastOnly(change);scoreOnly &&= homeScoresOnly(change)}
     } else if(['lineup','roster','score','game','stat','player_stats','inventory','resources'].includes(row.topic) && homeHintAffects(row,selection)){refresh=true;forecastOnly=false;scoreOnly &&= ['score','stat','player_stats','game'].includes(row.topic)}
   }
-  const recover=BigInt(version)>BigInt(since)+BigInt(received.size)
-  if(recover){refresh=true;forecastOnly=false;scoreOnly=false}
-  return {refresh,...(recover?{recover:true}:{}),...(refresh && forecastOnly?{forecastOnly:true}:{}),...(refresh && scoreOnly && version!=='0'?{scoreOnly:true}:{}),...(version!=='0'?{version}:{})}
+  if(BigInt(version)>BigInt(since)+1n){refresh=true;forecastOnly=false;scoreOnly=false}
+  return {refresh,...(refresh && forecastOnly?{forecastOnly:true}:{}),...(refresh && scoreOnly && version!=='0'?{scoreOnly:true}:{}),...(version!=='0'?{version}:{})}
 }

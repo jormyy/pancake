@@ -113,25 +113,13 @@ export async function startPhones(stack, publicFeed) {
       })().catch(error=>{phone.error=error.message}).finally(()=>{phone.loading=null})
       return phone.loading
     }
-    phone.channel=client.channel(`l1:league:${id(1)}`,{config:{private:true}}).on('broadcast',{event:'change'},async message=>{
+    phone.channel=client.channel(`l1:league:${id(1)}`,{config:{private:true}}).on('broadcast',{event:'change'},message=>{
       const score=scoreMessage(message)
       messages.push({phone:index,at:Date.now(),bytes:Buffer.byteLength(JSON.stringify(message)),score,
         table:message.payload?.table,hints:message.payload?.hints?.map(hint=>({event:hint.event,table:hint.payload?.table,topic:hint.row?.topic,updatedAt:hint.row?.updated_at,scopes:hint.row?.scopes,details:hint.row?.details}))})
       if(score)phone.broadcasts++
-      const selection={matchupId:phone.view?.matchup?.id,seasonId:phone.view?.context?.seasonId,date:phone.view?.selectedDate,
-        week:phone.view?.context?.weekNumber,roundStartWeek:phone.view?.matchup?.roundStartWeek,roundEndWeek:phone.view?.matchup?.roundEndWeek,memberIds:[phone.view?.matchup?.myMemberId,phone.view?.matchup?.opponentMemberId].filter(Boolean)}
-      let change=phoneChange(message,id(1),phone.version,selection)
-      if(change.recover) {
-        try {
-          const at=Date.now()
-          const response=await readWireResponse(`http://127.0.0.1:${stack.ports.edge}/functions/v1/api/version?league=${id(1)}&since=${encodeURIComponent(phone.version)}`,{authorization:`Bearer ${token}`})
-          reads.push({kind:'version',phone:index,at,done:Date.now(),status:response.status,bytes:response.bytes,wireBytes:response.wireBytes,encoding:response.encoding})
-          assert.ok(response.ok,'Missing phone versions must be authorized')
-          const history=JSON.parse(response.body)
-          const recovered=phoneChange({payload:{hints:history.changes.map(row=>({event:'UPDATE',row:{topic:'version',details:[row]}}))}},id(1),phone.version,selection)
-          if(!recovered.recover && recovered.version===history.version && BigInt(history.version)>=BigInt(change.version))change=recovered
-        }catch{}
-      }
+      const change=phoneChange(message,id(1),phone.version,{matchupId:phone.view?.matchup?.id,seasonId:phone.view?.context?.seasonId,date:phone.view?.selectedDate,
+        week:phone.view?.context?.weekNumber,roundStartWeek:phone.view?.matchup?.roundStartWeek,roundEndWeek:phone.view?.matchup?.roundEndWeek,memberIds:[phone.view?.matchup?.myMemberId,phone.view?.matchup?.opponentMemberId].filter(Boolean)})
       phone.version=advancePhoneVersion(phone.version,change.version)
       if(change.refresh && !(index===1 && faults.has('phone-refresh'))){
         phone.readReason='broadcast:'+(message.payload?.hints?.map(hint=>hint.row?.topic ?? hint.payload?.table).filter(Boolean).join(',') ?? message.payload?.table ?? 'change')
