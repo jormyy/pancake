@@ -27,23 +27,20 @@ Exact decimal scoring matches SQL, including custom settings.
 Nightly work runs during 04:00–06:00 Eastern without a live-game gate.
 Existing Home content stays available offline while its old version counter awaits revalidation.
 
-## Earlier local acceptance
+## Local acceptance
 
-These historical measurements use `9e620800836dfad7fa528c0dfa295b3b80ec73cd`.
-Current review fixes require the new candidate measurement in the final verification receipt.
-Three candidates measure 27.193, 1.799, and 14.817 anonymous refaults/s.
-Their median is 14.817 versus the recorded reference median of 1,930.923/s: 99.23% lower.
-The comparison is unpaired and keeps the fixed 35.09/s ceiling.
-Every quality gate passes; the deliberately dropped final stat fails its control.
-The one final held-out confirmation measures 13.976/s, below 158.37/s, and passes all gates.
-These are synthetic local results at a 192 MiB cap, 32 MB shared buffers, and PostgREST pool two.
-They are not production capacity or billing proof.
+The final runtime sample is `826d2e3be71d433319c519f3a82e977061d0a3b9`.
+It measures 20.036 anonymous refaults/s, below 35.09/s, with every quality and budget gate passing.
+This is one unpaired final-code sample, 98.96% below the recorded reference median.
+The earlier held-out result was 13.976/s on the earlier revision; this final release check does not repeat held-out.
+The lab retains the 192 MiB cap, 32 MB shared buffers, pool two, 30-second tick and 30-minute checkpoints.
+These are local measurements, not production capacity or billing proof.
 
 ## Named risks
 
-The largest transfer projection is 2.682 GB/month, or 53.65% of Supabase's 5 GB allowance.
-It fits the accepted 55% exception with narrow remaining headroom.
-The unchanged database fixture occupies about 53.23% of the 500 MB allowance.
+The final transfer projection is 2.230 GB/month, or 44.59% of Supabase's 5 GB allowance.
+It is below the 50% target; the accepted 55% exception is not needed for this sample.
+The unchanged database fixture occupies 53.13% of the 500 MB allowance.
 Official statistics and results have no automatic expiry.
 Long-term growth requires an explicit history policy or a larger plan.
 

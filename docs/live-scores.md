@@ -148,105 +148,73 @@ Pool three has no demonstrated benefit for this cause.
 
 ## Lab results
 
-These are local synthetic results, not production capacity or billing proof.
-The following historical measurements use `9e620800836dfad7fa528c0dfa295b3b80ec73cd`.
-They precede the current review fixes; the final verification receipt records the current candidate.
-Three candidates reuse the recorded reference; this comparison is unpaired.
-The resource grader stays `game-night-cgroup-v1`; public quality uses `game-night-v9`.
-Every run uses the same fixture, 192 MiB cap, 32 MB shared buffers, and PostgREST pool two.
-Quality v9 checks each team against known past fixture states, because an official final can arrive before the opposing live update.
-The earlier simultaneous-state check remains a diagnostic; final handoff and freshness gates stay unchanged.
-The primary measure is the database cgroup's `workingset_refault_anon` delta per second.
-VM swap counters remain diagnostics; the kernel exposes no normal per-cgroup swap-out rate.
-A sample fails below 1 GiB VM available memory; foreign containers are recorded and left unchanged.
+These are synthetic local results, not production capacity or billing proof.
+The final runtime sample uses `826d2e3be71d433319c519f3a82e977061d0a3b9`.
+It measures **20.036 anonymous refaults/s**, below the 35.09/s ceiling, with every quality and budget gate passing.
+This is one unpaired final-code sample, as required by the final release check.
+It is 98.96% below the recorded 1,930.923/s reference median.
+The earlier 35.797/s sample and interrupted 6.5/s observation used earlier code and remain historical evidence.
+The held-out result of 13.976/s also belongs to the earlier revision; it is not rerun for this release check.
 
-| Sample | n | Median anonymous refaults/s | Range |
-| --- | ---: | ---: | --- |
-| Recorded reference | 3 | 1,930.923 | 1,866.310–2,216.158 |
-| Current training | 3 | 14.817 | 1.799–27.193 |
-| Held-out reference | 3 | 3,167.493 | 3,114.448–3,432.218 |
-| Final held-out confirmation | 1 | 13.976 | Single sample |
+The resource grader remains `game-night-cgroup-v1`, with `game-night-v9` quality checks.
+The fixture, 192 MiB cap, 32 MB shared buffers, pool two, 30-second tick and 30-minute checkpoint are unchanged.
+The primary counter is database-cgroup `workingset_refault_anon` per second; VM swap remains diagnostic.
+The fixed 1 GiB VM available-memory floor and foreign-container diagnostics remain in the JSON report.
+The final-state check includes scores and stats, official handoff, actions, forecasts, injuries, Realtime, work counts and failures.
+The dropped-final control fails as intended.
+Phone freshness p95 is 28.715 seconds, below 45 seconds.
 
-Training is 99.23% below the recorded reference, with a 25.394/s spread.
-It passes the retained 35.09/s ceiling; held-out passes 158.37/s.
-The held-out run confirms the corrected design after earlier use; it is not a new tuning set.
-All four candidates pass their action, final-state, freshness, schedule, broadcast, and failure gates.
-Training phone freshness p95 has a 26.790-second median and a 30.233-second maximum.
-Held-out phone freshness p95 is 27.317 seconds, below the 45-second limit.
-The dropped-final control fails as required.
-
-The table uses ten phones on both sides and shows medians per four-minute window.
-The reference includes the old full-screen refresh path; earlier database-only session baselines use a different workload.
-
-| Measure | Recorded reference | Current candidate |
+| Per four-minute window unless stated | Recorded reference median | Final sample |
 | --- | ---: | ---: |
 | Provider calls | 79 | 75 |
 | Provider response bytes | 1,589,531 | 1,372,138 |
-| Database API calls | 1,425 | 193 |
-| Database API decoded bytes | 5,862,558 | 530,449 |
+| Database API calls | 1,425 | 186 |
+| Database API decoded bytes | 5,862,558 | 556,345 |
 | Full Home reads | 160 | 4 |
 | Score-only reads | 0 | 10 |
-| Mean Home gzip bytes | 6,008 | 4,887 |
-| Phone wire bytes | 948,485 | 48,093 |
+| Phone wire bytes | 948,485 | 49,034 |
 | Edge invocations | 283 | 25 |
-| Broadcast sends / deliveries | 145 / 1,432 | 18 / 162 |
+| Broadcast sends / deliveries | 145 / 1,432 | 17 / 152 |
 | New sessions/minute | 211.87 | 18.99 |
-| Sessions/minute after health probes and cron | 203.87 | 11.99 |
-| WAL bytes/minute | 1,149,183 | 327,052 |
+| Sessions/minute after probes and cron | 203.87 | 11.99 |
+| WAL bytes/minute | 1,149,183 | 336,047 |
 
-Full Home reads follow relevant actions or a rejected partial update. Most official changes use score-only reads.
-Forecast-only reads range from zero to ten, according to scheduled delivery.
-No full Home read comes from a live-only tick.
-The training snapshot is 8,785 decoded bytes and 2,106 gzip bytes at the median.
-Held-out uses 15,016 decoded bytes and 3,298 gzip bytes.
-The supplied deployed probe measures NBA boxes at 31 KB and ESPN summaries at 448 KB.
-No additional deployed probe supports these lab numbers.
+The reference uses the same ten-phone workload. Earlier database-only session counts are not directly comparable.
+The public snapshot is 8,785 decoded bytes and 2,107 gzip bytes at its sample median.
+The original deployed feed probe remains separate evidence: NBA boxes 31 KB, ESPN summaries 448 KB.
 
 ## Free-plan budget
 
-The stress model uses ten phones, six hours per night, and thirty nights.
-The table takes the largest training or held-out value.
-These are projected monthly totals, except database size, memory, disk operations, and peak connections.
+The stress case is ten phones, six hours per night, thirty nights.
+These current-sample projections are not hosted billing measurements.
 
-| Resource | Projected use or measured peak | Free allowance or reference | Share |
+| Resource | Projected use or measured peak | Allowance/reference | Share |
 | --- | ---: | ---: | ---: |
-| Supabase transfer | 2.682 GB/month | 5 GB/month | 53.65% |
-| Supabase Edge invocations | 105,550/month | 500,000/month | 21.11% |
-| Realtime messages | 485,737/month | 2,000,000/month | 24.29% |
-| Realtime connections | 10 | 200 | 5.00% |
-| Database size | 266.14 MB | 500 MB | 53.23% |
-| Database memory | 201.24 MB | 500 MB reference | 40.25% |
-| Disk operations | 78.08/s | 250/s reference | 31.23% |
-| Vercel requests | 264,459/month | 1,000,000/month | 26.45% |
-| Vercel invocations, eleven regions | 237,473/month | 1,000,000/month | 23.75% |
-| Vercel transfer | 0.872 GB/month | 100 GB/month | 0.87% |
-| Vercel origin transfer | 3.566 GB/month | 10 GB/month | 35.66% |
-| Vercel active CPU | 0.557 hours/month | 4 hours/month | 13.92% |
-| Vercel memory | 1.246 GB-hours/month | 360 GB-hours/month | 0.35% |
+| Database size | 265.637 MB | 500.000 MB | 53.13% |
+| Database memory | 200.069 MB | 500.000 MB | 40.01% |
+| Database disk operations | 80.682 /s | 250.000 /s | 32.27% |
+| Supabase transfer | 2.230 GB/month | 5.000 GB/month | 44.59% |
+| Edge invocations | 78,563 /month | 500,000 /month | 15.71% |
+| Realtime messages | 456,053 /month | 2,000,000 /month | 22.80% |
+| Realtime connections | 10  | 200  | 5.00% |
+| Vercel requests | 261,758 /month | 1,000,000 /month | 26.18% |
+| Vercel invocations, eleven regions | 237,471 /month | 1,000,000 /month | 23.75% |
+| Vercel transfer | 0.552 GB/month | 100.000 GB/month | 0.55% |
+| Vercel origin transfer | 2.086 GB/month | 10.000 GB/month | 20.86% |
+| Vercel active CPU | 0.351 hours/month | 4.000 hours/month | 8.78% |
+| Vercel memory | 0.858 GB-hours/month | 360.000 GB-hours/month | 0.24% |
 
-Real users likely reach one or two cache regions.
-The largest training projection is 21,588 monthly invocations for one region, or 43,177 for two.
-The table reserves eleven independent caches.
-Vercel CPU and duration come from the local fake feed, not hosted billing.
+Supabase transfer reaches 44.59% of 5 GB, below the 50% target.
+Database size reaches 53.13% of 500 MB; the fixture remains unchanged.
+Database size remains the named exception to the 50% margin target. The 55% transfer exception is not needed for this sample.
+The Vercel invocation model retains eleven cache regions. One region projects 21,588 invocations; two project 43,177. Actual users usually use one or two.
 
-Transfer uses measured encoded phone bytes and conservatively decoded database-to-Edge bytes.
-The unchanged model reserves 16 KiB per recovery check across 10,800 monthly checks.
-It adds 300 cold openings and counts both phone and internal transfer legs.
-An earlier 455-byte recovery probe does not reduce this reserve.
-Headers and TLS overhead are unmodeled.
-
+Transfer uses measured encoded phone responses plus conservative decoded internal traffic, 300 cold opens and the unchanged 16 KiB recovery reserve.
 The [official egress guidance](https://supabase.com/kb/troubleshooting/all-about-supabase-egress-a_Sg_e) describes outgoing bytes and both transfer legs.
-It does not explicitly promise API-specific gzip billing.
-Local `Content-Encoding` and encoded lengths are verified; hosted compression and billing remain unverified.
-The largest fully decoded estimate is 3.508 GB/month, above the half-allowance target.
-The named decision uses measured encoded responses, with hosted verification required at rollout.
-[Realtime billing](https://supabase.com/docs/guides/platform/manage-your-usage/realtime-messages) counts a send and each receiving client.
+It does not promise API-specific gzip billing. Local compression and byte lengths are verified; hosted compression and actual billing remain rollout checks.
+Headers and TLS overhead are not modeled. [Realtime billing](https://supabase.com/docs/guides/platform/manage-your-usage/realtime-messages) counts sends and deliveries.
+Official history has no automatic expiry; see [capacity and retention](db-capacity.md).
 
-Transfer uses the accepted exception of at most 55%; held-out reaches 53.65%, with narrow remaining headroom.
-Database size is the other accepted exception: the production-sized fixture stays unchanged.
-Official history does not expire automatically.
-See [capacity and retention](db-capacity.md) for growth limits.
-The [replay lab](../scripts/bench/game-night/README.md) retains the executable gates and reporting workflow.
 
 ## Follow-ups
 

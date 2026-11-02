@@ -46,11 +46,11 @@ If either is refused, stop before the frontend merge and validate the supported 
 The function catalog, database types, and both release attestations regenerate from a fresh private database.
 The audited baseline and historical security phases remain unchanged.
 
-The earlier round-three training median was 14.817 versus the recorded 1,930.923 anonymous refaults/s, 99.23% lower, with three candidates.
-Those measurements used source `9e620800`; they do not verify the current runtime. The earlier held-out confirmation was 13.976/s.
-The earlier replay passed every quality gate, and its dropped-final control failed as intended. Current acceptance is recorded in the external verification receipt.
-Transfer reaches 53.65% of the 5 GB allowance, within the accepted 55% exception.
-The unchanged database fixture reaches about 53.23% of 500 MB; both remain named release risks.
+The final runtime sample is 20.036 anonymous refaults/s, below the 35.09/s ceiling, with every gate passing.
+It is one unpaired final-code check on `826d2e3be71d433319c519f3a82e977061d0a3b9`, 98.96% below the recorded reference median.
+The earlier held-out result of 13.976/s is historical and is not repeated for this release check.
+Transfer reaches 44.59% of 5 GB, within the accepted 55% exception.
+Database size reaches 53.13% of 500 MB; the fixture remains unchanged.
 See the final verification receipt for suite results and the exact release head.
 See [release notes](../docs/release-2.15.md), [live scores and rollback](../docs/live-scores.md), and the current release order below.
 

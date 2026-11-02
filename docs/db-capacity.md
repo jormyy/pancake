@@ -5,20 +5,19 @@
 The current evidence is a synthetic local game-night replay, not a production capacity test.
 The fixture has ten teams, about 2,600 players, and 246,000 `player_game_stats` rows.
 It remains production-sized; no historical data is removed to improve the result.
-The latest three-run training median database size is 265,735,315 bytes.
-The largest training sample is 266,136,723 bytes, or 53.23% of the 500 MB Free allowance.
-The held-out database is 265,612,435 bytes.
-
+The final-code sample measures 265,637,011 database bytes after the timed window.
+The budget's database peak is 265,637,011 bytes, or 53.13% of 500 MB.
+This is one final-code sample; earlier three-run and held-out sizes remain historical.
 Database size is an accepted exception to the half-allowance target.
-The final transfer stress projection also reaches 53.65% of its 5 GB allowance.
+The final transfer projection reaches 44.59% of 5 GB, within the accepted 55% exception.
 Official statistics and results have no automatic expiry.
 An explicit historical-data policy or a larger plan is needed before continued growth reaches the allowance.
 The replay cannot establish how many months of production growth remain.
 
 ## Growth and retention
 
-Median allocation increases by 753,664 bytes during the four-minute training window.
-Settlement adds 188,416 bytes after that window.
+Allocation changes by 958,464 bytes in the final four-minute sample.
+Settlement changes allocation by 180,224 bytes.
 These values include reusable pages and maintenance allocation; do not extrapolate them as permanent row growth.
 No current production growth rate is measured.
 
@@ -44,14 +43,13 @@ Other managed Realtime topics retain provider policy.
 The lab caps its database cgroup at 192 MiB with swap available.
 The selected runtime settings are 32 MB shared buffers and a PostgREST pool of two.
 These are separate from the fixture size and Supavisor pool.
-Training measures a median 130,813,952-byte anonymous-memory peak and 66,265,088-byte shared-memory peak.
+The final sample reaches 135,335,936 bytes of anonymous memory and 48,803,840 bytes of shared memory.
 Component peaks can occur at different times; do not sum them as one observed peak.
-The maximum measured container memory is 201,252,864 bytes.
+The budget's maximum sampled container memory is 200,069,120 bytes.
 
-Training records 19.99 new database sessions per minute.
-Six local health probes and about one cron start per minute explain part of that rate.
-The remaining 12.74 includes Auth sessions for necessary screen reads.
-The PostgREST data pool remains connected; short Auth sessions caused the earlier excess churn.
+The sample records 18.99 new sessions per minute.
+After expected local health probes and measured cron starts, the residual is 11.99/minute.
+The PostgREST pool persists; short Auth sessions remain necessary for private reads.
 See [hosted settings and lab results](live-scores.md).
 
 ## Capture a growth window
