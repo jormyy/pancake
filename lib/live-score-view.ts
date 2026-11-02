@@ -41,7 +41,7 @@ export function liveScoreView(saved: LiveHome, snapshot: LiveSnapshot | readonly
         return { ...game, home_score: fresh.home.score, away_score: fresh.away.score, status: fresh.status,
             game_status_text: fresh.status === 'Final' ? 'Final' : status }
     })
-    return { matchup, todaysGames, liveStats, delayed: Boolean(displayed?.stale),
+    return { matchup, todaysGames, liveStats, delayed: overlay.stale,
         leagueMatchups: (saved.leagueMatchups ?? []).map(matchup => {
             const score = points.get(matchup.id)
             return score ? { ...matchup, homePoints: score.homePoints, awayPoints: score.awayPoints } : matchup

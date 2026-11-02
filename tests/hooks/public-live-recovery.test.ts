@@ -60,3 +60,22 @@ it('recovers today while a past day has an empty live-game list',async()=>{
     await act(async()=>{await vi.advanceTimersByTimeAsync(20000)})
     expect(boundary.checks).toHaveBeenCalledTimes(2)
 })
+
+it('recovers another displayed matchup while the opened matchup stays fresh',async()=>{
+    const first={id:'matchup',homeMemberId:'member',awayMemberId:'opponent',homePoints:4,awayPoints:3,finalized:false,ready:true,
+        players:[{playerId:'player',memberId:'member',nbaId:'1',espnId:null,team:'BOS',gameId:'0021',savedPoints:0,savedAt:now-300000,starter:true}]}
+    const other={...first,id:'other',homeMemberId:'c',awayMemberId:'d',homePoints:100,
+        players:[{...first.players[0],playerId:'other-player',memberId:'c',team:'LAL',gameId:'0022'}]}
+    const saved={...homePayload(),context:{...homePayload().context,league:{scoring_settings:{points:1}}},liveBasis:[first,other],
+        leagueMatchups:[{id:'other',homePoints:100,awayPoints:3}],
+        liveGames:[{nba_game_id:'0021',status:'InProgress',game_date:'2026-10-29'},{nba_game_id:'0022',status:'InProgress',game_date:'2026-10-29'}]}
+    boundary.read.mockResolvedValue(saved)
+    await open()
+    expect(h.latest.matchup?.myPoints).toBe(6)
+    expect(h.latest.liveDelayed).toBe(true)
+    boundary.read.mockResolvedValue({...saved,liveBasis:[first,{...other,homePoints:106}],leagueMatchups:[{id:'other',homePoints:106,awayPoints:3}]})
+    await act(async()=>{await vi.advanceTimersByTimeAsync(20250)})
+    expect(boundary.checks).toHaveBeenCalledOnce()
+    expect(boundary.read).toHaveBeenCalledTimes(2)
+    expect(h.latest.leagueMatchups[0].homePoints).toBe(106)
+})
