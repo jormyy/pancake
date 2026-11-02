@@ -76,5 +76,5 @@ export function mergeHomeScores<T>(saved: T, update: unknown, version: string): 
     if (forecast && (typeof forecast !== 'object' || patch.forecastStale === null)) return undefined
     return { ...saved, ...Object.fromEntries(['matchup', 'selectedDate', 'weekDays', 'leagueMatchups', 'todaysGames', 'liveStats', 'startedTeams', 'teamMatchups', 'liveBasis'].map(name => [name, patch[name]])),
         context: { ...previous.context, version: patch.context.version },
-        ...(forecast ? { forecast: { ...forecast, stale: patch.forecastStale } } : {}) }
+        ...(forecast ? { forecast: { ...(forecast as object), stale: patch.forecastStale } } : {}) }
 }

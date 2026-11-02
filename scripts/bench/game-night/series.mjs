@@ -47,7 +47,7 @@ export function compareSeries(baselines, candidates, {targetCeiling=61} = {}) {
     passed: gain > noise && trainingTarget && quality }
 }
 
-export function compareRecordedReference(reference,reports,{limits,targetCeiling=35.09}={}) {
+export function compareRecordedReference(reference,reports,{limits=undefined,targetCeiling=35.09}={}) {
   assert.ok(reference?.version==='game-night-summary-v2' && reference.primaryMetric==='cgroupAnonRefaultsPerSecond'
     && reference.n>=3 && reference.quality.passed,'A verified three-run cgroup reference is required')
   assert.ok(Number.isFinite(targetCeiling) && targetCeiling>0,'A positive target ceiling is required')
