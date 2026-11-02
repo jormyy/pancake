@@ -1,5 +1,6 @@
 BEGIN;
 \ir rules-support.sql
+UPDATE public.nba_games SET status='Final' WHERE status='InProgress';
 DELETE FROM private.work_items;
 CREATE FUNCTION pg_temp.queued(p_kind text) RETURNS bigint LANGUAGE sql AS $$
   SELECT count(*) FROM private.work_items WHERE kind=p_kind

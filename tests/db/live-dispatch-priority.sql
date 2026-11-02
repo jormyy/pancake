@@ -28,7 +28,7 @@ BEGIN
     health||': live priority preserves exactly four active workers');
   PERFORM pg_temp.check_rules((SELECT count(*)=3 FROM private.work_items WHERE kind='process-trades' AND status='running'),
     health||': ordinary ready jobs use the other three slots');
-  PERFORM pg_temp.check_rules((SELECT count(*)=1 FROM private.work_items WHERE kind='process-trades' AND status='pending'),
+  PERFORM pg_temp.check_rules((SELECT count(*)=1 FROM private.work_items WHERE kind='process-trades' AND key LIKE 'older-%' AND status='pending'),
     health||': the remaining ordinary job stays queued');
   END LOOP;
   DELETE FROM private.work_items;

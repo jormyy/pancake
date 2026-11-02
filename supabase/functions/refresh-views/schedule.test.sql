@@ -95,6 +95,7 @@ BEGIN
   PERFORM pg_temp.check_rules((SELECT valid_until>now()+interval '1 year' FROM public.matchup_forecasts WHERE matchup_id=matchup),
     'final odds remain valid after background work stops');
   PERFORM private.complete_forecast_input_chunk() FROM generate_series(1,10);
+  DELETE FROM private.screen_refresh_queue WHERE league_season_id<>f.season_id;
   SELECT value INTO screen FROM jsonb_array_elements(public.view_refresh_work(p_params:='{"operation":"claim"}'))
     WHERE value->>'seasonId'=f.season_id::text;
   PERFORM pg_temp.check_rules(public.view_refresh_work(f.league_id,NULL,screen||'{"operation":"complete"}')='true',

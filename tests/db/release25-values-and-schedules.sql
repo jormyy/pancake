@@ -1,5 +1,6 @@
 BEGIN;
 \ir rules-support.sql
+UPDATE public.nba_games SET status='Final' WHERE status='InProgress';
 DO $$
 DECLARE fixture record; player_id uuid:=gen_random_uuid(); profile jsonb;
 BEGIN

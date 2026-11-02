@@ -411,7 +411,6 @@ BEGIN
       v_expect_failure := pg_temp.reserved_row(v_roster);
       v_sql := format('SELECT public.drop_player_atomic(%L)', v_roster);
       v_detail := 'roster ' || left(v_roster::text, 8);
-      INSERT INTO oracle_dropped VALUES (v_roster);
     ELSIF v_roll < 0.30 THEN
       v_op := 'drop_stale';
       SELECT roster_player_id INTO v_roster FROM oracle_dropped ORDER BY random() LIMIT 1;
@@ -649,6 +648,9 @@ BEGIN
       EXECUTE v_sql;
       IF v_expect_failure THEN
         RAISE EXCEPTION 'AUTHZ violated at step % (%): % succeeded for %', v_step, v_op, v_detail, v_actor;
+      END IF;
+      IF v_op = 'drop' THEN
+        INSERT INTO oracle_dropped VALUES (v_roster);
       END IF;
       v_ok := v_ok + 1;
       INSERT INTO oracle_log VALUES (v_step, v_op, v_actor, v_detail, 'ok', NULL);
