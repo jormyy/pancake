@@ -28,7 +28,7 @@ Past games and official finals use saved results.
 Old or missing snapshots display saved scores with a stale state.
 Postgres imports transitions, finals, corrections, and 30-minute checkpoints.
 Official writes use the existing per-game ingestion and NBA final certification.
-Normal checkpoint versions do not send live-only broadcasts.
+Normal live-only checkpoints create no screen version or broadcast; stale clients recover saved data directly.
 See [live scores](live-scores.md) for rollback, cache rules, settings, and lab measurements.
 
 ## Screen refresh
@@ -53,7 +53,7 @@ One changed league transaction advances one version and batches its relevant hin
 Home filters changes by displayed teams and inputs.
 Score corrections cover the full multi-week matchup; lineup changes stay scoped to the selected week and date.
 Fresh public mode performs a ten-minute recovery check.
-Stale and database modes retain the 20-second recovery check.
+Stale and database modes reread saved screens every 20 seconds.
 Missing version ranges require a fresh view; hidden screens defer reads.
 
 Roster moves, lineup saves, trade acceptance, waivers, and draft actions execute on the server.

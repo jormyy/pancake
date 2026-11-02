@@ -42,7 +42,7 @@ A new authenticated action also writes its idempotency receipt and product outco
 Auth sessions remain required for private screen requests.
 
 `emit_league_change`, score input revisions, totals, league versions, and notification markers remain on relevant official changes.
-Normal live checkpoints suppress live-only broadcasts but retain version history.
+Normal live-only checkpoints suppress both broadcasts and screen-version writes; stale clients reread saved state.
 Batched hints retain their private scopes and events.
 Legacy league and membership events keep their row envelope during rollout.
 Forecast renewals compare result fields before broadcasting; timestamp-only renewals send no event.

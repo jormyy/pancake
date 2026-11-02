@@ -5,7 +5,7 @@
 The supplied production head is `20261214006200` at `e5f16211` (release 2.14.7).
 Release 2.15 adds 23 migrations; the candidate contains 767 migrations through `20261214008900`.
 This is a minor feature release, with application version `2.15.0`.
-Round-three simplification is awaiting final verification. The external verification receipt pins the release candidate.
+Final replay source: `9e620800836dfad7fa528c0dfa295b3b80ec73cd`. The external verification receipt pins the release candidate and final suite results.
 
 | Migration | Change |
 | --- | --- |
@@ -43,11 +43,11 @@ If either is refused, stop before the frontend merge and validate the supported 
 The function catalog, database types, and both release attestations regenerate from a fresh private database.
 The audited baseline and historical security phases remain unchanged.
 
-The corrected training median is 6.688 versus the recorded 1,930.923 anonymous refaults/s, 99.65% lower, with three candidates.
-This is an unpaired local comparison. The final held-out confirmation is 13.774/s.
+The corrected training median is 14.817 versus the recorded 1,930.923 anonymous refaults/s, 99.23% lower, with three candidates.
+This is an unpaired local comparison. The final held-out confirmation is 13.976/s.
 Every replay quality gate passes; the dropped-final control fails as intended.
-Transfer reaches 54.91% of the 5 GB allowance, within the accepted 55% exception.
-The unchanged database fixture reaches about 53.14% of 500 MB; both remain named release risks.
+Transfer reaches 53.65% of the 5 GB allowance, within the accepted 55% exception.
+The unchanged database fixture reaches about 53.23% of 500 MB; both remain named release risks.
 See the final verification receipt for suite results and the exact release head.
 See [release notes](../docs/release-2.15.md), [live scores and rollback](../docs/live-scores.md), and the current release order below.
 
@@ -163,7 +163,7 @@ Committed Broadcast messages remain durable in `realtime.messages`. The private 
 Keep the 16-table `supabase_realtime` publication until all legacy clients reload and their subscriptions drain.
 Publication retirement needs a separate migration and delivery check.
 Restore the publication before rolling back to a legacy frontend.
-The database fallback and stale public mode retain 20-second recovery checks.
+The database fallback and stale public mode reread saved screens every 20 seconds.
 Fresh public mode uses ten-minute recovery; reconnect checks remain active.
 Home foreground recovery shares its version request and keeps the scheduled read and failed-validation retry.
 

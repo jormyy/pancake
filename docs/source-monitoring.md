@@ -217,7 +217,7 @@ UTC windows retain their original calendar boundaries.
 | `pre-tipoff`  |  Every minute; enabled current teams with an available scheduled tipoff within two minutes. Existing windows remain eligible until one minute after tipoff. Changed input fingerprints create a new revision after completion. |
 | `live-poll`, `sync-scores` | Eligible live work queues each minute; idle slates create no live loop. Score recovery retains its bounded throttle. |
 | `season-boundary`, `setup-season-rollover` | Existing daily and setup boundaries, with period keys preventing duplicate work. |
-| `sync-players`, `sync-trade-values`, `sync-rankings`, `pick-predictions` | Nightly 04:00–06:00 ET; defer while games remain live. |
+| `sync-players`, `sync-trade-values`, `sync-rankings`, `pick-predictions` | Nightly 04:00–06:00 ET, including nights with a live game. |
 | `player-injuries` | Every 15 minutes from two hours before first tipoff through last tipoff; hourly earlier on game days; daily on off days. |
 | `sync-schedule` | Once daily after its configured morning gate. |
 | `process-waivers` | Each league's local midnight; elapsed holds and eligibility remain server rules. |

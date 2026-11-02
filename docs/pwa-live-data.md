@@ -73,7 +73,7 @@ Refresh metadata causes no version bump.
 Publication hints do not restart the background refresh.
 Missing change ranges require a fresh view.
 Foreground and reconnect checks use the version endpoint.
-Live Home screens add a version recovery check: ten minutes with fresh public data, 20 seconds in stale or database mode.
+Live Home screens check versions every ten minutes with fresh public data. Stale and database modes reread saved screens every 20 seconds.
 An unchanged version does not reload the view.
 Visible live screens poll public snapshots every 30 seconds; hidden screens stop.
 A snapshot older than two minutes shows saved scores with a stale state.
