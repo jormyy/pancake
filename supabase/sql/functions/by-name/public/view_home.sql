@@ -22,7 +22,11 @@ BEGIN
     SELECT * INTO matchup FROM public.matchups WHERE id=(p_params->>'matchupId')::uuid
       AND league_id=p_league_id AND league_season_id=(context->>'seasonId')::uuid AND NOT is_voided;
     IF NOT FOUND THEN RAISE EXCEPTION 'This matchup is not available.' USING ERRCODE='42501'; END IF;
-    context := context || jsonb_build_object('weekNumber',COALESCE(requested_week,matchup.week_number));
+    SELECT week_number INTO league_week FROM public.season_weeks
+      WHERE season_year=(context->>'seasonYear')::integer
+        AND COALESCE((p_params->>'date')::date,league_today) BETWEEN week_start AND week_end
+        AND week_number BETWEEN matchup.week_number AND COALESCE(matchup.end_week_number,matchup.week_number);
+    context := context || jsonb_build_object('weekNumber',COALESCE(requested_week,league_week,matchup.week_number));
     p_params := p_params || jsonb_build_object('weekNumber',context->'weekNumber');
   ELSE
     SELECT * INTO matchup FROM public.matchups WHERE league_id = p_league_id AND league_season_id = (context->>'seasonId')::uuid
