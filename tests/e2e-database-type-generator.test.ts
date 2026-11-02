@@ -17,7 +17,7 @@ test('database type generation compiles after retired enums leave the schema', a
       Tables: { ${tables.map(name => `${name}: { Row: unknown }`).join('; ')} }
       Functions: { activate_roster_player_with_lineup_atomic: { Args: {
         p_free_action?: string; p_free_roster_player_id?: string; p_slot_type?: string
-      } }; get_live_checkpoint_work: { Returns: { checkpoint_at: string; game_time: string }[] } }
+      } }; get_live_checkpoint_work: { Returns: { checkpoint_at: string; checked_at: string; game_time: string }[] } }
     } }`
     await writeFile(path.join(directory, 'supabase'), `#!/usr/bin/env node\nprocess.stdout.write(${JSON.stringify(generated)})\n`, { mode: 0o700 })
     execFileSync(process.execPath, [path.resolve('scripts/generate-database-types.mjs')], {
@@ -25,6 +25,7 @@ test('database type generation compiles after retired enums leave the schema', a
     })
     const output = await readFile(path.join(directory, 'types/database.ts'), 'utf8')
     assert.match(output, /checkpoint_at: string \| null/)
+    assert.match(output, /checked_at: string \| null/)
     assert.match(output, /game_time: string \| null/)
     const program = ts.createProgram([path.join(directory, 'types/database.ts')], { noEmit: true, noLib: true, strict: true, types: [] })
     assert.deepEqual(program.getSemanticDiagnostics().map(diagnostic => ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n')), [])

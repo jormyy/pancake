@@ -5,7 +5,7 @@ import type { NBAGame, NBABoxScorePlayer } from '../_shared/nba.ts'
 import { sourceEnvironment } from '../_shared/sourceEnvironment.ts'
 
 const ESPN = sourceEnvironment('ESPN_LIVE_BASE_URL') ?? 'https://site.api.espn.com/apis/site/v2/sports/basketball/nba'
-export const teamCode = (code: string) => ({ GS: 'GSW', NY: 'NYK', NO: 'NOP', SA: 'SAS', UTAH: 'UTA', WSH: 'WAS' })[code] ?? code
+const teamCode = (code: string) => ({ GS: 'GSW', NY: 'NYK', NO: 'NOP', SA: 'SAS', UTAH: 'UTA', WSH: 'WAS' })[code] ?? code
 
 type Status = { period: number; displayClock: string; type: { state: string; completed?: boolean; detail?: string } }
 type Competition = { date: string; status: Status; competitors: { homeAway: string; score: string; team: { abbreviation: string } }[] }
