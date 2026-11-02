@@ -11,6 +11,7 @@ export function createCheckpointPoller(dependencies: {
   snapshot: (date: string) => Promise<unknown>
   ingest: (holder: string, gameIds?: ReadonlySet<string>, checkpointOnly?: boolean) => Promise<LiveTick>
   record: (holder: string, gameIds: string[]) => Promise<void>
+  recordFailure?: (holder: string, gameId: string) => Promise<void>
   discover?: (snapshot: LiveSnapshot) => Promise<void>
   participation?: (game: CheckpointGame, playerIds: string[], observedAt: number) => Promise<void>
   now?: () => number
@@ -93,6 +94,10 @@ export function createCheckpointPoller(dependencies: {
     }
     let result: LiveTick = { lines: 0, keepRunning: true, worked: true, failures: discoveryFailures, scoreRetries: 0, tickRetries: 0 }
     let reload = false
+    const recordFailure=async(id:string)=>{
+      try { await dependencies.recordFailure?.(holder,id) }
+      catch(error) { result.failures.push(String(error)) }
+    }
     const entries=[...due]
     const first=Math.max(0,entries.findIndex(([id])=>id===nextGameId))
     const pending=[...entries.slice(first),...entries.slice(0,first)]
@@ -108,8 +113,8 @@ export function createCheckpointPoller(dependencies: {
         if (imported.worked && !imported.failures.length && (!imported.importedGameIds || imported.importedGameIds.includes(id))) {
           await dependencies.record(holder,[id])
           reload = true
-        }
-      } catch (error) { result.failures.push(String(error)) }
+        } else await recordFailure(id)
+      } catch (error) { result.failures.push(String(error));await recordFailure(id) }
     }
     if (reload) work = await dependencies.load()
     return { ...result, sourceMode: 'public', keepRunning: work.some(game => game.status !== 'Final' || game.needs_final_check) }

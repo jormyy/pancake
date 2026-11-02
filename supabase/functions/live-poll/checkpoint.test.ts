@@ -198,3 +198,43 @@ Deno.test('failed participation storage holds that game while healthy recovery c
   assert.deepEqual(imported,['healthy'])
   assert.ok(output.failures.some(error=>error.includes('receipt unavailable')))
 })
+
+Deno.test('slow failures cannot restart at the front after every worker expires',async()=>{
+  let now=start,healthy=0
+  const games=Array.from({length:6},(_,index)=>({...row(),id:`game-${index}`,nba_game_id:`002${index}`,checkpoint_at:null}))
+  const failedAt=new Map<string,number>()
+  const dependencies={now:()=>now,
+    load:async()=>[...games].sort((a,b)=>(failedAt.get(a.id)??0)-(failedAt.get(b.id)??0)),
+    snapshot:async()=>{throw new Error('503')},
+    ingest:async(_holder:string,ids?:ReadonlySet<string>)=>{
+      if([...ids!][0]!=='game-5'){now+=17000;throw new Error('Slow source failure')}
+      healthy++;return result()
+    },
+    recordFailure:async(_holder:string,id:string)=>{failedAt.set(id,now)},
+    record:async()=>{}}
+  for(let worker=0;worker<2;worker++) {
+    const tick=createCheckpointPoller(dependencies)
+    const started=now
+    for(let number=0;number<4;number++){now=started+number*30000;await tick('holder')}
+    now=started+120000
+  }
+  assert.ok(healthy>0,'A later healthy game must run across worker restarts')
+})
+
+Deno.test('failure receipt errors remain visible without blocking healthy games',async()=>{
+  const games=Array.from({length:3},(_,index)=>({...row(),id:`game-${index}`,nba_game_id:`002${index}`,checkpoint_at:null}))
+  const failed:string[]=[],saved:string[]=[]
+  const tick=createCheckpointPoller({now:()=>start,load:async()=>games,snapshot:async()=>{throw new Error('503')},
+    ingest:async(_holder,ids)=>{
+      const id=[...ids!][0]
+      if(id==='game-0')return {...result(),failures:['Incomplete game']}
+      if(id==='game-1')throw new Error('Unavailable game')
+      return result()
+    },
+    recordFailure:async(_holder,id)=>{failed.push(id);if(id==='game-0')throw new Error('Receipt unavailable')},
+    record:async(_holder,ids)=>{saved.push(...ids)}})
+  const output=await tick('holder')
+  assert.deepEqual(failed,['game-0','game-1'])
+  assert.deepEqual(saved,['game-2'])
+  assert.ok(output.failures.some(error=>error.includes('Receipt unavailable')))
+})

@@ -180,6 +180,11 @@ export async function runLivePoll(request: Request): Promise<Response> {
         }),
         snapshot: async date => (await fetchLiveSnapshot(new URL(`/api/live/${date}`, sharedUrl).href, AbortSignal.timeout(5000))).body,
         ingest: (holder, gameIds, checkpointOnly) => withPublicCheckpoint(Boolean(checkpointOnly), () => ingestTick(holder, () => { tickRetries++ },gameIds)),
+        recordFailure: (holder,gameId) => checkpointRetry(async()=>{
+          const {error}=await supabase.rpc('record_live_recovery_failure',{p_holder:holder,p_game_id:gameId})
+            .abortSignal(AbortSignal.timeout(5000))
+          if(error)throw error
+        }),
         record: (holder, gameIds) => checkpointRetry(async () => {
           const { error } = await supabase.rpc('record_live_checkpoint',{p_holder:holder,p_game_ids:gameIds}).abortSignal(AbortSignal.timeout(5000))
           if (error) throw error
