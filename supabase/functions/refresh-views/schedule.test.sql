@@ -1,6 +1,7 @@
 \set ON_ERROR_STOP on
 BEGIN;
 \ir ../../../tests/db/rules-support.sql
+UPDATE public.nba_games SET status='Final' WHERE status='InProgress';
 SET LOCAL app.supabase_url='http://127.0.0.1:1';
 SET LOCAL app.edge_internal_token='schedule-test';
 DELETE FROM private.work_items;

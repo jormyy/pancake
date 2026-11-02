@@ -7,6 +7,12 @@ DELETE FROM private.live_matchup_refresh_queue;
 UPDATE private.worker_controls SET paused=false WHERE id;
 CREATE OR REPLACE FUNCTION private.enqueue_scheduled_work(p_now timestamptz DEFAULT now())
 RETURNS void LANGUAGE plpgsql AS $$ BEGIN RETURN; END; $$;
+CREATE OR REPLACE FUNCTION private.enqueue_live_poll(p_now timestamptz DEFAULT now())
+RETURNS void LANGUAGE plpgsql AS $$ BEGIN RETURN; END; $$;
+CREATE OR REPLACE FUNCTION private.enqueue_process_trades(p_now timestamptz DEFAULT now())
+RETURNS void LANGUAGE plpgsql AS $$ BEGIN RETURN; END; $$;
+CREATE OR REPLACE FUNCTION private.enqueue_stats_sync_dispatch(p_now timestamptz DEFAULT now())
+RETURNS void LANGUAGE plpgsql AS $$ BEGIN RETURN; END; $$;
 CREATE OR REPLACE FUNCTION private.apply_scheduler_health(p_health jsonb)
 RETURNS text LANGUAGE sql AS $$ SELECT 'normal'::text; $$;
 CREATE OR REPLACE FUNCTION private.work_execute(p_id bigint,p_token uuid)
