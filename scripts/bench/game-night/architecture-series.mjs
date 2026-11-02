@@ -1,3 +1,4 @@
+import { waitForFixtureDay } from './calendar.mjs'
 import assert from 'node:assert/strict'
 import path from 'node:path'
 import { parseArgs } from 'node:util'
@@ -24,6 +25,7 @@ const { values }=parseArgs({options:{
   'require-budget':{type:'boolean',default:false},
 }})
 assert.ok(values.baseline, 'Provide a separate baseline source checkout with --baseline')
+await waitForFixtureDay({duration:4*60*60*1000})
 const slate=await readJson(path.join(directory,'training.json'))
 const baselines=[],candidates=[]
 let activeStack

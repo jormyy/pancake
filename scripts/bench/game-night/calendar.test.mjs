@@ -24,3 +24,11 @@ test('a stable window starts without a wait and invalid windows fail',async()=>{
   assert.equal(sleeps,0)
   await assert.rejects(waitForFixtureDay({duration:86400000}),/one fixture day/)
 })
+
+
+test('the complete paired series waits when its four-hour allowance crosses midnight',async()=>{
+  let time=Date.parse('2026-01-15T02:00:00Z'),sleeps=0
+  const day=await waitForFixtureDay({duration:4*60*60*1000,now:()=>time,sleep:async()=>{time+=60000;sleeps++},announce:()=>{}})
+  assert.equal(sleeps,180)
+  assert.equal(day,'2026-01-15')
+})
