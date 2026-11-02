@@ -7,7 +7,7 @@ import type { Database } from '../_shared/database.ts'
 
 type StoredScoreboardGame = Pick<Database['public']['Tables']['nba_games']['Row'], 'id' | 'nba_game_id' | 'status' | 'home_score' | 'away_score' | 'game_status_text'>
 
-export async function saveScoreboardGames(games: NBAGame[], work: StoredScoreboardGame[]): Promise<void> {
+export async function saveScoreboardGames(games: NBAGame[], work: StoredScoreboardGame[], selected?: ReadonlySet<string>): Promise<void> {
   const storedGames = new Map(work.map(game => [game.nba_game_id, game]))
   const missing = games.filter(game => game.gameStatus > 1 && !storedGames.has(game.gameId)).map(game => game.gameId)
   if (missing.length) {
@@ -20,6 +20,7 @@ export async function saveScoreboardGames(games: NBAGame[], work: StoredScoreboa
   for (const game of games) {
     const stored = storedGames.get(game.gameId)
     if (!stored || stored.status === 'Final' || game.gameStatus === 3) continue
+    if (selected && !selected.has(stored.id) && stored.status !== 'Scheduled') continue
     const status = mapGameStatus(game.gameStatus)
     const home = game.homeTeam.score ?? 0
     const away = game.awayTeam.score ?? 0

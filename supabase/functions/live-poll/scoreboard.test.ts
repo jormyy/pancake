@@ -55,3 +55,24 @@ Deno.test('a Final scoreboard waits for the NBA box instead of closing an uncert
     [{ id: 'uncertified', nba_game_id: '0022600144', status: 'InProgress', home_score: 98, away_score: 99, game_status_text: 'Q4' }])
   } finally { globalThis.fetch = nativeFetch }
 })
+
+Deno.test('selected imports discover starts without saving other live ticks',async()=>{
+  const nativeFetch=globalThis.fetch
+  const writes:string[]=[]
+  globalThis.fetch=(input,init)=>{
+    const url=new URL(input instanceof Request?input.url:input)
+    if(url.pathname.endsWith('/nba_games'))return Promise.resolve(Response.json([
+      {id:'live',nba_game_id:'0021',status:'InProgress',home_score:1,away_score:0,game_status_text:'Q1'},
+      {id:'early',nba_game_id:'0022',status:'Scheduled',home_score:0,away_score:0,game_status_text:'Scheduled'},
+    ]))
+    writes.push(JSON.parse(String(init?.body)).p_game_id)
+    return Promise.resolve(Response.json(true))
+  }
+  try {
+    const games:NBAGame[]=['0021','0022'].map(gameId=>({gameId,gameStatus:2,gameStatusText:'Q1',period:1,
+      gameClock:'PT10M00S',homeTeam:{teamTricode:'BOS',score:2},awayTeam:{teamTricode:'NYK',score:0}}))
+    const save=saveScoreboardGames as (games:NBAGame[],work:Parameters<typeof saveScoreboardGames>[1],ids?:ReadonlySet<string>)=>Promise<void>
+    await save(games,[],new Set(['selected']))
+    deepStrictEqual(writes,['early'])
+  } finally {globalThis.fetch=nativeFetch}
+})

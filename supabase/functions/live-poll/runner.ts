@@ -97,7 +97,7 @@ export async function ingestTick(holder: string, onRetry?: () => void, gameIds?:
   if (boardGames.length) {
     const fallbackBoards = nbaScoreboard.filter(game => game.gameStatus !== 2 ||
       !work.some(stored => stored.nba_game_id === game.gameId && hasEspnLiveGame(stored, events)))
-    await retry(() => saveScoreboardGames(fallbackBoards, work))
+    await retry(() => saveScoreboardGames(fallbackBoards, work, gameIds))
     work = select(await retry(() => loadWork(gameIds)))
   }
   for (const game of nbaFinalWork) if (!work.some(row => row.id === game.id)) work.push(game)
