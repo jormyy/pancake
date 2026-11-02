@@ -69,3 +69,24 @@ describe('shared phone polling', () => {
         expect(readLiveSnapshot({ ...source, mode: 'database' }, date, Date.now())?.mode).toBe('database')
     })
 })
+
+it('keeps accepted game revisions through fallback, reconnect and newer corrections', async () => {
+    const time=Date.now()
+    const game={id:'nba',nbaId:'0021',espnId:'401',source:'nba' as const,status:'Final' as const,updatedAt:time,
+        home:{team:'BOS',score:110,players:[]},away:{team:'NYK',score:100,players:[]}}
+    let incoming:LiveSnapshot={...snapshot(),games:[game]}
+    const updates:(LiveSnapshot|null)[]=[]
+    const poller=createLivePoller({load:async()=>({body:incoming,ageMs:0,cache:''}),onSnapshot:value=>updates.push(value)})
+    poller.update(active);await vi.advanceTimersByTimeAsync(0)
+    incoming={...snapshot(),games:[{...game,id:'espn:401',nbaId:null,source:'espn',status:'InProgress',updatedAt:time-1000,home:{...game.home,score:108}}]}
+    await vi.advanceTimersByTimeAsync(30500)
+    expect(updates.at(-1)?.games[0]).toMatchObject({status:'Final',home:{score:110}})
+    poller.update({...active,online:false});poller.update(active);await vi.advanceTimersByTimeAsync(0)
+    expect(updates.at(-1)?.games[0].home.score).toBe(110)
+    incoming={...snapshot(),games:[{...game,updatedAt:Date.now(),home:{...game.home,score:111}}]}
+    await vi.advanceTimersByTimeAsync(30500)
+    expect(updates.at(-1)?.games[0].home.score).toBe(111)
+    incoming={...snapshot(),games:[]};await vi.advanceTimersByTimeAsync(30500)
+    expect(updates.at(-1)?.games[0].home.score).toBe(111)
+    poller.dispose()
+})

@@ -55,6 +55,8 @@ export function createLivePoller(options: {
     let controller: AbortController | undefined
     let generation = 0
     let retriedSnapshot = -1
+    const accepted = new Map<string,PublicLiveGame>()
+    let acceptedDate: string | undefined
     const stop = () => {
         generation++
         clearTimeout(timer)
@@ -73,6 +75,17 @@ export function createLivePoller(options: {
             const result = await options.load(date, request.signal)
             if (generation === version && !request.signal.aborted) {
                 const snapshot = readLiveSnapshot(result.body, date, now())
+                if (acceptedDate !== date || snapshot?.mode === 'database') accepted.clear()
+                acceptedDate = date
+                if (snapshot?.mode === 'public') {
+                    for (const game of snapshot.games) {
+                        const key = `${game.home.team}:${game.away.team}`
+                        const previous = accepted.get(key)
+                        if (!previous || game.updatedAt >= previous.updatedAt
+                            && (previous.status !== 'Final' || game.status === 'Final')) accepted.set(key,game)
+                    }
+                    snapshot.games = [...accepted.values()]
+                }
                 options.onSnapshot(snapshot)
                 if (snapshot && result.cache === 'STALE' && retriedSnapshot !== snapshot.capturedAt) {
                     retriedSnapshot = snapshot.capturedAt
