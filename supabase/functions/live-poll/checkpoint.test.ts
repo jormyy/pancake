@@ -137,3 +137,22 @@ Deno.test('a public start locks a known scheduled work row before an empty direc
   assert.deepEqual(calls,['start','import'])
   assert.equal(game.status,'InProgress')
 })
+
+Deno.test('a public scheduled status cannot postpone overdue recovery after tipoff',async()=>{
+  const game={...row(),status:'Scheduled',game_time:new Date(start-3600000).toISOString(),checkpoint_at:null}
+  let writes=0
+  const tick=createCheckpointPoller({now:()=>start,load:async()=>[game],snapshot:async()=>snapshot(start,'Scheduled'),
+    ingest:async()=>{writes++;return {...result(),importedGameIds:[]}},record:async()=>{}})
+  await tick('holder');await tick('holder')
+  assert.equal(writes,2)
+})
+
+for(const status of ['Scheduled','InProgress','Final']) Deno.test(`a stale ${status} game inside a fresh envelope cannot postpone overdue recovery`,async()=>{
+  const game={...row(),status:'Scheduled',game_time:new Date(start-3600000).toISOString(),checkpoint_at:null}
+  const body=snapshot(start,status);body.games[0].updatedAt=start-180000
+  let writes=0
+  const tick=createCheckpointPoller({now:()=>start,load:async()=>[game],snapshot:async()=>body,
+    ingest:async()=>{writes++;return result()},record:async()=>{}})
+  await tick('holder')
+  assert.equal(writes,1)
+})

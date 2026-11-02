@@ -60,9 +60,10 @@ export function createCheckpointPoller(dependencies: {
         if (overdue) due.set(game.id,game.status === 'InProgress' && Boolean(game.checkpoint_at))
         continue
       }
+      if (overdue && (snapshot.updatedAt < now()-120000 || snapshot.updatedAt > now()+5000)) { due.set(game.id,false); continue }
       if (snapshot.completionPending) { due.set(game.id,false); continue }
       if (snapshot.status === 'Scheduled') {
-        if (game.status !== 'Scheduled') due.set(game.id,false)
+        if (game.status !== 'Scheduled' || overdue && (!game.game_time || Date.parse(game.game_time)<=now())) due.set(game.id,false)
         continue
       }
       if (game.status !== snapshot.status || !game.checkpoint_at || now() - Date.parse(game.checkpoint_at) >= CHECKPOINT_INTERVAL_MS) {
