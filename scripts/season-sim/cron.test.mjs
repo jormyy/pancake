@@ -22,15 +22,14 @@ test('production gates and annual UTC draft window match the migration catalog',
   assert.ok(cronCommands('2026-04-13T00:02:00Z').some(job => job.jobname === 'work-dispatcher'))
   assert.ok(!productionJobs.some(job => /invoke_edge_function\('sync-(stats|scores)'/.test(job.command)))
 })
-test('clock jumps preserve every minute dispatcher and hint drain', async () => {
+test('clock jumps preserve dispatcher minutes and scheduled maintenance', async () => {
   const moves = [], samples = [], statements = []
-  const from = Date.parse('2026-04-12T23:59:30Z')
+  const from = Date.parse('2026-04-12T10:11:30Z')
   const counts = await advanceCron({ from, to: from + 6 * 60000,
     move: async at => { moves.push(at) }, invoke: async statement => { statements.push(statement) }, sample: async at => { samples.push(at) },
   })
   assert.deepEqual(samples, Array.from({ length: 6 }, (_, index) => from + 30_000 + index * 60_000))
-  assert.equal(counts['work-dispatcher'], 6)
-  assert.equal(counts['io-hint-drain'], 6)
+  assert.deepEqual(counts, { 'io-cron-history-retention': 1, 'screen-statistics': 1, 'work-dispatcher': 6 })
   assert.equal(counts['season-boundary'], undefined)
   assert.equal(counts['notification-dispatch-minute'], undefined)
   assert.equal(counts['nba-process-trades'], undefined)
