@@ -3331,6 +3331,97 @@
       "statementCount": 3,
       "statementsSha256": "680f4d068f82e0de0ed369ff5923cf816b1dcd5b9304a182f107a063b77f3d18",
       "sha256": "4c16a82af69531f310ca7f7dd3d37af9a4ccd6c3c45757fbf30878c6913d3b85"
+    },
+    {
+      "name": "schedule_half_gig",
+      "version": "20261214006300",
+      "statementCount": 43,
+      "statementsSha256": "94412a72e3233bd207445280a2ab3445d127862d6fd2d621d8b66e898fdff116",
+      "sha256": "c6e5ce9ad7f957a6f4c863e3ff78bb20288039f45fa238f2dfb83518706bf114"
+    },
+    {
+      "name": "live_path_half_gig",
+      "version": "20261214006400",
+      "statementCount": 21,
+      "statementsSha256": "ab90d9cafb770d661e7df8edd2f5cc2cb2032f10ac63cce0a16429c28e0fda94",
+      "sha256": "31b36405d48a87d7fd8367db63742135f17475ebf56859d95422046a8ab0f208"
+    },
+    {
+      "name": "memory_half_gig",
+      "version": "20261214006500",
+      "statementCount": 13,
+      "statementsSha256": "0933685f008bb2c7c23fffb05968f0a337f236a284848c6b53b0ae93bff799b4",
+      "sha256": "11e4bb172db9a7670d5caf2c481b934a8c641254ac50c184b63a5fbcc9df5908"
+    },
+    {
+      "name": "nightly_pick_predictions",
+      "version": "20261214006600",
+      "statementCount": 3,
+      "statementsSha256": "8167ed271bd3d14af07cb692630fc8e9c11e051741a6a70b1bedb55efc08ab14",
+      "sha256": "cea5663bd6f445ca9a90c62d5d521eaea5681f05fbb06c7e5bf3c005c5a9edb1"
+    },
+    {
+      "name": "live_score_view",
+      "version": "20261214006700",
+      "statementCount": 6,
+      "statementsSha256": "4aba30eed49062830bdbe933aad1a3f65c7b55b72322dd6c5e74a9edc9af0315",
+      "sha256": "670bcaba61c7763609c025340d54fe538254cb538683beefdfce1dd6abc7d2f0"
+    },
+    {
+      "name": "public_live_checkpoints",
+      "version": "20261214006800",
+      "statementCount": 9,
+      "statementsSha256": "8a0bf122a36636464bc3a0a1ff3eaeea00744057510017ac3559033f4cb2edc2",
+      "sha256": "0a042e227ec83542681e53a6d85631f60533b15557de58230a5930934bda049b"
+    },
+    {
+      "name": "limit_live_basis_to_displayed_players",
+      "version": "20261214006900",
+      "statementCount": 5,
+      "statementsSha256": "72414e5aca823f333c3ca19d6bf5996f5559dbda54b0424af4b5db1c4bab9716",
+      "sha256": "ee65a00ff4fe25fb55c24513087469564055b3b7b4b4a786bcd0c030862694b0"
+    },
+    {
+      "name": "dispatch_short_work_without_starving_live",
+      "version": "20261214007000",
+      "statementCount": 1,
+      "statementsSha256": "f364ad9385adea81967b9eb14d216e80ec45a8a10fcce7fb612c3999212bddc6",
+      "sha256": "a7d6c5a2de1e53eb473f3e9e0d2125922866a94aaf6703357e8cfb0b2aa328b6"
+    },
+    {
+      "name": "compact_live_dispatch_candidates",
+      "version": "20261214007100",
+      "statementCount": 2,
+      "statementsSha256": "8c24b7a6434f9e2c22d65eb4dba9e5570f188b635a7d5e7d91a84847050d40a5",
+      "sha256": "a4c3c9057681981a4bb0ab2a7765aa4fba06c1cb1492545270eb0fc272b4ee08"
+    },
+    {
+      "name": "prioritize_queued_live_ingestion",
+      "version": "20261214007200",
+      "statementCount": 2,
+      "statementsSha256": "215330f1e0017aa8163be3c7903d4bf36a746b712d484c999292c7ff9fcf7378",
+      "sha256": "e32b57be46dd2745829c94e311991dfc32096d6319f2899b9049bdfa2ac09d71"
+    },
+    {
+      "name": "limit_checkpoint_input_reads",
+      "version": "20261214007300",
+      "statementCount": 4,
+      "statementsSha256": "5a6abb1c949634a32eb7b7eefc59deab154e3f3119e460be603a162776d72074",
+      "sha256": "7ea0159d1cf90e3a6394349d1ae610abf705eafc3c95394ed3e79a0d3e6b4cee"
+    },
+    {
+      "name": "scope_and_compact_home_updates",
+      "version": "20261214007400",
+      "statementCount": 8,
+      "statementsSha256": "cb2ca153c9056b1661b3eaa05d228bc71a2a0cd2313e9b4f78ad57ea703e1545",
+      "sha256": "eef6b9d87af6ac36435fbf1c6a1ec5b272890b1223beaca1513b8f1140ab267c"
+    },
+    {
+      "name": "batch_transaction_broadcasts",
+      "version": "20261214007500",
+      "statementCount": 6,
+      "statementsSha256": "144c49e5eba1429017fafb4662df3e7e0fa4830c474ceecde5abaedc13848094",
+      "sha256": "4f12698b41931c4ce7d37fc2f8ab28eda1059abccd5ad9ba0628d8abe0650418"
     }
   ]
 }
