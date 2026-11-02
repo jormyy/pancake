@@ -156,3 +156,21 @@ for(const status of ['Scheduled','InProgress','Final']) Deno.test(`a stale ${sta
   await tick('holder')
   assert.equal(writes,1)
 })
+
+Deno.test('slow failed games rotate before later recovery work on the next tick',async()=>{
+  let now=start,deadline=now+18000,healthy=0
+  const games=Array.from({length:5},(_,index)=>({...row(),id:`game-${index}`,nba_game_id:`002${index}`,checkpoint_at:null}))
+  const records:string[]=[]
+  const tick=createCheckpointPoller({now:()=>now,load:async()=>games,snapshot:async()=>{throw new Error('503')},
+    ingest:async(_holder,ids)=>{
+      if(now>=deadline)throw new Error('Tick expired')
+      const id=[...ids!][0]
+      if(id!=='game-4'){now+=5000;throw new Error('Slow source failure')}
+      healthy++;return result()
+    },record:async(_holder,ids)=>{records.push(...ids)}})
+  await tick('holder')
+  deadline=now+18000
+  await tick('holder')
+  assert.equal(healthy,1)
+  assert.deepEqual(records,['game-4'])
+})

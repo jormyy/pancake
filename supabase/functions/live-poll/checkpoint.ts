@@ -17,7 +17,9 @@ export function createCheckpointPoller(dependencies: {
   const now = dependencies.now ?? Date.now
   let work: CheckpointGame[] | undefined
   const discovered = new Set<string>()
+  let nextGameId: string | undefined
   return async (holder: string): Promise<LiveTick> => {
+    const deadline=now()+16000
     work ??= await dependencies.load()
     const snapshots = new Map<string,LiveSnapshot>()
     await Promise.all([...new Set(work.length ? work.map(game => game.game_date) : [new Date(now()).toLocaleDateString('en-CA',{timeZone:'America/New_York'})])].map(async date => {
@@ -72,7 +74,12 @@ export function createCheckpointPoller(dependencies: {
     }
     let result: LiveTick = { lines: 0, keepRunning: true, worked: true, failures: discoveryFailures, scoreRetries: 0, tickRetries: 0 }
     let reload = false
-    for (const [id,checkpointOnly] of due) {
+    const entries=[...due]
+    const first=Math.max(0,entries.findIndex(([id])=>id===nextGameId))
+    const pending=[...entries.slice(first),...entries.slice(0,first)]
+    for (const [index,[id,checkpointOnly]] of pending.entries()) {
+      if (now()>=deadline) break
+      nextGameId=pending[(index+1)%pending.length][0]
       try {
         const imported = await dependencies.ingest(holder,new Set([id]),checkpointOnly)
         result.lines += imported.lines
