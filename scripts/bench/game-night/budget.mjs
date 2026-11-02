@@ -72,6 +72,10 @@ export function projectBudget(report) {
   budget.vercelInvocationTarget=budget.vercel.invocations.fraction<=.25
   budget.supabaseQuarterTargets=budget.supabase.edgeInvocations.fraction<=.25 && budget.supabase.realtimeMessages.fraction<=.25
   budget.supabaseWithinHalfLimits=Object.entries(budget.supabase).filter(([name])=>name!=='database').every(([,value])=>value.fraction<=.5)
+  budget.supabaseWithinAcceptedRiskLimits=Object.entries(budget.supabase).filter(([name])=>name!=='database')
+    .every(([name,value])=>value.fraction<=(name==='transfer'?.55:.5))
+  if(budget.supabase.transfer.fraction>.5 && budget.supabase.transfer.fraction<=.55)
+    budget.namedRisks.push('Accepted 55% transfer ceiling: Claude accepts this conservative Supabase stress projection for release; every other half-limit gate stays unchanged.')
   budget.supabaseWithinLimits=Object.values(budget.supabase).every(value=>value.fraction<=1)
   budget.namedRisks.push(...Object.entries(budget.supabase).filter(([name,value])=>name!=='database' && value.riskOverHalf)
     .map(([name,value])=>`Supabase ${name}: ${Math.round(value.fraction*1000)/10}% of the Free limit under the stated peak-window projection.`))

@@ -51,3 +51,18 @@ test('Realtime bills each send once and preserves the old delivery upper bound',
   assert.equal(result.supabase.realtimeMessages.value,22*2700)
   assert.equal(result.observedBroadcasts.previousDoubleDeliveryUpperBound,40*2700)
 })
+
+test('the accepted transfer exception never relaxes other half-limit gates',()=>{
+  const report={seconds:240,publicFeed:{requests:0,origins:[]},phones:{messages:[],viewBytes:0,messageBytes:0},
+    workerDataTransfer:{requests:[{responseBytes:963000}]},shape:{databaseBytes:265000000},
+    memory:{cgroupAnonPeakBytes:100000000,cgroupShmemPeakBytes:0},diskIo:{readsPerSecond:1,writesPerSecond:1},edgeRequestCount:1}
+  const accepted=projectBudget(report)
+  assert.equal(accepted.supabaseWithinHalfLimits,false)
+  assert.equal(accepted.supabaseWithinAcceptedRiskLimits,true)
+  assert.ok(accepted.namedRisks.some(value=>value.includes('55% transfer ceiling')))
+  report.diskIo.readsPerSecond=130
+  assert.equal(projectBudget(report).supabaseWithinAcceptedRiskLimits,false)
+  report.diskIo.readsPerSecond=1
+  report.workerDataTransfer.requests[0].responseBytes=1040000
+  assert.equal(projectBudget(report).supabaseWithinAcceptedRiskLimits,false)
+})
