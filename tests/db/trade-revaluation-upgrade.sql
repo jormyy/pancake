@@ -3,6 +3,7 @@ BEGIN;
 \ir perf-l4-trade-batch-fixture.sql
 DELETE FROM private.work_items WHERE kind IN ('trade-revaluation-check','trade-revaluation-scan') AND status IN ('pending','failed');
 SELECT pg_temp.l4_batch_fixture(10,true);
+DELETE FROM private.work_items WHERE key LIKE '%:created';
 CREATE TEMP TABLE l4_upgrade_snapshot AS SELECT * FROM private.work_items WHERE false;
 CREATE TEMP TABLE l4_upgrade_state(oldest_scan bigint,first_due timestamptz);
 CREATE TEMP TABLE l4_upgrade_attempts AS SELECT id,attempts,invocation_key,last_error FROM private.work_items WHERE false;

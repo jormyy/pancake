@@ -27,6 +27,40 @@ describe('independent trade valuation work', () => {
     expect(mocks.analyze).not.toHaveBeenCalled()
   })
 
+  it('retries a rolled-back screen claim after lock contention', async () => {
+    mocks.rpc.mockResolvedValueOnce({ error: { code: '55P03', message: 'lock timeout' } })
+      .mockResolvedValueOnce({ data: [] })
+    expect((await refreshViews()).rowsAffected).toBe(0)
+    expect(mocks.rpc).toHaveBeenCalledTimes(2)
+  })
+
+  it('retries the same claimed screen after a rolled-back completion', async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: [{ leagueId: 'league', seasonId: 'season', version: 12, claimToken: 'claim' }] })
+      .mockResolvedValueOnce({ error: { code: '55P03', message: 'lock timeout' } })
+      .mockResolvedValueOnce({ data: true })
+    expect((await refreshViews()).rowsAffected).toBe(1)
+    expect(mocks.rpc.mock.calls[1]).toEqual(mocks.rpc.mock.calls[2])
+  })
+
+  it('keeps permanent screen errors visible without retrying', async () => {
+    mocks.rpc.mockResolvedValueOnce({ error: { code: '42501', message: 'permission denied' } })
+    await expect(refreshViews()).rejects.toMatchObject({ code: '42501' })
+    expect(mocks.rpc).toHaveBeenCalledOnce()
+  })
+
+  it('stops after bounded contention retries and releases the failed claim', async () => {
+    mocks.rpc.mockImplementation(async (_name, args) => {
+      if (args.p_params.operation === 'claim') return { data: [{ leagueId: 'league', seasonId: 'season', version: 12, claimToken: 'claim' }] }
+      if (args.p_params.operation === 'complete') return { error: { code: '55P03', message: 'lock timeout' } }
+      return { data: true }
+    })
+    const result = await refreshViews()
+    expect(result.rowsAffected).toBe(0)
+    expect(result.result.failures).toHaveLength(1)
+    expect(mocks.rpc.mock.calls.filter(([, args]) => args.p_params.operation === 'complete')).toHaveLength(5)
+    expect(mocks.rpc.mock.calls.at(-1)?.[1].p_params).toMatchObject({ operation: 'fail', claimToken: 'claim' })
+  })
+
   it('preserves the last publication for closed trades', async () => {
     const cached = { modelVersion: 'old', analysis: { teams: [] } }
     mocks.rpc.mockResolvedValue({ data: { closed: true, cachedRevaluation: cached } })

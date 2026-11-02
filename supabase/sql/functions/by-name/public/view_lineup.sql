@@ -24,7 +24,7 @@ BEGIN
       'eligiblePositions', CASE WHEN cardinality(p.eligible_positions) > 0 THEN to_jsonb(p.eligible_positions)
         WHEN p.position IS NULL THEN '[]'::jsonb ELSE jsonb_build_array(p.position) END,
       'nbaTeam', p.nba_team, 'yearsExp', p.years_exp, 'careerGames', p.career_regular_season_games,
-      'injuryStatus', p.injury_status, 'nbaId', p.nba_id) AS data
+      'injuryStatus', p.injury_status, 'nbaId', p.nba_id, 'espnId', p.espn_id) AS data
     FROM public.players p LEFT JOIN roster r ON r.player_id = p.id
     WHERE r.id IS NOT NULL OR EXISTS (SELECT 1 FROM assignments a WHERE a.player_id = p.id)
   ), placed AS MATERIALIZED (

@@ -400,7 +400,7 @@ Week boundaries use the league calendar and timezone.
 
 | File | Change |
 | --- | --- |
-| [app/(modals)/propose-trade.tsx](../app/(modals)/propose-trade.tsx) | Uses shared review and checks only the proposer roster. |
+| [app/(modals)/propose-trade.tsx](<../app/(modals)/propose-trade.tsx>) | Uses shared review and checks only the proposer roster. |
 | [components/roster/RosterItems.tsx](../components/roster/RosterItems.tsx) | Extracts the reusable row without changing Roster actions. |
 | [components/trades/PendingTradeRosterPlan.tsx](../components/trades/PendingTradeRosterPlan.tsx) | Uses shared review for acceptance and saved moves. |
 | [components/trades/TradeCard.tsx](../components/trades/TradeCard.tsx) | Adds the review variant and Draft state. |
@@ -477,20 +477,20 @@ The card-to-status gap stays within 16 pixels.
 
 | State | Light | Dark |
 | --- | --- | --- |
-| Propose invalid | [390px](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/after/invalid-propose-invalid-light-390.png) | [390px](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/after/invalid-propose-invalid-dark-390.png) |
-| Drop fixes proposal; Send enabled | [390px](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/after/invalid-propose-valid-send-enabled-light-390.png) | [390px](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/after/invalid-propose-valid-send-enabled-dark-390.png) |
-| Accept already valid | [390px](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/after/valid-accept-valid-light-390.png) | [390px](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/after/valid-accept-valid-dark-390.png) |
-| Incoming player moved to IR | [390px](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/after/valid-accept-incoming-ir-light-390.png) | [390px](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/after/valid-accept-incoming-ir-dark-390.png) |
-| Accept invalid | [390px](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/after/invalid-accept-invalid-light-390.png) | [390px](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/after/invalid-accept-invalid-dark-390.png) |
-| Drop fixes acceptance; Accept enabled | [390px](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/after/invalid-accept-fixed-enabled-light-390.png) | [390px](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/after/invalid-accept-fixed-enabled-dark-390.png) |
+| Propose invalid | 390px (external capture) | 390px (external capture) |
+| Drop fixes proposal; Send enabled | 390px (external capture) | 390px (external capture) |
+| Accept already valid | 390px (external capture) | 390px (external capture) |
+| Incoming player moved to IR | 390px (external capture) | 390px (external capture) |
+| Accept invalid | 390px (external capture) | 390px (external capture) |
+| Drop fixes acceptance; Accept enabled | 390px (external capture) | 390px (external capture) |
 
-Long-name evidence: [propose at 320px](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/after/invalid-propose-long-names-320.png), [accept at 320px](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/after/valid-accept-valid-long-names-320.png).
+Long-name evidence: propose at 320px (external capture), accept at 320px (external capture).
 
-The [old 320px layout](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/before/invalid-before-long-names-320.png) fails the same width check.
+The old 320px layout (external capture) fails the same width check.
 
-The [browser-tool capture](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/after/agent-browser-accept-390.png) confirms the same acceptance screen.
+The browser-tool capture (external capture) confirms the same acceptance screen.
 
-The [WebKit receipt](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/after/receipt.json) records 32 state captures and the row measurements.
+The WebKit receipt (external capture) records 32 state captures and the row measurements.
 
 ### Trade move rule addendum
 
@@ -590,7 +590,7 @@ The release and security attestations are regenerated from the private database.
 - [components/trades/TradeListRow.tsx](<../components/trades/TradeListRow.tsx>)
 - [components/trades/TradePickLabel.tsx](<../components/trades/TradePickLabel.tsx>)
 - [components/trades/TradeRosterPlanEditor.tsx](<../components/trades/TradeRosterPlanEditor.tsx>)
-- [components/trades/TradeRosterPreviewList.tsx](<../components/trades/TradeRosterPreviewList.tsx>)
+- `components/trades/TradeRosterPreviewList.tsx` (removed)
 - [components/trades/acceptance-summary.ts](<../components/trades/acceptance-summary.ts>)
 - [docs/interface-design.md](<../docs/interface-design.md>)
 - [lib/trade-draft.ts](<../lib/trade-draft.ts>)
@@ -631,14 +631,14 @@ The release and security attestations are regenerated from the private database.
 
 | State | Light, 390 px | Dark, 390 px |
 | --- | --- | --- |
-| Propose invalid | [Screenshot](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/polish/invalid-propose-invalid-light-390.png) | [Screenshot](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/polish/invalid-propose-invalid-dark-390.png) |
-| Propose valid; Send enabled | [Screenshot](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/polish/invalid-propose-valid-send-enabled-light-390.png) | [Screenshot](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/polish/invalid-propose-valid-send-enabled-dark-390.png) |
-| Accept valid; Accept enabled | [Screenshot](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/polish/valid-accept-valid-light-390.png) | [Screenshot](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/polish/valid-accept-valid-dark-390.png) |
-| Incoming moved to IR | [Screenshot](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/polish/valid-accept-incoming-ir-light-390.png) | [Screenshot](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/polish/valid-accept-incoming-ir-dark-390.png) |
-| Incoming moved to Taxi | [Screenshot](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/polish/valid-accept-incoming-taxi-light-390.png) | [Screenshot](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/polish/valid-accept-incoming-taxi-dark-390.png) |
-| Trades list with a pick | [Screenshot](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/polish/invalid-trades-list-pick-light-390.png) | [Screenshot](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/polish/invalid-trades-list-pick-dark-390.png) |
+| Propose invalid | Screenshot (external capture) | Screenshot (external capture) |
+| Propose valid; Send enabled | Screenshot (external capture) | Screenshot (external capture) |
+| Accept valid; Accept enabled | Screenshot (external capture) | Screenshot (external capture) |
+| Incoming moved to IR | Screenshot (external capture) | Screenshot (external capture) |
+| Incoming moved to Taxi | Screenshot (external capture) | Screenshot (external capture) |
+| Trades list with a pick | Screenshot (external capture) | Screenshot (external capture) |
 
-Additional proof: [invalid acceptance](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/polish/invalid-accept-invalid-light-390.png), [repaired acceptance](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/polish/invalid-accept-fixed-enabled-light-390.png), [320 px names](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/polish/invalid-propose-long-names-320.png), [browser-tool capture](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/polish/agent-browser-accept-390.png), [WebKit receipt](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/polish/receipt.json).
+Additional proof: invalid acceptance (external capture), repaired acceptance (external capture), 320 px names (external capture), browser-tool capture (external capture), WebKit receipt (external capture).
 
 The receipt contains 36 passing WebKit states and one separate browser-tool screenshot.
 Both themes pass at 390 pixels, with long-name checks at 320 pixels.
@@ -667,10 +667,10 @@ PANCAKE_TEST_DB_PORT=61422 node --env-file=.env scripts/regenerate-release-histo
 node --env-file=.env scripts/check-db-function-sources.mjs --check-catalog
 ```
 
-- [Full Vitest log](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/polish/full-vitest.log)
-- [Focused Vitest log](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/polish/focused-vitest.log)
-- [Row regression log](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/polish/row-regressions.log)
-- [Quality log](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/polish/quality.log)
-- [Trade SQL log](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/polish/trade-sql.log)
-- [Corrected work-queue invocation](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/polish/work-queue-sql.log)
-- [Taxi rejection log](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/polish/taxi-rejection-sql.log)
+- Full Vitest log (external capture)
+- Focused Vitest log (external capture)
+- Row regression log (external capture)
+- Quality log (external capture)
+- Trade SQL log (external capture)
+- Corrected work-queue invocation (external capture)
+- Taxi rejection log (external capture)

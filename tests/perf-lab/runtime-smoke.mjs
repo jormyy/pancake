@@ -21,7 +21,7 @@ await withDatabase(async ({ evidence }) => {
     capture = await captureServer({ root: build.root, evidence, ...tls, host: '0.0.0.0' })
     console.log('Walking the first screen states.')
     const receipts = await walk({ origin: tls.origin, fixture: stack.fixture, evidence, capture, limit: 3 })
-    await renderReport({ evidenceRoot: evidence, receipts, writeDocs: false })
+    await renderReport({ evidenceRoot: evidence, receipts, writeReports: false })
     await json(path.join(evidence, 'runtime-smoke.json'), { passed: receipts.length === 3 && receipts.every(row => row.webkit.passed), observed: receipts.length, failed: receipts.filter(row => !row.webkit.passed).length })
   } finally { await capture?.close(); await edge?.close() }
 }, { restore: process.env.PERF_LAB_RESTORE === '1' })

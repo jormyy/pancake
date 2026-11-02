@@ -177,6 +177,18 @@ async function livePollCore() {
   return `${HEADER}${source}`
 }
 
+async function liveSnapshotCore() {
+  let types = await read('core/src/live/overlay.ts')
+  for (const specifier of ['../scoring/formula', '../scoring/types', './codec']) types = dropImportDeclaration(types, 'liveSnapshotTypes', specifier)
+  types = types.replace("export { liveLineStats } from './codec'\n", '')
+  types = pruneEdgeExports(types, 'liveSnapshotTypes', ['LiveLine', 'PublicLiveGame', 'PublicLiveStats'], ['overlayLiveScores', 'SavedLivePlayer', 'SavedLiveMatchup'])
+  const codec = pruneEdgeExports(dropImportDeclaration(await read('core/src/live/codec.ts'), 'liveSnapshotCodec', './overlay'), 'liveSnapshotCodec', ['liveLineStats'])
+  let reader = await read('core/src/live/poll.ts')
+  for (const specifier of ['./codec', './overlay']) reader = dropImportDeclaration(reader, 'liveSnapshotReader', specifier)
+  reader = pruneEdgeExports(reader, 'liveSnapshotReader', ['LiveResponse'], ['createLivePoller', 'PollScope', 'LIVE_PHONE_POLL_MS'])
+  return `${HEADER}import type { StatLine } from './scoringCore.ts'\n\n${types}\n${codec}\n${reader}`
+}
+
 async function lineupAssignments() {
   const source = rewriteImportDeclarations(await read('core/src/lineup/assignments.ts'), 'lineupAssignments', {
     '../positions/lineupSlots': './lineupSlots.ts',
@@ -210,6 +222,7 @@ const outputs = [
   ['supabase/functions/_shared/date.ts', `${HEADER}${await read('core/src/dates/index.ts')}`],
   ['supabase/functions/_shared/gameId.ts', `${HEADER}${await read('core/src/season/gameId.ts')}`],
   ['supabase/functions/_shared/livePoll.ts', await livePollCore()],
+  ['supabase/functions/_shared/liveSnapshot.ts', await liveSnapshotCore()],
   ['supabase/functions/_shared/schedule.ts', await scheduleCore()],
   ['supabase/functions/_shared/weekPolicy.ts', `${HEADER}${await read('core/src/season/weekPolicy.ts')}`],
   ['supabase/functions/_shared/scoreLineups.ts', await scoreLineups()],

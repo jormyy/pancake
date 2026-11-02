@@ -1,7 +1,0 @@
-{
-  "project": "pt4bafableas",
-  "cleanup": true,
-  "cleanupErrors": [],
-  "networkFence": true,
-  "stage": "stopped"
-}

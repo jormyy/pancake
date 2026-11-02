@@ -1,9 +1,10 @@
 import { isRegularSeasonGameId } from './gameId.ts'
 import { fetchWithRetry } from './retry.ts'
 import { sourceTimestamp } from './sourceTimestamp.ts'
+import { sourceEnvironment } from './sourceEnvironment.ts'
 export { isRegularSeasonGameId } from './gameId.ts'
 
-const NBA_CDN = Deno.env.get('NBA_CDN_BASE_URL') ?? 'https://cdn.nba.com/static/json'
+const NBA_CDN = sourceEnvironment('NBA_CDN_BASE_URL') ?? 'https://cdn.nba.com/static/json'
 
 const NBA_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',

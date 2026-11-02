@@ -48,7 +48,6 @@ vi.mock('@/hooks/use-matchup-data', () => ({ useMatchupData: () => ({
     myLineup: mocks.lineupError ? null : mocks.lineup, oppLineup: mocks.lineupError ? null : mocks.lineup, lineupError: mocks.lineupError,
     setSelectedDate: mocks.setSelectedDate, loadLineups: mocks.loadLineups, matchupRef: { current: { id: 'matchup' } },
 }) }))
-vi.mock('@/hooks/use-live-stats', () => ({ useLiveStats: () => ({ todaysGames: mocks.games, freshness: mocks.freshness, liveStats: new Map(), startedTeams: new Set(), liveTeams: new Set(), teamMatchups: new Map() }) }))
 vi.mock('@/hooks/use-lineup-actions', () => ({ useLineupActions: () => ({ setSelected: mocks.setSelected, setAutoSetModalVisible: vi.fn() }) }))
 vi.mock('@/hooks/use-draft-room-launcher', () => ({ useDraftRoomLauncher: () => ({ openDraftRoom: vi.fn() }) }))
 vi.mock('@/lib/lineup', () => ({ getLineupMoveTargetState: () => null }))

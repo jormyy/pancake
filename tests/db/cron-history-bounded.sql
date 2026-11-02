@@ -77,6 +77,6 @@ BEGIN
   PERFORM pg_temp.check_rules((SELECT count(*)=1100 AND max(runid)=1100 FROM cron.job_run_details),'a large active prefix does not block expiry later in runid order');
 END;
 $$;
-SELECT pg_temp.check_rules((SELECT retention_rule LIKE '%512 rows per batch%' FROM private.retention_rules WHERE relation_name='cron.job_run_details'),'retention dashboard reports the installed batch cap');
+SELECT pg_temp.check_rules((SELECT retention_rule LIKE '%512 rows per%batch%' FROM private.retention_rules WHERE relation_name='cron.job_run_details'),'retention dashboard reports the installed batch cap');
 SELECT count(*) AS passed_checks FROM rules_checks;
 ROLLBACK;

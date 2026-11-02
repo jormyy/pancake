@@ -12,7 +12,10 @@ Live expected points and variance scale with remaining regulation time. Overtime
 
 Roster, lineup, score, game, source, settings, and availability changes mark affected forecasts stale. A scheduled worker claims bounded batches. A three-minute lease prevents overlapping work. A newer input revision rejects an older result. Reads enforce league membership. Clients cannot publish forecasts or claim work.
 
-Each result includes its model version, calculation time, input revision, coverage, and source details. Cached forecasts expire at the next known tipoff or after six hours. An expired result stays explicitly stale until recalculated.
+Each result includes its model version, calculation time, input revision, coverage, and source details. During games, forecasts update every 30 minutes and once at matchup end.
+Outside those windows, dirty inputs wait without repeated computation.
+The current input revision still rejects stale publication.
+See [scheduler operations](operations-scheduler.md) for the approved cadence.
 
 The release deploys the database before the `matchup-forecast` Edge worker and the frontend.
 See the [release order](../supabase/RELEASE-DB.md#release-order-for-this-release).
@@ -56,7 +59,7 @@ The cache check covers membership, invalidation, claim tokens, expiry, and rejec
 The worker prepares missing player-history and projection inputs before the context read.
 Player history uses at most thirty completed played games before the requested date.
 Preparation runs in bounded batches and preserves the original scoring calculation.
-Stored season totals update projection inputs when player statistics change.
+Stored season totals update projection inputs at game end and on final-stat corrections.
 Date, scoring settings, player identity, and source revisions separate cached inputs.
 Changed inputs invalidate the matching preparation state.
 The context reader checks readiness and cannot publish an obsolete revision.

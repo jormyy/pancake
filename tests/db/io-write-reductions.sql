@@ -59,6 +59,7 @@ BEGIN
   PERFORM public.save_live_game_stats_atomic(game,provider,jsonb_set(stats,'{0,points}','21'),601);
   PERFORM pg_temp.check_rules(NOT EXISTS(SELECT 1 FROM io_writes WHERE relation_name='public.player_game_stats'),'advancing clock preserves unchanged stat lines');
   PERFORM pg_temp.check_rules((SELECT count(*)=1 FROM io_writes WHERE relation_name='public.nba_games'),'advancing clock retains the ordering fence');
+  PERFORM public.save_live_scoreboard_atomic(game,provider,'Final',31,20,'Final',2880);
   INSERT INTO public.matchups(id,league_id,league_season_id,week_number,home_member_id,away_member_id,home_points,away_points)
     VALUES(matchup,f.league_id,f.season_id,1,f.member_ids[1],f.member_ids[2],42,31);
   INSERT INTO public.trades(id,league_id,league_season_id,proposer_member_id,recipient_member_id)
@@ -67,13 +68,13 @@ BEGIN
     VALUES(trade,f.league_id,f.member_ids[1],now(),0,true),(trade,f.league_id,f.member_ids[2],now(),1,false);
   INSERT INTO public.trade_items(trade_id,side,from_member_id,to_member_id,faab_amount)
     VALUES(trade,'proposer',f.member_ids[1],f.member_ids[2],1);
-  trade_values:=jsonb_build_array(jsonb_build_object('tradeId',trade,'revaluation',jsonb_build_object(
-    'analysis','{"teams":[]}'::jsonb,'modelVersion','io-fixture',
-    'inputVersion',public.get_trade_revaluation_inputs(f.user_ids[1],f.member_ids[1],trade)->>'inputVersion')));
   SELECT q.version INTO v_version FROM private.screen_refresh_queue q WHERE league_season_id=f.season_id;
   PERFORM private.refresh_standings(f.league_id,f.season_id,v_version);
   PERFORM private.refresh_matchup_totals(f.league_id,f.season_id,v_version);
   PERFORM private.refresh_player_averages(f.league_id,f.season_id,v_version);
+  trade_values:=jsonb_build_array(jsonb_build_object('tradeId',trade,'revaluation',jsonb_build_object(
+    'analysis','{"teams":[]}'::jsonb,'modelVersion','io-fixture',
+    'inputVersion',public.get_trade_revaluation_inputs(f.user_ids[1],f.member_ids[1],trade)->>'inputVersion')));
   PERFORM private.refresh_trade_values(f.league_id,f.season_id,v_version,trade_values);
   PERFORM pg_temp.check_rules(EXISTS(SELECT 1 FROM public.player_season_averages WHERE league_season_id=f.season_id),'average fixture contains a row');
   UPDATE private.screen_refresh_queue SET version=version+1 WHERE league_season_id=f.season_id;
@@ -140,7 +141,8 @@ BEGIN
   result:=private.retain_cron_job_run_details(reference_time);
   PERFORM pg_temp.check_rules((result->>'cron.job_run_details')::int=0 AND NOT EXISTS(SELECT 1 FROM io_writes),'unchanged retained history writes no rows');
   PERFORM pg_temp.check_rules((SELECT count(*)=1 AND bool_and(schedule='12 * * * *') FROM cron.job WHERE jobname='io-cron-history-retention'),'cron retention has one bounded hourly schedule');
-  PERFORM pg_temp.check_rules((SELECT count(*)=1 AND bool_and(schedule='* * * * *') FROM cron.job WHERE jobname='io-hint-drain'),'hint drain keeps a minute wake without edge work');
+  PERFORM pg_temp.check_rules((SELECT count(*)=1 AND bool_and(schedule='* * * * *') FROM cron.job WHERE jobname='work-dispatcher')
+    AND NOT EXISTS(SELECT 1 FROM cron.job WHERE jobname='io-hint-drain'),'the minute dispatcher owns the hint drain without a second cron fork');
   PERFORM private.work_enqueue('player-stats-hints','io-dedupe');
   UPDATE private.work_items SET status='succeeded',completed_at=now() WHERE kind='player-stats-hints' AND key='io-dedupe';
   SELECT last_value INTO run FROM private.work_items_id_seq;
@@ -159,6 +161,7 @@ $$;
 TRUNCATE public.leagues CASCADE;
 TRUNCATE public.sync_jobs,public.edge_invocations,private.work_items CASCADE;
 TRUNCATE private.player_stats_hint_pending,private.league_hint_pending;
+TRUNCATE private.forecast_refresh_requests,private.matchup_forecast_expiries,private.notification_scan_state,private.notification_scan_dirty;
 TRUNCATE io_writes;
 DO $$
 DECLARE sequence_value bigint;

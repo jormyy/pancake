@@ -9,6 +9,12 @@ DECLARE v_item private.work_items%ROWTYPE; v_count integer:=0;
 BEGIN
   IF (SELECT paused FROM private.worker_controls WHERE id) THEN RETURN 0; END IF;
   IF NOT pg_try_advisory_xact_lock(hashtextextended('public.dispatch_work',0)) THEN RETURN 0; END IF;
+  BEGIN
+    PERFORM private.flush_player_stats_hints();
+    PERFORM private.flush_league_inventory_hints(1000);
+  EXCEPTION WHEN OTHERS THEN
+    RAISE WARNING 'Hint publication will retry: %',SQLERRM;
+  END;
   PERFORM private.release_stalled_live_poll();
   v_count:=private.dispatch_live_matchup_refresh();
   v_level:=private.apply_scheduler_health(private.scheduler_health());
@@ -44,7 +50,7 @@ BEGIN
     WHERE status IN ('pending','failed') AND due_at<=now()
       OR status='running' AND lease_until<=now()) THEN RETURN v_count; END IF;
   LOOP
-    EXIT WHEN v_count>=4 OR clock_timestamp()-v_started>=interval '2 seconds';
+    EXIT WHEN v_count>=32 OR clock_timestamp()-v_started>=interval '2 seconds';
     IF v_level='normal' THEN
       SELECT * INTO v_item FROM private.work_claim(1);
     ELSE
@@ -53,7 +59,7 @@ BEGIN
         SELECT id FROM private.work_items WHERE status IN ('pending','failed') AND due_at<=now()
           AND kind=ANY(v_kinds)
           AND (SELECT count(*) FROM private.work_items WHERE status='running' AND lease_until>clock_timestamp())<4
-        ORDER BY due_at,id LIMIT 1 FOR UPDATE SKIP LOCKED
+        ORDER BY CASE WHEN kind='live-poll' THEN 0 ELSE 1 END,due_at,id LIMIT 1 FOR UPDATE SKIP LOCKED
       )
       UPDATE private.work_items item SET status='running',attempts=attempts+1,
         lease_token=gen_random_uuid(),lease_until=clock_timestamp()+interval '5 minutes',invocation_key=NULL

@@ -1,3 +1,4 @@
+import { evidencePath } from '../helpers/evidence-path.mjs'
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import { readFileSync, writeFileSync } from 'node:fs'
@@ -66,6 +67,6 @@ const followups=[...groups.values()].map(rows=>{
 })
 assert.ok(parity.every(row=>row.equal&&row.responseControl==='rejected'&&row.rowControl==='rejected'))
 const privateHelpers=Object.fromEntries([...new Set(samples.map(row=>row.name))].map(name=>[name,[...new Set(samples.filter(row=>row.name===name).flatMap(row=>row.functions.filter(fn=>fn.schemaname==='private').map(fn=>fn.funcname)))].sort()]))
-writeFileSync('tests/db/league-actions-results.json',JSON.stringify({concurrentWithOtherLanes:true,installed,scenario,measurement:{harnessSha256:metadata.harness,scoped:metadata.scoped,transport:'CLI local psql'},runtime:JSON.parse(readFileSync(path.join(directory,'stack.json'),'utf8')),sampleSha256:createHash('sha256').update(source).digest('hex'),windows:[...new Set(samples.map(row=>row.window))],samples:samples.length,summary,paired,privateHelpers,followups,parity},null,2)+'\n')
-writeFileSync('tests/db/league-actions-table.md',lines.join('\n')+'\n\n'+differences.join('\n')+'\n')
+writeFileSync(evidencePath('league-actions-results.json'),JSON.stringify({concurrentWithOtherLanes:true,installed,scenario,measurement:{harnessSha256:metadata.harness,scoped:metadata.scoped,transport:'CLI local psql'},runtime:JSON.parse(readFileSync(path.join(directory,'stack.json'),'utf8')),sampleSha256:createHash('sha256').update(source).digest('hex'),windows:[...new Set(samples.map(row=>row.window))],samples:samples.length,summary,paired,privateHelpers,followups,parity},null,2)+'\n')
+writeFileSync(evidencePath('league-actions-table.md'),lines.join('\n')+'\n\n'+differences.join('\n')+'\n')
 process.stdout.write(JSON.stringify({samples:samples.length,groups:summary.length,parity:parity.length})+'\n')

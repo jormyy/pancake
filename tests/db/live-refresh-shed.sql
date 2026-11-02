@@ -33,6 +33,8 @@ BEGIN
   PERFORM pg_temp.check_rules(points=25,'the stat line publishes 25 fantasy points');
   PERFORM pg_temp.check_rules((SELECT home_points=0 FROM public.matchup_totals WHERE matchup_id=matchup),
     'the cache awaits its essential refresh');
+  PERFORM pg_temp.check_rules(NOT EXISTS(SELECT 1 FROM private.live_matchup_refresh_queue WHERE matchup_id=matchup),'ordinary saves do not recreate the retired per-tick queue');
+  INSERT INTO private.live_matchup_refresh_queue(matchup_id) VALUES(matchup);
   DELETE FROM private.work_items;
   PERFORM private.work_enqueue('refresh-views','shed-heavy',now(),'{}',fixture.league_id);
   INSERT INTO private.work_items(kind,key,status,attempts,due_at,lease_token,lease_until,payload)
@@ -51,6 +53,7 @@ BEGIN
   SELECT public.compute_fantasy_points(stat,fixture.league_id) INTO points;
   PERFORM public.update_score_points_atomic(fixture.league_id,fixture.season_id,1,
     jsonb_build_array(jsonb_build_object('id',matchup,'home_points',points,'away_points',0)));
+  INSERT INTO private.live_matchup_refresh_queue(matchup_id) VALUES(matchup);
   PERFORM public.dispatch_work();
   PERFORM pg_temp.check_rules((SELECT home_points=26 FROM public.matchup_totals WHERE matchup_id=matchup),
     'a second change in the same minute is not suppressed by the earlier receipt');
@@ -68,6 +71,7 @@ BEGIN
     VALUES('0029631001',9631,1,today,'BOS','NYK','InProgress',now()-interval '30 minutes');
   INSERT INTO public.matchups(league_id,league_season_id,week_number,home_member_id,away_member_id,home_points,away_points)
     SELECT fixture.league_id,fixture.season_id,n,fixture.member_ids[1],fixture.member_ids[2],n,0 FROM generate_series(1,9) n;
+  INSERT INTO private.live_matchup_refresh_queue(matchup_id) SELECT id FROM public.matchups WHERE league_id=fixture.league_id;
   SELECT private.refresh_live_matchup_totals() INTO count;
   PERFORM pg_temp.check_rules(count=8,'one live refresh statement consumes at most eight pending matchups');
   PERFORM pg_temp.check_rules((SELECT count(*)=8 FROM public.matchup_totals WHERE league_id=fixture.league_id),

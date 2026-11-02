@@ -1,12 +1,7 @@
 BEGIN;
+\ir require-loopback-api.sql
 SET LOCAL statement_timeout='15s';
 SET LOCAL lock_timeout='500ms';
-\getenv concurrency_api_url SUPABASE_URL
-\if :{?concurrency_api_url}
-SELECT set_config('app.supabase_url',:'concurrency_api_url',true);
-\else
-SELECT set_config('app.supabase_url','http://127.0.0.1:1',true);
-\endif
 SET LOCAL app.edge_internal_token='worker-bound-fixture';
 DELETE FROM private.work_items;
 DO $$
@@ -34,6 +29,10 @@ BEGIN
   FOR n IN 1..8 LOOP
     PERFORM private.work_enqueue('process-trades','dispatch-bound-'||n,now()-interval '2 days',jsonb_build_object('worker',n));
   END LOOP;
+  CREATE OR REPLACE FUNCTION private.enqueue_scheduled_work(p_now timestamptz DEFAULT now())
+  RETURNS void LANGUAGE plpgsql AS $fn$ BEGIN RETURN; END; $fn$;
+  CREATE OR REPLACE FUNCTION private.work_execute(p_id bigint,p_token uuid)
+  RETURNS void LANGUAGE plpgsql AS $fn$ BEGIN RETURN; END; $fn$;
   claimed:=public.dispatch_work();
   IF claimed<>4 THEN RAISE EXCEPTION 'A dispatch minute starts % workers instead of four',claimed; END IF;
   IF (SELECT count(*) FROM private.work_items WHERE status='running')<>4 THEN RAISE EXCEPTION 'Dispatch exceeds its concurrent limit'; END IF;

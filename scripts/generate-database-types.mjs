@@ -32,11 +32,12 @@ export type DraftPick = Database["public"]["Tables"]["draft_picks"]["Row"]
 
 /** @type {Map<string, Set<string>>} */
 const nullableRpcArguments = new Map([
-  ['activate_roster_player_with_lineup_atomic', new Set([
+  ['activate_roster_player_with_lineup_atomic.Args', new Set([
     'p_free_action',
     'p_free_roster_player_id',
     'p_slot_type',
   ])],
+  ['get_live_checkpoint_work.Returns', new Set(['checkpoint_at', 'game_time'])],
 ])
 
 /** @typedef {{ start: number, end: number, text: string }} TextReplacement */
@@ -51,11 +52,12 @@ const applyRpcArgumentOverrides = (generated) => {
   const visit = (node, propertyPath = []) => {
     const name = ts.isPropertySignature(node) && node.name ? node.name.getText(sourceFile).replaceAll(/["']/g, '') : null
     const nextPath = name ? [...propertyPath, name] : propertyPath
-    if (ts.isPropertySignature(node) && node.type && propertyPath.at(-1) === 'Args') {
+    if (ts.isPropertySignature(node) && node.type && ['Args', 'Returns'].includes(propertyPath.at(-1))) {
       const rpcName = propertyPath.at(-2)
-      const expectedArguments = rpcName ? nullableRpcArguments.get(rpcName) : undefined
+      const section = propertyPath.at(-1)
+      const expectedArguments = rpcName ? nullableRpcArguments.get(`${rpcName}.${section}`) : undefined
       if (name && expectedArguments?.has(name)) {
-        const matchKey = `${rpcName}.${name}`
+        const matchKey = `${rpcName}.${section}.${name}`
         const typeText = node.type.getText(sourceFile)
         replacements.push({
           start: node.type.getStart(sourceFile),

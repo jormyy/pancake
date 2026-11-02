@@ -5,6 +5,10 @@
 CREATE OR REPLACE FUNCTION private.queue_matchup_forecast_expiry()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
 BEGIN
+  IF EXISTS(SELECT 1 FROM public.matchups WHERE id=NEW.matchup_id AND is_finalized) THEN
+    DELETE FROM private.matchup_forecast_expiries WHERE matchup_id=NEW.matchup_id;
+    RETURN NULL;
+  END IF;
   INSERT INTO private.matchup_forecast_expiries AS queued(matchup_id,available_at)
     VALUES(NEW.matchup_id,NEW.valid_until)
   ON CONFLICT(matchup_id) DO UPDATE SET available_at=EXCLUDED.available_at

@@ -8,7 +8,7 @@ BEGIN
   IF EXISTS (SELECT 1 FROM public.live_poll_leases WHERE lock_key = 779001 AND expires_at > p_now) THEN
     RETURN;
   END IF;
-  IF EXISTS (SELECT 1 FROM public.get_live_poll_work(p_now)) THEN
+  IF EXISTS (SELECT 1 FROM public.get_live_checkpoint_work(p_now)) THEN
     PERFORM private.work_enqueue('live-poll',date_trunc('minute',p_now)::text,p_now);
     RETURN;
   END IF;

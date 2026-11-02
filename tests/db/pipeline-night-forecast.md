@@ -45,8 +45,8 @@ Reproduction uses Node 22 and the local controller from [the pipeline report](pi
 PIPELINE_BASELINE_REF=505d7734 node tests/db/pipeline-night-fresh.mjs forecast-blocked-final private/enqueue_matchup_forecasts,private/enqueue_scheduled_work,private/complete_forecast_input_chunk
 ```
 
-Use `forecast-settled-final` as the output name for settled idle. [Portable results](pipeline-night-forecast-results.json) retain checkpoint hashes, arm order, backend IDs, counts, and timings. Raw full checkpoint JSON remains in `/tmp/fable-l7/evidence/`.
+Use `forecast-settled-final` as the output name for settled idle. Portable results (external evidence: `pipeline-night-forecast-results.json`) retain checkpoint hashes, arm order, backend IDs, counts, and timings. Raw full checkpoint JSON remains in `/tmp/fable-l7/evidence/`.
 
 The locally reproduced cause is sufficient to generate empty minute wakeups. It does not establish that production has a held input scope. The restored data and the settled-day control do not reproduce the reported permanent loop. [Diagnostic SQL](pipeline-night-forecast-diagnostics.sql) records the missing queue state and full normalized slow RPC statements. The supplied snapshots end after the common REST parameter list, so exact attribution of the 750/342/176 ms rows is unavailable. All 26 matching signatures are listed in the portable results. No out-of-scope view or edge bookkeeping function is edited.
 
-[Cleanup proof](pipeline-night-forecast-cleanup.json) confirms this project's containers, volumes, and network are absent. Local config is restored. Backup copies are deleted and the original backup hashes are unchanged. No production request, external notification, push, deployment, or CI run occurred.
+Cleanup proof (external evidence: `pipeline-night-forecast-cleanup.json`) confirms this project's containers, volumes, and network are absent. Local config is restored. Backup copies are deleted and the original backup hashes are unchanged. No production request, external notification, push, deployment, or CI run occurred.

@@ -179,3 +179,21 @@ Deno.test('a scheduled game with a Final NBA scoreboard still requests its box a
     return Response.json([])
   })
 })
+
+Deno.test('checkpoint reads request only the selected games and retain retries', async () => {
+  const original=globalThis.fetch
+  const requests: { name: string; body: unknown }[]=[]
+  globalThis.fetch=async(input,init)=>{
+    const request=new Request(input,init)
+    const name=new URL(request.url).pathname.split('/').at(-1)!
+    requests.push({name,body:await request.json()})
+    assert.equal(name,'get_live_checkpoint_inputs')
+    return requests.length===1 ? Response.json(lockTimeout,{status:500}) : Response.json([])
+  }
+  try {
+    const result=await ingestTick(holder,undefined,new Set([holder]))
+    assert.equal(result.worked,false)
+    assert.equal(result.tickRetries,1)
+    assert.deepEqual(requests.map(row=>row.body),[{p_game_ids:[holder]},{p_game_ids:[holder]}])
+  }finally {globalThis.fetch=original}
+})

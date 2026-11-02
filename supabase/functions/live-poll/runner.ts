@@ -11,20 +11,28 @@ import { recordSyncRun } from '../_shared/syncRuns.ts'
 import { errorMessage } from '../_shared/responses.ts'
 import { startLeaseHeartbeat } from '../_shared/leaseHeartbeat.ts'
 import { LIVE_POLL_LEASE_TTL_SECONDS, LIVE_POLL_LOCK_KEY } from '../_shared/livePoll.ts'
-import { withWorkContext, withLiveScoreRetries } from '../_shared/workContext.ts'
+import { renewLivePollLease } from './lease.ts'
+import { withWorkContext, withLiveScoreRetries, withPublicCheckpoint } from '../_shared/workContext.ts'
 import { retryDatabaseContention } from '../_shared/databaseRetry.ts'
 import type { Database } from '../_shared/database.ts'
+import type { LiveGameCache } from '../_shared/liveFeed.ts'
+import { createCheckpointPoller } from './checkpoint.ts'
+import type { LiveTick } from './checkpoint.ts'
+import { fetchLiveSnapshot } from '../_shared/liveSnapshot.ts'
 
-const LIVE_TICK_MS = 20_000
+const LIVE_TICK_MS = 30_000
 const LIVE_TICK_BUDGET_MS = 18_000
 const LIVE_RUN_MS = 110_000
 
-type LiveGame = Database['public']['Functions']['get_live_poll_work']['Returns'][number]
+type LiveGame = Omit<Database['public']['Functions']['get_live_poll_work']['Returns'][number], 'live_cache'> & { live_cache?: LiveGameCache }
 
-async function loadWork(): Promise<LiveGame[]> {
-  const { data, error } = await supabase.rpc('get_live_poll_work').abortSignal(AbortSignal.timeout(5000))
+async function loadWork(gameIds?: ReadonlySet<string>): Promise<LiveGame[]> {
+  const request = gameIds
+    ? supabase.rpc('get_live_checkpoint_inputs', { p_game_ids: [...gameIds] })
+    : supabase.rpc('get_live_poll_work')
+  const { data, error } = await request.abortSignal(AbortSignal.timeout(5000))
   if (error) throw error
-  return data ?? []
+  return (data ?? []).map(game => ({ ...game, live_cache: (game.live_cache as LiveGameCache | null) ?? undefined }))
 }
 
 async function stampAttempts(holder: string, checkedIds: string[], statIds: string[]): Promise<void> {
@@ -62,15 +70,16 @@ async function discoverEspnGames(work: LiveGame[], events: EspnEvent[]): Promise
   return [...work, ...extra]
 }
 
-export async function ingestTick(holder: string, onRetry?: () => void): Promise<{ lines: number; keepRunning: boolean; worked: boolean; failures: string[]; scoreRetries: number; tickRetries: number }> {
+export async function ingestTick(holder: string, onRetry?: () => void, gameIds?: ReadonlySet<string>): Promise<LiveTick> {
   let tickRetries = 0
   const retry = <T>(run: () => Promise<T>, failures?: (result: T) => unknown[]) => retryDatabaseContention(run, {
     failures, onRetry: () => { tickRetries++; onRetry?.() },
   })
-  let work = (await retry(loadWork)).filter((game): game is LiveGame & { nba_game_id: string } => !!game.nba_game_id)
+  const select = (rows: LiveGame[]) => rows.filter((game): game is LiveGame & { nba_game_id: string } => !!game.nba_game_id && (!gameIds || gameIds.has(game.id)))
+  let work = select(await retry(() => loadWork(gameIds)))
   if (!work.length) return { lines: 0, keepRunning: false, worked: false, failures: [], scoreRetries: 0, tickRetries }
   const boardGames = work.filter(game => game.needs_scoreboard)
-  await retry(() => stampAttempts(holder, boardGames.map(game => game.id), []))
+  await retry(() => stampAttempts(holder, boardGames.filter(game => game.status === 'Scheduled').map(game => game.id), []))
   const dates = [...new Set(work.map(game => game.game_date).filter(Boolean))]
   if (!dates.length) dates.push(new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' }))
   const espn = work.some(game => game.status !== 'Final')
@@ -78,10 +87,7 @@ export async function ingestTick(holder: string, onRetry?: () => void): Promise<
       console.warn('[live-poll] ESPN scoreboard unavailable; using NBA:', errorMessage(error))
       return []
     }) : Promise.resolve([])
-  const nba = boardGames.length ? recordSyncRun('source:nba-cdn-scoreboard', async () => {
-    const games = await fetchTodaysGames(2500)
-    return { result: games, rowsAffected: games.length }
-  }).catch(error => {
+  const nba = boardGames.length ? fetchTodaysGames(2500).catch(error => {
     console.warn('[live-poll] NBA scoreboard unavailable:', errorMessage(error))
     return []
   }) : Promise.resolve([])
@@ -90,11 +96,11 @@ export async function ingestTick(holder: string, onRetry?: () => void): Promise<
   if (boardGames.length) {
     const fallbackBoards = nbaScoreboard.filter(game => game.gameStatus !== 2 ||
       !work.some(stored => stored.nba_game_id === game.gameId && hasEspnLiveGame(stored, events)))
-    await retry(() => saveScoreboardGames(fallbackBoards, work))
-    work = (await retry(loadWork)).filter((game): game is LiveGame & { nba_game_id: string } => !!game.nba_game_id)
+    await retry(() => saveScoreboardGames(gameIds ? fallbackBoards.filter(board => work.some(game => game.nba_game_id === board.gameId)) : fallbackBoards, work))
+    work = select(await retry(() => loadWork(gameIds)))
   }
   for (const game of nbaFinalWork) if (!work.some(row => row.id === game.id)) work.push(game)
-  work = (await retry(() => discoverEspnGames(work, events))).filter((game): game is LiveGame & { nba_game_id: string } => !!game.nba_game_id)
+  work = gameIds ? work : select(await retry(() => discoverEspnGames(work, events)))
   const statsGames = work.filter(game => game.needs_stats || hasEspnLiveGame(game, events) || nbaFinalWork.some(row => row.id === game.id))
   await retry(() => stampAttempts(holder, [], statsGames.filter(game => game.status === 'Final').map(game => game.id)))
   let lines = 0
@@ -124,6 +130,7 @@ export async function ingestTick(holder: string, onRetry?: () => void): Promise<
 }
 
 export async function runLivePoll(request: Request): Promise<Response> {
+  let leaseExpiresAt = Date.now() + LIVE_POLL_LEASE_TTL_SECONDS * 1000
   const { data: holder, error } = await supabase.rpc('try_live_poll_lease', {
     p_lock_key: LIVE_POLL_LOCK_KEY, p_ttl_seconds: LIVE_POLL_LEASE_TTL_SECONDS,
   }).abortSignal(AbortSignal.timeout(5000))
@@ -131,13 +138,15 @@ export async function runLivePoll(request: Request): Promise<Response> {
   if (!holder) return Response.json({ ok: true, action: 'lease-skip', ticks: 0 })
   const controller = new AbortController()
   const deadline = setTimeout(() => controller.abort(new Error('Live ingestion reached its wall-clock limit')), 115_000)
-  const heartbeat = startLeaseHeartbeat(async () => {
+  const heartbeat = startLeaseHeartbeat(() => renewLivePollLease(async timeoutMs => {
+    const requestedAt = Date.now()
     const { data, error } = await supabase.rpc('renew_live_poll_lease', {
       p_lock_key: LIVE_POLL_LOCK_KEY, p_holder_id: holder, p_ttl_seconds: LIVE_POLL_LEASE_TTL_SECONDS,
-    }).abortSignal(AbortSignal.timeout(5000))
+    }).abortSignal(AbortSignal.timeout(timeoutMs))
     if (error) throw error
+    if (data === true) leaseExpiresAt = requestedAt + LIVE_POLL_LEASE_TTL_SECONDS * 1000
     return data === true
-  }, LIVE_POLL_LEASE_TTL_SECONDS * 1000 / 3, error => controller.abort(error ?? new Error('Live poll lease lost')))
+  }, leaseExpiresAt - 1000), LIVE_POLL_LEASE_TTL_SECONDS * 1000 * 2 / 3, error => controller.abort(error ?? new Error('Live poll lease lost')))
   try {
     const result = await recordSyncRun('live-poll', async () => {
       const started = Date.now()
@@ -146,6 +155,22 @@ export async function runLivePoll(request: Request): Promise<Response> {
       let scoreRetries = 0
       let tickRetries = 0
       const failures: string[] = []
+      const sourceModes = new Set<string>()
+      const checkpointRetry = <T>(run: () => Promise<T>) => retryDatabaseContention(run,{ onRetry: () => { tickRetries++ } })
+      const sharedUrl = Deno.env.get('LIVE_SNAPSHOT_BASE_URL')
+      const checkpointTick = sharedUrl ? createCheckpointPoller({
+        load: () => checkpointRetry(async () => {
+          const { data, error } = await supabase.rpc('get_live_checkpoint_work').abortSignal(AbortSignal.timeout(5000))
+          if (error) throw error
+          return data ?? []
+        }),
+        snapshot: async date => (await fetchLiveSnapshot(new URL(`/api/live/${date}`, sharedUrl).href, AbortSignal.timeout(5000))).body,
+        ingest: (holder, gameIds, checkpointOnly) => withPublicCheckpoint(Boolean(checkpointOnly), () => ingestTick(holder, () => { tickRetries++ },gameIds)),
+        record: (holder, gameIds) => checkpointRetry(async () => {
+          const { error } = await supabase.rpc('record_live_checkpoint',{p_holder:holder,p_game_ids:gameIds}).abortSignal(AbortSignal.timeout(5000))
+          if (error) throw error
+        }),
+      }) : null
       for (let next = started; next < started + LIVE_RUN_MS; next += LIVE_TICK_MS) {
         if (controller.signal.aborted || heartbeat.lost) break
         const wait = next - Date.now()
@@ -160,7 +185,8 @@ export async function runLivePoll(request: Request): Promise<Response> {
         }
         try {
           const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(LIVE_TICK_BUDGET_MS)])
-          const tick = await withWorkContext({ signal, livePollHolder: holder }, () => ingestTick(holder, () => { tickRetries++ }))
+          const tick = await withWorkContext({ signal, livePollHolder: holder }, () => checkpointTick ? checkpointTick(holder) : ingestTick(holder, () => { tickRetries++ }))
+          sourceModes.add(tick.sourceMode ?? 'database')
           if (tick.worked) ticks++
           statLines += tick.lines
           scoreRetries += tick.scoreRetries
@@ -174,7 +200,7 @@ export async function runLivePoll(request: Request): Promise<Response> {
       }
       if (controller.signal.aborted || heartbeat.lost) failures.push(errorMessage(controller.signal.reason))
       return {
-        result: { ok: failures.length === 0, action: 'loop', ticks, statLines, scoreRetries, tickRetries, elapsedMs: Date.now() - started, failures },
+        result: { ok: failures.length === 0, action: 'loop', ticks, statLines, scoreRetries, tickRetries, sourceModes: [...sourceModes], elapsedMs: Date.now() - started, failures },
         rowsAffected: statLines, failure: failures.length ? failures.join('; ') : null,
       }
     }, request)

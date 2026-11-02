@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261214006200",
+  "candidateVersion": "20261214007500",
   "common": {
     "functions": [
       {
@@ -618,7 +618,7 @@
           "strict": false,
           "language": "plpgsql",
           "arguments": "p_now timestamp with time zone DEFAULT now()",
-          "bodySha256": "4ef37559f447505dc7d3b30861439f9a2e30954a607922f463b6c42163698a80",
+          "bodySha256": "d1141a00e4624f8c38907caba0ca5de683daaa439bce7804835fa066b9e8e8a8",
           "volatility": "v",
           "anonExecute": false,
           "publicExecute": false,
@@ -758,7 +758,7 @@
           "strict": false,
           "language": "plpgsql",
           "arguments": "p_limit integer DEFAULT 64",
-          "bodySha256": "953083a45b2ba19bcc734918ae644245888b6bcfb48ebce7537877dc0303d92e",
+          "bodySha256": "4f8b5a24851815048449340a7f02179d6779ec3cc1bb15f8b035168720833718",
           "volatility": "v",
           "anonExecute": false,
           "publicExecute": false,
@@ -818,7 +818,7 @@
           "strict": false,
           "language": "plpgsql",
           "arguments": "p_id bigint, p_token uuid",
-          "bodySha256": "8b0168028fe7ff615dc5c35c982fdab1338f8794aeb4fe8233818f037e6357a9",
+          "bodySha256": "5dac56872b8a49a5ee25a4e8df4a0a4ca77e553dacd73e764cb555a01fc09f0a",
           "volatility": "v",
           "anonExecute": false,
           "publicExecute": false,
@@ -858,7 +858,7 @@
           "strict": false,
           "language": "plpgsql",
           "arguments": "",
-          "bodySha256": "abba2fc6b82a624d67f4c1ca0fd6a0c630c33c08a75c70676b3a49975527cc1c",
+          "bodySha256": "9a5fa3d964dda386f219911c6c27b9406d99f8fe0372dceb35ccc65a860a7ac8",
           "volatility": "v",
           "anonExecute": false,
           "publicExecute": false,
@@ -2530,6 +2530,58 @@
     {
       "filename": "20261214006200_skip_empty_statement_triggers.sql",
       "sha256": "4c16a82af69531f310ca7f7dd3d37af9a4ccd6c3c45757fbf30878c6913d3b85"
+    },
+    {
+      "filename": "20261214006300_schedule_half_gig.sql",
+      "sha256": "c6e5ce9ad7f957a6f4c863e3ff78bb20288039f45fa238f2dfb83518706bf114"
+    },
+    {
+      "filename": "20261214006400_live_path_half_gig.sql",
+      "sha256": "31b36405d48a87d7fd8367db63742135f17475ebf56859d95422046a8ab0f208"
+    },
+    {
+      "filename": "20261214006500_memory_half_gig.sql",
+      "sha256": "11e4bb172db9a7670d5caf2c481b934a8c641254ac50c184b63a5fbcc9df5908"
+    },
+    {
+      "filename": "20261214006600_nightly_pick_predictions.sql",
+      "sha256": "cea5663bd6f445ca9a90c62d5d521eaea5681f05fbb06c7e5bf3c005c5a9edb1"
+    },
+    {
+      "filename": "20261214006700_live_score_view.sql",
+      "sha256": "670bcaba61c7763609c025340d54fe538254cb538683beefdfce1dd6abc7d2f0"
+    },
+    {
+      "filename": "20261214006800_public_live_checkpoints.sql",
+      "sha256": "0a042e227ec83542681e53a6d85631f60533b15557de58230a5930934bda049b"
+    },
+    {
+      "filename": "20261214006900_limit_live_basis_to_displayed_players.sql",
+      "sha256": "ee65a00ff4fe25fb55c24513087469564055b3b7b4b4a786bcd0c030862694b0"
+    },
+    {
+      "filename": "20261214007000_dispatch_short_work_without_starving_live.sql",
+      "sha256": "a7d6c5a2de1e53eb473f3e9e0d2125922866a94aaf6703357e8cfb0b2aa328b6"
+    },
+    {
+      "filename": "20261214007100_compact_live_dispatch_candidates.sql",
+      "sha256": "a4c3c9057681981a4bb0ab2a7765aa4fba06c1cb1492545270eb0fc272b4ee08"
+    },
+    {
+      "filename": "20261214007200_prioritize_queued_live_ingestion.sql",
+      "sha256": "e32b57be46dd2745829c94e311991dfc32096d6319f2899b9049bdfa2ac09d71"
+    },
+    {
+      "filename": "20261214007300_limit_checkpoint_input_reads.sql",
+      "sha256": "7ea0159d1cf90e3a6394349d1ae610abf705eafc3c95394ed3e79a0d3e6b4cee"
+    },
+    {
+      "filename": "20261214007400_scope_and_compact_home_updates.sql",
+      "sha256": "eef6b9d87af6ac36435fbf1c6a1ec5b272890b1223beaca1513b8f1140ab267c"
+    },
+    {
+      "filename": "20261214007500_batch_transaction_broadcasts.sql",
+      "sha256": "4f12698b41931c4ce7d37fc2f8ab28eda1059abccd5ad9ba0628d8abe0650418"
     }
   ],
   "preMigration": {

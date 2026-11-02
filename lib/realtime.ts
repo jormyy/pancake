@@ -18,7 +18,7 @@ const subscriptionCleanups = new WeakMap<RealtimeChannel, () => void>()
 const broadcastCleanups = new WeakMap<RealtimeChannel, () => Promise<void>>()
 const broadcastHandles = new WeakSet<RealtimeChannel>()
 type ChangePayload = Parameters<TableChangeWatch['onChange']>[0]
-type HintBatch = { hints: { event: ChangePayload['eventType']; row: Record<string, unknown> }[] }
+type HintBatch = { hints: { event?: ChangePayload['eventType']; row?: Record<string, unknown>; payload?: ChangePayload }[] }
 type BroadcastListener = { receive: (payload: ChangePayload) => void; status: (status: RealtimeSubscriptionStatus) => void }
 type BroadcastConnection = { channel: RealtimeChannel; listeners: Set<BroadcastListener>; status?: RealtimeSubscriptionStatus; started: boolean }
 const broadcasts = new Map<string, BroadcastConnection>()
@@ -60,6 +60,7 @@ function acquireBroadcast(topic: string, listener: BroadcastListener): Broadcast
         connection.channel.on('broadcast', { event: 'change' }, ({ payload }: { payload: ChangePayload | HintBatch }) => {
             if (!payload || typeof payload !== 'object') return
             const changes: ChangePayload[] = 'hints' in payload ? Array.isArray(payload.hints) ? payload.hints.flatMap(hint => {
+                if (hint?.payload && typeof hint.payload === 'object') return [hint.payload]
                 if (!hint || !hint.row || typeof hint.row !== 'object') return []
                 const row = { league_id: topic.split(':')[2], ...hint.row }
                 return [{ schema: 'public', table: 'league_change_hints', eventType: hint.event,

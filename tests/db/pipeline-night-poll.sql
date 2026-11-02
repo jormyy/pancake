@@ -55,8 +55,8 @@ BEGIN
     SELECT id,CASE WHEN right(nba_game_id,1)::int%2=0 THEN ref ELSE ref-interval '30 minutes' END,
       CASE WHEN right(nba_game_id,1)::int%2=0 THEN ref ELSE ref-interval '30 minutes' END
     FROM public.nba_games WHERE season_year=9998 AND right(nba_game_id,1)::int%3<>0;
-    SELECT coalesce(jsonb_agg(to_jsonb(w) ORDER BY w.game_date,w.id),'[]') INTO expected FROM pg_temp.pipeline_poll_reference(ref) w;
-    SELECT coalesce(jsonb_agg(to_jsonb(w) ORDER BY w.game_date,w.id),'[]') INTO actual FROM public.get_live_poll_work(ref) w;
+    SELECT coalesce(jsonb_agg(to_jsonb(w)-'live_cache' ORDER BY w.game_date,w.id),'[]') INTO expected FROM pg_temp.pipeline_poll_reference(ref) w;
+    SELECT coalesce(jsonb_agg(to_jsonb(w)-'live_cache' ORDER BY w.game_date,w.id),'[]') INTO actual FROM public.get_live_poll_work(ref) w;
     IF expected IS DISTINCT FROM actual THEN RAISE EXCEPTION 'Full poll result parity failed at %',ref; END IF;
     IF jsonb_array_length(expected)=0 THEN RAISE EXCEPTION 'Parity fixture has no work'; END IF;
     IF expected=expected-0 THEN RAISE EXCEPTION 'Dropped-result control did not fail'; END IF;

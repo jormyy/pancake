@@ -112,7 +112,10 @@ export async function runEdgeInvocation(
   invocationRuns.set(request, invocation)
   const controller = new AbortController()
   let renewal: Promise<void> | null = null
+  let renewedAt = Date.now()
+  const renewalInterval = functionName === 'live-poll' ? 120_000 : 30_000
   const renew = () => {
+    if (functionName === 'live-poll' && !controller.signal.aborted && Date.now() - renewedAt < renewalInterval) return Promise.resolve()
     renewal ??= withoutWorkContext(async () => {
       const { data, error } = await supabase.rpc('renew_work_lease', { p_invocation_key: key }).abortSignal(AbortSignal.timeout(5000))
       if (error) throw error
@@ -120,12 +123,13 @@ export async function runEdgeInvocation(
         controller.abort(new Error('Work lease lost'))
         throw new Error('Work lease lost')
       }
+      renewedAt = Date.now()
     }).finally(() => { renewal = null })
     return renewal
   }
   const heartbeat = work ? startLeaseHeartbeat(
     async () => { await renew(); return true },
-    30_000,
+    renewalInterval,
     () => controller.abort(new Error('Work lease lost')),
   ) : null
   let response: Response

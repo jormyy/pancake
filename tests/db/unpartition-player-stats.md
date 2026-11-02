@@ -15,8 +15,8 @@ The slowest screen fresh p95 is 77.09 ms. The slowest warm p95 is 50.99 ms.
 Every measured screen stays below 3,000 warm buffers; the largest p95 is 2,516.
 Warm version reads have a 0.12 ms p95. Trade legality stays below 100 ms.
 
-[Full tables](unpartition-tables.md) cover 27 screen functions, three supporting reads, one simple query, and five worker operations.
-[Generated results](unpartition-results.json) include separate planning and execution distributions, row counts, nested statements, and index use.
+Full tables (external evidence) cover 27 screen functions, three supporting reads, one simple query, and five worker operations.
+Generated results (external evidence) include separate planning and execution distributions, row counts, nested statements, and index use.
 Each before/after pair has five interleaved samples, both fresh and warm.
 Each fresh sample opens a new PostgreSQL connection.
 Each warm sample follows five calls on that same connection.

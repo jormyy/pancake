@@ -1,12 +1,27 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.chooseBestAssignments = exports.NBA_POSITIONS = exports.ROSTER_SLOT_TYPES = exports.WAIVER_CLAIM_STATUSES = exports.MATCHUP_TYPES = exports.TRADE_SIDES = exports.TRADE_STATUSES = exports.NOMINATION_STATUSES = exports.DRAFT_TYPES = exports.DRAFT_STATUSES = exports.LEAGUE_STATUSES = exports.valueDynastyAssets = exports.valueDynastyAsset = exports.DYNASTY_STRATEGIES = exports.DYNASTY_TRADE_MODEL_VERSION = exports.analyzeDynastyTrade = exports.utf8ByteLength = exports.MAX_TRADE_PARTICIPANTS = exports.MAX_TRADE_NOTES_BYTES = exports.MAX_TRADE_ITEMS = exports.MAX_TRADE_FAAB_AMOUNT = exports.MAX_TRADE_EXPIRATION_DAYS = exports.SLOT_TYPES = exports.LINEUP_SLOT_TYPES = exports.LINEUP_SLOT_ALLOWED_POSITIONS = exports.canPlayLineupSlot = exports.isTaxiEligible = exports.isDTD = exports.isIREligible = exports.livePollCandidateDates = exports.dateFromETDate = exports.addDaysToETDate = exports.LIVE_POLL_LOCK_KEY = exports.LIVE_POLL_LEASE_TTL_SECONDS = exports.todayET = exports.toETDate = exports.endOfETDayUTC = exports.seasonYearForGameDate = exports.seasonEndYearFromScheduleLabel = exports.normalizedScheduleTimestamp = exports.etDateKey = exports.buildSeasonWeekRows = exports.buildScheduleSyncPlan = exports.assertScheduleFresh = exports.resolveSeasonWeekNumber = exports.isRegularSeasonGameId = exports.currentSeasonYear = exports.snakeToStatLine = exports.roundFantasyPoints = exports.calculateFantasyPoints = void 0;
-exports.MATCHUP_FORECAST_VERSION = exports.sampleScoringVariation = exports.estimateMatchup = void 0;
+exports.LEAGUE_STATUSES = exports.valueDynastyAssets = exports.valueDynastyAsset = exports.DYNASTY_STRATEGIES = exports.DYNASTY_TRADE_MODEL_VERSION = exports.analyzeDynastyTrade = exports.utf8ByteLength = exports.MAX_TRADE_PARTICIPANTS = exports.MAX_TRADE_NOTES_BYTES = exports.MAX_TRADE_ITEMS = exports.MAX_TRADE_FAAB_AMOUNT = exports.MAX_TRADE_EXPIRATION_DAYS = exports.SLOT_TYPES = exports.LINEUP_SLOT_TYPES = exports.LINEUP_SLOT_ALLOWED_POSITIONS = exports.canPlayLineupSlot = exports.isTaxiEligible = exports.isDTD = exports.isIREligible = exports.livePollCandidateDates = exports.dateFromETDate = exports.addDaysToETDate = exports.LIVE_POLL_LOCK_KEY = exports.LIVE_POLL_LEASE_TTL_SECONDS = exports.todayET = exports.toETDate = exports.endOfETDayUTC = exports.seasonYearForGameDate = exports.seasonEndYearFromScheduleLabel = exports.normalizedScheduleTimestamp = exports.etDateKey = exports.buildSeasonWeekRows = exports.buildScheduleSyncPlan = exports.assertScheduleFresh = exports.resolveSeasonWeekNumber = exports.isRegularSeasonGameId = exports.currentSeasonYear = exports.decodeSavedLiveView = exports.homeVersionAffects = exports.homeHintAffects = exports.nextLiveRecovery = exports.LIVE_PHONE_POLL_MS = exports.readLiveSnapshot = exports.fetchLiveSnapshot = exports.createLivePoller = exports.liveLineStats = exports.overlayLiveScores = exports.snakeToStatLine = exports.roundFantasyPoints = exports.calculateFantasyPoints = void 0;
+exports.MATCHUP_FORECAST_VERSION = exports.sampleScoringVariation = exports.estimateMatchup = exports.chooseBestAssignments = exports.NBA_POSITIONS = exports.ROSTER_SLOT_TYPES = exports.WAIVER_CLAIM_STATUSES = exports.MATCHUP_TYPES = exports.TRADE_SIDES = exports.TRADE_STATUSES = exports.NOMINATION_STATUSES = exports.DRAFT_TYPES = exports.DRAFT_STATUSES = void 0;
 // Scoring
 var formula_1 = require("./scoring/formula");
 Object.defineProperty(exports, "calculateFantasyPoints", { enumerable: true, get: function () { return formula_1.calculateFantasyPoints; } });
 Object.defineProperty(exports, "roundFantasyPoints", { enumerable: true, get: function () { return formula_1.roundFantasyPoints; } });
 Object.defineProperty(exports, "snakeToStatLine", { enumerable: true, get: function () { return formula_1.snakeToStatLine; } });
+var overlay_1 = require("./live/overlay");
+Object.defineProperty(exports, "overlayLiveScores", { enumerable: true, get: function () { return overlay_1.overlayLiveScores; } });
+Object.defineProperty(exports, "liveLineStats", { enumerable: true, get: function () { return overlay_1.liveLineStats; } });
+var poll_1 = require("./live/poll");
+Object.defineProperty(exports, "createLivePoller", { enumerable: true, get: function () { return poll_1.createLivePoller; } });
+Object.defineProperty(exports, "fetchLiveSnapshot", { enumerable: true, get: function () { return poll_1.fetchLiveSnapshot; } });
+Object.defineProperty(exports, "readLiveSnapshot", { enumerable: true, get: function () { return poll_1.readLiveSnapshot; } });
+Object.defineProperty(exports, "LIVE_PHONE_POLL_MS", { enumerable: true, get: function () { return poll_1.LIVE_PHONE_POLL_MS; } });
+var recovery_1 = require("./live/recovery");
+Object.defineProperty(exports, "nextLiveRecovery", { enumerable: true, get: function () { return recovery_1.nextLiveRecovery; } });
+var changes_1 = require("./live/changes");
+Object.defineProperty(exports, "homeHintAffects", { enumerable: true, get: function () { return changes_1.homeHintAffects; } });
+Object.defineProperty(exports, "homeVersionAffects", { enumerable: true, get: function () { return changes_1.homeVersionAffects; } });
+var saved_1 = require("./live/saved");
+Object.defineProperty(exports, "decodeSavedLiveView", { enumerable: true, get: function () { return saved_1.decodeSavedLiveView; } });
 // Season
 var year_1 = require("./season/year");
 Object.defineProperty(exports, "currentSeasonYear", { enumerable: true, get: function () { return year_1.currentSeasonYear; } });

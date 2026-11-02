@@ -9,8 +9,8 @@ It never contacts production Supabase, Vercel, or GitHub Actions.
 The baseline closes after the replay passes or its exact failing gate and cause are recorded.
 Every current screen adapter must work. The final table must include cold, warm and offline measurements.
 The 17,112-case matrix remains the climb lanes' regression suite. Its complete execution is not a baseline closure requirement.
-The frozen handoff passes 56 adapter checks across 40 screens and records all 120 cold, warm and offline screen samples.
-The regression matrix stands at 56/17,112 cases and 11/1,153 controls.
+Historical adapter counts are not current acceptance evidence.
+Run the current inventory and preserve its reports outside the repository.
 
 Run the bounded screen-adapter and Analyzer check after replay cleanup:
 
@@ -18,7 +18,7 @@ Run the bounded screen-adapter and Analyzer check after replay cleanup:
 npm run test:perf-lab:closure
 ```
 
-It checks all 40 current screens and sections, plus 16 Analyzer cases.
+It checks the current screens, sections, and Analyzer cases.
 It writes `lab/closure-verification.json`, the per-case captures and the screenshot gallery.
 The stack stops before the command returns.
 
@@ -185,7 +185,7 @@ Mini evidence root: `~/pancake-t_4ba51e0d/lanes/fable-timeline/perf-lab/evidence
 | `first-load/index.html` | Paired images for visual review |
 | `first-load/manifest.json` | Image sources and hashes |
 
-The final command also regenerates `docs/data-flow.md` and `docs/screen-matrix.md` in the Mac worktree.
+The final command writes `data-flow.md` and `screen-matrix.md` inside the selected external evidence directory.
 `lab/baseline.json` stores exact numbers; the Markdown reports round values for display.
 Its `ranking`, `interactionRanking`, `networkRanking`, `replayNetwork`, and `runtime` fields hold current measurements.
 Its `cohort` field holds the explicit historical release sample and its evidence paths.
@@ -200,7 +200,8 @@ A failed new replay takes precedence over any older pass.
 Legacy SQL logs larger than 128 MiB remain on the mini.
 Their `remote-artifact.json` records the size, SHA-256, current path, and archive path.
 Use the archive path after a later run moves the evidence into history.
-Before/after records stay in `scripts/perf-lab/baselines/`.
+Optional historical inputs stay in the external evidence directory under `baselines/`.
+Missing history is reported as unmeasured; current gates still require current evidence.
 The reports separate historical measurements from current proofs.
 
 Regenerate reports after a completed transfer:
@@ -210,7 +211,8 @@ node scripts/perf-lab/report.mjs ~/Documents/pancake-season-mission/fable/progra
 node scripts/perf-lab/review.mjs ~/Documents/pancake-season-mission/fable/program3/evidence/first-load
 ```
 
-`docs/data-flow.md` ranks asset, endpoint, control, and SQL costs by measured frequency.
+The generated `data-flow.md` ranks asset, endpoint, control, and SQL costs by measured frequency.
+The permanent [data-flow guide](data-flow.md) describes application contracts.
 `docs/screen-matrix.md` keeps unproved states and controls red.
 The opening tables separate the original cold and warm requests by asset and endpoint.
 The release cohort takes one latest successful sample per case from its explicit source list.

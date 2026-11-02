@@ -2,7 +2,8 @@ BEGIN;
 SET LOCAL statement_timeout='30s';
 CREATE TEMP TABLE l1_before_messages AS SELECT id FROM realtime.messages;
 CREATE TEMP VIEW l1_broadcast_events AS SELECT message.id,message.topic,message.private,message.extension,message.event,
-  CASE WHEN message.payload ? 'hints' THEN jsonb_build_object('schema','public','table','league_change_hints',
+  CASE WHEN change.payload ? 'payload' THEN change.payload->'payload'
+    WHEN message.payload ? 'hints' THEN jsonb_build_object('schema','public','table','league_change_hints',
     'eventType',change.payload->>'event',
     'new',CASE WHEN change.payload->>'event'='DELETE' THEN '{}'::jsonb
       ELSE jsonb_build_object('league_id',split_part(message.topic,':',3))||(change.payload->'row') END,
@@ -13,7 +14,7 @@ CREATE TEMP VIEW l1_broadcast_events AS SELECT message.id,message.topic,message.
     CASE WHEN jsonb_typeof(message.payload->'hints')='array' THEN message.payload->'hints'
       ELSE jsonb_build_array(message.payload) END) change(payload);
 DO $$
-DECLARE source record; table_name text; identity uuid; row_count integer;
+DECLARE source record; table_name text; identity uuid; row_count integer; holder uuid;
 BEGIN
   SELECT member.league_id,member.id AS member_id,member.user_id,season.id AS season_id,gen_random_uuid() AS draft_id INTO STRICT source
     FROM public.league_members member JOIN public.league_seasons season ON season.league_id=member.league_id
@@ -52,6 +53,40 @@ BEGIN
     RAISE EXCEPTION 'Forecast UPDATE loses its matchup'; END IF;
   IF EXISTS(SELECT 1 FROM pg_temp.l1_broadcast_events messages WHERE NOT EXISTS(SELECT 1 FROM pg_temp.l1_before_messages before WHERE before.id=messages.id) AND payload->>'table'='waiver_claims'
     AND topic<>'l1:member:'||source.member_id::text) THEN RAISE EXCEPTION 'Claims leave the owner topic'; END IF;
+  SET CONSTRAINTS ALL DEFERRED;
+  SELECT count(*) INTO row_count FROM realtime.messages WHERE topic='l1:league:'||source.league_id::text;
+  INSERT INTO pg_temp.roster_players(id,league_id,member_id,revision)
+    VALUES(gen_random_uuid(),source.league_id,source.member_id,1),(gen_random_uuid(),source.league_id,source.member_id,1);
+  INSERT INTO pg_temp.league_change_hints(id,league_id,topic,revision,updated_at)
+    VALUES(gen_random_uuid(),source.league_id,'roster',1,clock_timestamp());
+  SET CONSTRAINTS ALL IMMEDIATE;
+  IF (SELECT count(*) FROM realtime.messages WHERE topic='l1:league:'||source.league_id::text)<>row_count+1 THEN
+    RAISE EXCEPTION 'One transaction emits more than one compact broadcast'; END IF;
+  holder:=public.try_live_poll_lease(779001,600);
+  IF holder IS NULL THEN RAISE EXCEPTION 'Checkpoint test requires its own live lease'; END IF;
+  ALTER TABLE pg_temp.league_change_hints ADD COLUMN details jsonb;
+  PERFORM set_config('request.headers',jsonb_build_object('x-pancake-live-holder',holder,
+    'x-pancake-public-checkpoint','true')::text,true);
+  PERFORM set_config('request.jwt.claims','{"role":"service_role"}',true);
+  SELECT count(*) INTO row_count FROM realtime.messages WHERE topic='l1:league:'||source.league_id::text;
+  INSERT INTO pg_temp.league_change_hints(id,league_id,topic,revision,updated_at)
+    VALUES(gen_random_uuid(),source.league_id,'score',1,clock_timestamp());
+  INSERT INTO pg_temp.league_change_hints(id,league_id,topic,revision,updated_at,details)
+    VALUES(gen_random_uuid(),source.league_id,'version',1,clock_timestamp(),'[{"scope":{"tables":["matchups"]}}]');
+  IF (SELECT count(*) FROM realtime.messages WHERE topic='l1:league:'||source.league_id::text)<>row_count THEN
+    RAISE EXCEPTION 'A routine public checkpoint broadcasts a live-only update'; END IF;
+  PERFORM set_config('request.jwt.claims','{"role":"authenticated"}',true);
+  INSERT INTO pg_temp.league_change_hints(id,league_id,topic,revision,updated_at)
+    VALUES(gen_random_uuid(),source.league_id,'score',1,clock_timestamp());
+  IF (SELECT count(*) FROM realtime.messages WHERE topic='l1:league:'||source.league_id::text)<>row_count+1 THEN
+    RAISE EXCEPTION 'A user can suppress a score broadcast with a checkpoint header'; END IF;
+  PERFORM set_config('request.jwt.claims','{"role":"service_role"}',true);
+  PERFORM set_config('request.headers','{}',true);
+  INSERT INTO pg_temp.league_change_hints(id,league_id,topic,revision,updated_at)
+    VALUES(gen_random_uuid(),source.league_id,'score',1,clock_timestamp());
+  IF (SELECT count(*) FROM realtime.messages WHERE topic='l1:league:'||source.league_id::text)<>row_count+2 THEN
+    RAISE EXCEPTION 'The fallback path loses score broadcasts'; END IF;
+  PERFORM public.release_live_poll_lease(779001,holder);
   PERFORM set_config('request.jwt.claims',jsonb_build_object('sub',source.user_id,'role','authenticated')::text,true);
   IF NOT private.can_receive_live_broadcast('l1:league:'||source.league_id::text)
     OR NOT private.can_receive_live_broadcast('l1:draft:'||source.draft_id::text)

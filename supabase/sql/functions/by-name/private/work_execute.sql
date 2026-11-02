@@ -4,7 +4,7 @@
 
 CREATE OR REPLACE FUNCTION private.work_execute(p_id bigint,p_token uuid)
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
-DECLARE v_item private.work_items%ROWTYPE; v_function text; v_payload jsonb; v_tipoff timestamptz;
+DECLARE v_item private.work_items%ROWTYPE; v_function text; v_payload jsonb; v_tipoff timestamptz; v_chunk jsonb; v_claim jsonb; v_started timestamptz;
   v_previous text:=coalesce(current_setting('pancake.work_id',true),'');
 BEGIN
   SELECT * INTO v_item FROM private.work_items WHERE id=p_id AND lease_token=p_token AND status='running' AND lease_until>now();
@@ -16,6 +16,28 @@ BEGIN
   END IF;
   SELECT function_name INTO v_function FROM private.work_kinds WHERE kind=v_item.kind;
   v_payload:=v_item.payload;
+  IF v_item.kind='trade-revaluation' THEN
+    v_payload:=(v_payload-'inputs')||'{"latestInputs":true}'::jsonb;
+  END IF;
+  IF v_item.kind IN ('sync-players','sync-trade-values','sync-rankings','pick-predictions','trade-revaluation-scan','trade-revaluation-check')
+    AND NOT ((now() AT TIME ZONE 'America/New_York')::time>=time '04:00' AND (now() AT TIME ZONE 'America/New_York')::time<time '06:00' AND NOT EXISTS(SELECT 1 FROM public.nba_games WHERE status='InProgress')) THEN
+    UPDATE private.work_items SET status='pending',due_at=private.trade_revaluation_next_change(),
+      lease_token=NULL,lease_until=NULL,invocation_key=NULL WHERE id=p_id AND lease_token=p_token;
+    RETURN;
+  END IF;
+  IF v_item.kind IN ('forecast-inputs','refresh-views') THEN v_function:=NULL; END IF;
+  IF v_item.kind='forecast-inputs' THEN
+    v_started:=clock_timestamp();
+    LOOP
+      v_chunk:=private.complete_forecast_input_chunk();
+      EXIT WHEN NOT (v_chunk->>'remaining')::boolean OR clock_timestamp()-v_started>=interval '1 second';
+    END LOOP;
+    PERFORM private.work_finish(p_id,p_token);
+    IF (v_chunk->>'remaining')::boolean THEN
+      PERFORM private.work_enqueue('forecast-inputs',gen_random_uuid()::text,now(),'{"schedulerChunk":"forecasts"}');
+    END IF;
+    RETURN;
+  END IF;
   IF v_item.kind='league-inventory-hint-drain' AND (v_payload->>'delay')::int=0 THEN v_function:=NULL; END IF;
   IF v_item.kind='pre-tipoff' THEN
     v_tipoff:=(v_payload->>'tipoffAt')::timestamptz;
@@ -33,6 +55,11 @@ BEGIN
     RETURN;
   END IF;
   CASE v_item.kind
+    WHEN 'refresh-views' THEN
+      FOR v_claim IN SELECT value FROM jsonb_array_elements(public.view_refresh_work(p_params:='{"operation":"claim"}')) LOOP
+        PERFORM public.view_refresh_work(p_league_id:=(v_claim->>'leagueId')::uuid,
+          p_params:=v_claim||jsonb_build_object('operation','complete'));
+      END LOOP;
     WHEN 'refresh-live-matchups' THEN PERFORM private.refresh_live_matchup_totals();
     WHEN 'trade-publication' THEN PERFORM private.publish_trade_changes((v_payload->>'publicationId')::uuid);
     WHEN 'setup-season-rollover' THEN PERFORM private.roll_setup_league_seasons(now());

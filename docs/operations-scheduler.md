@@ -1,198 +1,114 @@
 # Scheduler operations
 
+## Approved schedule
+
+Cadences below apply during normal operation.
+Automatic load shedding can defer nonessential work; manual pause stops new dispatch.
+
+| Work | Cadence |
+| --- | --- |
+| Live source tick | Every 30 seconds while games are live; none on idle slates |
+| Public-mode database import | Status transitions, finals, corrections, and 30-minute recovery checkpoints |
+| Saved screen computation | At most every two minutes during games; relevant user actions remain immediate |
+| Phone saved-view recovery | Ten minutes with a fresh public snapshot; 20 seconds in stale or database mode |
+| Matchup win odds | Every 30 minutes during games, once at matchup end, off otherwise |
+| Standings | Weekly matchup end; required initial fill and setup changes remain |
+| Season totals and averages | Game end and final-stat corrections |
+| Trade analysis | At creation and nightly re-analysis |
+| Injury status | Every 15 minutes from two hours before first tipoff through last tipoff |
+| Earlier game-day injury status | Hourly |
+| Off-day injury status | Daily |
+| Projections | Morning and one hour before first game |
+| Rankings, trade values, pick predictions, player details | Nightly, in the 04:00–06:00 Eastern window; defer while games remain live |
+| Work dispatcher and hint drain | One shared database connection each minute |
+| Cron and operational history cleanup | Hourly at :12, bounded batches |
+| Screen table statistics | Daily at 10:15 UTC, fresh tables skipped |
+
+Roster moves, lineups and locks, trades, waivers, drafts, login, and their notifications retain their existing event rules.
+Direct trade estimates remain immediate; scheduled re-analysis does not block creating an offer.
+The [live-score guide](live-scores.md) owns public cache behavior, rollback, and measured usage.
+
+## Admission and leases
+
+`public.dispatch_work()` checks manual pause and an advisory lock before starting work.
+It drains player and inventory hints and refreshes pending live matchup totals before normal admission.
+It starts no new item after two seconds and admits at most 32 items per call.
+At most four unexpired work leases can be active.
+Live ingestion gets the first available worker slot before queued background work.
+SQL screen and forecast-input chunks reuse the dispatcher connection.
+The cron command retains a five-second statement limit and bounded lock waits.
+
+Work leases last five minutes.
+The separate live-ingestion lease lasts 90 seconds and renews every 60 seconds.
+Live work heartbeats every 120 seconds; other Edge workers heartbeat every 30 seconds and at explicit phases.
+Lease loss stops writes.
+Temporary gateway failures get at most two live-renewal retries, after 100 ms and 200 ms.
+Each request has at most five seconds and must finish one second before the known lease expiry.
+Denial, authorization errors, SQL errors, and persistent failures still stop the worker.
+
+Failed work retries with backoff from one minute to a fifteen-minute cap.
+The third failed attempt becomes dead work.
+Value-source failures retain their separate four-retry policy at 30-minute intervals.
+Startup, completion, and reconciliation evidence stay recorded.
+Use `work_dashboard()` to inspect due, running, failed, and dead work.
+See [incident controls](../supabase/RELEASE-DB.md#worker-incident-controls) before pausing or resuming.
+
 ## Load shedding
 
-The dispatcher refreshes at most eight live matchup totals before checking scheduler health.
-It checks health before adding or claiming other work.
-The check reads at most forty cron rows through the existing primary key, newest first.
-It filters those rows to the last five minutes.
-Forty rows cover about ten minutes at the current three-job cadence.
-Its success ratio uses completed dispatcher runs.
-It measures average and maximum duration in seconds.
-Startup timeout counts include every cron job.
+Health reads at most forty recent cron rows through the existing primary key.
+It uses completed dispatcher runs from the last five minutes.
 Backend counts exclude the health check itself.
 
-| State | Entry rule | Work cadence |
+| State | Entry rule | Admission |
 | --- | --- | --- |
-| `normal` | Initial state or ten continuous healthy minutes | Existing schedule and four-worker cap |
-| `shed` | Success below 80%, average above three seconds, or unavailable health | Essential kinds only; reduced polling and waiver cadence |
-| `paused` | Success below 50% or any startup timeout | Live totals every dispatch; other critical kinds every five minutes |
+| `normal` | Initial state or ten continuous healthy minutes | Approved schedule and four-worker cap |
+| `shed` | Success below 80%, average above three seconds, or unavailable health | Essential kinds; reduced polling and waiver cadence |
+| `paused` | Success below 50% or any startup timeout | Live totals each dispatch; other critical work every five minutes |
 
-`paused` is the paused-heavy state.
-Manual pause remains a separate control and stops all dispatch.
-Worsening health changes the state at the next dispatcher call.
-Improving health keeps the current restriction for ten continuous healthy minutes.
-A failed check, missing sample, or check gap above 90 seconds resets that recovery period.
-An empty history does not change the initial normal state.
-It cannot recover a restricted state.
+Automatic `paused` differs from the operator pause, which stops all dispatch.
+Worsening health takes effect on the next dispatch.
+Recovery requires ten continuous healthy minutes.
+A failed check, missing sample, or gap above 90 seconds resets recovery.
+An empty history keeps the initial normal state but cannot recover a restricted state.
 
-The essential kinds in `shed` are:
-
-- `live-poll`
-- `sync-scores`
-- `stats-sync`
-- `process-waivers`
-- `process-trades`
-- `edge-invocation-reconcile`
-- `refresh-live-matchups`
-
-The critical kinds in `paused` are `process-waivers`, `process-trades`, `live-poll`, and `refresh-live-matchups`.
-In `shed`, live polling enqueues on even minutes and waivers enqueue every 15 minutes.
+Essential kinds are live polling, score and stat sync, waivers, trades, invocation reconciliation, and live matchup refresh.
+In `shed`, new live polling queues on even minutes and waivers on 15-minute boundaries.
+In `paused`, only waivers, trades, live polling, and live matchup refresh remain eligible.
 Skipped work keeps its due date and attempt count.
-Existing worker leases finish under their current limits.
-The four-worker cap still counts every active lease.
-The restricted scheduler does not run the normal enqueue scan.
+Existing leases finish under their limits.
+All other work waits; new kinds require explicit admission.
 
-The heavy kinds are `refresh-views`, `matchup-forecasts`, `trade-estimate`, `sync-trade-values`, `pick-predictions`,
-`pt:fantasypros`, `pt:sleeper-day`, `pt:sleeper-week`, and `sync-rankings`.
-Every other nonessential kind also waits during `shed`.
-These are `cleanup-trade-estimates`, `close-expired-nominations`, `daily-stat-corrections`,
-`league-inventory-hint-drain`, `lineup-optimizer`, `missing-final-stats`, `mock-room-expiry`, `pg-net-response-vacuum`,
-`player-injuries`, `player-stats-hints`, `pre-tipoff`, `public-read-retention`, `retention-prune`, `season-boundary`,
-`setup-season-rollover`, `sync-draft-order`, `sync-players`, `sync-schedule`, `trade-activation`, and `trade-publication`.
-New kinds also wait until explicitly admitted.
-
-Read `public.get_scheduler_health()` through the service role.
-It returns the last measurement, state, recovery start, manual pause, and admin hint.
-Check `checked_at` before trusting a healthy result.
-A stale timestamp means the dispatcher cannot check health.
-The monitor must alert on stale health as well as restricted states.
-The watchdog cannot run when cron cannot start the dispatcher.
-It reduces load before that point; it cannot guarantee recovery from total CPU starvation.
-
-Each transition adds one row to `private.scheduler_health_log`.
-It updates the single `public.scheduler_health_hint` row.
-Neither write touches league hints or versions.
-Both tables restrict reads to the service role.
-The RPC performs no writes and does not run a fresh health scan.
-
-The cron command retains its five-second statement limit.
-The health scan adds no cron index and uses a 100-millisecond lock limit.
-A canceled or failed health scan falls back to `shed`, or keeps the stricter paused state.
-If the check consumes the dispatch budget, the call saves the state and admits no work.
-
-Run the transition recipe on the private database:
-
-```sh
-psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/scheduler-health.sql
-```
-
-The recipe copies cron history and rolls back every change.
-It tests thresholds, recovery gaps, allowed kinds, unchanged normal admission, bounded reads, and a real statement timeout.
-The existing work queue recipes test the unchanged normal scheduler.
-
-The private fixture contains 100,005 cron rows.
-The bounded plan reads forty rows in 0.092 milliseconds in the measured run.
-Removing the limit reads 100,005 rows and fails the bound check.
-Separate failing controls admit heavy work and recover one minute early.
-Both fail their intended checks.
-A locked cron table produces `shed` within 114 milliseconds.
-The service RPC also passes inside a read-only transaction.
-
+`get_scheduler_health()` returns the last measurement, recovery start, manual pause, and admin hint.
+Check `checked_at`; a stale timestamp means health cannot be trusted.
+Transition history and the current hint are service-role-only and do not bump league versions.
+The watchdog cannot recover cron when the dispatcher cannot start at all.
 
 ## Daily statistics
 
-The `screen-statistics` cron job runs daily at 10:15 UTC.
-Its command sets `statement_timeout` to ten minutes and `lock_timeout` to two seconds.
-It calls `private.refresh_screen_statistics()` in its own database connection.
-Each ANALYZE statement names one of the 15 permitted target relations.
-PostgreSQL also samples the children of a partitioned target.
-A lock timeout skips that target and continues with the next one.
-An overall timeout cancels this job without cancelling dispatch.
-The function returns each target, elapsed milliseconds, and its result.
-An advisory lock prevents overlapping manual calls.
+`screen-statistics` calls `private.refresh_screen_statistics()` in its own connection at 10:15 UTC.
+The command permits ten minutes and a two-second lock wait.
+Only permitted target relations can be analyzed.
+Freshness uses each table's analyze threshold and scale factor, falling back to PostgreSQL defaults.
+Never-analyzed tables and invalid row estimates require sampling.
+A lock timeout skips that target; an advisory lock prevents overlapping runs.
+The retired `analyze-screen-table` work kind cannot be enqueued or executed.
+Retention, partition creation, and trade publication do not run ANALYZE.
 
-Migration 041 checks statistics before sampling each target.
-It uses the table's analyze threshold plus its scale factor times estimated rows.
-Missing table options fall back to PostgreSQL's global settings.
-It includes partition children and changes pending in the current transaction.
-Never-analyzed relations and invalid row estimates still require sampling.
-Fresh targets return `status: fresh` and perform no ANALYZE.
-The independent daily cron keeps its existing schedule and statement budget.
+## Retention and checks
 
-Run `tests/db/statistics-freshness.sql` for threshold, partition, empty-table, and retired-work checks.
+Hourly cleanup deletes at most 512 cron rows, 4,096 sync rows, 4,096 private broadcasts, and 512 scheduler transitions.
+It preserves active executions and required failure or latest-outcome records.
+Age limits and storage risks are in [database capacity](db-capacity.md#growth-and-retention).
+Cleanup adds no Edge invocation or continuation worker.
 
-The old `analyze-screen-table` work kind is retired.
-The migration marks its pending, failed, and running rows dead and clears their leases.
-Enqueue and claim reject retired work; direct execution also retires a stale lease.
-Retention and partition creation perform no ANALYZE.
-Trade publication performs no ANALYZE through triggers.
-The existing leaf-table autovacuum settings remain active.
-
-Read `pg_stat_all_tables.last_analyze` and `cron.job_run_details` when checking the daily job.
-Check a skipped target's lock holder before manually retrying the job command.
-The catalog check rejects ANALYZE, VACUUM, or REINDEX outside the independent statistics function.
-It also rejects SQL functions that call that function.
-
-Run the concurrency recipe only with restored production-shaped statistics:
+Run database checks only against an isolated local stack:
 
 ```sh
-psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/statistics-dispatch-isolation.psql
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/functions/refresh-views/schedule.test.sql
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/nightly-worker-hours.sql
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/scheduler-health.sql
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/statistics-freshness.sql
 ```
 
-[Statistics isolation evidence](release-2.7.1-statistics-isolation.md) records the timings and controls.
-
-Queued trade revaluations, checks, and scans follow other work kinds.
-Only one expensive revaluation runs per league.
-A private league row permits one new revaluation each minute and survives queue coalescing.
-The four-worker cap and expired-lease recovery remain in place.
-Foreground trade estimates are claimed before queued background revaluations and bypass their league pace.
-Worker completion events still publish league versions and realtime hints.
-Events alone do not rebuild standings, matchup totals, or player averages.
-# Live scores during scheduler shedding
-
-`refresh-live-matchups` remains essential during automatic shedding and pause.
-It runs before the heavy worker admission limit and consumes at most eight pending matchups.
-It counts toward the four-item dispatch batch while existing Edge leases can continue.
-Score publications coalesce in a separate pending queue.
-The refresh copies authoritative points for current matchups with NBA games started today.
-Heavy standings, averages, and trade refreshes may wait.
-The operator's worker pause still stops dispatch.
-
-Forecast invalidations enqueue scoped requests. A worker fingerprints one matchup per SQL call.
-Indexed deadlines wake future preview windows and expire old inputs.
-Pending requests make cached forecasts stale and prevent an older computation from publishing.
-Notification input changes insert a coalesced dirty marker.
-The worker opens a scan in a short transaction, then visits one member per SQL call.
-Score publishers do not lock the scan cursor while a member is scanned.
-First-scoring-day lookups stay shared within each scan.
-Chunk workers yield after 64 calls and retain their cursors for continuation.
-They pause for 100 real milliseconds before each call so consecutive chunks do not exhaust a shared CPU quota period.
-They leave one worker slot for urgent requests and wait during scheduler shedding.
-
-Cron history retention still runs hourly at :12 and respects the worker pause.
-Each call deletes at most 512 expired rows through locked tuple locations.
-Running executions with a current backend stay.
-Backlogs need multiple hourly calls; the hourly capacity is 12,288 rows per day.
-The job adds no continuation worker or Edge invocation.
-
-Leased Edge invocations use `start_work_invocation` to record startup and renew the lease together.
-Unleased invocations keep their existing startup RPC.
-The 30-second heartbeat and explicit phase renewals stay.
-Every accepted invocation keeps its start, finish, and reconciliation evidence.
-Apply migration 043 before deploying the shared invocation wrapper.
-
-Invocation reconciliation writes transport status and the settled worker outcome together.
-Young workers keep their existing grace period and transport evidence.
-The batch cap and scheduling stay the same.
-
-Trade refresh scans fingerprint all open trades in one league query.
-Only changed fingerprints or models queue valuations.
-New scans create no per-trade check jobs or continuation scans.
-Migrations 045 and 046 coalesce pending checks and duplicate scans into one full scan per season.
-The oldest scan keeps the earliest due time and loses its continuation cursor.
-Superseded rows retain a payload marker and finish as succeeded without emitting worker receipts.
-Their prior attempt counts, errors, and invocation keys stay available.
-Missing or closed scopes need no replacement scan.
-Running work, failed retry evidence, and existing revaluations stay unchanged.
-The cleanup repeats without changing rows or creating duplicate work.
-Locked pending rows remain compatible with the current worker.
-
-Refresh completion skips trade scans when their sources and model match the previous scan.
-Matching publications advance freshness without a worker.
-Input changes and temporal deadlines reopen the gate.
-Missing, dead, and older running work stay recoverable.
-The gate removes redundant maintenance receipts; source versions still publish immediately.
-Apply migration 046 before deploying the completion-call model field in `refresh-views`.
-The scheduler lane separately owns claim-order migrations 05406–05407.
-Keep its `private.work_claim` definition and regenerate attestations from the combined migration history during integration.
+The replay separately checks timed work, freshness, final state, actions, forecasts, injuries, and broadcasts.
+The [lab guide](../scripts/bench/game-night/README.md) describes positive runs and deliberately failing controls.

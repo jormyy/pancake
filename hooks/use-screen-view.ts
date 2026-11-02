@@ -9,8 +9,9 @@ import { sessionGeneration } from '@/lib/session-cache-registry'
 import { useOnlineStatus } from '@/hooks/use-online-status'
 import { deferLeagueRefresh, leagueChangeAffects, listenForLeagueChanges } from '@/lib/league-changes'
 import { useLiveViewRecovery } from '@/hooks/use-live-view-recovery'
+import { homeHintAffects } from '@pancake/core'
 
-export function useScreenView<T>(scope: ScreenScope | null, enabled = true, options: { autoLoad?: boolean } = {}) {
+export function useScreenView<T>(scope: ScreenScope | null, enabled = true, options: { autoLoad?: boolean; publicLive?: boolean } = {}) {
     useLeagueDay(leagueTimezone(scope?.leagueId))
     const focused = useIsFocused()
     const panelActive = usePanelActivity()
@@ -29,7 +30,7 @@ export function useScreenView<T>(scope: ScreenScope | null, enabled = true, opti
     const owns = state.key === key && state.generation === generation
     const data = owns ? state.data : initial?.value
     const recoveryEnabled = enabled && focused && panelActive && online && autoLoad
-    const recoveryFailed = useLiveViewRecovery(scope, data, recoveryEnabled, generation)
+    const recoveryFailed = useLiveViewRecovery(scope, data, recoveryEnabled, generation, options.publicLive)
     const previousActivity = useRef({ key, generation, active: activity.active, recoveryEnabled })
     const request = useRef(0)
     const refresh = useCallback(async (force = false, checkVersion = true, params?: Record<string, unknown>) => {
@@ -76,6 +77,7 @@ export function useScreenView<T>(scope: ScreenScope | null, enabled = true, opti
             invalidateScreenViews(selected.leagueId!, entry => {
                 if (entry.scope.screen !== 'home') return false
                 const context = (entry.value as { context?: ViewContext } | undefined)?.context
+                if (!homeHintAffects(change, { seasonId: context?.seasonId, week: context?.weekNumber ?? undefined })) return false
                 return !context?.seasonId || leagueChangeAffects(change, { seasonId: context.seasonId, week: context.weekNumber ?? undefined })
             })
             if (!cachedScreenView(selected)) invalidateScreenView(selected)

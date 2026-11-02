@@ -1,4 +1,5 @@
 import { OtherMatchups } from '@/components/OtherMatchups'
+import { LiveScoreStatus } from '@/components/LiveScoreStatus'
 import { MatchupLineupView } from '@/components/MatchupLineupView'
 import { useScrollRestoration } from '@/lib/scroll-restoration'
 import { MatchupForecastSummary } from '@/components/MatchupForecastSummary'
@@ -52,10 +53,7 @@ export default function HomeScreen() {
     const dense = height < 620
     const { openDraftRoom } = useDraftRoomLauncher(league?.id, { notifyOnError: true })
 
-    const { matchup, leagueMatchups, weekDays, selectedDate, setSelectedDate, myLineup, oppLineup, matchupLoading, matchupRefreshing, lineupLoading, lineupError, loadMyLineup, loadLineups, matchupRef, error, refresh, emptyConfirmed, forecastState, liveSnapshot, timezone } = useMatchupData(current, user, league, membershipValidated, membershipError, refreshMemberships)
-    const playerForecasts = useMemo(() => new Map((forecastState.forecast?.games ?? [])
-        .filter(game => game.date === selectedDate)
-        .map(game => [`${game.memberId}:${game.playerId}`, game])), [forecastState.forecast, selectedDate])
+    const { matchup, leagueMatchups, weekDays, selectedDate, setSelectedDate, myLineup, oppLineup, matchupLoading, matchupRefreshing, lineupLoading, lineupError, loadMyLineup, loadLineups, matchupRef, error, refresh, emptyConfirmed, forecastState, liveSnapshot, liveDelayed, timezone } = useMatchupData(current, user, league, membershipValidated, membershipError, refreshMemberships)
     const homeActivity = useBrowserReadActivity()
     const lastHomeActivityRevision = useRef(0)
     const refreshHome = refresh
@@ -188,14 +186,11 @@ export default function HomeScreen() {
                         onPreviousMatchup={() => openMatchup(adjacentMatchupId(leagueMatchups, matchup.id, -1))}
                         onNextMatchup={() => openMatchup(adjacentMatchupId(leagueMatchups, matchup.id, 1))}>
                         <MatchupForecastSummary {...forecastState} myMemberId={matchup.myMemberId} opponentMemberId={matchup.opponentMemberId} />
+                        <LiveScoreStatus delayed={liveDelayed} />
                     </ScoreCard>
 
                     {myLineup && oppLineup ? (
                         <MatchupLineupView
-                            playerForecasts={playerForecasts}
-                            forecastStale={forecastState.stale}
-                            myMemberId={matchup.myMemberId}
-                            opponentMemberId={matchup.opponentMemberId}
                             myLineup={myLineup}
                             oppLineup={oppLineup}
                             selected={selected}

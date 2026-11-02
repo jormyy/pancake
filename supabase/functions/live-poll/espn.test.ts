@@ -58,7 +58,8 @@ Deno.test('one bounded attempt times out and enters backoff', async () => {
   let calls = 0
   globalThis.fetch = (_input, init) => new Promise((_resolve, reject) => {
     calls++
-    init?.signal?.addEventListener('abort', () => reject(init.signal?.reason), { once: true })
+    const signal = (init as { signal?: AbortSignal } | undefined)?.signal
+    signal?.addEventListener('abort', () => reject(signal.reason), { once: true })
   })
   try {
     await assert.rejects(() => source.summary(event), /timeout|timed out/i)

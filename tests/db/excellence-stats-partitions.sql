@@ -8,8 +8,8 @@ BEGIN
   IF (SELECT relkind FROM pg_class WHERE oid='public.player_game_stats'::regclass)<>'r' THEN
     RAISE EXCEPTION 'Player stats must be a regular table';
   END IF;
-  IF (SELECT count(*) FROM pg_trigger WHERE tgrelid='public.player_game_stats'::regclass AND NOT tgisinternal)<>29
-    OR (SELECT count(*) FROM pg_trigger WHERE tgrelid='public.player_game_stats'::regclass AND NOT tgisinternal AND (tgoldtable IS NOT NULL OR tgnewtable IS NOT NULL))<>18 THEN
+  IF (SELECT count(*) FROM pg_trigger WHERE tgrelid='public.player_game_stats'::regclass AND NOT tgisinternal)<>33
+    OR (SELECT count(*) FROM pg_trigger WHERE tgrelid='public.player_game_stats'::regclass AND NOT tgisinternal AND (tgoldtable IS NOT NULL OR tgnewtable IS NOT NULL))<>21 THEN
     RAISE EXCEPTION 'Stats triggers or transition tables are lost';
   END IF;
   IF NOT EXISTS(SELECT FROM pg_rewrite r JOIN pg_depend d ON d.objid=r.oid WHERE r.ev_class='public.v_fantasy_points'::regclass AND d.refobjid='public.player_game_stats'::regclass)
@@ -23,8 +23,8 @@ BEGIN
   END IF;
   INSERT INTO public.players(id,first_name,last_name,position,eligible_positions,nba_team) VALUES(player,'Partition','Fixture','PG',ARRAY['PG'],'BOS'),(other_player,'Partition','Stale','PG',ARRAY['PG'],'BOS');
   INSERT INTO public.nba_games(id,nba_game_id,season_year,week_number,game_date,game_time,home_team,away_team,status)
-  VALUES(game,'002stats-partition-a',2097,1,'2096-10-20','2096-10-20 22:00Z','BOS','LAL','InProgress'),
-    (other_game,'002stats-partition-b',2098,1,'2097-10-20','2097-10-20 22:00Z','BOS','LAL','InProgress');
+  VALUES(game,'002stats-partition-a',2097,1,'2096-10-20','2096-10-20 22:00Z','BOS','LAL','Final'),
+    (other_game,'002stats-partition-b',2098,1,'2097-10-20','2097-10-20 22:00Z','BOS','LAL','Final');
   INSERT INTO public.player_game_stats(id,player_id,game_id,season_year,week_number,points) VALUES(identity,player,game,1900,1,11);
   SELECT points INTO total FROM analytics.player_season_totals WHERE player_id=player AND season_year=2097;
   IF total IS DISTINCT FROM 11::numeric THEN RAISE EXCEPTION 'Insert transition totals differ'; END IF;

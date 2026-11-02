@@ -37,10 +37,10 @@ export const revaluationControlCases = () => [
     recipe: 'trade-revaluation-fast', expected: 'player metadata changes the version',
   },
   {
-    name: 'live valuation window',
+    name: 'nightly valuation window',
     original: source('private/begin_trade_revaluation'),
-    definition: source('private/begin_trade_revaluation').replace('WHERE NOT live OR schedule.next_allowed_at<=now()', 'WHERE true'),
-    recipe: 'trade-revaluation-coalesce', expected: 'a second live value waits',
+    definition: source('private/begin_trade_revaluation').replace('next_allowed_at>now()', 'false'),
+    recipe: 'trade-revaluation-coalesce', expected: 'a second published value waits until the nightly window',
   },
 ]
 function runRevaluationControls() {

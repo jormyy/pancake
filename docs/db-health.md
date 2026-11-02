@@ -641,7 +641,7 @@ The endpoint records 241,216,659 database bytes, 205 table entries, and 925 inde
 It records 0 waiting sessions and 0 idle transactions.
 Final games without stats: 0.
 The resource sampler records 1176 samples; 0 contain lock waits.
-The [capacity report](db-capacity.md#completed-corrected-layout-window) gives the measured season projection and its limits.
+The [capacity report](db-capacity.md#measured-boundary) gives current allocation measurements and their limits.
 Full statement-plan coverage and unused-index decisions remain unverified.
 
 ## Plan coverage after the completed replay

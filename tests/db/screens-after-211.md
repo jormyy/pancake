@@ -150,5 +150,5 @@ The shared symlink is untouched. No dependencies are installed.
 Restore the shared project dependencies, then run the full Vitest suite once and the quality commands.
 Database measurements and SQL checks do not need to be repeated unless SQL changes.
 
-[Verification receipt](../evidence/screens-after-211.json) pins the tested migration hash.
-[Measurements](screens-after-211-results.json) retain every summarized case and target check.
+Verification receipt (external evidence) pins the tested migration hash.
+Measurements (external evidence) retain every summarized case and target check.

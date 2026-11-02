@@ -3,23 +3,12 @@ import { browserReadsAllowed } from '@/hooks/use-browser-read-activity'
 import { revalidateScreenVersion, screenCacheKey, type ScreenScope, type ViewContext } from '@/lib/cache/screen-cache'
 import { listenForLeagueChanges } from '@/lib/league-changes'
 import { sessionGeneration } from '@/lib/session-cache-registry'
+import { nextLiveRecovery } from '@pancake/core'
 
 type Game = { id: string; status: string; game_time?: string | null; game_date?: string; game_status_text?: string | null }
 type Source = { context?: ViewContext; selectedDate?: string; todaysGames?: Game[]; weekDays?: { isToday: boolean; hasGames: boolean }[] }
 
-function nextCheck(games: Game[]): number | null {
-    const now = Date.now()
-    const scheduled = games.filter(game => game.status === 'Scheduled' && !/postpon|cancel|suspend/i.test(game.game_status_text ?? ''))
-    if (games.some(game => game.status === 'InProgress') || scheduled.some(game => {
-        const time = Date.parse(game.game_time ?? '')
-        return Number.isFinite(time) && time <= now && now - time < 6 * 60 * 60_000
-    })) return 20_000
-    const times = scheduled.map(game => Date.parse(game.game_time ?? '')).filter(time => Number.isFinite(time) && time > now)
-    if (times.length) return Math.min(Math.min(...times) - now, 2_147_483_647)
-    return scheduled.some(game => !Number.isFinite(Date.parse(game.game_time ?? ''))) ? 20_000 : null
-}
-
-export function useLiveViewRecovery(scope: ScreenScope | null, value: unknown, enabled: boolean, generation: number) {
+export function useLiveViewRecovery(scope: ScreenScope | null, value: unknown, enabled: boolean, generation: number, publicLive = false) {
     const source = value as Source | undefined
     const key = scope?.screen === 'home' && scope.leagueId ? screenCacheKey(scope) : null
     const external = Boolean(source?.context?.today && source.selectedDate !== source.context.today && source.weekDays?.some(day => day.isToday && day.hasGames))
@@ -54,7 +43,7 @@ export function useLiveViewRecovery(scope: ScreenScope | null, value: unknown, e
         const schedule = () => {
             clearTimeout(timer)
             if (!allowed()) return
-            const delay = dayKey && !latest.current.slateReady ? 20_000 : nextCheck(latest.current.games)
+            const delay = dayKey && !latest.current.slateReady ? 20_000 : nextLiveRecovery(latest.current.games, Date.now(), publicLive)
             if (delay !== null) timer = setTimeout(() => { void check() }, delay)
         }
         const check = async () => {
@@ -94,6 +83,6 @@ export function useLiveViewRecovery(scope: ScreenScope | null, value: unknown, e
             }
             if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', resume)
         }
-    }, [key, enabled, generation, signature, dayKey, slateReady])
+    }, [key, enabled, generation, signature, dayKey, slateReady, publicLive])
     return verificationFailed
 }

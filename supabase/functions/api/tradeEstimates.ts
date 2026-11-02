@@ -3,6 +3,7 @@ import { throwDb } from '../_shared/apiRuntime.ts'
 import { analyzeTradeEstimate, type EstimateTerm, type TradeEstimateInputs } from '../_shared/tradeEstimate.ts'
 import { DYNASTY_TRADE_MODEL_VERSION, type DynastyTradeAnalysis } from '../_shared/dynastyEngine.ts'
 import type { Json } from '../_shared/database.ts'
+import { retryDatabaseContention } from '../_shared/databaseRetry.ts'
 
 export type TradeEstimateQuote = {
   id: string
@@ -25,10 +26,10 @@ export async function createTradeEstimate(userId: string, memberId: string, item
 
 async function saveEstimate(userId: string, memberId: string, inputs: Json): Promise<TradeEstimateQuote> {
   const analysis = analyzeTradeEstimate(inputs as unknown as TradeEstimateInputs, Date.now())
-  const { data: quote, error: saveError } = await supabase.rpc('save_trade_estimate_quote', {
+  const { data: quote, error: saveError } = await retryDatabaseContention(() => supabase.rpc('save_trade_estimate_quote', {
     p_user_id: userId, p_member_id: memberId, p_inputs: inputs,
     p_analysis: analysis as unknown as Json, p_model_version: DYNASTY_TRADE_MODEL_VERSION,
-  })
+  }), { failures: result => result.error ? [result.error] : [] })
   if (saveError) throwDb(saveError)
   return quote as unknown as TradeEstimateQuote
 }

@@ -5,6 +5,8 @@ const member = '22222222-2222-4222-8222-222222222222'
 const other = '33333333-3333-4333-8333-333333333333'
 let attached = false
 let inputCalls = 0
+let quoteCalls = 0
+let quoteFailures: string[] = []
 const reanalysisIds = Array.from({ length: 27 }, (_, index) => `44444444-4444-4444-8444-${String(index).padStart(12, '0')}`)
 const reanalyzed = new Set<string>()
 const server = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, async req => {
@@ -33,6 +35,9 @@ const server = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, asy
       revaluationTradeId: body.p_trade_id ?? trade, inputVersion: 'fixture', observedAt: new Date().toISOString() })
   }
   if (path.endsWith('/save_trade_estimate_quote')) {
+    quoteCalls++
+    const code = quoteFailures.shift()
+    if (code) return Response.json({ code, message: code === '42501' ? 'permission denied' : 'canceling statement due to lock timeout' }, { status: 409 })
     const body = await req.json()
     assert.equal(body.p_inputs.submittedTradeId, trade)
     assert.equal(body.p_inputs.revaluationTradeId, undefined)
@@ -69,6 +74,37 @@ Deno.test('reanalysis finishes bounded batches and repeats without new snapshots
   assert.deepEqual(await (await handleTradeEstimateWork(request())).json(), { ok: true, updated: 2, remaining: 0 })
   assert.deepEqual(await (await handleTradeEstimateWork(request())).json(), { ok: true, updated: 0, remaining: 0 })
   assert.equal(reanalyzed.size, 27)
+})
+
+const estimateRequest = () => new Request('http://localhost/trades/estimate-work', { method: 'POST',
+  headers: { 'x-internal-function-token': 'test', 'content-type': 'application/json' }, body: JSON.stringify({ tradeId: trade }) })
+
+Deno.test('submitted estimate retries transient quote publication failures', async () => {
+  attached = false
+  quoteFailures = ['55P03', '40P01', '40001']
+  const before = quoteCalls
+  assert.equal((await handleTradeEstimateWork(estimateRequest())).status, 200)
+  assert.equal(quoteCalls - before, 4)
+  assert.equal(attached, true)
+})
+
+Deno.test('submitted estimate preserves permission failures without retrying', async () => {
+  attached = false
+  quoteFailures = ['42501']
+  const before = quoteCalls
+  await assert.rejects(() => handleTradeEstimateWork(estimateRequest()), /permission denied/)
+  assert.equal(quoteCalls - before, 1)
+  assert.equal(attached, false)
+})
+
+Deno.test('submitted estimate exposes contention after its retry bound', async () => {
+  attached = false
+  quoteFailures = Array(6).fill('55P03')
+  const before = quoteCalls
+  await assert.rejects(() => handleTradeEstimateWork(estimateRequest()), /lock timeout/)
+  assert.equal(quoteCalls - before, 5)
+  assert.equal(attached, false)
+  quoteFailures = []
 })
 
 Deno.test({ name: 'estimate worker server closes', sanitizeOps: false, sanitizeResources: false, fn: () => server.shutdown() })

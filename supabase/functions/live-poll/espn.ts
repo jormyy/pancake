@@ -2,9 +2,10 @@ import { workFetch } from '../_shared/workContext.ts'
 import { sourceTimestamp } from '../_shared/sourceTimestamp.ts'
 import { gameElapsedSeconds } from '../_shared/gameProgress.ts'
 import type { NBAGame, NBABoxScorePlayer } from '../_shared/nba.ts'
+import { sourceEnvironment } from '../_shared/sourceEnvironment.ts'
 
-const ESPN = Deno.env.get('ESPN_LIVE_BASE_URL') ?? 'https://site.api.espn.com/apis/site/v2/sports/basketball/nba'
-const teamCode = (code: string) => ({ GS: 'GSW', NY: 'NYK', NO: 'NOP', SA: 'SAS', UTAH: 'UTA', WSH: 'WAS' })[code] ?? code
+const ESPN = sourceEnvironment('ESPN_LIVE_BASE_URL') ?? 'https://site.api.espn.com/apis/site/v2/sports/basketball/nba'
+export const teamCode = (code: string) => ({ GS: 'GSW', NY: 'NYK', NO: 'NOP', SA: 'SAS', UTAH: 'UTA', WSH: 'WAS' })[code] ?? code
 
 type Status = { period: number; displayClock: string; type: { state: string; completed?: boolean; detail?: string } }
 type Competition = { date: string; status: Status; competitors: { homeAway: string; score: string; team: { abbreviation: string } }[] }
@@ -76,7 +77,7 @@ export class EspnLiveSource {
 
 export const liveEspnSource = new EspnLiveSource()
 
-function espnGame(id: string, competition: Competition): NBAGame {
+export function espnGame(id: string, competition: Competition): NBAGame {
   const home = competition.competitors.find(team => team.homeAway === 'home')
   const away = competition.competitors.find(team => team.homeAway === 'away')
   const status = competition.status

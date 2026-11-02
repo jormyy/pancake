@@ -1,3 +1,4 @@
+import { evidencePath } from '../helpers/evidence-path.mjs'
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import { readFileSync, writeFileSync } from 'node:fs'
@@ -55,7 +56,7 @@ const report={version:1,host:'Docker Desktop desktop-linux',project:'pt4bafablel
     hintTimeoutChecks:10,cronPolicyChecks:2,leaseExceptionCases:7,
     fullVitest:{passed:4918,failed:1,skipped:48,failure:'Temporary local config port override'},
     focusedVitestAfterCleanup:{passed:55,failed:0},lintAll:true,typecheck:true,typecheckTests:true,knip:true,negativeControls:['returned value','touched row','same-transaction live-cycle row','expired header lease bypass before fix'],sourceParity:true,liveCatalog:true}}
-writeFileSync('tests/db/pipeline-night-local-results.json',JSON.stringify(report,null,2)+'\n')
+writeFileSync(evidencePath('pipeline-night-local-results.json'),JSON.stringify(report,null,2)+'\n')
 const number=value=>Math.round(value).toLocaleString('en-US')
 const pair=(m,key)=>`${number(m.metrics[key].baseline)} → ${number(m.metrics[key].candidate)}`
 let table='\n| Local scenario | Statements | Shared hit + read | Functions | Relations | Rows written | WAL bytes |\n|---|---:|---:|---:|---:|---:|---:|\n'

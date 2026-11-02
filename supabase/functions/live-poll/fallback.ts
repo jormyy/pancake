@@ -7,6 +7,7 @@ import { runBounded } from '../_shared/runBounded.ts'
 import { errorMessage } from '../_shared/responses.ts'
 import { fallbackReason, liveEspnSource, matchEspnGame } from './espn.ts'
 import type { EspnEvent, EspnLiveSource, parseEspnSummary } from './espn.ts'
+import { newerNbaSource } from '../_shared/liveSourceChoice.ts'
 
 type Game = StatsSyncGame & { nba_game_id: string; game_date: string; home_team: string; away_team: string }
 type ParsedEspn = ReturnType<typeof parseEspnSummary>
@@ -77,14 +78,12 @@ export async function prepareLiveSources(games: Game[], events: EspnEvent[], sco
     observation.espnAgeMs = Math.max(0, now - Date.parse(parsed.sourceUpdatedAt))
     observation.espnHome = parsed.game.homeTeam.score
     observation.espnAway = parsed.game.awayTeam.score
-    const nbaTime = observation.nbaUpdatedAt ? Date.parse(observation.nbaUpdatedAt) : NaN
     if (nba?.gameStatus === 2) {
-      const elapsed = gameElapsedSeconds(nba)
       const nbaGame = typeof nba.homeTeam.score === 'number' && typeof nba.awayTeam.score === 'number'
         ? { ...nba, sourceUpdatedAt: observation.nbaUpdatedAt, gameStatusText: nba.gameStatusText ?? '',
           homeTeam: { ...nba.homeTeam, score: nba.homeTeam.score }, awayTeam: { ...nba.awayTeam, score: nba.awayTeam.score } } : undefined
       observation.nbaStaleReason = fallbackReason(nbaGame, parsed.game, now)
-      if (nbaTime >= Date.parse(parsed.sourceUpdatedAt) || elapsed > gameElapsedSeconds(parsed.game)) {
+      if (newerNbaSource(nba, parsed.game)) {
         useNba(game, 'nba-newer')
         return
       }
