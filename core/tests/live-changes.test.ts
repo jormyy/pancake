@@ -32,3 +32,12 @@ it('forecast updates invalidate only the displayed matchup',()=>{
   expect(homeVersionAffects(change,{...selected,matchupId:'other'})).toBe(true)
   expect(homeVersionAffects(change,selected)).toBe(true)
 })
+
+it('refreshes total scores across every week of a multi-week matchup', () => {
+    const secondWeek = { ...selected, week: 2, roundStartWeek: 1, roundEndWeek: 2 }
+    expect(homeHintAffects({ topic: 'score', scopes: [{ season_id: 'season', week: 1 }] }, secondWeek)).toBe(true)
+    expect(homeHintAffects({ topic: 'stat', scopes: [{ season_id: 'season', week: 1 }] }, secondWeek)).toBe(true)
+    expect(homeHintAffects({ topic: 'score', scopes: [{ season_id: 'season', week: 3 }] }, secondWeek)).toBe(false)
+    expect(homeHintAffects({ topic: 'score', scopes: [{ season_id: 'other', week: 1 }] }, secondWeek)).toBe(false)
+    expect(homeHintAffects({ topic: 'lineup', scopes: [{ season_id: 'season', week: 1 }] }, secondWeek)).toBe(false)
+})

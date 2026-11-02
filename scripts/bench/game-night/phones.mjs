@@ -119,7 +119,7 @@ export async function startPhones(stack, publicFeed) {
         table:message.payload?.table,hints:message.payload?.hints?.map(hint=>({event:hint.event,table:hint.payload?.table,topic:hint.row?.topic,updatedAt:hint.row?.updated_at,scopes:hint.row?.scopes,details:hint.row?.details}))})
       if(score)phone.broadcasts++
       const change=phoneChange(message,id(1),phone.version,{matchupId:phone.view?.matchup?.id,seasonId:phone.view?.context?.seasonId,date:phone.view?.selectedDate,
-        week:phone.view?.context?.weekNumber,memberIds:[phone.view?.matchup?.myMemberId,phone.view?.matchup?.opponentMemberId].filter(Boolean)})
+        week:phone.view?.context?.weekNumber,roundStartWeek:phone.view?.matchup?.roundStartWeek,roundEndWeek:phone.view?.matchup?.roundEndWeek,memberIds:[phone.view?.matchup?.myMemberId,phone.view?.matchup?.opponentMemberId].filter(Boolean)})
       phone.version=advancePhoneVersion(phone.version,change.version)
       if(change.refresh && !(index===1 && faults.has('phone-refresh'))){
         phone.readReason='broadcast:'+(message.payload?.hints?.map(hint=>hint.row?.topic ?? hint.payload?.table).filter(Boolean).join(',') ?? message.payload?.table ?? 'change')

@@ -147,9 +147,9 @@ function screenAffected(scope: ScreenScope, snapshot: LeagueVersionSnapshot, pre
     if (!changes.length || BigInt(changes[0].version) > BigInt(previous) + 1n) return true
     return changes.some(change => {
         if (scope.screen === 'home') {
-            const view = value as { context?: ViewContext; selectedDate?: string; matchup?: { id?: string; myMemberId?: string; opponentMemberId?: string } } | undefined
+            const view = value as { context?: ViewContext; selectedDate?: string; matchup?: { id?: string; myMemberId?: string; opponentMemberId?: string; roundStartWeek?: number; roundEndWeek?: number } } | undefined
             return homeVersionAffects(change, { matchupId: view?.matchup?.id, seasonId: view?.context?.seasonId, date: view?.selectedDate,
-                week: view?.context?.weekNumber ?? undefined,
+                week: view?.context?.weekNumber ?? undefined, roundStartWeek: view?.matchup?.roundStartWeek, roundEndWeek: view?.matchup?.roundEndWeek,
                 memberIds: [view?.matchup?.myMemberId, view?.matchup?.opponentMemberId].filter((id): id is string => Boolean(id)) })
         }
         if (change.topic === 'catchup') return true

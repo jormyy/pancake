@@ -280,3 +280,17 @@ it('keeps a newer Home entry when legacy and current cache keys coexist', () => 
         expect(values.get(key)).toBe(fresh)
     } finally { vi.stubGlobal('window', undefined) }
 })
+
+it('reads a multi-week total after a change to its earlier week', async () => {
+    const selected: ScreenScope = { ...scope, screen: 'home' }
+    const saved = { context: { leagueId: 'league', seasonId: 'season', version: '1', weekNumber: 2 }, selectedDate: '2026-10-27',
+        matchup: { id: 'matchup', myPoints: 42, roundStartWeek: 1, roundEndWeek: 2 }, myLineup: { starters: ['saved'] }, forecast: null }
+    saveScreenView(selected, saved, '1')
+    mocks.version = '2'
+    mocks.changes = [{ version: '2', topic: 'score', scope: { topics: ['score'], tables: ['matchups'], hints: [{ topic: 'score', scopes: [{ season_id: 'season', week: 1 }] }] }, created_at: '' }]
+    const fields = { matchup: { ...saved.matchup, myPoints: 99 }, selectedDate: saved.selectedDate, weekDays: [], leagueMatchups: [],
+        todaysGames: [], liveStats: {}, startedTeams: [], teamMatchups: {}, liveBasis: [] }
+    mocks.fetch.mockResolvedValue(Response.json({ ok: true, view: { section: 'scores', context: { ...saved.context, version: '2' }, ...fields, forecastStale: null } }))
+    expect(await readScreenView(selected)).toMatchObject({ ...fields, myLineup: saved.myLineup })
+    expect(mocks.fetch).toHaveBeenCalledOnce()
+})

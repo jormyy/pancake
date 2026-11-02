@@ -1,5 +1,5 @@
 type Scope = { season_id?: string; member_id?: string; date?: string | null; week?: number }
-export type HomeSelection = { matchupId?: string; seasonId?: string | null; memberIds?: string[]; date?: string; week?: number }
+export type HomeSelection = { matchupId?: string; seasonId?: string | null; memberIds?: string[]; date?: string; week?: number; roundStartWeek?: number; roundEndWeek?: number }
 type Hint = { topic: string; scopes?: Scope[] | null; details?: { resource: string }[] | null }
 const topics = new Set(['roster', 'lineup', 'score', 'stat', 'player_stats', 'game', 'resources', 'inventory', 'announcement', 'forecast', 'settings', 'member', 'season'])
 
@@ -10,8 +10,10 @@ export function homeHintAffects(hint: Hint, selection: HomeSelection): boolean {
         && hint.details.every(detail => detail && ['picks', 'claims', 'waivers', 'priority', 'faab', 'activity'].includes(detail.resource))) return false
     if (!Array.isArray(hint.scopes) || !hint.scopes.length || !selection.seasonId
         || hint.scopes.some(scope => !scope || typeof scope !== 'object')) return true
+    const firstWeek = ['score', 'stat', 'player_stats', 'game'].includes(hint.topic) ? selection.roundStartWeek ?? selection.week : selection.week
+    const lastWeek = ['score', 'stat', 'player_stats', 'game'].includes(hint.topic) ? selection.roundEndWeek ?? selection.week : selection.week
     return hint.scopes.some(scope => (!scope.season_id || scope.season_id === selection.seasonId)
-        && (scope.week == null || selection.week == null || scope.week === selection.week)
+        && (scope.week == null || firstWeek == null || lastWeek == null || scope.week >= firstWeek && scope.week <= lastWeek)
         && (hint.topic !== 'lineup' || !scope.date || !selection.date || scope.date === selection.date)
         && (hint.topic !== 'roster' || !scope.member_id || !selection.memberIds?.length || selection.memberIds.includes(scope.member_id)))
 }

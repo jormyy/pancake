@@ -61,3 +61,9 @@ test('unrelated averages can advance the stream while a score read is in flight'
     scope:{topics:['score'],tables:['matchups'],hints:[{topic:'score',details:[{resource:'averages'}]}]}}]}
   assert.deepEqual(phoneChange(batch(row),'league','31'),{refresh:false,version:'32'})
 })
+
+test('earlier-week corrections refresh a displayed multi-week total',()=>{
+  const row={topic:'version',details:[{version:'31',topic:'score',created_at:'2026-11-01T00:00:00Z',
+    scope:{topics:['score'],tables:['matchups'],hints:[{topic:'score',scopes:[{season_id:'season',week:1}]}]}}]}
+  assert.deepEqual(phoneChange(batch(row),'league','30',{seasonId:'season',week:2,roundStartWeek:1,roundEndWeek:2}),{refresh:true,scoreOnly:true,version:'31'})
+})

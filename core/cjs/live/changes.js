@@ -17,8 +17,10 @@ function homeHintAffects(hint, selection) {
     if (!Array.isArray(hint.scopes) || !hint.scopes.length || !selection.seasonId
         || hint.scopes.some(scope => !scope || typeof scope !== 'object'))
         return true;
+    const firstWeek = ['score', 'stat', 'player_stats', 'game'].includes(hint.topic) ? selection.roundStartWeek ?? selection.week : selection.week;
+    const lastWeek = ['score', 'stat', 'player_stats', 'game'].includes(hint.topic) ? selection.roundEndWeek ?? selection.week : selection.week;
     return hint.scopes.some(scope => (!scope.season_id || scope.season_id === selection.seasonId)
-        && (scope.week == null || selection.week == null || scope.week === selection.week)
+        && (scope.week == null || firstWeek == null || lastWeek == null || scope.week >= firstWeek && scope.week <= lastWeek)
         && (hint.topic !== 'lineup' || !scope.date || !selection.date || scope.date === selection.date)
         && (hint.topic !== 'roster' || !scope.member_id || !selection.memberIds?.length || selection.memberIds.includes(scope.member_id)));
 }
