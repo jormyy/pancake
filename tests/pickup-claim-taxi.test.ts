@@ -123,12 +123,14 @@ it('blocks an ineligible Taxi replacement without creating a claim', async () =>
     mocks.games = 65; mocks.read.mockResolvedValue([rosterPlayer(), taxi]); mocks.epoch += 1
     await act(async () => screen.update(React.createElement(ClaimPlayerScreen)))
     const drop = screen.root.findAllByType(type('Pressable')).find(node => node.props.accessibilityLabel === 'Select Taxi Drop to drop')!
+    expect(drop.props.accessibilityHint).toBe('Dropping Taxi Drop does not make room for IR target.')
     await act(async () => drop.props.onPress())
+    expect(mocks.alert).toHaveBeenCalledWith('No room', 'Dropping Taxi Drop does not make room for IR target.')
+    expect(screen.root.findAllByType(type('Pressable')).find(node => node.props.accessibilityLabel === 'Select Taxi Drop to drop')!.props.accessibilityState.selected).toBe(false)
     expect(screen.root.findAllByProps({ accessibilityLabel: 'Place on taxi' })).toHaveLength(0)
     expect(submit().props.disabled).toBe(true)
     await act(async () => submit().props.onPress())
     expect(mocks.claim).not.toHaveBeenCalled()
-    expect(mocks.alert).toHaveBeenCalledWith('Select destination', expect.any(String))
 })
 
 it.each(['taxi', 'ir'] as const)('prefills a quick-add claim with its %s drop and destination', async destination => {

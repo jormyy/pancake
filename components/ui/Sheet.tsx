@@ -130,6 +130,6 @@ const styles = StyleSheet.create({
     },
     title: { flex: 1 },
     close: { width: controlSize.minTouch, height: controlSize.minTouch, alignItems: 'center', justifyContent: 'center', borderRadius: radii.md },
-    body: { flexGrow: 0 },
+    body: { flexGrow: 0, flexShrink: 1, minHeight: 0 },
     bodyContent: { padding: componentTokens.sheet.contentPadding },
 })

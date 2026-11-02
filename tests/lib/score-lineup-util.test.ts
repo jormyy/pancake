@@ -9,9 +9,9 @@ type Solver = (candidates: Candidate[], slots: string[]) => number
 function loadSolver(path: string): { solve: Solver; allowed: Record<string, string[]> } {
     const source = ts.createSourceFile(path, readFileSync(path, 'utf8'), ts.ScriptTarget.Latest, true)
     const declarations = source.statements.filter((node) => (
-        ts.isFunctionDeclaration(node) && ['canPlayStarterSlot', 'bestLineupPointsForDate'].includes(node.name?.text ?? '')
+        ts.isFunctionDeclaration(node) && ['canPlayStarterSlot', 'assignedLineupPoints', 'bestLineupPointsForDate'].includes(node.name?.text ?? '')
     ) || (ts.isVariableStatement(node) && node.declarationList.declarations.some((declaration) => (
-        ts.isIdentifier(declaration.name) && declaration.name.text === 'SLOT_ALLOWED_POSITIONS'
+        ts.isIdentifier(declaration.name) && ['SLOT_ALLOWED_POSITIONS', 'EXHAUSTIVE_LINEUP_CANDIDATE_LIMIT'].includes(declaration.name.text)
     ))))
     const code = ts.transpileModule(declarations.map((node) => node.getText(source).replace(/^export /, '')).join('\n'), {
         compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
@@ -104,5 +104,40 @@ describe('all-UTIL maximum scoring preserves the original DFS', () => {
         expect(original(cancellation, ['UTIL', 'UTIL', 'UTIL'])).toBe(2 ** 53 + 2)
         expect(original(cancellation, ['UTIL', 'UTIL', 'UTIL'])).not.toBe(cancellation.reduce((sum, candidate) => sum + candidate.points, 0))
         expect(original(legal, ['UTIL', 'UTIL'])).not.toBe(original(legal.slice(1), ['UTIL', 'UTIL']))
+    })
+})
+
+describe('large candidate pools use the assignment solver', () => {
+    const slots = ['C', 'PF', 'PG', 'SF', 'SG', 'F', 'G', 'UTIL', 'UTIL', 'UTIL']
+    const positions = [['PG'], ['SG'], ['SF'], ['PF'], ['C'], ['PG', 'SG'], ['SF', 'PF'], ['SG', 'SF'], ['PF', 'C'], ['SF', 'PF', 'SG'], ['G'], ['F'], [], ['INVALID']]
+    let seed = 4242
+    const random = (bound: number) => {
+        seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0
+        return seed % bound
+    }
+
+    it('matches the original DFS exactly for whole-number points', () => {
+        for (let sample = 0; sample < 300; sample += 1) {
+            const size = 9 + random(8)
+            const candidates = Array.from({ length: size }, () => player(random(90) - 10, positions[random(positions.length)]))
+            const lineup = sample % 4 === 0 ? slots.slice(0, 1 + random(slots.length)) : slots
+            compare(candidates, lineup)
+        }
+    })
+
+    it('matches the original DFS after rounding for decimal points', () => {
+        for (let sample = 0; sample < 150; sample += 1) {
+            const candidates = Array.from({ length: 9 + random(7) }, () => player((random(1200) - 100) / 10 + random(3) * 0.25, positions[random(positions.length)]))
+            expect(Math.round(canonical.solve(candidates, slots) * 100)).toBe(Math.round(original(candidates, slots) * 100))
+        }
+    })
+
+    it('matches the original DFS on a traded-heavy day and stays fast', () => {
+        const busyDay = Array.from({ length: 17 }, (_, index) => player((index * 37) % 61 - 5, positions[index % 10]))
+        compare(busyDay, slots)
+        const largest = Array.from({ length: 60 }, (_, index) => player((index * 37) % 61 - 5, positions[index % 10]))
+        const started = performance.now()
+        expect(canonical.solve(largest, slots)).toBeGreaterThanOrEqual(canonical.solve(busyDay, slots))
+        expect(performance.now() - started).toBeLessThan(250)
     })
 })
