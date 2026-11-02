@@ -258,6 +258,74 @@ async function loadStarterSlots(leagueId: string): Promise<string[]> {
     return sortSlotsByFlexibility(slots)
 }
 
+const EXHAUSTIVE_LINEUP_CANDIDATE_LIMIT = 8
+
+function assignedLineupPoints(candidates: LineupCandidate[], starterSlots: string[]): number {
+    const slotCount = starterSlots.length
+    const columnCount = candidates.length + slotCount
+    const gain = starterSlots.map((slotType) => {
+        const row = new Array<number>(columnCount).fill(0)
+        candidates.forEach((candidate, index) => {
+            if (candidate.points > 0 && canPlayStarterSlot(candidate.eligible_positions, slotType)) row[index] = candidate.points
+        })
+        return row
+    })
+
+    const rowPotential = new Array<number>(slotCount + 1).fill(0)
+    const columnPotential = new Array<number>(columnCount + 1).fill(0)
+    const rowForColumn = new Array<number>(columnCount + 1).fill(0)
+    const previousColumn = new Array<number>(columnCount + 1).fill(0)
+    for (let row = 1; row <= slotCount; row += 1) {
+        rowForColumn[0] = row
+        let column = 0
+        const slack = new Array<number>(columnCount + 1).fill(Infinity)
+        const visited = new Array<boolean>(columnCount + 1).fill(false)
+        do {
+            visited[column] = true
+            const currentRow = rowForColumn[column]
+            let delta = Infinity
+            let nextColumn = 0
+            for (let candidateColumn = 1; candidateColumn <= columnCount; candidateColumn += 1) {
+                if (visited[candidateColumn]) continue
+                const reduced = -gain[currentRow - 1][candidateColumn - 1] - rowPotential[currentRow] - columnPotential[candidateColumn]
+                if (reduced < slack[candidateColumn]) {
+                    slack[candidateColumn] = reduced
+                    previousColumn[candidateColumn] = column
+                }
+                if (slack[candidateColumn] < delta) {
+                    delta = slack[candidateColumn]
+                    nextColumn = candidateColumn
+                }
+            }
+            for (let candidateColumn = 0; candidateColumn <= columnCount; candidateColumn += 1) {
+                if (visited[candidateColumn]) {
+                    rowPotential[rowForColumn[candidateColumn]] += delta
+                    columnPotential[candidateColumn] -= delta
+                } else {
+                    slack[candidateColumn] -= delta
+                }
+            }
+            column = nextColumn
+        } while (rowForColumn[column] !== 0)
+        do {
+            const previous = previousColumn[column]
+            rowForColumn[column] = rowForColumn[previous]
+            column = previous
+        } while (column !== 0)
+    }
+
+    const candidateForSlot = new Array<number>(slotCount).fill(-1)
+    for (let column = 1; column <= columnCount; column += 1) {
+        if (rowForColumn[column] !== 0 && column <= candidates.length) candidateForSlot[rowForColumn[column] - 1] = column - 1
+    }
+    let total = 0
+    for (let slot = slotCount - 1; slot >= 0; slot -= 1) {
+        const index = candidateForSlot[slot]
+        if (index >= 0 && gain[slot][index] > 0) total = candidates[index].points + total
+    }
+    return total
+}
+
 function bestLineupPointsForDate(candidates: LineupCandidate[], starterSlots: string[]): number {
     if (candidates.length === 0 || starterSlots.length === 0) return 0
 
@@ -274,6 +342,11 @@ function bestLineupPointsForDate(candidates: LineupCandidate[], starterSlots: st
             .slice(0, starterSlots.length)
             .sort((a, b) => a.index - b.index)
             .map(({ candidate }) => candidate)
+    }
+
+    if (candidates.length > EXHAUSTIVE_LINEUP_CANDIDATE_LIMIT
+        && candidates.every((candidate) => Number.isFinite(candidate.points))) {
+        return assignedLineupPoints(candidates, starterSlots)
     }
 
     const memo = new Map<string, number>()
