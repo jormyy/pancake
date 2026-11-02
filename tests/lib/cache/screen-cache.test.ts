@@ -195,3 +195,31 @@ it('keeps the published schedule version when the first push baseline has not ar
     expect(await readScreenView(scheduleScope)).toEqual(value)
     expect(mocks.fetch).toHaveBeenCalledOnce()
 })
+
+
+describe('forecast-only home reads', () => {
+    const selected: ScreenScope = { ...scope, screen: 'home' }
+    const saved = { context: { leagueId: 'league', seasonId: 'season', version: '1' }, matchup: { id: 'matchup', myPoints: 42 }, myLineup: { starters: ['player'] }, forecast: { stale: true } }
+    function forecast() {
+        mocks.version = '2'
+        mocks.changes = [{ version: '2', topic: 'forecast', scope: { topics: ['forecast'], tables: ['matchup_forecasts'], forecastMatchupIds: ['matchup'] }, created_at: '' }]
+    }
+    it('reads only forecast facts and preserves the saved scores and lineup', async () => {
+        saveScreenView(selected, saved, '1')
+        forecast()
+        mocks.fetch.mockResolvedValue(Response.json({ ok: true, view: { section: 'forecast', context: { leagueId: 'league', seasonId: 'season', version: '2' }, matchup: { id: 'matchup' }, forecast: { stale: false } } }))
+        expect(await readScreenView(selected)).toEqual({ ...saved, context: { ...saved.context, version: '2' }, forecast: { stale: false } })
+        const query = new URL(mocks.fetch.mock.calls[0][0]).searchParams
+        expect(JSON.parse(query.get('params')!)).toMatchObject({ section: 'forecast', matchupId: 'matchup' })
+    })
+    it.each(['newer-version', 'wrong-matchup', 'full-invalidation'])('falls back to a full authorized read for %s', async cause => {
+        saveScreenView(selected, saved, '1')
+        forecast()
+        if (cause === 'full-invalidation') invalidateScreenViews('league')
+        const patch = { section: 'forecast', context: { leagueId: 'league', seasonId: 'season', version: cause === 'newer-version' ? '3' : '2' }, matchup: { id: cause === 'wrong-matchup' ? 'other' : 'matchup' }, forecast: { stale: false } }
+        const full = { ...saved, context: { ...saved.context, version: '3' }, matchup: { ...saved.matchup, myPoints: 99 } }
+        mocks.fetch.mockImplementation(async (url: string) => Response.json({ ok: true, view: JSON.parse(new URL(url).searchParams.get('params')!).section ? patch : full }))
+        expect(await readScreenView(selected)).toEqual(full)
+        expect(JSON.parse(new URL(mocks.fetch.mock.lastCall![0]).searchParams.get('params')!).section).toBeUndefined()
+    })
+})

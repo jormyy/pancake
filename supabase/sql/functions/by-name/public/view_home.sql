@@ -16,8 +16,6 @@ BEGIN
       CASE WHEN week_start >= league_today THEN week_start END, week_end DESC LIMIT 1;
   context := context || jsonb_build_object('today', league_today, 'weekNumber', COALESCE((p_params->>'weekNumber')::integer, league_week));
   p_params := p_params || jsonb_build_object('weekNumber', context->'weekNumber');
-  SELECT COALESCE(jsonb_agg(to_jsonb(row)), '[]') INTO announcements FROM (SELECT * FROM public.notif_list_announcements(p_league_id) item
-    WHERE item.author_member_id IS DISTINCT FROM p_member_id AND item.published_at >= now() - interval '14 days' LIMIT 5) row;
   IF p_params->>'matchupId' IS NOT NULL THEN
     SELECT * INTO matchup FROM public.matchups WHERE id=(p_params->>'matchupId')::uuid
       AND league_id=p_league_id AND league_season_id=(context->>'seasonId')::uuid AND NOT is_voided;
@@ -34,6 +32,13 @@ BEGIN
     AND COALESCE(end_week_number, week_number) >= (context->>'weekNumber')::integer
     AND (context->'season'->>'is_current')::boolean ORDER BY week_number DESC, id LIMIT 1;
   END IF;
+  IF p_params->>'section'='forecast' THEN
+    RETURN jsonb_build_object('section','forecast','context',jsonb_build_object('leagueId',p_league_id,
+      'seasonId',context->'seasonId','version',context->'version'),'matchup',jsonb_build_object('id',matchup.id),
+      'forecast',private.compact_home_forecast(public.get_matchup_forecast(matchup.id)));
+  END IF;
+  SELECT COALESCE(jsonb_agg(to_jsonb(row)), '[]') INTO announcements FROM (SELECT * FROM public.notif_list_announcements(p_league_id) item
+    WHERE item.author_member_id IS DISTINCT FROM p_member_id AND item.published_at >= now() - interval '14 days' LIMIT 5) row;
   IF matchup.id IS NULL THEN RETURN jsonb_build_object('context', context, 'matchup', NULL, 'weekDays', '[]'::jsonb,
     'leagueMatchups', '[]'::jsonb, 'myLineup', NULL, 'oppLineup', NULL, 'forecast', NULL, 'announcements', announcements,
     'todaysGames', '[]'::jsonb, 'liveStats', '{}'::jsonb, 'startedTeams', '[]'::jsonb, 'teamMatchups', '{}'::jsonb,
@@ -107,18 +112,7 @@ BEGIN
       value->'ftAttempted',value->'fouls',value->'doubleDouble',value->'tripleDouble',value->'minutesPlayed',value->'didNotPlay')),'{}'::jsonb)
       INTO compact_groups FROM jsonb_each(payload->'liveStats');
     payload:=payload||jsonb_build_object('wireVersion',1,'liveStats',compact_groups);
-    IF payload->'forecast'<>'null'::jsonb THEN
-      payload:=jsonb_set(payload,'{forecast}',jsonb_build_object('stale',payload->'forecast'->'stale',
-        'tieProbability',payload->'forecast'->'tieProbability','missingInputs',COALESCE((
-          SELECT jsonb_agg(value) FROM jsonb_array_elements_text(payload->'forecast'->'missingInputs') value
-          WHERE value LIKE 'Projection substituted:%'),'[]'::jsonb),
-        'teams',COALESCE((SELECT jsonb_agg(jsonb_build_object('memberId',team->'memberId','projectedFinal',team->'projectedFinal',
-          'currentPoints',team->'currentPoints','winProbability',team->'winProbability'))
-          FROM jsonb_array_elements(payload->'forecast'->'teams') team),'[]'::jsonb),
-        'games',COALESCE((SELECT jsonb_agg(jsonb_build_object('gameId',game->'gameId','playerId',game->'playerId','memberId',game->'memberId'))
-          FROM jsonb_array_elements(payload->'forecast'->'games') game WHERE payload->'forecast'->'missingInputs'
-            @>jsonb_build_array('Projection substituted: '||(game->>'playerId')||':'||(game->>'gameId'))),'[]'::jsonb)));
-    END IF;
+    payload:=jsonb_set(payload,'{forecast}',private.compact_home_forecast(payload->'forecast'));
   END IF;
   RETURN payload;
 END;

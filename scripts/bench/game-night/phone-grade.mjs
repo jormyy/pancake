@@ -84,6 +84,6 @@ export function phoneGrade({slate,started,ended,renders,phones,requests,reads,me
     requests:timed(requests),viewReads:timed(reads),messages:received,refreshes:refreshed,pollCount:timed(requests).length,
     messageBytes:received.reduce((sum,row)=>sum+row.bytes,0),calculationP95Ms:percentile(timed(renders).map(row=>row.calculationMs).filter(Number.isFinite),.95),
     viewBytes:timed(reads).reduce((sum,row)=>sum+row.bytes,0),viewWireBytes:timed(reads).reduce((sum,row)=>sum+(row.wireBytes ?? row.bytes),0),
-    compressionVerified:timed(reads).filter(row=>row.kind==='home').every(row=>row.encoding==='gzip' && row.wireBytes<row.bytes),
+    compressionVerified:timed(reads).filter(row=>['home','forecast'].includes(row.kind)).every(row=>row.encoding==='gzip' && row.wireBytes<row.bytes),
     viewLatencyP95Ms:percentile(timed(reads).map(row=>row.done-row.at),.95)}
 }

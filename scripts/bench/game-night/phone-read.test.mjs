@@ -35,3 +35,13 @@ test('phone and application policies skip unrelated versions and future lineups'
   assert.equal(phoneChange(batch({topic:'lineup',scopes:[{season_id:'season',date:'2026-11-02'}]}),'league','30',selection).refresh,false)
   assert.equal(phoneChange(batch({topic:'score',scopes:[{season_id:'season'}]}),'league','30',selection).refresh,true)
 })
+
+
+test('phones request a forecast patch only for an unbroken forecast-only version',()=>{
+  const row={topic:'version',details:[{version:'31',topic:'forecast',created_at:'2026-11-01T00:00:00Z',
+    scope:{topics:['forecast'],tables:['matchup_forecasts'],forecastMatchupIds:['matchup']}}]}
+  assert.deepEqual(phoneChange(batch(row),'league','30',{matchupId:'matchup'}),{refresh:true,forecastOnly:true,version:'31'})
+  assert.deepEqual(phoneChange(batch(row),'league','29',{matchupId:'matchup'}),{refresh:true,version:'31'})
+  row.details[0].scope.topics.push('score')
+  assert.deepEqual(phoneChange(batch(row),'league','30',{matchupId:'matchup'}),{refresh:true,version:'31'})
+})

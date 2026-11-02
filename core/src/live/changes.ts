@@ -33,3 +33,21 @@ export function homeVersionAffects(change: { topic: string; scope: Record<string
         return scoped.length === 0 || scoped.some(hint => homeHintAffects(hint, selection))
     })
 }
+
+
+export function homeForecastOnly(change: { topic: string; scope: Record<string, unknown> }): boolean {
+    const names = Array.isArray(change.scope.topics) ? change.scope.topics : [change.topic]
+    const tables = change.scope.tables
+    return change.topic !== 'catchup' && names.length > 0 && names.every(name => name === 'forecast')
+        && Array.isArray(tables) && tables.length > 0 && tables.every(table => table === 'matchup_forecasts')
+}
+
+export function mergeHomeForecast<T>(saved: T, update: unknown, version: string): T | undefined {
+    const previous = saved as { context?: { leagueId?: string; seasonId?: string }; matchup?: { id?: string } }
+    const patch = update as { section?: string; context?: { leagueId?: string; seasonId?: string; version?: unknown }; matchup?: { id?: string }; forecast?: unknown } | null
+    if (!previous.context?.leagueId || !previous.context.seasonId || !previous.matchup?.id
+        || patch?.section !== 'forecast' || !Object.hasOwn(patch, 'forecast')
+        || patch.context?.leagueId !== previous.context.leagueId || patch.context?.seasonId !== previous.context.seasonId
+        || String(patch.context?.version) !== version || patch.matchup?.id !== previous.matchup.id) return undefined
+    return { ...saved, context: { ...previous.context, version: patch.context.version }, forecast: patch.forecast }
+}

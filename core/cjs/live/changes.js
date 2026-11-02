@@ -2,6 +2,8 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.homeHintAffects = homeHintAffects;
 exports.homeVersionAffects = homeVersionAffects;
+exports.homeForecastOnly = homeForecastOnly;
+exports.mergeHomeForecast = mergeHomeForecast;
 const topics = new Set(['roster', 'lineup', 'score', 'stat', 'player_stats', 'game', 'resources', 'inventory', 'announcement', 'forecast', 'settings', 'member', 'season']);
 function homeHintAffects(hint, selection) {
     if (['score', 'resources'].includes(hint.topic) && Array.isArray(hint.details) && hint.details.length
@@ -38,4 +40,20 @@ function homeVersionAffects(change, selection) {
         const scoped = hints.filter(hint => hint.topic === topic);
         return scoped.length === 0 || scoped.some(hint => homeHintAffects(hint, selection));
     });
+}
+function homeForecastOnly(change) {
+    const names = Array.isArray(change.scope.topics) ? change.scope.topics : [change.topic];
+    const tables = change.scope.tables;
+    return change.topic !== 'catchup' && names.length > 0 && names.every(name => name === 'forecast')
+        && Array.isArray(tables) && tables.length > 0 && tables.every(table => table === 'matchup_forecasts');
+}
+function mergeHomeForecast(saved, update, version) {
+    const previous = saved;
+    const patch = update;
+    if (!previous.context?.leagueId || !previous.context.seasonId || !previous.matchup?.id
+        || patch?.section !== 'forecast' || !Object.hasOwn(patch, 'forecast')
+        || patch.context?.leagueId !== previous.context.leagueId || patch.context?.seasonId !== previous.context.seasonId
+        || String(patch.context?.version) !== version || patch.matchup?.id !== previous.matchup.id)
+        return undefined;
+    return { ...saved, context: { ...previous.context, version: patch.context.version }, forecast: patch.forecast };
 }
