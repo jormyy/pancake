@@ -4,6 +4,8 @@ exports.homeHintAffects = homeHintAffects;
 exports.homeVersionAffects = homeVersionAffects;
 exports.homeForecastOnly = homeForecastOnly;
 exports.mergeHomeForecast = mergeHomeForecast;
+exports.homeScoresOnly = homeScoresOnly;
+exports.mergeHomeScores = mergeHomeScores;
 const topics = new Set(['roster', 'lineup', 'score', 'stat', 'player_stats', 'game', 'resources', 'inventory', 'announcement', 'forecast', 'settings', 'member', 'season']);
 function homeHintAffects(hint, selection) {
     if (['score', 'resources'].includes(hint.topic) && Array.isArray(hint.details) && hint.details.length
@@ -56,4 +58,28 @@ function mergeHomeForecast(saved, update, version) {
         || String(patch.context?.version) !== version || patch.matchup?.id !== previous.matchup.id)
         return undefined;
     return { ...saved, context: { ...previous.context, version: patch.context.version }, forecast: patch.forecast };
+}
+function homeScoresOnly(change) {
+    const names = Array.isArray(change.scope.topics) ? change.scope.topics : [change.topic];
+    const tables = change.scope.tables;
+    return change.topic !== 'catchup' && names.length > 0 && names.every(name => ['score', 'stat', 'player_stats', 'game'].includes(String(name)))
+        && Array.isArray(tables) && tables.length > 0 && tables.every(table => ['nba_games', 'player_game_stats', 'matchups', 'matchup_totals'].includes(String(table)));
+}
+function mergeHomeScores(saved, update, version) {
+    const previous = saved;
+    const patch = update;
+    if (!previous.context?.leagueId || !previous.context.seasonId || !previous.matchup?.id || !previous.selectedDate
+        || patch?.section !== 'scores' || patch.context?.leagueId !== previous.context.leagueId
+        || patch.context?.seasonId !== previous.context.seasonId || String(patch.context?.version) !== version
+        || patch.matchup?.id !== previous.matchup.id || patch.selectedDate !== previous.selectedDate
+        || !['weekDays', 'leagueMatchups', 'todaysGames', 'startedTeams', 'liveBasis'].every(name => Array.isArray(patch[name]))
+        || !['liveStats', 'teamMatchups'].every(name => patch[name] && typeof patch[name] === 'object' && !Array.isArray(patch[name]))
+        || !(typeof patch.forecastStale === 'boolean' || patch.forecastStale === null))
+        return undefined;
+    const forecast = previous.forecast;
+    if (forecast && (typeof forecast !== 'object' || patch.forecastStale === null))
+        return undefined;
+    return { ...saved, ...Object.fromEntries(['matchup', 'selectedDate', 'weekDays', 'leagueMatchups', 'todaysGames', 'liveStats', 'startedTeams', 'teamMatchups', 'liveBasis'].map(name => [name, patch[name]])),
+        context: { ...previous.context, version: patch.context.version },
+        ...(forecast ? { forecast: { ...forecast, stale: patch.forecastStale } } : {}) };
 }

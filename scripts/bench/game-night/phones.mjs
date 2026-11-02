@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { createClient } from '@supabase/supabase-js'
-import { createLivePoller, fetchLiveSnapshot, readLiveSnapshot, overlayLiveScores, nextLiveRecovery, decodeSavedLiveView, mergeHomeForecast } from '@pancake/core'
+import { createLivePoller, fetchLiveSnapshot, readLiveSnapshot, overlayLiveScores, nextLiveRecovery, decodeSavedLiveView, mergeHomeForecast, mergeHomeScores } from '@pancake/core'
 import { id, loopback } from './common.mjs'
 import { userToken } from './quality.mjs'
 import { scoreMessage } from './quality-grade.mjs'
@@ -81,25 +81,26 @@ export async function startPhones(stack, publicFeed) {
     const updatePoll = () => phone.poller.update({ date,active:Boolean(phone.view?.todaysGames?.some(game=>game.status==='InProgress')),
       visible:phone.visible,online:phone.online })
     phone.activity = (visible,online) => {phone.visible=visible;phone.online=online;updatePoll();updateRecovery()}
-    phone.refresh = (forecastOnly=false) => {
+    phone.refresh = (section=undefined) => {
       if (closed || !phone.visible || !phone.online) return Promise.resolve()
       if (phone.loading) {phone.pending=true;return phone.loading}
       phone.loading=(async()=>{
         do {
           phone.pending=false
           const at=Date.now()
-          const partial=Boolean(forecastOnly && phone.view?.matchup?.id)
-          forecastOnly=false
-          const params=partial?{date,section:'forecast',matchupId:phone.view.matchup.id}:{date}
+          const partial=phone.view?.matchup?.id?section:undefined
+          section=undefined
+          const params=partial?{date,section:partial,matchupId:phone.view.matchup.id}:{date}
           const query=new URLSearchParams({leagueId:id(1),memberId:id(200+index),params:JSON.stringify(params),compact:'1'})
           const response=await readWireResponse(`http://127.0.0.1:${stack.ports.edge}/functions/v1/api/views/home?${query}`,{authorization:`Bearer ${token}`})
           const body=response.body
-          reads.push({kind:partial?'forecast':'home',reason:phone.readReason ?? 'open',phone:index,at,done:Date.now(),status:response.status,bytes:response.bytes,wireBytes:response.wireBytes,encoding:response.encoding,
+          reads.push({kind:partial??'home',reason:phone.readReason ?? 'open',phone:index,at,done:Date.now(),status:response.status,bytes:response.bytes,wireBytes:response.wireBytes,encoding:response.encoding,
             fields:Object.fromEntries(Object.entries(JSON.parse(body).view ?? {}).map(([name,value])=>[name,Buffer.byteLength(JSON.stringify(value))]))})
           assert.ok(response.ok,`Phone ${index} cannot read its authorized home (${response.status})`)
           const result=JSON.parse(body)
           assert.ok(result.ok && result.view,`Phone ${index} received an invalid screen response`)
-          const merged=partial?mergeHomeForecast(phone.view,result.view,phone.version):undefined
+          const merged=partial==='forecast'?mergeHomeForecast(phone.view,result.view,phone.version)
+            :partial==='scores'?mergeHomeScores(phone.view,decodeSavedLiveView(result.view),phone.version):undefined
           if(partial && merged===undefined){phone.pending=true;continue}
           phone.view=partial?merged:decodeSavedLiveView(result.view)
           phone.version=advancePhoneVersion(phone.version,phone.view.context?.version)
@@ -119,11 +120,12 @@ export async function startPhones(stack, publicFeed) {
       phone.version=advancePhoneVersion(phone.version,change.version)
       if(change.refresh && !(index===1 && faults.has('phone-refresh'))){
         phone.readReason='broadcast:'+(message.payload?.hints?.map(hint=>hint.row?.topic ?? hint.payload?.table).filter(Boolean).join(',') ?? message.payload?.table ?? 'change')
-        phone.forecastOnly=phone.timer?phone.forecastOnly && change.forecastOnly:change.forecastOnly
+        const section=change.forecastOnly?'forecast':change.scoreOnly?'scores':undefined
+        phone.readSection=phone.timer && phone.readSection!==section?undefined:section
         clearTimeout(phone.timer)
         phone.timer=setTimeout(async()=>{
           if(closed || !phone.visible || !phone.online)return
-          const partial=phone.forecastOnly
+          const partial=phone.readSection
           phone.timer=null
           await phone.refresh(partial)
           if(!phone.error)refreshes.push({phone:index,at:Date.now()})

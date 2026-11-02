@@ -1,4 +1,4 @@
-import { homeHintAffects, homeVersionAffects, homeForecastOnly } from '@pancake/core'
+import { homeHintAffects, homeVersionAffects, homeForecastOnly, homeScoresOnly } from '@pancake/core'
 
 const maxVersion=9223372036854775807n
 
@@ -17,7 +17,7 @@ export function phoneChange(message,leagueId,since='0',selection={}) {
     : payload.table==='league_change_hints' && payload.schema==='public'
       ? ['INSERT','UPDATE'].includes(payload.eventType) ? [payload.new] : []
       : []
-  let refresh=false,forecastOnly=true,version='0'
+  let refresh=false,forecastOnly=true,scoreOnly=true,version='0'
   for(const row of rows) {
     if(!row || row.league_id!==leagueId)continue
     if(row.topic==='version') {
@@ -26,9 +26,9 @@ export function phoneChange(message,leagueId,since='0',selection={}) {
         || typeof change.version!=='string' || typeof change.topic!=='string' || typeof change.created_at!=='string'
         || advancePhoneVersion('0',change.version)==='0')continue
       version=advancePhoneVersion(version,change.version)
-      if(BigInt(change.version)>BigInt(since) && homeVersionAffects(change,selection)){refresh=true;forecastOnly &&= homeForecastOnly(change)}
-    } else if(['lineup','roster','score','game','stat','player_stats','inventory','resources'].includes(row.topic) && homeHintAffects(row,selection)){refresh=true;forecastOnly=false}
+      if(BigInt(change.version)>BigInt(since) && homeVersionAffects(change,selection)){refresh=true;forecastOnly &&= homeForecastOnly(change);scoreOnly &&= homeScoresOnly(change)}
+    } else if(['lineup','roster','score','game','stat','player_stats','inventory','resources'].includes(row.topic) && homeHintAffects(row,selection)){refresh=true;forecastOnly=false;scoreOnly &&= ['score','stat','player_stats','game'].includes(row.topic)}
   }
-  if(BigInt(version)>BigInt(since)+1n){refresh=true;forecastOnly=false}
-  return {refresh,...(refresh && forecastOnly?{forecastOnly:true}:{}),...(version!=='0'?{version}:{})}
+  if(BigInt(version)>BigInt(since)+1n){refresh=true;forecastOnly=false;scoreOnly=false}
+  return {refresh,...(refresh && forecastOnly?{forecastOnly:true}:{}),...(refresh && scoreOnly && version!=='0'?{scoreOnly:true}:{}),...(version!=='0'?{version}:{})}
 }

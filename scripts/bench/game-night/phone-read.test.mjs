@@ -45,3 +45,12 @@ test('phones request a forecast patch only for an unbroken forecast-only version
   row.details[0].scope.topics.push('score')
   assert.deepEqual(phoneChange(batch(row),'league','30',{matchupId:'matchup'}),{refresh:true,version:'31'})
 })
+
+
+test('official score changes use a scoped score read and mixed changes keep a full read',()=>{
+  const row={topic:'version',details:[{version:'31',topic:'game',created_at:'2026-11-01T00:00:00Z',
+    scope:{topics:['game','stat'],tables:['nba_games','player_game_stats']}}]}
+  assert.deepEqual(phoneChange(batch(row),'league','30'),{refresh:true,scoreOnly:true,version:'31'})
+  row.details[0].scope.topics.push('lineup')
+  assert.deepEqual(phoneChange(batch(row),'league','30'),{refresh:true,version:'31'})
+})

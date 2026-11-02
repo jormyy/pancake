@@ -115,6 +115,11 @@ BEGIN
     payload:=payload||jsonb_build_object('wireVersion',1,'liveStats',compact_groups);
     payload:=jsonb_set(payload,'{forecast}',private.compact_home_forecast(payload->'forecast'));
   END IF;
+  IF p_params->>'section'='scores' THEN
+    RETURN (payload-ARRAY['myLineup','oppLineup','forecast','announcements'])||jsonb_build_object('section','scores',
+      'context',jsonb_build_object('leagueId',p_league_id,'seasonId',context->'seasonId','version',context->'version'),
+      'forecastStale',payload->'forecast'->'stale');
+  END IF;
   RETURN payload;
 END;
 $$;
