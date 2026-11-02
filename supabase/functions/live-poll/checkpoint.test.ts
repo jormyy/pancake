@@ -127,3 +127,15 @@ Deno.test('all discovered starts precede a slow recovery import',async()=>{
   assert.equal(calls[0],'start:early')
   assert.ok(calls.includes('import:first'))
 })
+
+Deno.test('public start receipts use separate deadlines and rotate across ticks',async()=>{
+  const games=[1,2,3].map(n=>({...row(`game-${n}`),status:'Scheduled',game_time:new Date(start+3600000).toISOString()}))
+  const body={...snapshot(start),games:games.map(game=>({...snapshot(start).games[0],id:game.nba_game_id,nbaId:game.nba_game_id}))}
+  const orders:string[][]=[],signals:AbortSignal[]=[]
+  const tick=createCheckpointPoller({now:()=>start,load:async()=>games,snapshot:async()=>body,
+    start:async(game,signal)=>{orders.at(-1)!.push(game.id);signals.push(signal)},
+    ingest:async()=>({...result(),importedGameIds:[]}),record:async()=>assert.fail()})
+  for(let n=0;n<2;n++){orders.push([]);await tick('holder')}
+  assert.equal(new Set(signals).size,6)
+  assert.notEqual(orders[0][0],orders[1][0])
+})

@@ -306,3 +306,40 @@ Deno.test('NBA start receipts survive an unrelated ESPN discovery failure',async
   try {await ingestTick(holder,undefined,new Set([holder]));assert.deepEqual(writes,['early'])}
   finally {globalThis.fetch=original}
 })
+
+Deno.test('start receipts have independent deadlines, bounded concurrency and rotating retries',async()=>{
+  const {withWorkContext}=await import('../_shared/workContext.ts')
+  const original=globalThis.fetch
+  const orders:string[][]=[]
+  let active=0,maximum=0,loads=0
+  globalThis.fetch=async(input,init)=>{
+    const request=new Request(input,init),url=new URL(request.url),name=url.pathname.split('/').at(-1)
+    if(url.hostname==='espn.invalid')return Response.json({events:[]})
+    if(url.hostname==='nba.invalid')return Response.json({scoreboard:{games:[1,2,3].map(n=>({gameId:`002260000${n}`,gameStatus:2,gameStatusText:'Q1',period:1,gameClock:'PT10M00S',homeTeam:{score:0},awayTeam:{score:0}}))}})
+    if(name==='get_live_checkpoint_inputs')return Response.json(++loads%2?[{id:holder,nba_game_id:'0022600099',status:'InProgress',needs_scoreboard:true,needs_stats:false,game_date:'2026-10-29'}]:[])
+    if(name==='nba_games')return Response.json([1,2,3].map(n=>({id:`early-${n}`,nba_game_id:`002260000${n}`,status:'Scheduled'})))
+    if(name==='record_live_poll_attempts')return Response.json(null)
+    if(name==='save_live_scoreboard_atomic'){
+      const id=(await request.json()).p_game_id
+      orders.at(-1)!.push(id);active++;maximum=Math.max(maximum,active)
+      try {
+        if(id!=='early-3')await new Promise<void>((resolve,reject)=>{
+          if(request.signal.aborted){reject(request.signal.reason);return}
+          request.signal.addEventListener('abort',()=>reject(request.signal.reason),{once:true})
+        })
+        return Response.json(true)
+      }finally{active--}
+    }
+    throw new Error(`Unexpected ${url}`)
+  }
+  try {
+    for(let tick=0;tick<2;tick++){
+      orders.push([])
+      await withWorkContext({signal:AbortSignal.timeout(10000)},()=>ingestTick(holder,undefined,new Set([holder])))
+      assert.ok(orders[tick].includes('early-3'),'A slow receipt must not starve a healthy game')
+      assert.equal(orders[tick].length,3)
+    }
+    assert.equal(maximum,2)
+    assert.notEqual(orders[0][0],orders[1][0])
+  }finally{globalThis.fetch=original}
+})

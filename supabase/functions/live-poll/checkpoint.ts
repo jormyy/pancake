@@ -17,6 +17,7 @@ export function createCheckpointPoller(dependencies: {
   now?: () => number
 }) {
   const now = dependencies.now ?? Date.now
+  let startOffset = 0
   return async (holder: string): Promise<LiveTick> => {
     const deadline = now() + 16000
     const work = await dependencies.load()
@@ -31,14 +32,15 @@ export function createCheckpointPoller(dependencies: {
       return {...await dependencies.ingest(holder),sourceMode:'database'}
     }
     const result: LiveTick = {lines:0,keepRunning:false,worked:true,failures:[],scoreRetries:0,tickRetries:0,sourceMode:'public'}
-    const startSignal = AbortSignal.timeout(3000)
-    await runBounded(work.map(game => async () => {
+    const offset = work.length ? startOffset++ % work.length : 0
+    const startWork = [...work.slice(offset), ...work.slice(0, offset)]
+    await runBounded(startWork.map(game => async () => {
       const matches = (snapshots.get(game.game_date)?.games ?? []).filter(row => row.nbaId === game.nba_game_id
         || row.nbaId == null && row.home.team === game.home_team && row.away.team === game.away_team)
       const source = matches.length === 1 ? matches[0] : undefined
       if (game.status !== 'Scheduled' || !source || source.status === 'Scheduled'
         || source.updatedAt < now()-120000 || source.updatedAt > now()+5000) return
-      try { startSignal.throwIfAborted(); await dependencies.start?.(game,startSignal) }
+      try { await dependencies.start?.(game,AbortSignal.timeout(3000)) }
       catch(error) { result.failures.push(String(error)) }
     }),2)
     for (const game of work) {
