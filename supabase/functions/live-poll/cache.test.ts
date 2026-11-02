@@ -49,7 +49,7 @@ Deno.test('stored live receipts skip all database calls for an identical feed ac
     const restarted = structuredClone(current)
     const second = await syncLiveStatsGames([restarted], { loadBoxScore: async () => source })
     assert.deepEqual(calls, [])
-    assert.deepEqual(second, { statLines: 0, failures: [] })
+    assert.deepEqual(second, { statLines: 0, failures: [], importedGameIds:[current.id] })
     assert.equal(saves.length, 1)
   })
 })
@@ -61,7 +61,7 @@ Deno.test('one changed player sends one changed line and keeps full recovery inp
     source.homeTeam.players[0].statistics.points = 12
     source.homeTeam.score = 12
     const result = await syncLiveStatsGames([current], { loadBoxScore: async () => source })
-    assert.deepEqual(result, { statLines: 1, failures: [] })
+    assert.deepEqual(result, { statLines: 1, failures: [], importedGameIds:[current.id] })
     assert.deepEqual(calls, ['save_live_feed_snapshot_atomic'])
     assert.equal((saves[1].stats as unknown[]).length, 1)
     assert.equal((saves[1].full_stats as unknown[]).length, 2)
@@ -74,7 +74,7 @@ Deno.test('a newer source revision advances the watermark with zero changed line
     calls.length = 0
     source.sourceUpdatedAt = '2026-10-30T01:00:30Z'
     const result = await syncLiveStatsGames([current], { loadBoxScore: async () => source })
-    assert.deepEqual(result, { statLines: 0, failures: [] })
+    assert.deepEqual(result, { statLines: 0, failures: [], importedGameIds:[current.id] })
     assert.deepEqual(calls, ['save_live_feed_snapshot_atomic'])
     assert.deepEqual(saves[1].stats, [])
   })
@@ -94,4 +94,13 @@ Deno.test('snapshot comparison ignores only row write time and object field orde
   const row = buildStatRow(box().homeTeam.players[0], playerIds[0], game().id, 2027, 1)
   assert.equal(liveSnapshotKey({ stats: [row] }), liveSnapshotKey({ stats: [{ ...row, updated_at: 'later' }] }))
   assert.notEqual(liveSnapshotKey({ stats: [row] }), liveSnapshotKey({ stats: [{ ...row, points: 11 }] }))
+})
+
+Deno.test('a scheduled provider response never claims a successful import',async()=>{
+  await fixture(async(current,source,calls)=>{
+    source.gameStatus=1
+    const result=await syncLiveStatsGames([current],{loadBoxScore:async()=>source})
+    assert.deepEqual(result,{statLines:0,failures:[],importedGameIds:[]})
+    assert.deepEqual(calls,[])
+  })
 })

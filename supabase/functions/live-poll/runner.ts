@@ -106,6 +106,7 @@ export async function ingestTick(holder: string, onRetry?: () => void, gameIds?:
   await retry(() => stampAttempts(holder, [], statsGames.filter(game => game.status === 'Final').map(game => game.id)))
   let lines = 0
   let scoreRetries = 0
+  let importedGameIds: string[] = []
   const failures: unknown[] = []
   if (statsGames.length) {
     try {
@@ -113,6 +114,7 @@ export async function ingestTick(holder: string, onRetry?: () => void, gameIds?:
       failures.push(...sources.failures)
       const result = await retry(() => syncLiveStatsGames(statsGames, sources), result => result.failures)
       lines = result.statLines
+      importedGameIds = result.importedGameIds
       failures.push(...result.failures)
     } catch (error) {
       failures.push(error)
@@ -127,7 +129,7 @@ export async function ingestTick(holder: string, onRetry?: () => void, gameIds?:
   }
   for (const error of failures) console.error('[live-poll] input failed:', error)
   const keepRunning = shouldKeepPolling(work)
-  return { lines, keepRunning, worked: true, failures: failures.map(error => liveFailureText(error)), scoreRetries, tickRetries }
+  return { lines, keepRunning, worked: true, failures: failures.map(error => liveFailureText(error)), scoreRetries, tickRetries, importedGameIds }
 }
 
 export async function runLivePoll(request: Request): Promise<Response> {

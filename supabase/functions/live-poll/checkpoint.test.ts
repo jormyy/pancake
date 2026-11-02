@@ -117,3 +117,11 @@ Deno.test('an ESPN completion signal repeats authoritative checks until official
     ingest:async(_holder,_ids,checkpointOnly)=>{assert.equal(checkpointOnly,false);writes++;return result()},record:async()=>{} })
   await tick('holder');await tick('holder');assert.equal(writes,2)
 })
+
+Deno.test('a successful request with no imported game cannot advance a checkpoint',async()=>{
+  const game=row();game.checkpoint_at=null
+  let records=0
+  const tick=createCheckpointPoller({now:()=>start,load:async()=>[game],snapshot:async()=>snapshot(start),
+    ingest:async()=>({...result(),importedGameIds:[]}),record:async()=>{records++} })
+  await tick('holder');assert.equal(records,0)
+})

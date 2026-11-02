@@ -390,9 +390,10 @@ export function buildStatRow(
   }
 }
 
-export async function syncLiveStatsGames(games: StatsSyncGame[], options: { loadBoxScore?: (game: StatsSyncGame) => Promise<NBABoxScore> } = {}): Promise<{ statLines: number; failures: unknown[] }> {
+export async function syncLiveStatsGames(games: StatsSyncGame[], options: { loadBoxScore?: (game: StatsSyncGame) => Promise<NBABoxScore> } = {}): Promise<{ statLines: number; failures: unknown[]; importedGameIds: string[] }> {
   let statLines = 0
   const failures: unknown[] = []
+  const importedGameIds: string[] = []
   let writes: Promise<number> = Promise.resolve(0)
   const persist = (write: () => Promise<number>) => {
     const pending = writes.then(write, write)
@@ -401,13 +402,19 @@ export async function syncLiveStatsGames(games: StatsSyncGame[], options: { load
   }
   await runBounded(games.map(game => async () => {
     try {
-      const lines = await syncGameBoxScore(game, true, persist, options.loadBoxScore)
+      let available = false
+      const lines = await syncGameBoxScore(game, true, persist, async item => {
+        const box = await (options.loadBoxScore ? options.loadBoxScore(item) : fetchBoxScore(item.nba_game_id!))
+        available = box.gameStatus !== 1
+        return box
+      })
       statLines += lines
+      if (available) importedGameIds.push(game.id)
     } catch (error) {
       const failure = new Error(`NBA game ${game.nba_game_id}: ${errorMessage(error)}`, { cause: error })
       Object.assign(failure, { code: (error as { code?: string })?.code })
       failures.push(failure)
     }
   }), 4)
-  return { statLines, failures }
+  return { statLines, failures, importedGameIds }
 }

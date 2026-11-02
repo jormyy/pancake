@@ -3,7 +3,7 @@ import type { Database } from '../_shared/database.ts'
 import type { LiveSnapshot } from '../_shared/liveSnapshot.ts'
 
 export type CheckpointGame = Database['public']['Functions']['get_live_checkpoint_work']['Returns'][number]
-export type LiveTick = { lines: number; keepRunning: boolean; worked: boolean; failures: string[]; scoreRetries: number; tickRetries: number; sourceMode?: 'public' | 'database' }
+export type LiveTick = { lines: number; keepRunning: boolean; worked: boolean; failures: string[]; scoreRetries: number; tickRetries: number; sourceMode?: 'public' | 'database'; importedGameIds?: string[] }
 export const CHECKPOINT_INTERVAL_MS = 30 * 60 * 1000
 
 export function createCheckpointPoller(dependencies: {
@@ -76,7 +76,7 @@ export function createCheckpointPoller(dependencies: {
         result.scoreRetries += imported.scoreRetries
         result.tickRetries += imported.tickRetries
         result.failures.push(...imported.failures)
-        if (imported.worked && !imported.failures.length) {
+        if (imported.worked && !imported.failures.length && (!imported.importedGameIds || imported.importedGameIds.includes(id))) {
           await dependencies.record(holder,[id])
           reload = true
         }
