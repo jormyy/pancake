@@ -76,3 +76,47 @@ Deno.test('waiver batches and expiry do not depend on an Edge notification write
     assert.deepEqual(errors, [])
   } finally { globalThis.fetch = nativeFetch; console.error = nativeError }
 })
+
+Deno.test('waiver batches retry transaction contention before reporting failure', async () => {
+  const nativeFetch = globalThis.fetch
+  const nativeError = console.error
+  let calls = 0
+  globalThis.fetch = async input => {
+    const url = new URL(input instanceof Request ? input.url : input)
+    if (url.pathname.endsWith('/process_due_waiver_claims_atomic')) {
+      calls++
+      if (calls <= 2) return Response.json({ code: '55P03', message: 'canceling statement due to lock timeout' }, { status: 409 })
+      return Response.json(calls === 3 ? [{ processed: true }] : [])
+    }
+    return Response.json(0)
+  }
+  console.error = () => {}
+  try {
+    const response = await handler(new Request('http://localhost', { headers: { 'x-internal-function-token': 'waiver-internal-test' } }))
+    assert.equal(response.status, 200)
+    assert.deepEqual(await response.json(), { ok: true, processed: 1 })
+    assert.equal(calls, 5)
+  } finally { globalThis.fetch = nativeFetch; console.error = nativeError }
+})
+
+for (const [code, expectedCalls] of [['42501', 1], ['55P03', 5]] as const) {
+  Deno.test(`waiver failure ${code} stays bounded and visible`, async () => {
+    const nativeFetch = globalThis.fetch
+    const nativeError = console.error
+    let calls = 0
+    globalThis.fetch = async input => {
+      const url = new URL(input instanceof Request ? input.url : input)
+      if (url.pathname.endsWith('/process_due_waiver_claims_atomic')) {
+        calls++
+        return Response.json({ code, message: code === '42501' ? 'permission denied' : 'canceling statement due to lock timeout' }, { status: 409 })
+      }
+      throw new Error('A failed batch must stop before expiry work')
+    }
+    console.error = () => {}
+    try {
+      const response = await handler(new Request('http://localhost', { headers: { 'x-internal-function-token': 'waiver-internal-test' } }))
+      assert.equal(response.status, 500)
+      assert.equal(calls, expectedCalls)
+    } finally { globalThis.fetch = nativeFetch; console.error = nativeError }
+  })
+}
