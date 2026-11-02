@@ -31,6 +31,8 @@ Each document owns one contract or operating topic. Generated reports remain out
 
 ## Related guides
 
+- [Release 2.15](release-2.15.md): Shared live scores, local acceptance, and named Free-plan risks.
+
 - [Database release steps](../supabase/RELEASE-DB.md): Baselines, migration order, Edge deployment, operator pause, and rollback.
 - [Release 2.4 integration](release-2.4-integration.md): Preserved integration decisions and verification results.
 - [Installed iPhone checks](ios-simulator-testing.md): Home Screen installation, native interactions, and captures.

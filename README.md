@@ -71,7 +71,7 @@ Run focused checks while developing; regenerate release evidence for the reviewe
 ## Production releases
 
 Database, then Edge, then merge the frontend.
-The current candidate includes migrations through `20261214007500`.
+Release 2.15.0 includes migrations through `20261214007500`.
 The release guide distinguishes the supplied production head from local verification.
 Follow the ordered [database release steps](supabase/RELEASE-DB.md) before merging.
 Local builds do not fetch production assets by default.
@@ -81,6 +81,7 @@ The [release gates](docs/verification.md#release-gates) and [artifact contract](
 
 ## Documentation
 
+Read the [changelog](docs/changelog.md) and [release notes](docs/release-2.15.md).
 Start with the [documentation index](docs/README.md).
 Use the [browser guide](tests/e2e/README.md) for local UI checks.
 

@@ -103,21 +103,21 @@ Foreign containers are recorded and left unchanged.
 
 | Sample | n | Median anonymous refaults/s | Range |
 | --- | ---: | ---: | --- |
-| Paired reference | 3 | 2,083.325 | 2,042.079–2,147.293 |
-| Training before final heartbeat repair | 3 | 4.822 | 4.464–9.429 |
+| Paired reference | 3 | 1,931 | 1,866–2,216 |
+| Final runtime training | 3 | 4.73 | 4.04–6.85 |
 | Held-out reference | 3 | 3,167.493 | 3,114.448–3,432.218 |
 | Final held-out confirmation | 1 | 1.920 | Single sample |
 
-The training reduction is 99.77%; its strict ceiling is 35.092/s.
+The training reduction is 99.76%; it remains below the stricter retained 35.092/s ceiling.
 The held-out ceiling is 158.375/s.
-Training uses source `8d8ff1cc`; held-out uses `e48cae97` after the heartbeat repair.
-Three training runs on that final repair remain pending in the recorded report.
-Do not describe the final source as having passed repeated training until that separate series finishes.
+Training and held-out use the final runtime at `e48cae97`, including the heartbeat repair.
+The final training repeat passes every quality gate; its broken-final control fails as required.
 The held-out run is a final confirmation after earlier use, not a fresh untouched tuning set.
 Settings alone measured 142.640/s against 701.832/s, each with n=3 and without phones.
 Those gains are not additive.
 
-All three training samples pass their recorded action, final-state, freshness, schedule, and failure gates.
+All three final training samples pass their action, final-state, freshness, schedule, and failure gates.
+The traffic and latency medians below come from the preceding matched series; the final repeat confirms runtime acceptance.
 Phone freshness p95 is 29.408 seconds at the median, with a maximum sample of 31.079 seconds.
 Held-out phone freshness p95 is 29.378 seconds.
 The ten-phone correction test reaches all phones in 560 ms.
@@ -149,11 +149,11 @@ No additional deployed probe supports these lab numbers.
 
 The stress model uses ten phones, six hours per night, and thirty nights.
 These are projected usage totals, except database size, memory, disk operations, and peak connections.
-The table uses the largest training or held-out value.
+The transfer row includes the final training repeat; other rows retain the recorded training and held-out bounds.
 
 | Resource | Projected use or measured peak | Free allowance or reference | Share |
 | --- | ---: | ---: | ---: |
-| Supabase transfer | 2.425 GB/month | 5 GB/month | 48.49% |
+| Supabase transfer | About 2.55 GB/month | 5 GB/month | 51.0% |
 | Supabase Edge invocations | 81,260/month | 500,000/month | 16.25% |
 | Realtime messages | 456,034/month | 2,000,000/month | 22.80% |
 | Realtime connections | 10 | 200 | 5.00% |
@@ -187,7 +187,9 @@ The fully decoded upper bound is 3.378 GB/month, above the 50% target.
 The named budget decision uses measured encoded responses, with hosted verification required at rollout.
 [Realtime billing](https://supabase.com/docs/guides/platform/manage-your-usage/realtime-messages) counts a send and each receiving client.
 
-Database size is the named exception to the half-allowance goal.
+Transfer and database size are the named exceptions to the half-allowance goal.
+The final repeat projects transfer at 49.7%, 49.8%, and 51.0% of the actual allowance.
+The 51.0% stress result is accepted as a release risk; hosted billing still needs verification.
 The production-sized synthetic fixture stays unchanged and official history does not expire.
 See [capacity and retention](db-capacity.md) for growth limits.
 The [replay lab](../scripts/bench/game-night/README.md) retains the executable gates and reporting workflow.

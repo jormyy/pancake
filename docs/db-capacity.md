@@ -10,6 +10,7 @@ The largest training sample is 267,062,419 bytes, or 53.41% of the 500 MB Free a
 The held-out database is 265,628,819 bytes.
 
 Database size is an accepted exception to the half-allowance target.
+The final transfer stress projection also reaches 51.0% of its 5 GB allowance.
 Official statistics and results have no automatic expiry.
 An explicit historical-data policy or a larger plan is needed before continued growth reaches the allowance.
 The replay cannot establish how many months of production growth remain.

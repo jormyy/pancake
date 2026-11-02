@@ -14,8 +14,10 @@ It also preserves the recorded pre-migration security catalog.
 | Release 2.4 candidate | `20261116000500` | 608 |
 | Release 2.5 candidate | `20261123000100` | 621 |
 | Release 2.6 candidate | `20261124000400` | 625 |
+| Release 2.15 candidate | `20261214007500` | 757 |
 
-The current approved range contains 296 migrations after the audit baseline.
+The release 2.15 candidate contains 757 migrations, with 428 after the fixed audit baseline.
+The earlier 296-migration range belongs to release 2.6.
 The recorded release 1 phase has 61 pending migrations.
 Release 1 reaches production on 2026-10-27.
 Its frontend commit is `1e62824e43044d30007b9601a8a3993c576b6a7e`.
