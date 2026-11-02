@@ -39,7 +39,7 @@ export async function startPhones(stack, publicFeed) {
     const scheduleRecovery = () => {
       clearTimeout(phone.recoveryTimer)
       if(closed || !phone.visible || !phone.online)return
-      const delay=nextLiveRecovery(phone.view?.todaysGames ?? [],Date.now(),phone.snapshot?.mode==='public')
+      const delay=nextLiveRecovery(phone.view?.todaysGames ?? [],Date.now(),phone.snapshot?.mode==='public' && phone.display?.stale===false)
       if(delay===null)return
       phone.recoveryTimer=setTimeout(async()=>{
         const at=Date.now()
@@ -50,7 +50,7 @@ export async function startPhones(stack, publicFeed) {
           reads.push({kind:'version',phone:index,at,done:Date.now(),status:response.status,bytes:response.bytes,wireBytes:response.wireBytes,encoding:response.encoding})
           assert.ok(response.ok,`Phone ${index} cannot check its screen version`)
           const value=JSON.parse(body)
-          if(BigInt(value.version)>BigInt(phone.version)) {
+          if(phone.snapshot?.mode!=='public' || phone.display?.stale!==false || BigInt(value.version)>BigInt(phone.version)) {
             phone.version=advancePhoneVersion(phone.version,value.version)
             phone.readReason='recovery'
             await phone.refresh()
@@ -60,7 +60,7 @@ export async function startPhones(stack, publicFeed) {
       },delay)
     }
     const updateRecovery = () => {
-      const key=JSON.stringify([phone.visible,phone.online,phone.snapshot?.mode,phone.view?.todaysGames?.map(game=>[game.id,game.status,game.game_time])])
+      const key=JSON.stringify([phone.visible,phone.online,phone.snapshot?.mode,phone.display?.stale,phone.view?.todaysGames?.map(game=>[game.id,game.status,game.game_time])])
       if(key===phone.recoveryKey)return
       phone.recoveryKey=key
       scheduleRecovery()

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { browserReadsAllowed } from '@/hooks/use-browser-read-activity'
-import { revalidateScreenVersion, screenCacheKey, type ScreenScope, type ViewContext } from '@/lib/cache/screen-cache'
+import { invalidateScreenView, revalidateScreenVersion, screenCacheKey, type ScreenScope, type ViewContext } from '@/lib/cache/screen-cache'
 import { listenForLeagueChanges } from '@/lib/league-changes'
 import { sessionGeneration } from '@/lib/session-cache-registry'
 import { nextLiveRecovery } from '@pancake/core'
@@ -50,6 +50,7 @@ export function useLiveViewRecovery(scope: ScreenScope | null, value: unknown, e
             if (!allowed() || checking) return
             checking = true
             try {
+                if (!publicLive && nextLiveRecovery(latest.current.games, Date.now(), false) !== null) invalidateScreenView(latest.current.scope!)
                 await revalidateScreenVersion(latest.current.scope!)
                 if (allowed()) verificationFailed.current = false
                 if (allowed()) await loadSlate()

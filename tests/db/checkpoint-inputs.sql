@@ -17,8 +17,8 @@ BEGIN
   PERFORM pg_temp.check_rules(actual=expected,'selected checkpoint inputs exactly match the existing save inputs');
   PERFORM pg_temp.check_rules((SELECT count(*)=1 FROM public.get_live_checkpoint_inputs(ARRAY[active,active],tick)),
     'repeated selected IDs do not duplicate input rows');
-  PERFORM pg_temp.check_rules(NOT EXISTS(SELECT 1 FROM public.get_live_checkpoint_inputs(ARRAY[final,future],tick)),
-    'selection preserves final retry backoff and scheduled-game eligibility');
+  PERFORM pg_temp.check_rules((SELECT count(*)=2 FROM public.get_live_checkpoint_inputs(ARRAY[final,future],tick)),
+    'explicit worker selection reads due recovery inputs after attempt stamps');
   PERFORM pg_temp.check_rules(NOT EXISTS(SELECT 1 FROM public.get_live_checkpoint_inputs(ARRAY[]::uuid[],tick)),
     'empty selection never reads all games');
   PERFORM pg_temp.check_rules(NOT EXISTS(SELECT 1 FROM public.get_live_checkpoint_inputs(NULL,tick)),

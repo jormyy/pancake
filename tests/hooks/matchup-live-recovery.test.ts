@@ -52,14 +52,14 @@ it('recovers a silently stale connected matchup through HTTP within twenty secon
     expect(boundary.checks).toHaveBeenCalledOnce()
     expect(h.latest.matchup?.myPoints).toBe(12)
     expect(boundary.read).toHaveBeenCalledTimes(2)
-    expect(boundary.read.mock.lastCall?.[0].params.section).toBe('scores')
+    expect(boundary.read.mock.lastCall?.[0].params.section).toBeUndefined()
 })
 
-it('keeps a twenty-second version guard while connected without rereading unchanged views', async () => {
+it('rereads saved database scores every twenty seconds while public data is unavailable', async () => {
     await h.render(); connected()
-    await advance(60_000)
+    await advance(60_250)
     expect(boundary.checks).toHaveBeenCalledTimes(3)
-    expect(boundary.read).toHaveBeenCalledOnce()
+    expect(boundary.read).toHaveBeenCalledTimes(4)
 })
 
 it.each(['score', 'stat', 'game', 'player_stats'] as const)('refetches a %s hint without a version packet within two seconds', async topic => {

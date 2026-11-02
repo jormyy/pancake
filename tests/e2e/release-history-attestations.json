@@ -3441,8 +3441,8 @@
       "name": "scope_forecast_change_events",
       "version": "20261214008200",
       "statementCount": 3,
-      "statementsSha256": "b7e5f94688b2251c7fd5cdd856226186f76258c0a6b64818a87314da88c6c3f6",
-      "sha256": "d77f89e0aba850b113cfd5c158718ad69e1b60d3fa62318adb9f34b97d8e4340"
+      "statementsSha256": "93c8230bb93ff8cc44a4306ebecb300fd9cb4efee9ae5419fe109e7027400882",
+      "sha256": "98063a34cdea0edda9e6d01a5599236956b0fc6c772aa35cafa4ce2b15c03726"
     },
     {
       "name": "compact_forecast_context",

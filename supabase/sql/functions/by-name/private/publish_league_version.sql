@@ -6,6 +6,13 @@ CREATE OR REPLACE FUNCTION private.publish_league_version(p_league_id uuid,p_top
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
 DECLARE stored public.league_versions%ROWTYPE; readers uuid[]; change_topic text; change_scope jsonb; forecast_ids jsonb;
 BEGIN
+    IF auth.role()='service_role'
+      AND COALESCE(NULLIF(current_setting('request.headers',true),'')::jsonb,'{}'::jsonb)->>'x-pancake-public-checkpoint'='true'
+      AND current_setting('pancake.official_broadcast',true) IS DISTINCT FROM 'true'
+      AND cardinality(p_sources)>0 AND p_sources<@ARRAY['matchups','matchup_totals','nba_games','player_game_stats']::text[]
+      AND EXISTS(SELECT 1 FROM public.live_poll_leases WHERE lock_key=779001
+        AND holder_id::text=COALESCE(NULLIF(current_setting('request.headers',true),'')::jsonb,'{}'::jsonb)->>'x-pancake-live-holder'
+        AND expires_at>clock_timestamp()) THEN RETURN; END IF;
     PERFORM 1 FROM public.league_versions WHERE league_id=p_league_id FOR UPDATE;
     SELECT CASE WHEN league.deleted_at IS NULL
       THEN ARRAY(SELECT member.user_id FROM public.league_members member WHERE member.league_id=league.id ORDER BY member.user_id)

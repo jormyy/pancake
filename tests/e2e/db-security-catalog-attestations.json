@@ -2593,7 +2593,7 @@
     },
     {
       "filename": "20261214008200_scope_forecast_change_events.sql",
-      "sha256": "d77f89e0aba850b113cfd5c158718ad69e1b60d3fa62318adb9f34b97d8e4340"
+      "sha256": "98063a34cdea0edda9e6d01a5599236956b0fc6c772aa35cafa4ce2b15c03726"
     },
     {
       "filename": "20261214008300_compact_forecast_context.sql",

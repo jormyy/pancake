@@ -37,3 +37,13 @@ it('keeps ten-minute recovery for a usable live overlay',async()=>{
     await act(async()=>{await vi.advanceTimersByTimeAsync(20000)})
     expect(boundary.checks).not.toHaveBeenCalled()
 })
+
+it('rereads saved scores when stale public data has no new broadcast version',async()=>{
+    source.snapshot=body(now-180000)
+    await open()
+    const saved=await boundary.read.mock.results[0].value
+    boundary.read.mockResolvedValue({...saved,matchup:{...saved.matchup,myPoints:12},liveBasis:saved.liveBasis.map((basis:Record<string,unknown>)=>({...basis,homePoints:12}))})
+    await act(async()=>{await vi.advanceTimersByTimeAsync(20250)})
+    expect(boundary.read).toHaveBeenCalledTimes(2)
+    expect(h.latest.matchup?.myPoints).toBe(12)
+})
