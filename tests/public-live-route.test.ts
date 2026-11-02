@@ -275,3 +275,30 @@ it('uses the reviewed canonical NBA identity for the known provider alias',async
   const result=await sourceSelection(structuredClone(event),now,aliased)
   expect(result.body.games[0].home.players[0][0]).toBe('1641794')
 })
+
+it.each([false,true])('rejects scheduled NBA boxes and tries the fallback (available=%s)',async available=>{
+  const scheduled=structuredClone(box)
+  scheduled.gameStatus=1
+  scheduled.gameClock='PT12M00S'
+  for(const team of [scheduled.homeTeam,scheduled.awayTeam]) {
+    team.score=0
+    for(const player of team.players)player.statistics={...Object.fromEntries(Object.keys(stats).map(key=>[key,0])),minutes:'PT0M00S'} as typeof stats
+  }
+  const calls:string[]=[]
+  vi.stubGlobal('fetch',async(input:RequestInfo|URL)=>{
+    const url=new URL(input instanceof Request?input.url:input)
+    calls.push(url.pathname)
+    if(url.hostname==='site.api.espn.com')return available
+      ? Response.json(url.pathname.endsWith('scoreboard')?{events:[event]}:summary())
+      : Response.json({},{status:503})
+    return Response.json(url.pathname.includes('scoreboard')
+      ? {meta:{time:new Date(now).toISOString()},scoreboard:{games:[box]}}
+      : {meta:{time:new Date(now).toISOString()},game:scheduled})
+  })
+  const response=await createLiveHandler({now:()=>now})(new Request(`http://local/api/live/${date}`))
+  expect(response.status).toBe(available?200:503)
+  if(available) {
+    expect((await response.json()).games[0]).toMatchObject({source:'espn',status:'InProgress'})
+    expect(calls.some(path=>path.endsWith('/summary'))).toBe(true)
+  }
+})

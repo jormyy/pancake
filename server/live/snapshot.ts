@@ -33,6 +33,7 @@ function compactPlayer(player: NBABoxScorePlayer, id = String(player.personId ==
 }
 
 function compactBox(box: NBABoxScore, board: NBAGame | undefined, event: EspnEvent | undefined, observedAt: number, ids?: Map<NBABoxScorePlayer, string>): PublicLiveGame {
+  if (![2,3].includes(box.gameStatus)) throw new Error('Provider box has not started')
   if (box.gameStatus !== 3) gameElapsedSeconds(box)
   const updatedAt = Date.parse(box.liveSourceUpdatedAt ?? box.sourceUpdatedAt ?? board?.sourceUpdatedAt ?? '')
   if (!Number.isFinite(updatedAt) || updatedAt > observedAt+5000) throw new Error('Provider snapshot has an invalid source timestamp')
