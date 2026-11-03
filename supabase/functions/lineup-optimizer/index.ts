@@ -48,6 +48,7 @@ type AutoSetPlayer = {
   projectionSourceLabel: string | null
   projectionView: string | null
   avoidInLineup: boolean
+  gameTime: string | null
 }
 type GameRow = {
   season_year: number
@@ -55,6 +56,7 @@ type GameRow = {
   home_team: string | null
   away_team: string | null
   status: string | null
+  game_status_text: string | null
   game_time: string | null
   started_at: string | null
 }
@@ -242,7 +244,7 @@ async function loadDateContexts(requestedDate: string | null): Promise<DateConte
   const end = addDays(today, 7)
   let query = supabase
     .from('nba_games')
-    .select('season_year, game_date, home_team, away_team, status, game_time, started_at')
+    .select('season_year, game_date, home_team, away_team, status, game_status_text, game_time, started_at')
     .order('game_date', { ascending: true })
     .order('game_time', { ascending: true })
 
@@ -291,7 +293,7 @@ async function loadRemainingSeasonDateContexts(seasonYear: number, requestedDate
   for (let from = 0; games.length <= 3000; from += SCHEDULE_PAGE_SIZE) {
     let query = supabase
       .from('nba_games')
-      .select('season_year, game_date, home_team, away_team, status, game_time, started_at')
+      .select('season_year, game_date, home_team, away_team, status, game_status_text, game_time, started_at')
       .eq('season_year', seasonYear)
       .gte('game_date', today)
       .order('game_date', { ascending: true })
@@ -432,6 +434,13 @@ async function autoSetMemberDate(
       projectionSourceLabel: projection?.projection_source_label ?? null,
       projectionView: projection?.projection_view ?? null,
       avoidInLineup: isAvoidedInjury(row.players?.injury_status ?? null),
+      gameTime: dateContext.games.filter(game => gameAvailable(game)
+        && row.players?.nba_team != null && [game.home_team, game.away_team].includes(row.players.nba_team))
+        .flatMap(game => {
+          const time = game.game_time ?? game.started_at
+          return time ? [time] : []
+        })
+        .sort((a, b) => Date.parse(a) - Date.parse(b))[0] ?? null,
     }
   })
 
@@ -439,8 +448,10 @@ async function autoSetMemberDate(
   const startedTeams = new Set<string>()
   const now = new Date().toISOString()
   for (const game of dateContext.games) {
-    if (game.home_team) playingTeams.add(game.home_team)
-    if (game.away_team) playingTeams.add(game.away_team)
+    if (gameAvailable(game)) {
+      if (game.home_team) playingTeams.add(game.home_team)
+      if (game.away_team) playingTeams.add(game.away_team)
+    }
     const hasStarted =
       ['InProgress', 'Final'].includes(game.status ?? '') ||
       (game.game_time != null && game.game_time <= now) ||
@@ -581,6 +592,11 @@ function isAvoidedInjury(injuryStatus: string | null): boolean {
   if (!injuryStatus) return false
   const status = injuryStatus.toLowerCase()
   return status === 'out' || status.startsWith('ir')
+}
+
+function gameAvailable(game: GameRow): boolean {
+  return ['Scheduled', 'InProgress', 'Final'].includes(game.status ?? '')
+    && !/postpon|cancel|suspend|(^|[^a-z])ppd([^a-z]|$)/i.test(game.game_status_text ?? '')
 }
 
 function slotsForTemplates(

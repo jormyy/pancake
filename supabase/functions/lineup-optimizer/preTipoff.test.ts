@@ -45,6 +45,30 @@ Deno.test('staggered games preserve a locked starter declared Out and leave lock
   assert(!result.some((row) => row.player_id === 'b') && result.some((row) => row.player_id === 'c'), 'Locked bench player starts.')
 })
 
+Deno.test('early specialist assignment keeps a later center replacement legal after a late guard is Out', () => {
+  const c = context()
+  c.players = [
+    { playerId: 'early', eligiblePositions: ['PG'], injuryStatus: null, locked: false, hasGame: true, gameTime: '2026-11-04T00:00:00Z' },
+    { playerId: 'late', eligiblePositions: ['PG'], injuryStatus: null, locked: false, hasGame: true, gameTime: '2026-11-04T03:00:00Z' },
+    { playerId: 'replacement', eligiblePositions: ['C'], injuryStatus: null, locked: false, hasGame: true, gameTime: '2026-11-04T03:00:00Z' },
+  ]
+  c.stored = [
+    { player_id: 'early', slot_type: 'UTIL', is_auto_set: false, week_number: 1, locked: false },
+    { player_id: 'late', slot_type: 'PG', is_auto_set: false, week_number: 1, locked: false },
+  ]
+  const points = [{ player_id: 'early', projection_fantasy_points: 50 }, { player_id: 'late', projection_fantasy_points: 45 },
+    { player_id: 'replacement', projection_fantasy_points: 40 }]
+  const first = tipoffAssignments(c, points)
+  assert(first.some(row => row.player_id === 'early' && row.slot_type === 'PG'), 'Early guard consumes UTIL.')
+  c.stored = first.map(entry => ({ ...entry, locked: entry.player_id === 'early' }))
+  c.players[0].locked = true
+  c.players[1].injuryStatus = 'Out'
+  const next = tipoffAssignments(c, points)
+  assert(next.some(row => row.player_id === 'early' && row.slot_type === 'PG'), 'Early lock moves.')
+  assert(next.some(row => row.player_id === 'replacement' && row.slot_type === 'UTIL'), 'Later replacement loses its legal slot.')
+  assert(!next.some(row => row.player_id === 'late'), 'Unlocked Out guard displaces the healthy center.')
+})
+
 Deno.test('departed locked starters keep their slots', () => {
   const c = context()
   c.stored = [{ player_id: 'departed', slot_type: 'PG', is_auto_set: true, week_number: 1, locked: true }]

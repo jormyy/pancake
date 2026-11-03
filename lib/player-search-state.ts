@@ -26,6 +26,7 @@ export type PlayerSearchParams = {
 }
 
 type PlayerSearchFilterState = {
+    statsDays?: 7 | 15 | null
     query: string
     position: string
     selectedTeams: string[]
@@ -106,7 +107,7 @@ export function activePlayerFilterCount(state: PlayerSearchFilterState): number 
     if (state.availabilityFilter !== 'free_agents') count++
     if (state.rookiesOnly) count++
     if (state.health !== 'all') count++
-    if (state.seasonYear != null) count++
+    if (state.statsDays != null || state.seasonYear != null) count++
     return count
 }
 

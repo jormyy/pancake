@@ -1,3 +1,4 @@
+import { STATS_WINDOW_OPTIONS, statsWindowDays, statsWindowLabel } from '@/lib/stats-window'
 import { readScreenSection, saveScreenSection } from '@/lib/screen-section'
 import { ListHeader } from '@/components/ui/ListHeader'
 import { useScrollRestoration } from '@/lib/scroll-restoration'
@@ -168,7 +169,7 @@ function PlayerSearchSection() {
     const playerSupportReady = !leagueId || Boolean(playerSupportForLeague)
     const transactionState = playerSupportForLeague?.transactionState ?? null
     const refreshPlayerSupport = useCallback(async () => { await refreshSearchView(true) }, [refreshSearchView])
-    const scrollRestoration = useScrollRestoration(JSON.stringify(['players', user?.id, current?.id, leagueId, search.search.query, search.season.value, search.sort.mode, search.sort.dir, search.availabilityFilter.value, search.position.value, search.teamPicker.selectedTeams, search.playing.value, search.health.value, search.toggles]), search.results.listRef)
+    const scrollRestoration = useScrollRestoration(JSON.stringify(['players', user?.id, current?.id, leagueId, search.search.query, search.season.value, search.statsWindow.days, search.sort.mode, search.sort.dir, search.availabilityFilter.value, search.position.value, search.teamPicker.selectedTeams, search.playing.value, search.health.value, search.toggles]), search.results.listRef)
     const liveRows = useVisiblePlayerRows(search.results.players, leagueId, search.season.value,
         currentLeague?.scoring_settings, {
             enabled: focused && online && membershipValidated && !filtersOpen,
@@ -233,6 +234,7 @@ function PlayerSearchSection() {
             claimPending={playerSupportForLeague?.pendingClaimIds.has(item.id) ?? false}
             isAdding={quickAdd.adding === item.id}
             addDisabled={online && availabilityUpdating}
+            statMode={search.statsWindow.days === null ? 'season' : 'window'}
             showStats={showStatTable}
             showCompactStats={false}
             animate={false}
@@ -241,7 +243,7 @@ function PlayerSearchSection() {
             onPress={handleOpenPlayer}
             onPrepare={handlePreparePlayer}
         />
-    ), [current?.id, online, availabilityUpdating, ownedMap, waiverIds, playerSupportForLeague?.waiverClearsAt, playerSupportForLeague?.pendingClaimIds, quickAdd.adding, showStatTable, addBlockedReason, handleAddPlayer, handleOpenPlayer, handlePreparePlayer])
+    ), [search.statsWindow.days, current?.id, online, availabilityUpdating, ownedMap, waiverIds, playerSupportForLeague?.waiverClearsAt, playerSupportForLeague?.pendingClaimIds, quickAdd.adding, showStatTable, addBlockedReason, handleAddPlayer, handleOpenPlayer, handlePreparePlayer])
     const playerListExtraData = [
         search.sort.mode,
         search.sort.dir,
@@ -250,6 +252,7 @@ function PlayerSearchSection() {
         search.health.value,
         search.teamPicker.selectedTeams.join(','),
         search.season.value ?? '',
+        search.statsWindow.days ?? '',
     ].join('|')
     const showInitialShell = authLoading || (leagueLoading && memberships.length === 0)
     const resultCount = search.results.players.length
@@ -261,7 +264,9 @@ function PlayerSearchSection() {
             ? `FAAB $${transactionState.faabBalance}`
             : 'Rolling waivers'
         : ''
-    const averageLabel = playerAverageLabel(search.results.players[0]?.stats_season_year)
+    const averageLabel = search.statsWindow.days === null
+        ? playerAverageLabel(search.results.players[0]?.stats_season_year)
+        : statsWindowLabel(search.statsWindow.range)
     const summaryLoading = !playerSupportReady || (search.results.players.length === 0 && search.results.loading)
     const summaryLine = [resultCountLabel, averageLabel, addLimitSummary(transactionState, Date.now(), currentLeague?.timezone), waiverLine].filter(Boolean).join(' · ')
     const filterControls = (variant: 'chip' | 'field') => (
@@ -320,13 +325,20 @@ function PlayerSearchSection() {
                     search.sort.setDir('desc')
                 }}
             />
-            <FilterSelect
+            {search.availabilityFilter.value !== 'mine' ? <FilterSelect
+                variant={variant}
+                label="Statistics"
+                value={String(search.statsWindow.days ?? 'season')}
+                options={STATS_WINDOW_OPTIONS}
+                onChange={(value) => { search.statsWindow.setDays(statsWindowDays(value)); search.season.setValue(null) }}
+            /> : null}
+            {search.statsWindow.days === null ? <FilterSelect
                 variant={variant}
                 label="Season"
                 value={String(search.season.value ?? 'auto')}
                 options={SEASON_FILTERS}
                 onChange={(value) => search.season.setValue(value === 'auto' ? null : Number(value))}
-            />
+            /> : null}
         </>
     )
     const listError = search.results.error ?? playerSupportError

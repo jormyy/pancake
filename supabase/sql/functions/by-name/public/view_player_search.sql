@@ -17,7 +17,8 @@ CREATE OR REPLACE FUNCTION public.view_player_search(
   p_sort_dir text DEFAULT 'desc',
   p_season_year int DEFAULT NULL,
   p_limit int DEFAULT 20,
-  p_offset int DEFAULT 0
+  p_offset int DEFAULT 0,
+  p_stats_days int DEFAULT NULL
 )
 RETURNS TABLE (
   id uuid,
@@ -73,7 +74,8 @@ DECLARE
   v_stats_season int;
   v_current_season int := public.current_season_year_et();
 BEGIN
-v_stats_season := COALESCE(p_season_year, CASE WHEN EXISTS (
+PERFORM public.stats_window(p_stats_days);
+v_stats_season := COALESCE(CASE WHEN p_stats_days IS NOT NULL THEN v_current_season ELSE p_season_year END, CASE WHEN EXISTS (
   SELECT 1
   FROM public.nba_games g
   WHERE g.season_year = v_current_season
@@ -116,6 +118,9 @@ WITH args AS (
     GREATEST(COALESCE(p_offset, 0), 0) AS page_offset
 ),
 current_averages AS MATERIALIZED (
+  SELECT * FROM public.player_window_averages(p_league_id, p_stats_days, p_include_player_ids)
+  WHERE p_stats_days IS NOT NULL
+  UNION ALL
   SELECT cached.player_id, cached.season_year, cached.avg_fantasy_points,
     (cached.averages->>'avg_points')::numeric AS avg_points,
     (cached.averages->>'avg_rebounds')::numeric AS avg_rebounds,
@@ -127,7 +132,7 @@ current_averages AS MATERIALIZED (
     (cached.averages->>'avg_minutes_played')::numeric AS avg_minutes_played,
     (cached.averages->>'games_played')::integer AS games_played
   FROM public.player_season_averages cached
-  WHERE cached.league_id = p_league_id AND cached.season_year = v_stats_season
+  WHERE p_stats_days IS NULL AND cached.league_id = p_league_id AND cached.season_year = v_stats_season
     AND v_stats_season = v_current_season AND cached.averages IS NOT NULL
     AND (p_include_player_ids IS NULL OR cached.player_id = ANY(p_include_player_ids))
 ),
@@ -159,12 +164,12 @@ season_averages AS (
     avg_minutes_played,
     games_played
   FROM public.mv_player_season_averages
-  WHERE season_year = v_stats_season AND v_stats_season <> v_current_season
+  WHERE p_stats_days IS NULL AND season_year = v_stats_season AND v_stats_season <> v_current_season
 ),
 league_scores AS MATERIALIZED (
   SELECT fp.player_id, fp.avg_fantasy_points
   FROM public.v_player_avg_fantasy_points AS fp
-  WHERE fp.league_id = p_league_id
+  WHERE p_stats_days IS NULL AND fp.league_id = p_league_id
     AND fp.season_year = v_stats_season
     AND v_stats_season <> v_current_season
     AND (p_include_player_ids IS NULL OR fp.player_id = ANY(p_include_player_ids))
@@ -174,7 +179,7 @@ score_source AS (
   UNION ALL
   SELECT fp.player_id, fp.avg_fantasy_points
   FROM public.v_player_avg_fantasy_points AS fp
-  WHERE fp.league_id = p_league_id
+  WHERE p_stats_days IS NULL AND fp.league_id = p_league_id
     AND fp.season_year = v_stats_season
     AND v_stats_season <> v_current_season
     AND NOT COALESCE(p_health IN ('healthy', 'gtd', 'out', 'ir'), false)
@@ -209,7 +214,7 @@ filtered_base AS (
     avg.avg_turnovers,
     avg.avg_three_pointers_made,
     avg.avg_minutes_played,
-    avg.games_played::int AS games_played
+    CASE WHEN p_stats_days IS NOT NULL THEN COALESCE(avg.games_played, 0) ELSE avg.games_played END::int AS games_played
   FROM args
   JOIN public.players AS p ON true
   LEFT JOIN season_averages AS avg
