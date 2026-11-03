@@ -27,7 +27,7 @@ export function createLiveHandler(options: { now?: () => number; disabled?: () =
       || url.searchParams.getAll('date').length > 1
       || [...url.searchParams.keys()].some(key => key !== 'date')) return Response.json({error:'Date is outside the live window'},{status:400,headers:{...headers,'cache-control':'no-store'}})
     const canonical = `/api/live/${date}`
-    if (url.pathname !== '/api/live/[date]' && (url.pathname !== canonical || url.search)) {
+    if (url.pathname !== '/api/live/[date]' && url.pathname !== canonical) {
       return new Response(null,{status:308,headers:{...headers,location:canonical,'cache-control':'no-store'}})
     }
     try {
