@@ -49,9 +49,10 @@ export class EspnLiveSource {
 
   scoreboard(dates: string[]): Promise<EspnEvent[]> {
     return this.request('scoreboard', async () => {
-      const range = [...dates].sort().map(date => date.replaceAll('-', ''))
-      const payload = await get<{ events: EspnEvent[] }>(`/scoreboard?dates=${range[0]}-${range.at(-1)}&limit=100`, this.timeoutMs)
-      if (!Array.isArray(payload.events)) throw new Error('ESPN scoreboard has invalid events')
+      const days = [...new Set(dates)].sort().map(date => date.replaceAll('-', ''))
+      const pages = await Promise.all(days.map(day => get<{ events: EspnEvent[] }>(`/scoreboard?dates=${day}&limit=100`, this.timeoutMs)))
+      if (pages.some(page => !Array.isArray(page.events))) throw new Error('ESPN scoreboard has invalid events')
+      const payload = { events: pages.flatMap(page => page.events) }
       const counts=new Map<string,number>()
       for(const event of payload.events)if(event && typeof event.id==='string')counts.set(event.id,(counts.get(event.id)??0)+1)
       const events=payload.events.filter(event=>{

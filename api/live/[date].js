@@ -338,10 +338,11 @@ class EspnLiveSource {
   }
   scoreboard(dates) {
     return this.request("scoreboard", async () => {
-      const range = [...dates].sort().map((date) => date.replaceAll("-", ""));
-      const payload = await get(`/scoreboard?dates=${range[0]}-${range.at(-1)}&limit=100`, this.timeoutMs);
-      if (!Array.isArray(payload.events))
+      const days = [...new Set(dates)].sort().map((date) => date.replaceAll("-", ""));
+      const pages = await Promise.all(days.map((day) => get(`/scoreboard?dates=${day}&limit=100`, this.timeoutMs)));
+      if (pages.some((page) => !Array.isArray(page.events)))
         throw new Error("ESPN scoreboard has invalid events");
+      const payload = { events: pages.flatMap((page) => page.events) };
       const counts = new Map;
       for (const event of payload.events)
         if (event && typeof event.id === "string")
