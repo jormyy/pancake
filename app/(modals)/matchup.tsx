@@ -5,7 +5,6 @@ import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
 import { useMatchupData } from '@/hooks/use-matchup-data'
 import { OtherMatchups } from '@/components/OtherMatchups'
-import { LiveScoreStatus } from '@/components/LiveScoreStatus'
 import { ScoreCard } from '@/components/ScoreCard'
 import { MatchupForecastSummary } from '@/components/MatchupForecastSummary'
 import { MatchupLineupView } from '@/components/MatchupLineupView'
@@ -56,7 +55,6 @@ export default function OtherMatchupScreen() {
                                 onPreviousMatchup={() => openMatchup(adjacentMatchupId(data.leagueMatchups, matchup.id, -1))}
                                 onNextMatchup={() => openMatchup(adjacentMatchupId(data.leagueMatchups, matchup.id, 1))}>
                                 <MatchupForecastSummary {...forecastState} myMemberId={matchup.myMemberId} opponentMemberId={matchup.opponentMemberId} />
-                                <LiveScoreStatus delayed={data.liveDelayed} />
                             </ScoreCard>
                             {myLineup && oppLineup ? <MatchupLineupView
                                 readOnly

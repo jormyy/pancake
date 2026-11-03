@@ -1,5 +1,4 @@
 import { OtherMatchups } from '@/components/OtherMatchups'
-import { LiveScoreStatus } from '@/components/LiveScoreStatus'
 import { MatchupLineupView } from '@/components/MatchupLineupView'
 import { useScrollRestoration } from '@/lib/scroll-restoration'
 import { MatchupForecastSummary } from '@/components/MatchupForecastSummary'
@@ -186,7 +185,6 @@ export default function HomeScreen() {
                         onPreviousMatchup={() => openMatchup(adjacentMatchupId(leagueMatchups, matchup.id, -1))}
                         onNextMatchup={() => openMatchup(adjacentMatchupId(leagueMatchups, matchup.id, 1))}>
                         <MatchupForecastSummary {...forecastState} myMemberId={matchup.myMemberId} opponentMemberId={matchup.opponentMemberId} />
-                        <LiveScoreStatus delayed={liveDelayed} />
                     </ScoreCard>
 
                     {myLineup && oppLineup ? (

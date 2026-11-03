@@ -43,7 +43,7 @@ function overlayLiveScores(saved, snapshot, settings, now) {
                 resolved.add(resolvedKey);
                 if (game.status === 'Scheduled')
                     continue;
-                if (!Number.isFinite(game.updatedAt) || game.updatedAt > now + 5000 || now - game.updatedAt > 120000) {
+                if (!Number.isFinite(game.updatedAt) || game.updatedAt > now + 5000) {
                     stale = true;
                     continue;
                 }

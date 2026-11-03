@@ -4,6 +4,17 @@ import { useBrowserReadActivity } from '@/hooks/use-browser-read-activity'
 import { usePanelActivity } from '@/contexts/panel-activity'
 import type { LiveViewGame } from '@/lib/cache/view-types'
 
+export function keepNewestGames(previous: LiveSnapshot | null | undefined, next: LiveSnapshot | null): LiveSnapshot | null {
+    if (!previous || !next || previous.mode !== 'public' || next.mode !== 'public' || previous.date !== next.date) return next
+    const key = (game: LiveSnapshot['games'][number]) => `${game.away.team}@${game.home.team}`
+    const games = new Map(previous.games.map(game => [key(game), game]))
+    for (const game of next.games) {
+        const kept = games.get(key(game))
+        if (!kept || kept.updatedAt <= game.updatedAt) games.set(key(game), game)
+    }
+    return { ...next, capturedAt: Math.max(previous.capturedAt, next.capturedAt), games: [...games.values()] }
+}
+
 export function usePublicLiveSnapshot(date: string, games: readonly LiveViewGame[], enabled: boolean) {
     const activity = useBrowserReadActivity()
     const panelActive = usePanelActivity()
@@ -28,7 +39,7 @@ export function usePublicLiveSnapshot(date: string, games: readonly LiveViewGame
             let poller = pollers.current.get(day)
             if (!poller) {
                 poller = createLivePoller({ load: (day, signal) => fetchLiveSnapshot(`/api/live/${day}`, signal),
-                    onSnapshot: snapshot => { if (pollers.current.has(day)) setSnapshots(previous => ({ ...previous, [day]: snapshot })) } })
+                    onSnapshot: snapshot => { if (pollers.current.has(day)) setSnapshots(previous => ({ ...previous, [day]: keepNewestGames(previous[day], snapshot) })) } })
                 pollers.current.set(day, poller)
             }
             poller.update({ date: day, active: enabled, visible: activity.active && panelActive, online: activity.active })
