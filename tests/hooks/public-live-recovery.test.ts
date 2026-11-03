@@ -64,7 +64,7 @@ it('recovers today while a past day has an empty live-game list',async()=>{
 it('recovers another displayed matchup while the opened matchup stays fresh',async()=>{
     const first={id:'matchup',homeMemberId:'member',awayMemberId:'opponent',homePoints:4,awayPoints:3,finalized:false,ready:true,
         players:[{playerId:'player',memberId:'member',nbaId:'1',espnId:null,team:'BOS',gameId:'0021',savedPoints:0,savedAt:now-300000,starter:true}]}
-    const other={...first,id:'other',homeMemberId:'c',awayMemberId:'d',homePoints:100,
+    const other={...first,id:'other',homeMemberId:'c',awayMemberId:'d',homePoints:100,ready:false,
         players:[{...first.players[0],playerId:'other-player',memberId:'c',team:'LAL',gameId:'0022'}]}
     const saved={...homePayload(),context:{...homePayload().context,league:{scoring_settings:{points:1}}},liveBasis:[first,other],
         leagueMatchups:[{id:'other',homePoints:100,awayPoints:3}],

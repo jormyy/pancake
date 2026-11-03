@@ -30,11 +30,8 @@ function overlayLiveScores(saved, snapshot, settings, now) {
                 const games = snapshot.games.filter(game => player.gameId && game.nbaId === player.gameId
                     || (game.gameDate ?? snapshot.date) === (player.gameDate ?? snapshot.date)
                         && (!player.gameId || game.nbaId == null) && [game.home.team, game.away.team].includes(player.team ?? ''));
-                if (!games.length) {
-                    if (player.gameId && !(Number.isFinite(player.scheduledAt) && player.scheduledAt > now))
-                        stale = true;
+                if (!games.length)
                     continue;
-                }
                 if (games.length !== 1) {
                     stale = true;
                     continue;

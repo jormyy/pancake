@@ -75,10 +75,7 @@ export function overlayLiveScores(saved: readonly SavedLiveMatchup[], snapshot: 
             const games = snapshot.games.filter(game => player.gameId && game.nbaId === player.gameId
                 || (game.gameDate ?? snapshot.date) === (player.gameDate ?? snapshot.date)
                 && (!player.gameId || game.nbaId == null) && [game.home.team,game.away.team].includes(player.team ?? ''))
-            if (!games.length) {
-                if (player.gameId && !(Number.isFinite(player.scheduledAt) && player.scheduledAt! > now)) stale = true
-                continue
-            }
+            if (!games.length) continue
             if (games.length !== 1) { stale = true; continue }
             const game = games[0]
             const resolvedKey = `${player.memberId}:${player.playerId}:${game.gameDate ?? snapshot.date}:${game.id}`

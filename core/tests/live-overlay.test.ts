@@ -21,6 +21,13 @@ describe('public live-score overlay', () => {
     expect(result.stale).toBe(false)
   })
 
+  it('keeps saved points for a player whose game is missing and overlays the rest', () => {
+    const saved = basis()
+    saved[0].players.push({ playerId: 'p3', memberId: 'b', nbaId: '30', espnId: '40', team: 'DAL', gameId: '0022', savedPoints: 5, savedAt: now-30000, starter: true })
+    const result = overlayLiveScores(saved, snapshot(), { points: 1 }, now)
+    expect(result.matchups[0]).toMatchObject({ homePoints: 104, awayPoints: 82, stale: false })
+  })
+
   it('uses provider-specific IDs and keeps other-team matchups correct', () => {
     const source = snapshot()
     source.games[0].source = 'espn'
