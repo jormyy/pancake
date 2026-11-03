@@ -79,6 +79,7 @@ BEGIN
   ) THEN
     PERFORM private.work_enqueue('process-trades',date_trunc('minute',p_now)::text,p_now);
   END IF;
+  PERFORM private.enqueue_lineup_optimizer(p_now);
   PERFORM private.enqueue_pre_tipoff_optimizer(p_now);
   PERFORM private.enqueue_matchup_forecasts(p_now);
   PERFORM private.enqueue_screen_views(p_now);

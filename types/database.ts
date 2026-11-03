@@ -2143,6 +2143,7 @@ export type Database = {
           created_at: string
           enabled: boolean
           enabled_at: string | null
+          last_daily_optimized_date: string | null
           last_optimized_at: string | null
           league_id: string
           league_season_id: string
@@ -2153,6 +2154,7 @@ export type Database = {
           created_at?: string
           enabled?: boolean
           enabled_at?: string | null
+          last_daily_optimized_date?: string | null
           last_optimized_at?: string | null
           league_id: string
           league_season_id: string
@@ -2163,6 +2165,7 @@ export type Database = {
           created_at?: string
           enabled?: boolean
           enabled_at?: string | null
+          last_daily_optimized_date?: string | null
           last_optimized_at?: string | null
           league_id?: string
           league_season_id?: string
@@ -5883,6 +5886,16 @@ export type Database = {
           new_season_id: string
           new_year: number
         }[]
+      }
+      apply_daily_lineup: {
+        Args: {
+          p_assignments: Json
+          p_game_date: string
+          p_league_id: string
+          p_league_season_id: string
+          p_member_id: string
+        }
+        Returns: boolean
       }
       apply_pre_tipoff_lineup: {
         Args: {

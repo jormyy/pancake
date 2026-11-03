@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261214009400",
+  "candidateVersion": "20261214009500",
   "common": {
     "functions": [
       {
@@ -618,7 +618,7 @@
           "strict": false,
           "language": "plpgsql",
           "arguments": "p_now timestamp with time zone DEFAULT now()",
-          "bodySha256": "6ef6d15e0e8b88dc66ff92a1a535212b349bf0f9ffb97ec4cfa9eb470371182f",
+          "bodySha256": "649dcc8c19d331445917f5f125c48e7bda807f4b923abb3c1bd37f81c7fa4805",
           "volatility": "v",
           "anonExecute": false,
           "publicExecute": false,
@@ -2642,6 +2642,10 @@
     {
       "filename": "20261214009400_autoset_tipoff_flexibility.sql",
       "sha256": "8b32a758f79297460c99f8265af518a02768bd68daf617e16a39288f80cc7790"
+    },
+    {
+      "filename": "20261214009500_daily_lineup_optimizer.sql",
+      "sha256": "084e2f85c4fbeebce2bacd97c93cad9a3d40299e9613fd596e6d9b1557e7fc62"
     }
   ],
   "preMigration": {
