@@ -1583,3 +1583,10 @@ Apply `20261214005409_notification_scan_safeupdate.sql` next.
 The API session loads `safeupdate`, which rejects a `DELETE` without a `WHERE` clause.
 The notification scan cleared its dirty marker without one, so every scan started through `refresh-views` failed.
 The marker delete now uses `WHERE true`. `tests/db/regressions/notification-scan-safeupdate.sql` runs the scan with the guard loaded.
+
+Deploy the matching lineup-optimizer Edge function, then apply `20261214009500_daily_lineup_optimizer.sql`.
+It adds a service-owned daily date receipt to existing optimizer settings and schedules one current-date daily work item.
+The existing minute dispatcher runs both daily and pre-tipoff modes. No new cron job is required.
+Daily and pre-tipoff share the unchanged-assignment check and existing atomic roster, eligibility and game-lock validation.
+The new daily RPC is service-only; authenticated clients cannot update its completion date.
+The new Edge mode remains unused until this migration schedules it. Existing pre-tipoff work keeps its RPC contract.

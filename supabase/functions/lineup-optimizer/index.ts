@@ -1,3 +1,4 @@
+import { processDaily } from './daily.ts'
 import { processPreTipoff } from './preTipoff.ts'
 import { serveInternal } from '../_shared/serve.ts'
 import { recordSyncRun } from '../_shared/syncRuns.ts'
@@ -92,6 +93,13 @@ type ManualRequest = {
 
 serveInternal('lineup-optimizer', async (req) => {
   const body: Record<string, unknown> = req.method === 'POST' ? await req.json().catch(() => ({})) : {}
+  if (body.mode === 'daily') {
+    const result = await recordSyncRun('lineup-optimizer', async () => {
+      const outcome = await processDaily(body)
+      return { result: outcome, rowsAffected: outcome.optimized, failure: outcome.failed ? outcome.errors.join('\n') : null }
+    }, req)
+    return Response.json({ ok: result.failed === 0, ...result }, { status: result.failed ? 500 : 200 })
+  }
   if (body.mode === 'pre_tipoff') {
     const { batchFailed, ...result } = await recordSyncRun('lineup-optimizer', async () => {
       const outcome = await processPreTipoff(body)

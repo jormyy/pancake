@@ -24,7 +24,18 @@ Enabling automation takes effect at the next eligible dispatch and does not rewr
 
 ## Schedule and locks
 
-The scheduler checks each minute. It dispatches when a future tipoff is within two minutes.
+The scheduler checks each minute. Daily work becomes due at 06:00 America/New_York.
+An earlier known tipoff moves that time to ten minutes before the game, bounded by Eastern midnight.
+A late tick catches up while an available unstarted game remains. TBD games also qualify.
+Dates without an available unstarted game enqueue nothing. Disabled teams do not qualify.
+The work key and payload use the current Eastern calendar date, including across daylight-saving changes.
+Each enabled team records one successful daily check per date in `last_daily_optimized_date`.
+The receipt and lineup update share a transaction. Retries and concurrent calls skip completed teams.
+A delayed daily call also skips a team with a successful pre-tipoff receipt for that date.
+Daily and pre-tipoff share the context, solver, atomic validation, and unchanged-assignment comparison.
+No-change checks preserve lineup row IDs and timestamps. Later pre-tipoff news can still change unlocked starters.
+
+Pre-tipoff dispatches when a future tipoff is within two minutes.
 Games with the same tipoff share one dispatch across all enabled teams.
 The open window also checks a fingerprint of rosters, injuries, games, scoring, slots, and projection inputs.
 Changed inputs open a new revision. Unchanged inputs do not repeat a completed run.
@@ -147,11 +158,13 @@ Recovery must follow the attested release process. Do not edit applied migration
 ## Verify scheduled runs
 
 `work-dispatcher` runs every minute (`* * * * *`).
-It calls `dispatch_work`, then `private.enqueue_scheduled_work`, which queues `pre-tipoff` work.
-The worker function is `lineup-optimizer`, with `mode=pre_tipoff`.
-“Daily” means enabled teams receive this game-day automation.
-There is no separate morning autoset cron job in the current schedule.
-The legacy `private.enqueue_lineup_optimizer` helper has no scheduled caller.
+It calls `dispatch_work`, then `private.enqueue_scheduled_work`.
+`private.enqueue_lineup_optimizer` queues date-keyed `lineup-optimizer` work with `mode=daily` and `date`.
+`private.enqueue_pre_tipoff_optimizer` queues `pre-tipoff` work with `mode=pre_tipoff`.
+Both use the `lineup-optimizer` Edge function. There is no additional cron job.
+The daily path is introduced by `20261214009500_daily_lineup_optimizer.sql`.
+Check `last_daily_optimized_date` to confirm each team's completed daily check.
+Failed teams remain eligible for a work-queue retry; completed teams are not rewritten.
 The manual Today, This week, and Rest of season actions use the date optimizer.
 
 After deployment, run these read-only queries in the project's SQL editor.
@@ -168,6 +181,8 @@ ORDER BY d.start_time DESC LIMIT 30;
 SELECT id, kind, status, due_at, completed_at, attempts, last_error
 FROM private.work_items WHERE kind IN ('pre-tipoff', 'lineup-optimizer')
 ORDER BY id DESC LIMIT 30;
+SELECT league_id, league_season_id, member_id, enabled, last_daily_optimized_date, last_optimized_at
+FROM public.lineup_optimizer_settings ORDER BY last_optimized_at DESC NULLS LAST LIMIT 100;
 SELECT tipoff_at, game_date, status, attempts, input_revision, finished_at, error
 FROM public.lineup_tipoff_dispatches ORDER BY tipoff_at DESC LIMIT 30;
 SELECT tipoff_at, member_id, input_revision, completed_at, error

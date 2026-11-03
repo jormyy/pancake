@@ -1,3 +1,4 @@
+import { processDaily } from '../../supabase/functions/lineup-optimizer/daily.ts'
 import assert from 'node:assert/strict'
 import { processPreTipoff, tipoffAssignments, type TipoffContext } from '../../supabase/functions/lineup-optimizer/preTipoff.ts'
 
@@ -73,6 +74,22 @@ Deno.test('autoset uses real context, projections, leases and atomic writes', as
         (${q(ids.league)},${q(ids.season)},${q(ids.member)},${q(ids.early)},1,(now() AT TIME ZONE 'America/New_York')::date,'UTIL',false),
         (${q(ids.league)},${q(ids.season)},${q(ids.member)},${q(ids.late)},1,(now() AT TIME ZONE 'America/New_York')::date,'PG',false);
       COMMIT;`)
+    await t.step('concurrent daily runs write once and repeated delivery preserves the lineup', async () => {
+      const date = await sql("SELECT (now() AT TIME ZONE 'America/New_York')::date")
+      const results = await Promise.all([processDaily({ date }), processDaily({ date })])
+      assert.equal(results.reduce((sum, result) => sum + result.failed, 0), 0, JSON.stringify(results))
+      assert.equal(results.reduce((sum, result) => sum + result.optimized, 0), 1)
+      assert.equal(await sql(`SELECT last_daily_optimized_date FROM public.lineup_optimizer_settings WHERE member_id=${q(ids.member)}`), date)
+      const before = await lineups()
+      assert.equal((await processDaily({ date })).optimized, 0)
+      assert.deepEqual(await lineups(), before)
+      assert.equal((await optimize()).optimized, 0)
+      assert.deepEqual(await lineups(), before)
+      await sql(`UPDATE public.lineup_optimizer_settings SET last_daily_optimized_date=NULL WHERE member_id=${q(ids.member)}`)
+      assert.equal(await sql(`SELECT public.apply_daily_lineup(${q(date)},${q(ids.league)},${q(ids.season)},${q(ids.member)},'[]')`), 'f')
+      assert.deepEqual(await lineups(), before)
+      assert.equal(await sql(`SELECT last_daily_optimized_date FROM public.lineup_optimizer_settings WHERE member_id=${q(ids.member)}`), date)
+    })
     await t.step('staggered starts preserve UTIL without lowering the 95-point primary objective', async () => {
       const c = await context()
       assert.ok(c.players.find(p => p.playerId === ids.early)?.gameTime)

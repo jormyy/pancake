@@ -7,18 +7,18 @@ export type OptimizerSetting = {
   member_id: string
 }
 
-type ScheduledSetting = OptimizerSetting & { last_optimized_at: string | null }
+type ScheduledSetting = OptimizerSetting & { last_optimized_at: string | null; last_daily_optimized_date?: string | null }
 const PAGE_SIZE = 1000
 
 export async function loadEnabledOptimizerSettings(
-  client: SupabaseClient<Database>, seasonYears: number[],
+  client: SupabaseClient<Database>, seasonYears: number[], dailyDate?: string,
 ): Promise<OptimizerSetting[]> {
   if (seasonYears.length === 0) return []
   const settings: ScheduledSetting[] = []
   let cursor: OptimizerSetting | undefined
   while (true) {
     let query = client.from('lineup_optimizer_settings')
-      .select('league_id, league_season_id, member_id, last_optimized_at, season:league_seasons!lineup_optimizer_settings_season_league_fkey!inner(season_year, is_current), league:leagues!lineup_optimizer_settings_league_id_fkey!inner(status)')
+      .select(`league_id, league_season_id, member_id, last_optimized_at, ${dailyDate ? 'last_daily_optimized_date,' : ''} season:league_seasons!lineup_optimizer_settings_season_league_fkey!inner(season_year, is_current), league:leagues!lineup_optimizer_settings_league_id_fkey!inner(status)`)
       .eq('enabled', true)
       .eq('season.is_current', true)
       .in('season.season_year', seasonYears)
@@ -30,7 +30,7 @@ export async function loadEnabledOptimizerSettings(
     }
     const { data, error } = await query
     if (error) throw error
-    const page = data ?? []
+    const page = (data ?? []) as unknown as ScheduledSetting[]
     settings.push(...page)
     if (page.length < PAGE_SIZE) break
     cursor = page[page.length - 1]
@@ -43,5 +43,5 @@ export async function loadEnabledOptimizerSettings(
     if (b.last_optimized_at === null) return 1
     return Date.parse(a.last_optimized_at) - Date.parse(b.last_optimized_at)
   })
-  return settings
+  return dailyDate ? settings.filter(setting => setting.last_daily_optimized_date !== dailyDate) : settings
 }

@@ -3527,6 +3527,13 @@
       "statementCount": 1,
       "statementsSha256": "2a6a19eafcbf514b8eef52f1b1df205bda6d3d0f94396374a0e0a155aa58841d",
       "sha256": "8b32a758f79297460c99f8265af518a02768bd68daf617e16a39288f80cc7790"
+    },
+    {
+      "name": "daily_lineup_optimizer",
+      "version": "20261214009500",
+      "statementCount": 9,
+      "statementsSha256": "864fe659226d4dface95fb93d44eff54948b001e03f12ace65a4045055f9ff75",
+      "sha256": "084e2f85c4fbeebce2bacd97c93cad9a3d40299e9613fd596e6d9b1557e7fc62"
     }
   ]
 }

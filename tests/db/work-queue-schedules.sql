@@ -96,12 +96,11 @@ BEGIN
   PERFORM pg_temp.check_rules(NOT pg_temp.scheduled('2026-06-20 10:00 UTC','sync-schedule'),'schedule retains its five-minute offset');
   PERFORM pg_temp.check_rules(pg_temp.scheduled('2026-06-20 10:05 UTC','sync-schedule'),'schedule starts at six-oh-five ET');
   DELETE FROM private.work_items;
-  PERFORM private.enqueue_lineup_optimizer((v_day+8)::timestamp AT TIME ZONE 'America/New_York');
-  PERFORM pg_temp.check_rules(NOT EXISTS(SELECT 1 FROM private.work_items WHERE kind='lineup-optimizer'),'general lineup gate is idle without the next eight dates');
+  UPDATE public.leagues SET status='active' WHERE id=fixture.league_id;
   INSERT INTO public.nba_games(nba_game_id,season_year,week_number,game_date,home_team,away_team,status)
     VALUES('002queuegeneral',9541,1,v_day+15,'QX','QY','Scheduled');
-  PERFORM private.enqueue_lineup_optimizer((v_day+8)::timestamp AT TIME ZONE 'America/New_York');
-  PERFORM pg_temp.check_rules(EXISTS(SELECT 1 FROM private.work_items WHERE kind='lineup-optimizer'),'general lineup gate includes day seven');
+  PERFORM private.enqueue_lineup_optimizer((v_day+8+time '06:00') AT TIME ZONE 'America/New_York');
+  PERFORM pg_temp.check_rules(NOT EXISTS(SELECT 1 FROM private.work_items WHERE kind='lineup-optimizer'),'daily lineup gate ignores games on future dates');
   PERFORM pg_temp.check_rules(NOT pg_temp.scheduled('2026-06-20 10:15 UTC','daily-stat-corrections'),'corrections wait until six-twenty ET');
   PERFORM pg_temp.check_rules(NOT pg_temp.scheduled('2026-06-20 10:30 UTC','daily-stat-corrections'),'corrections require a recent final regular-season game');
   INSERT INTO public.nba_games(nba_game_id,season_year,week_number,game_date,home_team,away_team,status)
