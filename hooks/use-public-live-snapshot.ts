@@ -5,7 +5,8 @@ import { usePanelActivity } from '@/contexts/panel-activity'
 import type { LiveViewGame } from '@/lib/cache/view-types'
 
 export function keepNewestGames(previous: LiveSnapshot | null | undefined, next: LiveSnapshot | null): LiveSnapshot | null {
-    if (!previous || !next || previous.mode !== 'public' || next.mode !== 'public' || previous.date !== next.date) return next
+    if (!next) return previous ?? null
+    if (!previous || previous.mode !== 'public' || next.mode !== 'public' || previous.date !== next.date) return next
     const key = (game: LiveSnapshot['games'][number]) => `${game.away.team}@${game.home.team}`
     const games = new Map(previous.games.map(game => [key(game), game]))
     for (const game of next.games) {

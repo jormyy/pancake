@@ -23,7 +23,7 @@ Dynasty fantasy basketball, built for your iPhone.
 Expo Router, React Native Web, and TypeScript power the client.
 Supabase provides Auth, Realtime, PostgreSQL, and Deno Edge Functions.
 PostgreSQL enforces league rules; `core/` shares calculations across runtimes.
-A public Vercel snapshot, cached for 30 seconds, supplies live lines without user data or Supabase reads.
+A public Vercel snapshot, cached for 20 seconds, supplies live lines without user data or Supabase reads.
 Phones overlay those lines on saved official scores; finals remain server-owned.
 See [live scores and rollback](docs/live-scores.md).
 Home opens the matchup.

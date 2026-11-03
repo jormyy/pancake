@@ -279,7 +279,6 @@ The incremental upgrade and fresh 621-migration installation produce identical g
 Those artifacts are both attestations, `supabase/sql/function-catalog.json`, and `types/database.ts`.
 The generator preserves the recorded production baseline and historical aliases.
 [Release contract](../supabase/RELEASE-DB.md) owns deployment order and the complete Edge function list.
-[Integration evidence](release-2.5-integration.md) owns executed counts and changed files.
 
 
 ## Release 2.6 candidate
@@ -307,7 +306,6 @@ An ordered upgrade and fresh installation produce identical bytes for all four a
 The audit anchor, historical aliases, and recorded production catalog remain unchanged.
 No production metadata or application data is read during this integration.
 [Release contract](../supabase/RELEASE-DB.md) owns rollout order and all five changed Edge functions.
-[Integration evidence](release-2.6-integration.md) owns executed counts and changed files.
 
 ## Release 2.6.3 candidate
 
@@ -338,7 +336,6 @@ No production service receives a request.
 [Release contract](../supabase/RELEASE-DB.md#release-263) owns rollout and rollback.
 Only the restored `sync-rankings` Edge function changes against `origin/main` at `045f2d09`.
 It requires deployment after both migrations and before the frontend.
-[Integration evidence](release-2.6.3-integration.md) owns executed counts and every changed file.
 
 ## Release 2.7 candidate
 
@@ -416,7 +413,6 @@ The earlier draft-only publication is superseded. Its migration version stays un
 The changed Edge functions are `api`, `backfill`, `matchup-forecast`, `process-trades`, `refresh-views`, `sync-players`, and `sync-schedule`.
 No production service receives a request.
 [Release contract](../supabase/RELEASE-DB.md#release-27) owns rollout and rollback.
-[Integration evidence](release-2.7-integration.md) owns exact counts and changed files.
 
 ## Release 2.7.1 candidate
 
@@ -443,4 +439,3 @@ Schedule adds no realtime subscription; the publication remains equal to the 16-
 The changed Edge functions are `api`, `backfill`, `live-poll`, `season-boundary`, `sync-scores`, and `sync-stats`.
 This integration makes no production request.
 [Release contract](../supabase/RELEASE-DB.md#release-271) owns rollout, watchdog thresholds, health reads, and rollback.
-[Integration evidence](release-2.7.1-integration.md) owns executed counts and every changed file.

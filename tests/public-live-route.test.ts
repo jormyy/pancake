@@ -67,6 +67,36 @@ describe('public live route', () => {
     expect(result.calls.some(path=>path.endsWith('/summary'))).toBe(false)
   })
 
+  it('reuses an unchanged live game for a minute and a finished one for five minutes', async () => {
+    let clock = now
+    const source = structuredClone(event)
+    const calls: string[] = []
+    vi.stubGlobal('fetch', async (input: RequestInfo | URL) => {
+      const url = new URL(input instanceof Request ? input.url : input)
+      calls.push(url.pathname)
+      if (url.hostname === 'site.api.espn.com') return Response.json(url.pathname.endsWith('scoreboard') ? {events:[source]} : summary(source))
+      return Response.json({}, {status:403})
+    })
+    const handler = createLiveHandler({now:()=>clock})
+    const summaries = () => calls.filter(path=>path.endsWith('/summary')).length
+    const read = async (step: number) => { clock += step; return (await handler(new Request(`http://local/api/live/${date}`))).json() }
+    expect((await read(0)).games[0].home.score).toBe(5)
+    await read(20000)
+    expect(summaries()).toBe(1)
+    await read(41000)
+    expect(summaries()).toBe(2)
+    source.status = source.competitions[0].status = {period:1,displayClock:'6:40',type:{state:'in'}}
+    source.competitions[0].competitors[0].score = '7'
+    expect((await read(20000)).games[0].home.score).toBe(7)
+    expect(summaries()).toBe(3)
+    source.status = source.competitions[0].status = {period:4,displayClock:'0:00',type:{state:'post',completed:true}} as typeof source.status
+    expect((await read(20000)).games[0].completionPending).toBe(true)
+    for (let step = 0; step < 4; step++) await read(61000)
+    expect(summaries()).toBe(4)
+    await read(61000)
+    expect(summaries()).toBe(5)
+  })
+
   it('uses ESPN when an NBA player line is incomplete even if team points still agree', async () => {
     const incomplete = structuredClone(box)
     delete (incomplete.homeTeam.players[0].statistics as Partial<typeof stats>).reboundsTotal
@@ -87,8 +117,8 @@ describe('public live route', () => {
     })
     const response = await createLiveHandler({ now: () => now })(new Request(`http://local/api/live/${date}`))
     expect(response.status).toBe(200)
-    expect(response.headers.get('cache-control')).toContain('s-maxage=30')
-    expect(response.headers.get('cache-control')).toContain('stale-while-revalidate=15')
+    expect(response.headers.get('cache-control')).toContain('s-maxage=20')
+    expect(response.headers.get('cache-control')).toContain('stale-while-revalidate=10')
     expect(response.headers.get('cache-control')).toContain('stale-if-error=90')
     expect(response.headers.has('set-cookie')).toBe(false)
     const text = await response.text()
@@ -156,7 +186,7 @@ describe('public live route', () => {
     const fallback = await handler(request())
     expect(fallback.status).toBe(200)
     expect((await fallback.json()).capturedAt).toBe(now)
-    expect(fallback.headers.get('cache-control')).toContain('s-maxage=30')
+    expect(fallback.headers.get('cache-control')).toContain('s-maxage=20')
     clock = now + 119001
     expect((await handler(request())).headers.get('cache-control')).toContain('s-maxage=1')
     clock = now + 120001
@@ -224,7 +254,7 @@ it('rejects duplicate dates, redirects aliases and bounds sequential origin refr
   expect(alias.headers.get('location')).toBe(`/api/live/${date}`)
   for(let index=0;index<5;index++)expect((await handler(new Request(`http://local/api/live/${date}`))).status).toBe(200)
   expect(source).toHaveBeenCalledTimes(1)
-  clock+=30000
+  clock+=20000
   await handler(new Request(`http://local/api/live/${date}`))
   expect(source).toHaveBeenCalledTimes(2)
 })

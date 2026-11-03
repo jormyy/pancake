@@ -6,7 +6,7 @@ import type { LiveSnapshot } from '../core/src/live/overlay'
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals() })
 
 describe('ten phones behind the shared cache', () => {
-    it('keeps all phones within 45 seconds without exceeding two requests per cache interval', async () => {
+    it('keeps all phones within 30 seconds without exceeding two requests per cache interval', async () => {
         vi.useFakeTimers()
         const start = Date.parse('2026-10-31T23:00:00Z')
         vi.setSystemTime(start)
@@ -14,7 +14,7 @@ describe('ten phones behind the shared cache', () => {
         const cache = createSharedHttpCache(async () => {
             await new Promise(resolve => setTimeout(resolve, 350))
             return Response.json({ version: 1, mode: 'public', date: '2026-10-31', capturedAt: Date.now(), games: [] },
-                { headers: { 'cache-control': 'public, s-maxage=30, stale-while-revalidate=15, stale-if-error=90' } })
+                { headers: { 'cache-control': 'public, s-maxage=20, stale-while-revalidate=10, stale-if-error=90' } })
         })
         vi.stubGlobal('fetch', (url: string, init: RequestInit) => {
             expect(init.credentials).toBe('omit')
@@ -32,11 +32,11 @@ describe('ten phones behind the shared cache', () => {
             expect(values.length).toBeGreaterThan(10)
             for (let change = 20000; change <= 240000; change += 20000) {
                 const arrival = values.find(value => value.source >= change)
-                expect(arrival!.at - change).toBeLessThanOrEqual(45000)
+                expect(arrival!.at - change).toBeLessThanOrEqual(30000)
             }
         }
-        expect(cache.counters.requests).toBeLessThanOrEqual(210)
-        expect(cache.counters.originRequests).toBeLessThanOrEqual(11)
+        expect(cache.counters.requests).toBeLessThanOrEqual(310)
+        expect(cache.counters.originRequests).toBeLessThanOrEqual(16)
         phones.forEach(phone => phone.dispose())
     })
 })

@@ -17,7 +17,7 @@ Read the [lab results](live-scores.md#lab-results) before attributing a gain to 
 
 | Path | Normal rate or trigger | Cost to include |
 | --- | --- | --- |
-| Public live snapshots | Visible phones every 30 seconds; shared 30-second cache | Provider requests, public bytes, function CPU, cache-region misses |
+| Public live snapshots | Visible phones every 20 seconds; shared 20-second cache | Provider requests, public bytes, function CPU, cache-region misses |
 | Database live import | Status transitions, finals, corrections, 30-minute checkpoints | Changed stat rows, revisions, triggers, totals, WAL |
 | Database fallback | 30-second live ticks, none on idle slates | Per-game saves and unchanged-input checks; retained for rollback |
 | Home views | Opening, relevant committed changes, reconnect, ten-minute public recovery | Auth sessions, full or changed-section SQL view, internal transfer, compressed phone response |

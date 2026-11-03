@@ -310,7 +310,6 @@ The identity recipe rejects conflicting names and checks team changes and histor
 
 ## Release 2.4 scope
 
-The [integration record](release-2.4-integration.md) preserves the merge results and earlier evidence.
 Its final app run records 3,960 passes, zero failures, and 38 skips.
 It also records 608 unique migrations and fresh-versus-upgrade artifact equality.
 A new documentation run does not repeat its database or browser measurements.

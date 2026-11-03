@@ -23,4 +23,4 @@ node tests/db/trades-actions-reanalysis-parity.mjs
 node tests/db/trades-actions-verify.mjs
 ```
 
-The verification recipe runs the SQL regressions and Deno suite. Stop the stack through its owner with `touch ../stop`. Keep generated outputs outside Git. [Integration checks](../../docs/release-2.12-integration.md) use the separate integration stack.
+The verification recipe runs the SQL regressions and Deno suite. Stop the stack through its owner with `touch ../stop`. Keep generated outputs outside Git.

@@ -20,4 +20,4 @@ node tests/db/league-actions-report.mjs ../evidence
 node --test tests/db/league-actions-metrics.test.mjs
 ```
 
-Use `--direct --scoped --capture --variants` instead of `--parity` for the measured matrix. Keep generated reports outside Git. [Integration checks](../../docs/release-2.12-integration.md) cover installation and schema equality.
+Use `--direct --scoped --capture --variants` instead of `--parity` for the measured matrix. Keep generated reports outside Git.

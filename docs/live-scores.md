@@ -11,18 +11,20 @@ Malformed rows are skipped independently; unavailable games do not create empty 
 Each player line contains only the fields needed by the shared scoring formula.
 Explicit DNP rows contain zero statistics; absent provider rows remain missing.
 Duplicate date parameters fail. Other accepted URL forms redirect to the canonical path.
-Each warm origin limits provider refreshes to once per date every 30 seconds, including failed attempts.
+Each warm origin limits provider refreshes to once per date every 20 seconds, including failed attempts.
+A game whose scoreboard score, clock and status are unchanged reuses its last box, live for up to 60 seconds and finished for up to 5 minutes.
+Phones keep the last good feed through a failed check until it is two minutes old.
 
 Vercel serves the function beside the static Expo export.
 The API rewrite precedes the static-page fallback in `vercel.json`.
-Responses use `s-maxage=30`, `stale-while-revalidate=15`, and `stale-if-error=90`.
+Responses use `s-maxage=20`, `stale-while-revalidate=10`, and `stale-if-error=90`.
 Vercel does not implement the last directive for its server cache.
 The origin therefore retains at most two dates of last-good data, with the original capture time.
 An origin without usable cached data returns an uncached error.
 Responses over 1 MB are rejected, below the 4.5 MB function and 10 MB cache limits.
 See [Vercel cache rules](https://vercel.com/docs/caching/cache-control-headers) and [limits](https://vercel.com/docs/limits).
 
-Visible live screens poll every 30 seconds while a game is live.
+Visible live screens poll every 20 seconds while a game is live.
 Hidden screens stop polling.
 The client adds shared-formula live deltas to its authorized saved score and lineup basis.
 The same calculation serves Home and other-team matchups.

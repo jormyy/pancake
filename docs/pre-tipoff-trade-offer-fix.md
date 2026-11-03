@@ -60,4 +60,3 @@ For `supabase/tests/db/pre-tipoff-trade-offer.ts`, set `SUPABASE_URL` to the own
 Run `deno run --cached-only --node-modules-dir=manual --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/pre-tipoff-trade-offer.ts`.
 Set `PRE_TIPOFF_EDGE_RUNTIME=1` to exercise a local Edge gateway serving the integrated worker.
 The script removes its fixtures. Keep outputs outside Git.
-[Release integration](release-2.14-integration.md) and [cleanup](release-2.14-cleanup.md) record the combined proof.

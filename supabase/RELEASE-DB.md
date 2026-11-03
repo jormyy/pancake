@@ -177,8 +177,6 @@ Database, then Edge, then merge the frontend.
 The orchestrator ships. This branch does not push or deploy.
 
 Methods and reruns: [Realtime](../docs/architecture.md#versioned-cache-and-push-invalidation), [workers](../docs/operations-scheduler.md), and [Home recovery](../tests/e2e/pwa-live-game.md).
-[Cleanup](../docs/release-2.14-cleanup.md) lists removed paths and retained coverage.
-[Integration](../docs/release-2.14-integration.md) records the private upgrade/reset comparison and checks.
 
 ## Release 2.12
 
@@ -205,8 +203,6 @@ The statistics job retains its schedule and thresholds. Its diagnostic status an
 
 Methods and reruns: [trades](../tests/db/trades-actions.md), [roster](../tests/db/roster-actions.md),
 [lineup and draft](../tests/db/lineup-draft-actions.md), [league](../tests/db/league-actions.md), and [background](../docs/operations-scheduler.md).
-[Integration checks and repeat cleanup](../docs/release-2.12-integration.md) record the private database comparison.
-[Removed paths and retained coverage](../docs/release-2.12-cleanup.md) document cleanup.
 The orchestrator ships this release. This branch does not push or deploy.
 
 ## Release 2.11 integration
@@ -439,7 +435,6 @@ The approved range contains 296 migrations.
 The recorded security baseline stays at 564 migrations through `20261029000800`.
 Its candidate suffix contains 61 migrations; the verified live prefix determines the actual pending suffix.
 [Migration history](../docs/production-migration-history.md#release-26-candidate) records the range.
-[Integration evidence](../docs/release-2.6-integration.md) records checks, limits, and every changed file.
 [Trade values](../docs/trade-values.md) defines scoring, predictions, matching, and retries.
 
 Keep RPC compatibility, realtime publications, receipts, roster history, and saved trade quotes through rollout.
@@ -865,7 +860,6 @@ Use a reviewed forward migration for a database repair.
 Resume work after the relevant private checks pass.
 
 [Migration history](../docs/production-migration-history.md#release-263-candidate) records the combined range.
-[Integration evidence](../docs/release-2.6.3-integration.md) records checks and every changed file.
 
 ## Release 2.7
 
@@ -1015,7 +1009,6 @@ Preserve receipts, saved trade plans, identity links, pending locks, and executo
 Use a reviewed forward migration for database repairs.
 Do not restore obsolete cron jobs or remove partitions that contain retained data.
 
-[Integration evidence](../docs/release-2.7-integration.md) records exact checks, limits, and every changed file.
 
 ## Release 2.7.1
 
@@ -1101,7 +1094,6 @@ Retention, partition creation, and trade triggers no longer analyze tables.
 Catalog checks reject inline ANALYZE, VACUUM, and REINDEX outside the statistics job.
 A slow daily job cannot cancel the dispatcher's separate statement.
 
-[Isolation evidence](../docs/release-2.7.1-statistics-isolation.md) records production-shaped timings and concurrency checks.
 
 ### Rollback
 
@@ -1115,7 +1107,6 @@ Keep statistics outside dispatch during rollback.
 Disable the independent cron job if needed; do not restore the retired inline work kind.
 This integration performs no production rollout or rollback.
 
-[Integration evidence](../docs/release-2.7.1-integration.md) records exact checks and every changed file.
 
 ## Release 2.7.2
 
@@ -1135,7 +1126,6 @@ Resume dispatch after the database and Edge versions agree.
 Keep these additive database changes during a frontend or Edge rollback.
 Use a reviewed forward migration for database repairs.
 
-[Integration evidence](../docs/release-2.7.2-integration.md) records the private rehearsal and check counts.
 
 
 ## Trade input performance

@@ -75,7 +75,7 @@ Missing change ranges require a fresh view.
 Foreground and reconnect checks use the version endpoint.
 Live Home screens check versions every ten minutes with fresh public data. Stale and database modes reread saved screens every 20 seconds.
 An unchanged version does not reload the view.
-Visible live screens poll public snapshots every 30 seconds; hidden screens stop.
+Visible live screens poll public snapshots every 20 seconds; hidden screens stop.
 A snapshot older than two minutes shows saved scores with a stale state.
 Past-day views and official finals retain stored results.
 See [live scores](live-scores.md) for cache behavior and separate phone/worker rollback.

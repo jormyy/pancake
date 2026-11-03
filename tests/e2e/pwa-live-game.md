@@ -50,4 +50,3 @@ Keep the private stack process running while building and measuring.
 The build disables dotenv, telemetry and external predecessor recovery.
 The measurement harness runs the private Edge runtime and reads only its generated local fixtures.
 Use the assigned integration stack for release checks.
-Raw measurement outputs are listed in [release cleanup](../../docs/release-2.14-cleanup.md).
