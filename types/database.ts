@@ -6851,6 +6851,23 @@ export type Database = {
         }
         Returns: undefined
       }
+      player_window_averages: {
+        Args: { p_days: number; p_league_id: string; p_player_ids?: string[] }
+        Returns: {
+          avg_assists: number
+          avg_blocks: number
+          avg_fantasy_points: number
+          avg_minutes_played: number
+          avg_points: number
+          avg_rebounds: number
+          avg_steals: number
+          avg_three_pointers_made: number
+          avg_turnovers: number
+          games_played: number
+          player_id: string
+          season_year: number
+        }[]
+      }
       prepare_matchup_forecast_inputs: {
         Args: { p_game_date?: string; p_matchup_id: string }
         Returns: Json
@@ -7455,6 +7472,7 @@ export type Database = {
         Args: { p_function_name: string; p_invocation_key: string }
         Returns: string
       }
+      stats_window: { Args: { p_days: number }; Returns: Json }
       stop_draft_atomic: {
         Args: { p_actor_user_id?: string; p_draft_id: string }
         Returns: undefined
@@ -7597,6 +7615,7 @@ export type Database = {
           p_season_year?: number
           p_sort_by?: string
           p_sort_dir?: string
+          p_stats_days?: number
           p_teams?: string[]
         }
         Returns: {

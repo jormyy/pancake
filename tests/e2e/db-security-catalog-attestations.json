@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261214009200",
+  "candidateVersion": "20261214009300",
   "common": {
     "functions": [
       {
@@ -2634,6 +2634,10 @@
     {
       "filename": "20261214009200_keep_unfinished_matchups_live.sql",
       "sha256": "beb3b373f3d3d8f1ee35ad59b7f9fb4edbd947cf80b7054775a87a8e335ef8f6"
+    },
+    {
+      "filename": "20261214009300_player_stats_windows.sql",
+      "sha256": "eec110c1504c9acd209adabecf58bcf42c12a770ecfbc545529189dddf8a6c7f"
     }
   ],
   "preMigration": {

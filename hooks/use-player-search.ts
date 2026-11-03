@@ -1,3 +1,4 @@
+import type { StatsWindowDays } from '@/lib/stats-window'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AppState, type AppStateStatus } from 'react-native'
 import type { FlashListRef } from '@shopify/flash-list'
@@ -105,10 +106,13 @@ export function usePlayerSearch(leagueId: string | null, _ownedMap: Map<string, 
     const [health, setHealth] = useState<PlayerSearchHealthFilter>('all')
     const [availabilityFilter, setAvailabilityFilter] = useState<PlayerAvailabilityFilter>('free_agents')
     const [rookiesOnly, setRookiesOnly] = useState(false)
+    const [selectedStatsDays, setStatsDays] = useState<StatsWindowDays>(null)
+    const statsDays = availabilityFilter === 'mine' ? null : selectedStatsDays
+    const statsDate = useLeagueDay('America/New_York')
     const [seasonYear, setSeasonYear] = useState<number | null>(null)
     const debouncedQuery = useDebouncedValue(query.trim(), 250)
     const listRef = useRef<FlashListRef<PlayerRow>>(null)
-    const scope = options.ownerId && leagueId && currentMemberId ? screenScope('players', leagueId, currentMemberId, { query: debouncedQuery, position, teams: selectedTeams, playing: playingFilter, availability: availabilityFilter, rookiesOnly, health, sortBy: sortMode, sortDir, ...(seasonYear === null ? {} : { seasonYear }), limit: 20 }, options.ownerId) : null
+    const scope = options.ownerId && leagueId && currentMemberId ? screenScope('players', leagueId, currentMemberId, { query: debouncedQuery, position, teams: selectedTeams, playing: playingFilter, availability: availabilityFilter, rookiesOnly, health, sortBy: sortMode, sortDir, ...(statsDays === null ? (seasonYear === null ? {} : { seasonYear }) : { statsDays, statsDate }), limit: 20 }, options.ownerId) : null
     const enabled = options.enabled !== false && options.focused !== false && panelActive
     const view = useScreenView<PlayersView & { weekDays: WeekDay[] }>(scope, enabled)
     const refreshView = view.refresh
@@ -148,14 +152,14 @@ export function usePlayerSearch(leagueId: string | null, _ownedMap: Map<string, 
     const totals = useMemo(() => new Map((view.data?.visibleTotals ?? []).map(row => [row.player_id, row])), [view.data])
     const players = useMemo(() => (sortMode === 'dynasty' ? [...(view.data?.players ?? [])].sort(compareDynastyPlayers) : (view.data?.players ?? [])).map(player => {
         const row = totals.get(player.id)
-        return row ? applyVisiblePlayerTotals(player, row, scoring) : player
-    }), [view.data?.players, totals, scoring, sortMode])
+        return row && statsDays === null ? applyVisiblePlayerTotals(player, row, scoring) : player
+    }), [view.data?.players, totals, scoring, sortMode, statsDays])
     const support = useMemo(() => view.data ? playerSupportData(view.data) : null, [view.data])
     const totalsSnapshot = useMemo<PlayerTotalsSnapshot>(() => ({ key: JSON.stringify([JSON.stringify([options.ownerId, currentMemberId, leagueId]), leagueId, players[0]?.stats_season_year ?? seasonYear ?? currentSeasonYear()]), rows: new Map(players.map(player => [player.id, { row: totals.get(player.id) ?? null, readAt: Date.now() }])) }), [players, totals, options.ownerId, currentMemberId, leagueId, seasonYear])
-    const activeFilterCount = useMemo(() => activePlayerFilterCount({ query, position, selectedTeams, playingFilter, availabilityFilter, rookiesOnly, health, sortMode, seasonYear }), [query, position, selectedTeams, playingFilter, availabilityFilter, rookiesOnly, health, sortMode, seasonYear])
-    const clearAllFilters = useCallback(() => { setQuery(''); setPosition('ALL'); setSelectedTeams([]); setPlayingFilter('all'); setAvailabilityFilter('free_agents'); setRookiesOnly(false); setHealth('all'); setSortMode('fpts'); setSortDir('desc'); setSeasonYear(null) }, [])
+    const activeFilterCount = useMemo(() => activePlayerFilterCount({ query, position, selectedTeams, playingFilter, availabilityFilter, rookiesOnly, health, sortMode, seasonYear, statsDays }), [query, position, selectedTeams, playingFilter, availabilityFilter, rookiesOnly, health, sortMode, seasonYear, statsDays])
+    const clearAllFilters = useCallback(() => { setQuery(''); setPosition('ALL'); setSelectedTeams([]); setPlayingFilter('all'); setAvailabilityFilter('free_agents'); setRookiesOnly(false); setHealth('all'); setSortMode('fpts'); setSortDir('desc'); setSeasonYear(null); setStatsDays(null) }, [])
     const error = view.error ?? pageError
-    return { search: { query, setQuery }, position: { value: position, setValue: setPosition }, teamPicker: { selectedTeams, setSelectedTeams }, availability: { weekDays: view.data?.weekDays ?? [] }, playing: { value: playingFilter, setValue: setPlayingFilter }, sort: { mode: sortMode, setMode: setSortMode, dir: sortDir, setDir: setSortDir }, health: { value: health, setValue: setHealth }, availabilityFilter: { value: availabilityFilter, setValue: setAvailabilityFilter }, toggles: { rookiesOnly, setRookiesOnly }, season: { value: seasonYear, setValue: setSeasonYear }, results: { players, totalsSnapshot, loading: view.loading, refreshing: view.refreshing, loadingMore, error, listRef, loadMore, retry, refreshIfChanged, isSnapshot: view.offline || !view.loaded || Boolean(error) || query.trim() !== debouncedQuery }, activeFilterCount, clearAllFilters, support, refresh: refreshView }
+    return { search: { query, setQuery }, position: { value: position, setValue: setPosition }, teamPicker: { selectedTeams, setSelectedTeams }, availability: { weekDays: view.data?.weekDays ?? [] }, playing: { value: playingFilter, setValue: setPlayingFilter }, sort: { mode: sortMode, setMode: setSortMode, dir: sortDir, setDir: setSortDir }, health: { value: health, setValue: setHealth }, availabilityFilter: { value: availabilityFilter, setValue: setAvailabilityFilter }, toggles: { rookiesOnly, setRookiesOnly }, season: { value: seasonYear, setValue: setSeasonYear }, statsWindow: { days: statsDays, setDays: setStatsDays, range: view.data?.statsWindow }, results: { players, totalsSnapshot, loading: view.loading, refreshing: view.refreshing, loadingMore, error, listRef, loadMore, retry, refreshIfChanged, isSnapshot: view.offline || !view.loaded || Boolean(error) || query.trim() !== debouncedQuery }, activeFilterCount, clearAllFilters, support, refresh: refreshView }
 }
 
 export function useVisiblePlayerRows(players: PlayerRow[], _leagueId: string | null, _seasonYear: number | null, _scoringSettings: unknown, _options: { enabled: boolean; ownerKey: string; initialTotals?: PlayerTotalsSnapshot | null }) {

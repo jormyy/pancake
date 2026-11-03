@@ -47,7 +47,7 @@ function PlayerSearchItemImpl({
     addDisabled?: boolean
     showStats?: boolean
     showCompactStats?: boolean
-    statMode?: 'season' | 'projection'
+    statMode?: 'season' | 'projection' | 'window'
     animate?: boolean
     /** Why a free-agent add is unavailable right now (weekly add limit). The button stays pressable so the tap explains it; claims are gated by the claim modal. */
     addBlockedReason?: string | null
@@ -82,13 +82,14 @@ function PlayerSearchItemImpl({
     ) : null
 
     const summary = showStats ? <View style={styles.statsGrid}>
-        {stats.map(stat => <StatCell key={stat.label} value={stat.label === 'FP' || stat.label === 'MIN' ? stat.value ?? 0 : stat.value} highlight={stat.highlight} integer={stat.integer} />)}
+        {stats.map(stat => <StatCell key={stat.label} value={statMode !== 'window' && (stat.label === 'FP' || stat.label === 'MIN') ? stat.value ?? 0 : stat.value} highlight={stat.highlight} integer={stat.integer} />)}
     </View> : <View style={styles.playerMetaRow}>
         <Text style={styles.playerMeta}>
             <Text style={[styles.playerMetaScore, item.playing_now && styles.liveLabel]}>
-                {formatPoints(stats[0]?.value ?? 0)} {item.playing_now ? 'LIVE' : 'FP'}
+                {formatPoints(statMode === 'window' ? stats[0]?.value : stats[0]?.value ?? 0)} {item.playing_now ? 'LIVE' : 'FP'}
             </Text>
-            {` · ${formatPoints(stats.find(stat => stat.label === 'MIN')?.value ?? 0)} mins`}
+            {` · ${formatPoints(stats.find(stat => stat.label === 'MIN')?.value ?? (statMode === 'window' ? null : 0))} mins`}
+            {statMode === 'window' && item.games_played === 0 ? ' · No games' : null}
             {denseProjectionRow && projectionGame ? ` · ${projectionGame}` : null}
             {showCompactStats ? compactStats.map(stat => ` · ${stat.label} ${formatPoints(stat.value)}`).join('') : null}
         </Text>
@@ -145,7 +146,7 @@ function PlayerSearchItemImpl({
 
 export const PlayerSearchItem = memo(PlayerSearchItemImpl)
 
-function playerStats(item: PlayerRow, statMode: 'season' | 'projection') {
+function playerStats(item: PlayerRow, statMode: 'season' | 'projection' | 'window') {
     if (statMode === 'projection') {
         return [
             { label: 'FP', value: item.projection_fantasy_points, highlight: true },

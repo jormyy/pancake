@@ -3513,6 +3513,13 @@
       "statementCount": 2,
       "statementsSha256": "e1ca357ed5ab3af72d4de180313cd6f6c0d07f7de51b522eb12153d5c514771d",
       "sha256": "beb3b373f3d3d8f1ee35ad59b7f9fb4edbd947cf80b7054775a87a8e335ef8f6"
+    },
+    {
+      "name": "player_stats_windows",
+      "version": "20261214009300",
+      "statementCount": 9,
+      "statementsSha256": "6bda76e9674b15735d26a24e60f396223d655a77c0c9cc0d5c52e1d648cdedef",
+      "sha256": "eec110c1504c9acd209adabecf58bcf42c12a770ecfbc545529189dddf8a6c7f"
     }
   ]
 }

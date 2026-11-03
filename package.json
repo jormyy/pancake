@@ -3,6 +3,8 @@
   "main": "expo-router/entry",
   "version": "2.15.0",
   "scripts": {
+    "test:db:player-stats-windows": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" -X -v ON_ERROR_STOP=1 -f tests/db/player-stats-windows.sql",
+    "test:db:player-stats-window-dst": "node tests/db/player-stats-window-dst.mjs",
     "test:db:work-lease-phases": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/work-lease-phases.sql",
     "test:db:work-lease-renewal": "node tests/e2e/work-lease-renewal-db.mjs",
     "test:db:notification-claim-bounded": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/notification-claim-bounded.sql",

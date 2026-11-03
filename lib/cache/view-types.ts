@@ -1,3 +1,4 @@
+import type { StatsWindow } from '@/lib/stats-window'
 import type { AssetLock } from '@/lib/locked-assets'
 import type { NBAGameRow } from '@/lib/games'
 import type { ViewContext } from '@/lib/cache/screen-cache'
@@ -30,7 +31,7 @@ export function rosterViewData(view: RosterView | TradeBlockView) {
     }
     return { ...view, avgMap, avgStatsMap }
 }
-export type PlayersView = { context: ViewContext; players: PlayerRow[]; ownedMap: Record<string, OwnedEntry>; waiverClearsAt: Record<string, string>; waiverIds: string[]; pendingClaimIds: string[]; transactionState: MemberTransactionState; visibleTotals: VisiblePlayerTotals[]; hasMore: boolean; claims: WaiverClaim[] }
+export type PlayersView = { statsWindow?: StatsWindow | null; context: ViewContext; players: PlayerRow[]; ownedMap: Record<string, OwnedEntry>; waiverClearsAt: Record<string, string>; waiverIds: string[]; pendingClaimIds: string[]; transactionState: MemberTransactionState; visibleTotals: VisiblePlayerTotals[]; hasMore: boolean; claims: WaiverClaim[] }
 export function playerSupportData(view: PlayersView) {
     return { leagueId: view.context.leagueId, memberId: view.context.memberId, seasonId: view.context.seasonId, day: view.context.today, ownedMap: new Map(Object.entries(view.ownedMap)), waiverClearsAt: new Map(Object.entries(view.waiverClearsAt)), waiverIds: new Set(view.waiverIds), pendingClaimIds: new Set(view.pendingClaimIds), transactionState: view.transactionState }
 }
