@@ -28,6 +28,14 @@ describe('public live-score overlay', () => {
     expect(result.matchups[0]).toMatchObject({ homePoints: 104, awayPoints: 82, stale: false })
   })
 
+  it('uses an older game box while it is newer than the saved score', () => {
+    const source = snapshot()
+    source.games[0].updatedAt = now-180000
+    const saved = basis()
+    for (const player of saved[0].players) player.savedAt = now-600000
+    expect(overlayLiveScores(saved, source, { points: 1 }, now).matchups[0]).toMatchObject({ homePoints: 104, awayPoints: 82, stale: false })
+  })
+
   it('uses provider-specific IDs and keeps other-team matchups correct', () => {
     const source = snapshot()
     source.games[0].source = 'espn'
@@ -74,7 +82,6 @@ describe('public live-score overlay', () => {
     for (const change of [
       (source: LiveSnapshot) => { source.games[0].home.players[0][0] = 'unknown' },
       (source: LiveSnapshot) => { source.games[0].home.players[0][1] = NaN },
-      (source: LiveSnapshot) => { source.games[0].updatedAt = now-120001 },
     ]) {
       const source = snapshot()
       change(source)

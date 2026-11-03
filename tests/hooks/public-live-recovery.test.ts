@@ -25,7 +25,7 @@ beforeEach(()=>{
 })
 async function open(){await h.render();notifyLeagueChange('league',{topic:'version',version:'1',changes:[],scopes:null});setLeagueChangesConnected('league',true)}
 it('uses twenty-second recovery when a fresh envelope contains a stale game',async()=>{
-    source.snapshot=body(now-180000)
+    source.snapshot={...body(now-180000),capturedAt:now-180000}
     await open()
     expect(h.latest.liveDelayed).toBe(true)
     await act(async()=>{await vi.advanceTimersByTimeAsync(20000)})
@@ -39,7 +39,7 @@ it('keeps ten-minute recovery for a usable live overlay',async()=>{
 })
 
 it('rereads saved scores when stale public data has no new broadcast version',async()=>{
-    source.snapshot=body(now-180000)
+    source.snapshot={...body(now-180000),capturedAt:now-180000}
     await open()
     const saved=await boundary.read.mock.results[0].value
     boundary.read.mockResolvedValue({...saved,matchup:{...saved.matchup,myPoints:12},liveBasis:saved.liveBasis.map((basis:Record<string,unknown>)=>({...basis,homePoints:12}))})
