@@ -131,7 +131,9 @@ export function fallbackReason(nba: NBAGame | undefined, espn: NBAGame, now = Da
 
 export function parseEspnSummary(summary: EspnSummary, event: EspnEvent): { game: NBAGame; players: EspnPlayer[]; sourceUpdatedAt: string } {
   if (summary.header.id !== event.id || summary.header.season.type !== 2 || summary.header.season.year !== event.season?.year) throw new Error(`ESPN ${event.id}: summary identity changed`)
-  const game = espnGame(event.id, summary.header.competitions[0])
+  const header = summary.header.competitions[0]
+  const final = header.status.type.state === 'post' && header.status.displayClock == null
+  const game = espnGame(event.id, final ? { ...header, status: { ...event.status, type: header.status.type } } : header)
   const reference = espnGame(event.id, { ...event.competitions[0], status: event.status })
   if (game.homeTeam.teamTricode !== reference.homeTeam.teamTricode || game.awayTeam.teamTricode !== reference.awayTeam.teamTricode) throw new Error(`ESPN ${event.id}: summary sides changed`)
   const sourceUpdatedAt = sourceTimestamp(summary.meta?.lastUpdatedAt)
