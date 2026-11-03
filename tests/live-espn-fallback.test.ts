@@ -38,6 +38,15 @@ describe('recorded live ESPN data', () => {
     expect(source.parseEspnSummary(summary, event).game.gameClock).toBe(expected)
   })
 
+  it('reads a final summary whose header omits the clock', () => {
+    const event = structuredClone(fixture('-scoreboard.json').payload.events[0])
+    const summary = JSON.parse(readFileSync(root + files.find(file => file.includes('01-00-49') && file.includes(`summary-${event.id}`)), 'utf8')).payload
+    const type = { state: 'post', completed: true, detail: 'Final' }
+    event.status = { clock: 0, displayClock: '0.0', period: 4, type }
+    summary.header.competitions[0].status = { type }
+    expect(source.parseEspnSummary(summary, event).game).toMatchObject({ period: 4, gameClock: 'PT0M00.0S' })
+  })
+
   it('maps games by ET date, season and ordered normalized sides', () => {
     const events = fixture('-scoreboard.json').payload.events
     const game = { game_date: '2026-10-29', season_year: 2027, home_team: 'NOP', away_team: 'SAC' }
