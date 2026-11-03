@@ -77,7 +77,7 @@ See [loading](instant-loading.md) and [PWA behavior](pwa-live-data.md).
 
 ## Live scores
 
-A public Vercel snapshot supplies compact NBA lines every 30 seconds to visible live screens.
+A public Vercel snapshot supplies compact NBA lines every 20 seconds to visible live screens.
 Phones apply the shared scoring formula to their saved authorized lineup and official-score basis.
 Postgres imports status transitions, finals, corrections, and 30-minute checkpoints.
 Final results and all actions remain server-owned.

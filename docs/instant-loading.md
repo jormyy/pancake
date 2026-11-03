@@ -92,5 +92,4 @@ Browser measurements do not prove physical iPhone behavior.
 | `screen-cache-identity.mjs` | League switch, sign-out, and next-account isolation |
 
 These scripts live in `tests/e2e/` and require an isolated local stack.
-The [integration record](release-2.4-integration.md) keeps the earlier measured results.
 The [PWA contract](pwa-live-data.md) covers public assets, updates, reconnects, and push.

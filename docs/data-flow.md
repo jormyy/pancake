@@ -22,7 +22,7 @@ Account changes clear private caches and reject late replies.
 ## Live scores
 
 The public Vercel route reads NBA or ESPN data without Supabase or user data.
-Visible phones poll every 30 seconds while games are live.
+Visible phones poll every 20 seconds while games are live.
 The shared formula overlays live lines onto the authorized saved lineup and official score.
 Past games and official finals use saved results.
 Old or missing snapshots display saved scores with a stale state.

@@ -5,7 +5,7 @@ exports.fetchLiveSnapshot = fetchLiveSnapshot;
 exports.readLiveSnapshot = readLiveSnapshot;
 exports.createLivePoller = createLivePoller;
 const codec_1 = require("./codec");
-exports.LIVE_PHONE_POLL_MS = 30000;
+exports.LIVE_PHONE_POLL_MS = 20000;
 async function fetchLiveSnapshot(url, signal) {
     const response = await fetch(url, { signal, credentials: 'omit', redirect: 'error', headers: { accept: 'application/json' } });
     if (!response.ok || Number(response.headers.get('content-length') ?? 0) > 1000000)

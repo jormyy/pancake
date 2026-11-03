@@ -120,4 +120,3 @@ The quality command passes lint, type checks, source checks, and interface rules
 These checks use local data and the isolated Mac mini database.
 No production service, deployment, or push is used.
 
-The [release integration evidence](release-2.7-integration.md) records checks after the merge.

@@ -1,7 +1,7 @@
 import { liveLineStats } from './codec'
 import type { LiveLine, LiveSnapshot, PublicLiveGame } from './overlay'
 
-export const LIVE_PHONE_POLL_MS = 30000
+export const LIVE_PHONE_POLL_MS = 20000
 
 export type LiveResponse = { body: unknown; ageMs: number; cache: string }
 

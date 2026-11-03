@@ -154,7 +154,6 @@ Screen layouts remain unchanged.
 
 ## Checked commands
 
-[Release 2.6 integration](release-2.6-integration.md) records current counts and check limits.
 Use Node 22 for the Mac checks.
 Use only the private mini stack for database and Edge checks.
 Load the recorded player and value fixtures before running the value SQL checks.
@@ -320,4 +319,3 @@ The retry checks preserve the original fetch error, claim release, and bounded r
 Pick-reader checks cover trade details, live estimates, and historical re-analysis.
 The database gate rejects trade re-analysis before every pick refresh completes.
 The full unit suite and quality checks run for this integration.
-[Integration evidence](release-2.6-integration.md) records exact results and unverified areas.

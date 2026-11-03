@@ -21,4 +21,4 @@ node tests/db/roster-actions-http.mjs --measure --invocation --rotate-manager --
 node tests/db/roster-actions-report.mjs ../evidence/final-samples.json ../evidence/final-summary.json
 ```
 
-Stop through the stack owner with `touch ../stop`. The HTTP runner uses the cleanup helper and instrumented API/worker entries. Keep generated outputs outside Git. [Integration checks](../../docs/release-2.12-integration.md) retain roster and cache regressions.
+Stop through the stack owner with `touch ../stop`. The HTTP runner uses the cleanup helper and instrumented API/worker entries. Keep generated outputs outside Git.

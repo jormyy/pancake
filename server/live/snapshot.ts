@@ -61,9 +61,19 @@ function nbaIsCurrent(box: NBABoxScore, event: EspnEvent | undefined, observedAt
     && box.homeTeam.score === board.homeTeam.score && box.awayTeam.score === board.awayTeam.score
 }
 
+function scoreboardState(board: NBAGame | undefined, event: EspnEvent | undefined) {
+  const espn = event && ['in','post'].includes(event.status.type.state) ? espnGame(event.id,{...event.competitions[0],status:event.status}) : undefined
+  const reference = board ?? espn
+  return { key: JSON.stringify([board && [board.gameStatus,board.period,board.gameClock,board.homeTeam.score,board.awayTeam.score],
+    event && [event.status.type.state,event.status.period,event.status.displayClock,event.competitions[0].competitors.map(side => side.score)]]),
+    home: reference?.homeTeam.score, away: reference?.awayTeam.score }
+}
+
 export function createSnapshotSource(now: () => number = Date.now) {
   const espn = new EspnLiveSource(now,1500)
+  const unchanged = new Map<string,{ key: string; game: PublicLiveGame; at: number }>()
   return async (date: string): Promise<LiveSnapshot> => {
+    for (const [id,entry] of unchanged) if (now()-entry.at > 43200000) unchanged.delete(id)
     const results = await Promise.allSettled([fetchTodaysGames(1500),espn.scoreboard([date])])
     if (results.every(result => result.status === 'rejected')) throw new Error('Both public score providers are unavailable')
     const boards = results[0].status === 'fulfilled' ? results[0].value : []
@@ -86,6 +96,16 @@ export function createSnapshotSource(now: () => number = Date.now) {
     if (catalog.length > 15) throw new Error('Public slate is larger than the supported limit')
     const games: PublicLiveGame[] = []
     await runBounded(catalog.map(({board,event}) => async () => {
+      const id = `${date}:${board?.gameId ?? `espn:${event!.id}`}`
+      let state: ReturnType<typeof scoreboardState> | undefined
+      try { state = scoreboardState(board,event) } catch { state = undefined }
+      const kept = unchanged.get(id)
+      if (state && kept?.key === state.key && now()-kept.at < (kept.game.status === 'Final' ? Infinity : kept.game.completionPending ? 300000 : 60000)) { games.push(kept.game); return }
+      const remember = (game: PublicLiveGame) => {
+        if (state && game.home.score === state.home && game.away.score === state.away) unchanged.set(id,{ key: state.key, game, at: now() })
+        else unchanged.delete(id)
+        games.push(game)
+      }
       try {
         const nbaResult = await (board ? fetchBoxScore(board.gameId,1500) : Promise.resolve(undefined))
           .then(value => ({status:'fulfilled' as const,value}),reason => ({status:'rejected' as const,reason}))
@@ -96,16 +116,16 @@ export function createSnapshotSource(now: () => number = Date.now) {
         if (nba) {
           try { nbaCompact = compactBox(nba,board,event,now()) } catch { nba = undefined }
         }
-        if (nba && nbaCompact && nbaIsCurrent(nba,event,now())) { games.push(nbaCompact); return }
+        if (nba && nbaCompact && nbaIsCurrent(nba,event,now())) { remember(nbaCompact); return }
         const other = event && ['in','post'].includes(event.status.type.state) ? await espn.summary(event).catch(() => undefined) : undefined
-        if (nba && nbaCompact && (!other || newerNbaSource(nba,other.game))) games.push(nbaCompact)
+        if (nba && nbaCompact && (!other || newerNbaSource(nba,other.game))) remember(nbaCompact)
         else if (other) {
           const identities = new Map(other.players.map(row => [row.player,row.espnId]))
           const box = { ...other.game, gameEt: null,
             homeTeam: { ...other.game.homeTeam, players: other.players.filter(row => row.team === other.game.homeTeam.teamTricode).map(row => row.player) },
             awayTeam: { ...other.game.awayTeam, players: other.players.filter(row => row.team === other.game.awayTeam.teamTricode).map(row => row.player) } }
-          games.push(compactBox(box,board,event,now(),identities))
-        } else if (nbaCompact) games.push(nbaCompact)
+          remember(compactBox(box,board,event,now(),identities))
+        } else if (nbaCompact) remember(nbaCompact)
         else throw new Error('No valid live box')
       } catch {
         failures.push(board?.gameId ?? `espn:${event!.id}`)

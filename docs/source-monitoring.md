@@ -416,7 +416,6 @@ Existing retention, career, career-queue, playoff-window, and playoff-boundary r
 Both loopback CDN continuation recipes preserve prior rows after a failed continuation and successful retry.
 Function source, function catalog, generated database types, shared Edge output, and changed Edge entrypoints pass their checks.
 These earlier retention checks do not establish a result for the current full application suite.
-The [integration record](release-2.4-integration.md) records the merged release checks.
 
 The runtime audit finds no active season-year assignment literal in these source trees.
 Comments, a leap-year date anchor, timestamp bin origins, Unicode escapes, and byte limits still contain year-shaped numbers.
@@ -532,5 +531,4 @@ The [release runbook](../supabase/RELEASE-DB.md#worker-incident-controls) gives 
 
 Run queue lifecycle, schedule, lease, retention, and IO fixtures on a disposable local stack.
 The [IO audit](io-audit.md) records the final integration measurements and negative controls.
-The [integration record](release-2.4-integration.md) keeps the historical check results.
 No source-health report alone proves end-to-end browser freshness.

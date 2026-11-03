@@ -24,4 +24,4 @@ node tests/db/lineup-draft-verify.mjs
 node tests/db/lineup-draft-report.mjs
 ```
 
-Stop through the stack owner with `touch ../stop`. Keep generated reports outside Git. [Integration checks](../../docs/release-2.12-integration.md) retain cache, auto-set and lock regressions.
+Stop through the stack owner with `touch ../stop`. Keep generated reports outside Git.

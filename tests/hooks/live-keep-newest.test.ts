@@ -14,4 +14,10 @@ describe('keepNewestGames', () => {
         expect(merged.capturedAt).toBe(130)
         expect(merged.games.map(row => [row.home.team, row.home.score]).sort()).toEqual([['CLE', 61], ['IND', 54]])
     })
+
+    it('keeps the last good feed when one check fails', () => {
+        const first = snap(100, [game('espn:1', 'OKC', 'CLE', 90, 61)])
+        expect(keepNewestGames(first, null)).toBe(first)
+        expect(keepNewestGames(undefined, null)).toBeNull()
+    })
 })

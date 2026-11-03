@@ -1,7 +1,8 @@
 import { createSnapshotSource } from './snapshot.ts'
 import type { LiveSnapshot } from '../../core/src/live/overlay.ts'
 
-const cachePolicy = 'public, max-age=0, s-maxage=30, stale-while-revalidate=15, stale-if-error=90'
+const REFRESH_MS = 20000
+const cachePolicy = 'public, max-age=0, s-maxage=20, stale-while-revalidate=10, stale-if-error=90'
 
 function offSwitch() {
   const runtime = globalThis as typeof globalThis & { process?: { env: Record<string,string | undefined> }; Deno?: { env: { get(name: string): string | undefined } } }
@@ -46,7 +47,7 @@ export function createLiveHandler(options: { now?: () => number; disabled?: () =
             return new Response(request.method === 'HEAD' ? null : saved.body,{headers:{...headers,
               'cache-control':`public, max-age=0, s-maxage=${Math.max(1,Math.ceil(Math.min(refreshAt.get(date)!-now(),120000-(now()-saved.capturedAt))/1000))}`}})
           }
-          refreshAt.set(date,now()+30000)
+          refreshAt.set(date,now()+REFRESH_MS)
           pending = source(date).finally(() => { inFlight.delete(date) })
           inFlight.set(date,pending)
         }
@@ -60,7 +61,7 @@ export function createLiveHandler(options: { now?: () => number; disabled?: () =
       const saved = lastGood.get(date)
       const remaining = saved ? 120000 - (now() - saved.capturedAt) : 0
       if (saved && remaining > 0 && remaining <= 120000) return new Response(request.method === 'HEAD' ? null : saved.body, {
-        headers: { ...headers, 'cache-control': `public, max-age=0, s-maxage=${Math.min(30,Math.ceil(remaining/1000))}`, 'x-live-snapshot-fallback': '1' },
+        headers: { ...headers, 'cache-control': `public, max-age=0, s-maxage=${Math.min(REFRESH_MS/1000,Math.ceil(remaining/1000))}`, 'x-live-snapshot-fallback': '1' },
       })
       return Response.json({error:'Live scores are temporarily unavailable'},{status:503,headers:{...headers,'cache-control':'no-store'}})
     }

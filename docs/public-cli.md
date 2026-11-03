@@ -304,4 +304,3 @@ The public routes stay under `api`; they are not separate Edge functions.
 The value worker uses internal authorization and has no public route.
 The integration checks public database reads with synthetic league fixtures on an empty private stack.
 It does not restore the backup or repeat the earlier backup-based browser run.
-[Integration evidence](release-2.5-integration.md) records the current test counts and limits.

@@ -638,9 +638,25 @@ function nbaIsCurrent(box, event, observedAt) {
   const board = espnGame(event.id, { ...event.competitions[0], status: event.status });
   return gameElapsedSeconds(box) >= gameElapsedSeconds(board) && box.homeTeam.score === board.homeTeam.score && box.awayTeam.score === board.awayTeam.score;
 }
+function scoreboardState(board, event) {
+  const espn = event && ["in", "post"].includes(event.status.type.state) ? espnGame(event.id, { ...event.competitions[0], status: event.status }) : undefined;
+  const reference = board ?? espn;
+  return {
+    key: JSON.stringify([
+      board && [board.gameStatus, board.period, board.gameClock, board.homeTeam.score, board.awayTeam.score],
+      event && [event.status.type.state, event.status.period, event.status.displayClock, event.competitions[0].competitors.map((side) => side.score)]
+    ]),
+    home: reference?.homeTeam.score,
+    away: reference?.awayTeam.score
+  };
+}
 function createSnapshotSource(now = Date.now) {
   const espn = new EspnLiveSource(now, 1500);
+  const unchanged = new Map;
   return async (date) => {
+    for (const [id, entry] of unchanged)
+      if (now() - entry.at > 43200000)
+        unchanged.delete(id);
     const results = await Promise.allSettled([fetchTodaysGames(1500), espn.scoreboard([date])]);
     if (results.every((result) => result.status === "rejected"))
       throw new Error("Both public score providers are unavailable");
@@ -674,6 +690,25 @@ function createSnapshotSource(now = Date.now) {
       throw new Error("Public slate is larger than the supported limit");
     const games = [];
     await runBounded(catalog.map(({ board, event }) => async () => {
+      const id = `${date}:${board?.gameId ?? `espn:${event.id}`}`;
+      let state;
+      try {
+        state = scoreboardState(board, event);
+      } catch {
+        state = undefined;
+      }
+      const kept = unchanged.get(id);
+      if (state && kept?.key === state.key && now() - kept.at < (kept.game.status === "Final" ? Infinity : kept.game.completionPending ? 300000 : 60000)) {
+        games.push(kept.game);
+        return;
+      }
+      const remember = (game) => {
+        if (state && game.home.score === state.home && game.away.score === state.away)
+          unchanged.set(id, { key: state.key, game, at: now() });
+        else
+          unchanged.delete(id);
+        games.push(game);
+      };
       try {
         const nbaResult = await (board ? fetchBoxScore(board.gameId, 1500) : Promise.resolve(undefined)).then((value) => ({ status: "fulfilled", value }), (reason) => ({ status: "rejected", reason }));
         let nba = nbaResult.status === "fulfilled" ? nbaResult.value : undefined;
@@ -688,14 +723,14 @@ function createSnapshotSource(now = Date.now) {
           }
         }
         if (nba && nbaCompact && nbaIsCurrent(nba, event, now())) {
-          games.push(nbaCompact);
+          remember(nbaCompact);
           return;
         }
         const other = event && ["in", "post"].includes(event.status.type.state) ? await espn.summary(event).catch(() => {
           return;
         }) : undefined;
         if (nba && nbaCompact && (!other || newerNbaSource(nba, other.game)))
-          games.push(nbaCompact);
+          remember(nbaCompact);
         else if (other) {
           const identities = new Map(other.players.map((row) => [row.player, row.espnId]));
           const box = {
@@ -704,9 +739,9 @@ function createSnapshotSource(now = Date.now) {
             homeTeam: { ...other.game.homeTeam, players: other.players.filter((row) => row.team === other.game.homeTeam.teamTricode).map((row) => row.player) },
             awayTeam: { ...other.game.awayTeam, players: other.players.filter((row) => row.team === other.game.awayTeam.teamTricode).map((row) => row.player) }
           };
-          games.push(compactBox(box, board, event, now(), identities));
+          remember(compactBox(box, board, event, now(), identities));
         } else if (nbaCompact)
-          games.push(nbaCompact);
+          remember(nbaCompact);
         else
           throw new Error("No valid live box");
       } catch {
@@ -727,7 +762,8 @@ function createSnapshotSource(now = Date.now) {
 }
 
 // server/live/handler.ts
-var cachePolicy = "public, max-age=0, s-maxage=30, stale-while-revalidate=15, stale-if-error=90";
+var REFRESH_MS = 20000;
+var cachePolicy = "public, max-age=0, s-maxage=20, stale-while-revalidate=10, stale-if-error=90";
 function offSwitch() {
   const runtime = globalThis;
   return (runtime.Deno?.env.get("LIVE_SCORES_OFF") ?? runtime.process?.env.LIVE_SCORES_OFF) === "1";
@@ -776,7 +812,7 @@ function createLiveHandler(options = {}) {
               "cache-control": `public, max-age=0, s-maxage=${Math.max(1, Math.ceil(Math.min(refreshAt.get(date) - now(), 120000 - (now() - saved.capturedAt)) / 1000))}`
             } });
           }
-          refreshAt.set(date, now() + 30000);
+          refreshAt.set(date, now() + REFRESH_MS);
           pending = source(date).finally(() => {
             inFlight.delete(date);
           });
@@ -795,7 +831,7 @@ function createLiveHandler(options = {}) {
       const remaining = saved ? 120000 - (now() - saved.capturedAt) : 0;
       if (saved && remaining > 0 && remaining <= 120000)
         return new Response(request.method === "HEAD" ? null : saved.body, {
-          headers: { ...headers, "cache-control": `public, max-age=0, s-maxage=${Math.min(30, Math.ceil(remaining / 1000))}`, "x-live-snapshot-fallback": "1" }
+          headers: { ...headers, "cache-control": `public, max-age=0, s-maxage=${Math.min(REFRESH_MS / 1000, Math.ceil(remaining / 1000))}`, "x-live-snapshot-fallback": "1" }
         });
       return Response.json({ error: "Live scores are temporarily unavailable" }, { status: 503, headers: { ...headers, "cache-control": "no-store" } });
     }
