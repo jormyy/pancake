@@ -34,19 +34,45 @@ Injury status refreshes every 15 minutes on game days.
 Career game counts refresh daily for NBA team players.
 The worker and `private.pre_tipoff_input_fingerprint` both use `get_league_projection_rows`.
 [Source monitoring](source-monitoring.md#projection-readers) defines per-game source precedence and fingerprint inputs.
-Only healthy players with games can enter unlocked starter slots.
 The solver uses all listed positions, including G, F, and UTIL eligibility.
-It maximizes projected points after preserving locked slots.
-Zero or missing projections count as zero. Eligible healthy players still fill empty slots at zero projected points.
-Negative projections can leave slots empty when that produces a higher total.
+It preserves locked slots, then maximizes the number of filled unlocked slots.
+It next maximizes healthy playing projections, then the number of healthy playing starters.
+Zero or missing projections count as zero.
+Out, IR, no-game, and postponed players contribute zero playing points.
+Fallbacks can fill otherwise empty slots, including when all available projections are negative.
+
+### Slot assignment
+
+After those three objectives tie, the solver preserves later choices at each tipoff, earliest first.
+It counts legal player-slot pairs for healthy roster players whose games start later.
+It minimizes pairs lost when earlier starters lock their slots.
+Then it minimizes the total position breadth of those locked slots.
+Specialist slots accept fewer positions than G, F, and UTIL.
+Players with unknown tipoffs count as later until the schedule supplies a time.
+Players without games consume no future lock budget.
+All positions compete in one matching, so a specialist preference cannot reduce the primary objectives.
+
+Remaining ties prefer occupied specialist slots, existing assignments, healthy fallbacks, then fallback projections.
+Sorted player IDs and slot types resolve exact ties deterministically.
+Equal simultaneous tipoffs preserve existing assignments when the other objectives tie.
+The matching uses separate objective values; it does not mix points and flexibility through a weighted sum.
+Its work grows polynomially with roster size, slot count, and distinct tipoff times.
+
+The flexibility measure counts individual legal choices, not every possible future injury combination.
+It includes later bench alternatives but cannot predict news, roster additions, or schedule changes.
+A later run optimizes again around the slots that have locked.
+For example, an early PG takes PG while a later PG takes UTIL.
+A later center can then replace that later guard if the guard becomes Out.
 
 The database owns the lock rule. Feed status, scheduled time, recorded start, and recorded game participation establish locks.
 A locked player never moves, even if later declared Out or removed from the roster.
-An unlocked Out player goes to the bench. Empty slots remain empty when no eligible healthy player exists.
-A postponed game supplies no new starters and opens no new tipoff window.
+An unlocked Out player yields to an eligible healthy player with better playing value.
+An Out or no-game player can remain as a fallback under the fill-first policy.
+A postponed game supplies no playing value and opens no new tipoff window.
 Postponement news can refresh an already open window.
 This includes feed rows that keep Scheduled status but carry PPD or postponement text.
-The database also rejects a new unlocked starter if the schedule changes during the run.
+The database rejects an expected-active starter if the schedule or injury status changes during the run.
+Intentional fallbacks carry `expected_active=false` and remain subject to roster, position, and lock checks.
 Existing locks still follow the app's shared database rule, including a scheduled time that has already passed.
 A player whose game starts while benched stays benched, including when no lineup row exists for that date.
 Games with a TBD tipoff (`game_time IS NULL`) open no dispatch window.
@@ -77,7 +103,7 @@ Lease loss, dispatch failures, and failure-receipt write errors still fail the b
 A retry keeps its revision. A real input change starts a new revision with a new token.
 A retry skips completed teams, including after a worker loses its response.
 An unchanged revision also skips recorded member failures. New inputs allow those members to run again.
-The database checks the setting again before writing and rejects fresh unlocked Out starters.
+The database checks the setting again before writing and rejects fresh unlocked Out starters marked expected-active.
 Existing lineup RPCs enforce roster ownership, slot counts, eligibility, and locks.
 Manual and automatic writes share the existing roster and date locks.
 Pending offers do not block starter and bench changes. Roster removals, IR and taxi moves retain their reservation guards.
@@ -117,3 +143,44 @@ Keep the original foreign keys, rows, RLS, table grants, and triggers.
 Use one bounded transaction and verify inconsistent tuples before reapplication.
 Published migration `supabase/migrations/20261008000002_optimizer_setting_context_writes.sql` defines the exact objects and original grants.
 Recovery must follow the attested release process. Do not edit applied migrations.
+
+## Verify scheduled runs
+
+`work-dispatcher` runs every minute (`* * * * *`).
+It calls `dispatch_work`, then `private.enqueue_scheduled_work`, which queues `pre-tipoff` work.
+The worker function is `lineup-optimizer`, with `mode=pre_tipoff`.
+“Daily” means enabled teams receive this game-day automation.
+There is no separate morning autoset cron job in the current schedule.
+The legacy `private.enqueue_lineup_optimizer` helper has no scheduled caller.
+The manual Today, This week, and Rest of season actions use the date optimizer.
+
+After deployment, run these read-only queries in the project's SQL editor.
+Check worker and team receipts as well as the cron result.
+A successful cron tick only confirms dispatch work completed.
+
+```sql
+BEGIN READ ONLY;
+SELECT jobid, jobname, schedule, active FROM cron.job ORDER BY jobname;
+SELECT d.runid, d.start_time, d.end_time, d.status, d.return_message
+FROM cron.job_run_details d JOIN cron.job j USING (jobid)
+WHERE j.jobname = 'work-dispatcher'
+ORDER BY d.start_time DESC LIMIT 30;
+SELECT id, kind, status, due_at, completed_at, attempts, last_error
+FROM private.work_items WHERE kind IN ('pre-tipoff', 'lineup-optimizer')
+ORDER BY id DESC LIMIT 30;
+SELECT tipoff_at, game_date, status, attempts, input_revision, finished_at, error
+FROM public.lineup_tipoff_dispatches ORDER BY tipoff_at DESC LIMIT 30;
+SELECT tipoff_at, member_id, input_revision, completed_at, error
+FROM public.lineup_tipoff_members ORDER BY completed_at DESC LIMIT 100;
+SELECT id, started_at, finished_at, status, rows_affected, error
+FROM public.sync_runs WHERE function_name = 'lineup-optimizer'
+ORDER BY started_at DESC LIMIT 30;
+SELECT id, queued_at, worker_status, status_code, error_message, sync_run_id, work_item_id
+FROM public.edge_invocations WHERE function_name = 'lineup-optimizer'
+ORDER BY queued_at DESC LIMIT 30;
+ROLLBACK;
+```
+
+Use `work_item_id` and `sync_run_id` to connect dispatch and worker records.
+Use tipoff time, member ID, and input revision to find each team's outcome.
+Existing retention rules can remove older attempts; current player status does not establish status at a historical run.

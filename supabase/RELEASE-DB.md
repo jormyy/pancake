@@ -249,6 +249,10 @@ The [trade curve report](../docs/trade-curve.md) records the real trades, roster
 The supplied production head is `20261214006200`, from the recorded 2.14.7 release.
 This lab does not verify hosted state.
 The local candidate ends at `20261214009200`.
+The pending autoset change adds `20261214009400_autoset_tipoff_flexibility.sql` after `20261214009300_player_stats_windows.sql`.
+It adds player tipoff times to the optimizer context without changing the response type or permissions.
+Verify this migration on an isolated stack and regenerate both attestations before including it in a release.
+Apply it before the matching `lineup-optimizer` Edge function; old workers ignore the added JSON field.
 Prepare the deployment checkout with `npm ci` and stamp the Edge build before pausing workers or applying migrations.
 Database, then Edge, then merge the frontend.
 Apply pending migrations through `20261214009200` only during the separately authorized release.

@@ -3520,6 +3520,13 @@
       "statementCount": 9,
       "statementsSha256": "6bda76e9674b15735d26a24e60f396223d655a77c0c9cc0d5c52e1d648cdedef",
       "sha256": "eec110c1504c9acd209adabecf58bcf42c12a770ecfbc545529189dddf8a6c7f"
+    },
+    {
+      "name": "autoset_tipoff_flexibility",
+      "version": "20261214009400",
+      "statementCount": 1,
+      "statementsSha256": "2a6a19eafcbf514b8eef52f1b1df205bda6d3d0f94396374a0e0a155aa58841d",
+      "sha256": "8b32a758f79297460c99f8265af518a02768bd68daf617e16a39288f80cc7790"
     }
   ]
 }

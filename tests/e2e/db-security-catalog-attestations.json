@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261214009300",
+  "candidateVersion": "20261214009400",
   "common": {
     "functions": [
       {
@@ -2638,6 +2638,10 @@
     {
       "filename": "20261214009300_player_stats_windows.sql",
       "sha256": "eec110c1504c9acd209adabecf58bcf42c12a770ecfbc545529189dddf8a6c7f"
+    },
+    {
+      "filename": "20261214009400_autoset_tipoff_flexibility.sql",
+      "sha256": "8b32a758f79297460c99f8265af518a02768bd68daf617e16a39288f80cc7790"
     }
   ],
   "preMigration": {

@@ -15,6 +15,7 @@ export type TipoffContext = {
     injuryStatus: string | null
     locked: boolean
     hasGame: boolean
+    gameTime?: string | null
   }[]
   templates: { slotType: string; count: number }[]
   stored: {

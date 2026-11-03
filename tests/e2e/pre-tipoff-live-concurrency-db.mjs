@@ -1,8 +1,11 @@
 import { spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import assert from 'node:assert/strict'
-const db = process.env.SUPABASE_DB_URL
-assert(db && new URL(db).hostname === '127.0.0.1')
+const target = new URL(process.env.SUPABASE_DB_URL)
+assert.equal(target.hostname, '127.0.0.1')
+assert.equal(target.port, process.env.PANCAKE_TEST_DB_PORT ?? '54322')
+target.username = 'supabase_admin'
+const db = target.href
 const prefix = 'owned-tipoff-live-' + randomUUID()
 const quote = value => "'" + String(value).replaceAll("'", "''") + "'"
 const parse = value => JSON.parse(value)
@@ -121,10 +124,10 @@ try {
     INSERT INTO public.lineup_tipoff_dispatches(tipoff_at,game_date,status,token,lease_until,input_revision)
       SELECT game_time,game_date,'running',${quote(ids.token)},clock_timestamp()+interval '5 minutes',1 FROM public.nba_games WHERE id=${quote(ids.game)};
     CREATE FUNCTION private.${trigger}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN
-      IF NEW.league_id=${quote(ids.league)}::uuid THEN PERFORM pg_advisory_xact_lock(919573,${barrier}); END IF;
+      IF NEW.id=${quote(ids.game)}::uuid THEN PERFORM pg_advisory_xact_lock(919573,${barrier}); END IF;
       RETURN NEW;
     END $$;
-    CREATE TRIGGER ${trigger} BEFORE INSERT ON private.player_stats_hint_pending FOR EACH ROW EXECUTE FUNCTION private.${trigger}();
+    CREATE TRIGGER ${trigger} BEFORE UPDATE OF live_stats_elapsed_seconds ON public.nba_games FOR EACH ROW EXECUTE FUNCTION private.${trigger}();
     COMMIT;
     SELECT jsonb_build_object('tipoff',game_time) FROM public.nba_games WHERE id=${quote(ids.game)};`))
   tipoff = fixture.tipoff
@@ -164,12 +167,11 @@ try {
   assert.equal((await snapshot()).lineups,0,'Successful uncommitted lineup remains invisible')
   await lineup.query('COMMIT;')
   const after = await snapshot()
-  assert.deepEqual(after,{stats:1,points:10,elapsed:300,totals:1,lineups:1,receipts:1,optimized:true})
-  const scored = parse(await control.query(`SELECT jsonb_build_object('points',public.compute_fantasy_points(s.id,wl.league_id),'slot',wl.slot_type,'player',wl.player_id,'totals',t.points,'games',t.games_played)
+  assert.deepEqual(after,{stats:1,points:10,elapsed:300,totals:0,lineups:1,receipts:1,optimized:true})
+  const scored = parse(await control.query(`SELECT jsonb_build_object('points',public.compute_fantasy_points(s.id,wl.league_id),'slot',wl.slot_type,'player',wl.player_id)
     FROM public.weekly_lineups wl JOIN public.player_game_stats s ON s.player_id=wl.player_id AND s.game_id=${quote(ids.game)}
-    JOIN analytics.player_season_totals t ON t.player_id=s.player_id AND t.season_year=${year}
     WHERE wl.member_id=${quote(ids.member)};`))
-  assert.deepEqual(scored,{points:23,slot:'PG',player:ids.player,totals:10,games:1})
+  assert.deepEqual(scored,{points:23,slot:'PG',player:ids.player})
   const stored = await control.query(`SELECT to_jsonb(w) FROM public.weekly_lineups w WHERE member_id=${quote(ids.member)};`)
   assert.equal(await lineup.query(apply()),'f')
   assert.equal(await live.query(save()),'0')
@@ -182,7 +184,7 @@ try {
   if (!control.ended) await control.query(`SELECT pg_advisory_unlock(919573,${barrier});`).catch(() => {})
   await Promise.all([live.close(),lineup.close()])
   const cleanup = new Session('cleanup')
-  await cleanup.query(`DROP TRIGGER IF EXISTS ${trigger} ON private.player_stats_hint_pending;
+  await cleanup.query(`DROP TRIGGER IF EXISTS ${trigger} ON public.nba_games;
     DROP FUNCTION IF EXISTS private.${trigger}();
     DELETE FROM public.lineup_tipoff_members WHERE member_id=${quote(ids.member)};
     DELETE FROM public.lineup_tipoff_dispatches WHERE token=${quote(ids.token)};

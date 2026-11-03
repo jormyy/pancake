@@ -86,6 +86,19 @@ BEGIN
   v_context:=public.get_pre_tipoff_lineup_context(v_league,v_season,v_member);
   IF NOT EXISTS(SELECT 1 FROM jsonb_array_elements(v_context->'players') p WHERE (p->>'playerId')::uuid=v_pg AND (p->>'hasGame')::boolean AND NOT (p->>'locked')::boolean) THEN RAISE EXCEPTION 'TBD game changes existing game-day eligibility'; END IF;
   UPDATE public.nba_games SET game_time=v_tipoff WHERE id IN (v_game,v_other);
+  v_context:=public.get_pre_tipoff_lineup_context(v_league,v_season,v_member);
+  IF NOT EXISTS(SELECT 1 FROM jsonb_array_elements(v_context->'players') p
+    WHERE (p->>'playerId')::uuid=v_pg AND (p->>'gameTime')::timestamptz=v_tipoff)
+    THEN RAISE EXCEPTION 'Context omits the early player tipoff'; END IF;
+  IF NOT EXISTS(SELECT 1 FROM jsonb_array_elements(v_context->'players') p
+    WHERE (p->>'playerId')::uuid=v_fallback AND (p->>'gameTime')::timestamptz=now()+interval '10 minutes')
+    THEN RAISE EXCEPTION 'Context loses staggered tipoff order'; END IF;
+  UPDATE public.players SET nba_team='OFF' WHERE id=v_fallback;
+  v_context:=public.get_pre_tipoff_lineup_context(v_league,v_season,v_member);
+  IF NOT EXISTS(SELECT 1 FROM jsonb_array_elements(v_context->'players') p
+    WHERE (p->>'playerId')::uuid=v_fallback AND p->'gameTime'='null'::jsonb AND NOT (p->>'hasGame')::boolean)
+    THEN RAISE EXCEPTION 'No-game player receives a tipoff'; END IF;
+  UPDATE public.players SET nba_team='TP5' WHERE id=v_fallback;
   PERFORM pg_temp.pre_dispatch();
   PERFORM pg_temp.pre_dispatch();
   IF NOT EXISTS(SELECT 1 FROM tipoff_requests) THEN RAISE EXCEPTION 'Scheduled future started_at prevents pre-tipoff dispatch'; END IF;
@@ -186,6 +199,9 @@ BEGIN
   IF EXISTS(SELECT 1 FROM public.lineup_tipoff_dispatches WHERE tipoff_at=now()+interval '110 seconds') THEN RAISE EXCEPTION 'Postponed game dispatches'; END IF;
   UPDATE public.nba_games SET status='Scheduled',game_status_text='PPD' WHERE id=v_other;
   v_context:=public.get_pre_tipoff_lineup_context(v_league,v_season,v_member);
+  IF NOT EXISTS(SELECT 1 FROM jsonb_array_elements(v_context->'players') p
+    WHERE (p->>'playerId')::uuid=v_c AND p->'gameTime'='null'::jsonb)
+    THEN RAISE EXCEPTION 'Postponed game supplies a locking time to the solver'; END IF;
   IF EXISTS(SELECT 1 FROM jsonb_array_elements(v_context->'players') p WHERE (p->>'playerId')::uuid=v_c AND (p->>'hasGame')::boolean) THEN RAISE EXCEPTION 'Scheduled PPD game supplies starters'; END IF;
   PERFORM pg_temp.pre_dispatch();
   IF EXISTS(SELECT 1 FROM public.lineup_tipoff_dispatches WHERE tipoff_at=now()+interval '110 seconds') THEN RAISE EXCEPTION 'Scheduled PPD game dispatches'; END IF;

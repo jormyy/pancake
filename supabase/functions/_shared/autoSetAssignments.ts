@@ -1,23 +1,26 @@
 import { LINEUP_SLOT_ALLOWED_POSITIONS } from './lineupSlots.ts'
 import type { AssignablePlayer } from './lineupAssignments.ts'
 
-type Cost = readonly [number, number, number, number, number, number, number]
-const zero: Cost = [0, 0, 0, 0, 0, 0, 0]
+type Cost = readonly number[]
 const eligiblePositions: Partial<Record<string, readonly string[]>> = LINEUP_SLOT_ALLOWED_POSITIONS
 
 function subtract(a: Cost, b: Cost): Cost {
-    return [a[0] - b[0], a[1] - b[1], a[2] - b[2], a[3] - b[3], a[4] - b[4], a[5] - b[5], a[6] - b[6]]
+    return a.map((value, index) => value - b[index])
 }
 
 function add(a: Cost, b: Cost): Cost {
-    return [a[0] + b[0], a[1] + b[1], a[2] + b[2], a[3] + b[3], a[4] + b[4], a[5] + b[5], a[6] + b[6]]
+    return a.map((value, index) => value + b[index])
 }
 
 function compare(a: Cost, b: Cost): number {
-    return a[0] - b[0] || a[1] - b[1] || a[2] - b[2] || a[3] - b[3] || a[4] - b[4] || a[5] - b[5] || a[6] - b[6]
+    for (let index = 0; index < a.length; index++) {
+        const difference = a[index] - b[index]
+        if (difference) return difference
+    }
+    return 0
 }
 
-export function chooseAutoSetAssignments<Player extends AssignablePlayer>(
+export function chooseAutoSetAssignments<Player extends AssignablePlayer & { gameTime?: string | null }>(
     slots: string[],
     players: Player[],
     hasGame: (player: Player) => boolean,
@@ -27,10 +30,22 @@ export function chooseAutoSetAssignments<Player extends AssignablePlayer>(
     slots = [...slots].sort((a, b) => order.indexOf(a) - order.indexOf(b))
     const available = [...players].sort((a, b) => a.playerId.localeCompare(b.playerId))
     const stored = new Map(current.map(entry => [entry.playerId, entry.slotType]))
+    const gameTime = (player: Player) => {
+        const time = player.gameTime && hasGame(player) ? Date.parse(player.gameTime) : NaN
+        return Number.isFinite(time) ? time : Infinity
+    }
+    const cutoffs = [...new Set(available.map(gameTime).filter(Number.isFinite))].sort((a, b) => a - b)
+        .filter(time => available.some(player => hasGame(player) && !player.avoidInLineup && gameTime(player) > time))
+    const futureOptions = new Map([...new Set(slots)].map(slot => [slot, cutoffs.map(time => available.filter(player =>
+        !player.avoidInLineup && hasGame(player) && gameTime(player) > time
+        && player.eligiblePositions.some(position => eligiblePositions[slot]?.includes(position))).length)]))
+    const zero: Cost = Array<number>(7 + cutoffs.length * 2).fill(0)
     const weights = (player: Player, slot: string): Cost => {
         const playing = !player.avoidInLineup && hasGame(player)
         const projected = Number.isFinite(player.projected) ? player.projected : 0
-        return [-1, playing ? -projected : 0, playing ? -1 : 0, order.indexOf(slot),
+        const flexibility = cutoffs.flatMap((time, index) => gameTime(player) <= time
+            ? [futureOptions.get(slot)![index], eligiblePositions[slot]?.length ?? 0] : [0, 0])
+        return [-1, playing ? -projected : 0, playing ? -1 : 0, ...flexibility, order.indexOf(slot),
             stored.get(player.playerId) === slot ? -1 : 0, player.avoidInLineup ? 0 : -1, -projected]
     }
     const rowCount = slots.length
