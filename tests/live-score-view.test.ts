@@ -28,7 +28,7 @@ describe('home and other-team live scores', () => {
         expect(view.matchup?.myPoints).toBe(104)
         expect(view.delayed).toBe(false)
         saved.todaysGames[1].game_time = new Date(now - 1000).toISOString()
-        expect(liveScoreView(saved, snapshot(), { points: 1 }, now).delayed).toBe(true)
+        expect(liveScoreView(saved, snapshot(), { points: 1 }, now)).toMatchObject({ delayed: false, matchup: { myPoints: 104 } })
     })
 
     it('combines unfinished prior-day and current-day scores without double counting', () => {
