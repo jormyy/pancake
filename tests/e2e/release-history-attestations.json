@@ -3534,6 +3534,13 @@
       "statementCount": 9,
       "statementsSha256": "864fe659226d4dface95fb93d44eff54948b001e03f12ace65a4045055f9ff75",
       "sha256": "084e2f85c4fbeebce2bacd97c93cad9a3d40299e9613fd596e6d9b1557e7fc62"
+    },
+    {
+      "name": "window_search_join",
+      "version": "20261214009600",
+      "statementCount": 1,
+      "statementsSha256": "f3f62d7ad783f57985cd01dd2103780880b0bc444845d2b3964d268c75a6efa1",
+      "sha256": "3d435f084f4fc09e07fff4a6e077e5e38ccc1826ee7916404757d9a4f879cbcf"
     }
   ]
 }
