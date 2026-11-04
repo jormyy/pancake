@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261214009500",
+  "candidateVersion": "20261214009600",
   "common": {
     "functions": [
       {
@@ -2646,6 +2646,10 @@
     {
       "filename": "20261214009500_daily_lineup_optimizer.sql",
       "sha256": "084e2f85c4fbeebce2bacd97c93cad9a3d40299e9613fd596e6d9b1557e7fc62"
+    },
+    {
+      "filename": "20261214009600_window_search_join.sql",
+      "sha256": "3d435f084f4fc09e07fff4a6e077e5e38ccc1826ee7916404757d9a4f879cbcf"
     }
   ],
   "preMigration": {

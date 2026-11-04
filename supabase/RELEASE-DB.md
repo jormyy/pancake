@@ -1590,3 +1590,8 @@ The existing minute dispatcher runs both daily and pre-tipoff modes. No new cron
 Daily and pre-tipoff share the unchanged-assignment check and existing atomic roster, eligibility and game-lock validation.
 The new daily RPC is service-only; authenticated clients cannot update its completion date.
 The new Edge mode remains unused until this migration schedules it. Existing pre-tipoff work keeps its RPC contract.
+
+Apply `20261214009600_window_search_join.sql` after `20261214009500`.
+The Waivers window join uses the current-season rows returned by `player_window_averages` without a redundant season filter.
+This preserves the row estimate needed for hash joins. The default season filter and returned JSON stay unchanged.
+No frontend or Edge update is required.

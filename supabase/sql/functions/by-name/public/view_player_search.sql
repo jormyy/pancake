@@ -219,7 +219,7 @@ filtered_base AS (
   JOIN public.players AS p ON true
   LEFT JOIN season_averages AS avg
     ON avg.player_id = p.id
-   AND avg.season_year = v_stats_season
+   AND (p_stats_days IS NOT NULL OR avg.season_year = v_stats_season)
   LEFT JOIN score_source AS fp
     ON fp.player_id = p.id
   WHERE
