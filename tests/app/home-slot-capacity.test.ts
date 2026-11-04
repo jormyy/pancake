@@ -7,6 +7,7 @@ import { clearSessionCaches } from '@/lib/session-cache-registry'
 import HomeScreen from '@/app/(tabs)/index'
 import { OtherMatchups } from '@/components/OtherMatchups'
 import type { LeagueWeekMatchup } from '@/lib/scoring'
+vi.mock('@/hooks/use-league-day', () => ({ useLeagueDay: () => '2026-10-11' }))
 vi.mock('@/components/home/InlineLineupEditor', () => ({ InlineLineupEditor: 'InlineLineupEditor' }))
 vi.mock('@/components/home/DailyWaivers', () => ({ DailyWaivers: 'DailyWaivers' }))
 
@@ -338,3 +339,14 @@ it('places the current week strip below the lineup and opens a read-only matchup
 })
 
 vi.mock('@/lib/timezone', async importOriginal => ({ ...await importOriginal<typeof import('@/lib/timezone')>(), todayLeague: () => '2026-10-11' }))
+
+it('shows lineup pin tags on Home only for today', async () => {
+    populatedStarters()
+    mocks.lineup.starters[0].player!.lineupPin = 'start'
+    await mount()
+    expect(rows('PG')[0].props.showLineupPins).toBe(true)
+    expect(rows('PG')[0].props.myPlayer.lineupPin).toBe('start')
+    mocks.selectedDate = '2026-10-12'
+    await act(async () => screen.update(React.createElement(HomeScreen)))
+    expect(rows('PG')[0].props.showLineupPins).toBe(false)
+})

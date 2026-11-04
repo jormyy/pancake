@@ -8,9 +8,12 @@ import { leagueTimezone } from '@/lib/league-timezones'
 import { getEligiblePositions } from '@/lib/players'
 import { onSessionCachesCleared } from '@/lib/session-cache-registry'
 
+import type { LineupPin } from '@/lib/lineup/pins'
+
 type PlayerRow = Database['public']['Tables']['players']['Row']
 
 export type LineupPlayer = {
+    lineupPin?: LineupPin
     rosterPlayerId: string
     playerId: string
     displayName: string

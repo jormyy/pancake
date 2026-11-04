@@ -66,3 +66,19 @@ it('renders the game line and tip time together on the first row commit', async 
     expect(commits).toHaveLength(1)
     expect(commits[0].filter(text => text.startsWith('WAS @ CLE'))).toEqual(['WAS @ CLE 7:00 PM ET', 'WAS @ CLE 7:00 PM ET'])
 })
+
+it.each([true, false])('renders today pin tags in compact and wide player rows: %s', async compact => {
+    const props = rowProps()
+    await act(async () => { screen = create(React.createElement(MatchupRow, {
+        ...props, compact, showLineupPins: true,
+        myPlayer: { ...props.myPlayer, lineupPin: 'start' }, oppPlayer: { ...props.oppPlayer, lineupPin: 'bench' },
+    })) })
+    expect(screen.root.findAllByType('View' as React.ElementType).filter(node => node.props.accessibilityLabel === 'Pinned to start')).toHaveLength(1)
+    expect(screen.root.findAllByType('View' as React.ElementType).filter(node => node.props.accessibilityLabel === 'Pinned to bench')).toHaveLength(1)
+    await act(async () => screen.update(React.createElement(MatchupRow, {
+        ...props, compact, showLineupPins: false,
+        myPlayer: { ...props.myPlayer, lineupPin: 'start' }, oppPlayer: { ...props.oppPlayer, lineupPin: 'bench' },
+    })))
+    expect(screen.root.findAllByType('View' as React.ElementType).filter(node => node.props.accessibilityLabel === 'Pinned to start')).toHaveLength(0)
+    expect(screen.root.findAllByType('View' as React.ElementType).filter(node => node.props.accessibilityLabel === 'Pinned to bench')).toHaveLength(0)
+})

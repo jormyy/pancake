@@ -22,6 +22,43 @@ An automatic run can replace unlocked manual choices.
 Unchanged checks after a completed run leave later manual edits alone.
 Enabling automation takes effect at the next eligible dispatch and does not rewrite future dates.
 
+## Daily player pins
+
+Each active roster player can have a Start or Bench pin for one date.
+Auto removes that date's pin.
+Only the team owner can change pins.
+Past dates and locked players are read only.
+IR and Taxi players cannot receive pins.
+Home and Roster show today's pins using the league timezone.
+The lineup screen shows pins for its selected date.
+
+Pins apply to daily, pre-tipoff, and manual date runs.
+Changing a pin saves it through `set_lineup_player_pin`.
+The client then runs the manual optimizer for that date and reloads the lineup.
+This manual run works when the automatic switch is off.
+The switch still blocks background runs.
+Pins enter the pre-tipoff fingerprint, so changed pins open a fresh revision.
+
+Locked players keep their slots.
+The solver fills slots, then uses the fewest Bench-pinned starters.
+A Bench pin yields even to an Out or no-game fallback.
+Healthy playing Start pins take priority over projections.
+Questionable and Doubtful players keep that priority.
+Out, IR, postponed, and no-game players receive no Start priority.
+Excess Start pins compete through the remaining projection objectives.
+With no pins, assignment choices stay the same.
+
+The database rejects direct pin writes from clients.
+Its shared auto-set guard rejects a pinned starter when a legal direct replacement improves pin priority.
+The guard excludes locked players and inactive roster slots.
+Manual player moves use `set_player_slot_moves_atomic`.
+They clear a Start pin when its player moves to the bench.
+They clear a Bench pin when its player starts.
+Consistent moves retain the pin.
+`update_lineup_slots_atomic` changes league slot limits; it does not move players.
+Roster removal or transfer deletes all pins for that roster membership.
+IR and Taxi moves delete today's and future pins.
+
 ## Schedule and locks
 
 The scheduler checks each minute. Daily work becomes due at 06:00 America/New_York.
@@ -47,6 +84,8 @@ The worker and `private.pre_tipoff_input_fingerprint` both use `get_league_proje
 [Source monitoring](source-monitoring.md#projection-readers) defines per-game source precedence and fingerprint inputs.
 The solver uses all listed positions, including G, F, and UTIL eligibility.
 It preserves locked slots, then maximizes the number of filled unlocked slots.
+It next minimizes Bench-pinned starters.
+It then maximizes healthy playing Start-pinned starters.
 It next maximizes healthy playing projections, then the number of healthy playing starters.
 Zero or missing projections count as zero.
 Out, IR, no-game, and postponed players contribute zero playing points.
@@ -199,3 +238,16 @@ ROLLBACK;
 Use `work_item_id` and `sync_run_id` to connect dispatch and worker records.
 Use tipoff time, member ID, and input revision to find each team's outcome.
 Existing retention rules can remove older attempts; current player status does not establish status at a historical run.
+
+
+## Pin verification
+
+The private database recipe passes 31 checks.
+It covers ownership, locked dates, manual resets, roster cleanup, and the write guard.
+The optimizer passes 74 Deno tests, including 14 pin-rule tests.
+A 100-case no-pin corpus matches the prior solver exactly.
+The real database integration passes 11 steps, including daily Bench pins and pre-tipoff Start pins.
+Disabling ownership filtering, the write guard, or roster cleanup makes the database recipe fail.
+The existing pre-tipoff, optimizer default, optimizer context, and lineup idempotence recipes pass.
+Generated types, function sources, function permissions, Edge mirrors, Edge checks, and app types pass.
+Release attestations come from the private stack through migration `20261214009700`.

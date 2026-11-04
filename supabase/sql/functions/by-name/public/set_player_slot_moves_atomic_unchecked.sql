@@ -352,6 +352,16 @@ BEGIN
       (m->>'slot_type')::roster_slot_type AS slot_type
       FROM jsonb_array_elements(p_moves) AS m
   )
+  DELETE FROM public.lineup_player_pins pin
+   USING moves m
+   WHERE pin.league_id = p_league_id AND pin.league_season_id = p_league_season_id
+     AND pin.member_id = p_member_id AND pin.game_date = p_game_date AND pin.player_id = m.player_id
+     AND ((pin.pin = 'start' AND m.slot_type = 'BE') OR (pin.pin = 'bench' AND m.slot_type <> 'BE'));
+
+  WITH moves AS (
+    SELECT (m->>'player_id')::uuid AS player_id, (m->>'slot_type')::roster_slot_type AS slot_type
+    FROM jsonb_array_elements(p_moves) AS m
+  )
   DELETE FROM weekly_lineups wl
    USING moves m
    WHERE wl.member_id = p_member_id

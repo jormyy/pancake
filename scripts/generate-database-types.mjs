@@ -32,6 +32,7 @@ export type DraftPick = Database["public"]["Tables"]["draft_picks"]["Row"]
 
 /** @type {Map<string, Set<string>>} */
 const nullableRpcArguments = new Map([
+  ['set_lineup_player_pin.Args', new Set(['p_pin'])],
   ['activate_roster_player_with_lineup_atomic.Args', new Set([
     'p_free_action',
     'p_free_roster_player_id',

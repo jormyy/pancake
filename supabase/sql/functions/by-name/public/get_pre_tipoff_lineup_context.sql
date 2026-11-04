@@ -18,6 +18,9 @@ AS $$
         'playerId', p.id, 'eligiblePositions', CASE WHEN cardinality(p.eligible_positions) > 0
           THEN p.eligible_positions ELSE ARRAY[p.position::text] END,
         'injuryStatus', p.injury_status,
+        'lineupPin', (SELECT pin FROM public.lineup_player_pins WHERE league_id = p_league_id
+          AND league_season_id = p_league_season_id AND member_id = p_member_id
+          AND player_id = p.id AND game_date = sw_date.game_date),
         'gameTime', (SELECT min(COALESCE(g.game_time, g.started_at)) FROM public.nba_games g
           WHERE g.game_date = sw_date.game_date AND private.lineup_game_available(g.status, g.game_status_text)
             AND (g.home_team = p.nba_team OR g.away_team = p.nba_team)),

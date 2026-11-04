@@ -161,3 +161,16 @@ it('shows one lock in roster table player metadata', async () => {
     expect(screen.root.findAllByProps({ accessibilityLabel: 'Locked by a pending trade' })).toHaveLength(1)
     expect(screen.root.findAllByType('Text' as React.ElementType).map(node => typeof node.props.children === 'string' ? node.props.children : '').join(' ')).not.toContain('hidden-id')
 })
+
+it.each(['start', 'bench', null] as const)('shows the today pin on wide Roster rows: %s', async pin => {
+    mocks.width = 1600
+    mocks.view.data!.roster = [{
+        id: 'roster', lineupPin: pin, acquired_via: 'draft', is_on_ir: false, is_on_taxi: false,
+        players: { id: 'player', display_name: 'Player', nba_team: 'LAL', position: 'PG', eligible_positions: ['PG'],
+            injury_status: null, nba_id: null, nba_draft_number: null, years_exp: 2 },
+    }]
+    await act(async () => { screen = create(React.createElement(RosterScreen)) })
+    const labels = screen.root.findAllByType('View' as React.ElementType).map(node => node.props.accessibilityLabel)
+    expect(labels.includes('Pinned to start')).toBe(pin === 'start')
+    expect(labels.includes('Pinned to bench')).toBe(pin === 'bench')
+})

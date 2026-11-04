@@ -41,6 +41,8 @@ BEGIN
     RAISE EXCEPTION 'Game schedule changed; retry with fresh games.' USING ERRCODE = '40001';
   END IF;
 
+  PERFORM private.assert_lineup_player_pins(p_league_id, p_league_season_id, p_member_id, p_game_date, p_assignments);
+
   SELECT NOT EXISTS (
     (SELECT player_id, slot_type::text FROM public.weekly_lineups
       WHERE member_id = p_member_id AND league_id = p_league_id
