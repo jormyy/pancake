@@ -6,19 +6,21 @@ export function decodeSavedLiveView<T>(value: T): T {
         const result = { ...value } as Record<string, unknown>
         const playerFields = ['rosterPlayerId', 'playerId', 'displayName', 'position', 'eligiblePositions', 'nbaTeam', 'yearsExp', 'careerGames', 'injuryStatus', 'nbaId', 'espnId', 'assetLocks']
         const statFields = ['points', 'rebounds', 'assists', 'steals', 'blocks', 'turnovers', 'threeMade', 'fgMade', 'fgAttempted', 'ftMade', 'ftAttempted', 'fouls', 'doubleDouble', 'tripleDouble', 'minutesPlayed', 'didNotPlay']
+        const pinnedPlayerFields = [...playerFields, 'lineupPin']
         const unpack = (row: unknown, fields: string[]) => {
             if (!Array.isArray(row) || row.length !== fields.length) throw new Error('Invalid compact Home row')
             return Object.fromEntries(fields.map((field, index) => [field, row[index]]))
         }
+        const unpackPlayer = (row: unknown) => unpack(row, Array.isArray(row) && row.length === pinnedPlayerFields.length ? pinnedPlayerFields : playerFields)
         for (const name of ['myLineup', 'oppLineup']) {
             const lineup = result[name] as Record<string, unknown> | null
             if (!lineup) continue
             result[name] = { ...lineup, ...Object.fromEntries(['starters', 'bench', 'ir', 'taxi'].map(group => {
                 if (!Array.isArray(lineup[group])) throw new Error('Invalid compact Home lineup')
                 return [group, lineup[group].map(row => {
-                    if (group !== 'starters') return unpack(row, playerFields)
+                    if (group !== 'starters') return unpackPlayer(row)
                     if (!Array.isArray(row) || row.length !== 2 || typeof row[0] !== 'string') throw new Error('Invalid compact Home starter')
-                    return { slotType: row[0], player: row[1] === null ? null : unpack(row[1], playerFields) }
+                    return { slotType: row[0], player: row[1] === null ? null : unpackPlayer(row[1]) }
                 })]
             })) }
         }
