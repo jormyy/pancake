@@ -43,6 +43,7 @@ export function MatchupLineupView({
     daySelector,
     autoSetControl,
     footer,
+    showLineupPins = false,
     readOnly = false,
 }: {
     myLineup: Required<LineupMoveData>
@@ -66,6 +67,7 @@ export function MatchupLineupView({
     dense: boolean
     daySelector?: ReactNode
     autoSetControl?: ReactNode
+    showLineupPins?: boolean
     readOnly?: boolean
     footer?: ReactNode
 }) {
@@ -166,6 +168,7 @@ export function MatchupLineupView({
                                 {statColumns ? <MatchupColumnHeader columns={statColumns} /> : null}
                                 {section.rows.map((row, i) => (
                                     <MatchupRow
+                                        showLineupPins={showLineupPins}
                                         key={row.key}
                                         myPlayer={row.myPlayer}
                                         oppPlayer={row.oppPlayer}

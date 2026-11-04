@@ -3,6 +3,7 @@
   "main": "expo-router/entry",
   "version": "2.15.0",
   "scripts": {
+    "test:db:lineup-pins": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" -X -v ON_ERROR_STOP=1 -f tests/db/lineup-pins.sql",
     "test:db:autoset-tipoff-integration": "deno test --allow-env --allow-read --allow-net=127.0.0.1 --allow-run=psql tests/db/autoset-tipoff-integration.mts",
     "test:db:player-stats-windows": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" -X -v ON_ERROR_STOP=1 -f tests/db/player-stats-windows.sql",
     "test:db:player-stats-window-dst": "node tests/db/player-stats-window-dst.mjs",

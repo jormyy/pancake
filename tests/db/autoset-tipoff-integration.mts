@@ -74,6 +74,19 @@ Deno.test('autoset uses real context, projections, leases and atomic writes', as
         (${q(ids.league)},${q(ids.season)},${q(ids.member)},${q(ids.early)},1,(now() AT TIME ZONE 'America/New_York')::date,'UTIL',false),
         (${q(ids.league)},${q(ids.season)},${q(ids.member)},${q(ids.late)},1,(now() AT TIME ZONE 'America/New_York')::date,'PG',false);
       COMMIT;`)
+    await t.step('daily runs honor Bench pins through the real context and write guard', async () => {
+      const date = await sql("SELECT (now() AT TIME ZONE 'America/New_York')::date")
+      await sql(`SELECT set_config('request.jwt.claim.sub',${q(ids.user)},false);
+        SELECT public.set_lineup_player_pin(${q(ids.league)},${q(ids.early)},${q(date)},'bench')`)
+      const result = await processDaily({ date })
+      assert.equal(result.failed, 0)
+      assert.equal(result.optimized, 1)
+      const rows = await lineups()
+      assert.ok(has(rows,ids.late,'PG') && has(rows,ids.center,'UTIL'))
+      await sql(`SELECT set_config('request.jwt.claim.sub',${q(ids.user)},false);
+        SELECT public.set_lineup_player_pin(${q(ids.league)},${q(ids.early)},${q(date)},NULL);
+        UPDATE public.lineup_optimizer_settings SET last_daily_optimized_date=NULL WHERE member_id=${q(ids.member)}`)
+    })
     await t.step('concurrent daily runs write once and repeated delivery preserves the lineup', async () => {
       const date = await sql("SELECT (now() AT TIME ZONE 'America/New_York')::date")
       const results = await Promise.all([processDaily({ date }), processDaily({ date })])
@@ -89,6 +102,17 @@ Deno.test('autoset uses real context, projections, leases and atomic writes', as
       assert.equal(await sql(`SELECT public.apply_daily_lineup(${q(date)},${q(ids.league)},${q(ids.season)},${q(ids.member)},'[]')`), 'f')
       assert.deepEqual(await lineups(), before)
       assert.equal(await sql(`SELECT last_daily_optimized_date FROM public.lineup_optimizer_settings WHERE member_id=${q(ids.member)}`), date)
+    })
+    await t.step('pin revisions change pre-tipoff starters and clearing restores projections', async () => {
+      const date = await sql("SELECT (now() AT TIME ZONE 'America/New_York')::date")
+      await sql(`SELECT set_config('request.jwt.claim.sub',${q(ids.user)},false);
+        SELECT public.set_lineup_player_pin(${q(ids.league)},${q(ids.center)},${q(date)},'start')`)
+      assert.equal((await optimize()).optimized, 1)
+      assert.ok(has(await lineups(),ids.center,'UTIL'))
+      await sql(`SELECT set_config('request.jwt.claim.sub',${q(ids.user)},false);
+        SELECT public.set_lineup_player_pin(${q(ids.league)},${q(ids.center)},${q(date)},NULL)`)
+      assert.equal((await optimize()).optimized, 1)
+      assert.ok(has(await lineups(),ids.late,'UTIL'))
     })
     await t.step('staggered starts preserve UTIL without lowering the 95-point primary objective', async () => {
       const c = await context()

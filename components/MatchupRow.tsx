@@ -1,3 +1,4 @@
+import { LineupPinTag } from '@/components/LineupPinTag'
 import { useFittedText } from '@/components/ui/useFittedText'
 import { memo, type ReactNode } from 'react'
 import { View, Text, StyleSheet, Platform } from 'react-native'
@@ -188,7 +189,9 @@ function PlayerSide({
     statColumns,
     onOpenPlayer,
     onOpenDetails,
+    showLineupPins,
 }: {
+    showLineupPins: boolean
     side: 'left' | 'right'
     player: LineupPlayer | null
     slotType: string
@@ -256,6 +259,7 @@ function PlayerSide({
                 {(
                     <View style={[styles.detailRow, { justifyContent: align }]}>
                         {mirror([
+                            showLineupPins ? <LineupPinTag key="pin" pin={player.lineupPin} /> : null,
                             isLive && !sittingOut ? <LiveTag key="live" dotOnly={compact} /> : null,
                             ...(!compact ? specificPositions(player.eligiblePositions).map((pos) => <PosTag key={pos} position={pos} />) : []),
                             <Text
@@ -294,6 +298,7 @@ function PlayerSide({
 }
 
 type MatchupRowProps = {
+    showLineupPins?: boolean
     myPlayer: LineupPlayer | null
     oppPlayer: LineupPlayer | null
     slotType: string
@@ -322,6 +327,7 @@ type MatchupRowProps = {
 function MatchupRowImpl({
     myPlayer,
     oppPlayer,
+    showLineupPins = false,
     slotType,
     selKind,
     selIndex,
@@ -373,6 +379,7 @@ function MatchupRowImpl({
             >
             <View style={[styles.rowSideLeft, compact && styles.rowSideCompact]}>
                 <PlayerSide
+                    showLineupPins={showLineupPins}
                     side="left"
                     player={myPlayer}
                     slotType={slotType}
@@ -418,6 +425,7 @@ function MatchupRowImpl({
 
             <View style={[styles.rowSideRight, compact && styles.rowSideCompact]}>
                 <PlayerSide
+                    showLineupPins={showLineupPins}
                     side="right"
                     player={oppPlayer}
                     slotType={slotType}

@@ -16,6 +16,9 @@ BEGIN
     RAISE EXCEPTION 'This roster is not available.' USING ERRCODE = '42501'; END IF;
   SELECT COALESCE(jsonb_agg(jsonb_build_object('assetLocks', COALESCE((SELECT jsonb_agg(lock) FROM jsonb_array_elements(asset_locks) lock WHERE lock->>'assetKind'='player' AND lock->>'assetId'=p.id::text),'[]'), 'id', r.id, 'is_on_ir', r.is_on_ir, 'is_on_taxi', r.is_on_taxi,
     'taxi_start_season_year', r.taxi_start_season_year, 'acquired_via', r.acquired_via, 'players', jsonb_build_object(
+      'lineupPin', (SELECT pin FROM public.lineup_player_pins WHERE league_id = p_league_id
+        AND league_season_id = (context->>'seasonId')::uuid AND member_id = target
+        AND player_id = p.id AND game_date = (context->>'today')::date),
       'id', p.id, 'display_name', p.display_name, 'nba_team', p.nba_team, 'position', p.position,
       'eligible_positions', p.eligible_positions, 'injury_status', p.injury_status, 'nba_id', p.nba_id,
       'nba_draft_number', p.nba_draft_number, 'birthdate', p.birthdate, 'years_exp', p.years_exp, 'career_regular_season_games', p.career_regular_season_games))

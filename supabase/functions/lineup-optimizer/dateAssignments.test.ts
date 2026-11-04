@@ -6,7 +6,7 @@ const serve = Object.getOwnPropertyDescriptor(Deno, 'serve')!
 Object.defineProperty(Deno, 'serve', { configurable: true, value: (value: typeof handler) => { handler = value } })
 try { await import('./index.ts') } finally { Object.defineProperty(Deno, 'serve', serve) }
 
-for (const mode of ['manual', 'scheduled', 'future-empty', 'playing-replacement', 'locked', 'postponed', 'postponed-text', 'staggered', 'scheduled-staggered']) {
+for (const mode of ['manual', 'scheduled', 'future-empty', 'playing-replacement', 'locked', 'postponed', 'postponed-text', 'staggered', 'scheduled-staggered', 'manual-start-pin', 'manual-bench-pin', 'scheduled-start-pin', 'scheduled-bench-pin']) {
   Deno.test(`${mode} date optimizer fills slots and retains unreplaced starters`, async () => {
     const original = globalThis.fetch
     const date = '2099-01-02'
@@ -23,7 +23,7 @@ for (const mode of ['manual', 'scheduled', 'future-empty', 'playing-replacement'
         { season_year: 2099, game_date: date, home_team: 'LATE', away_team: 'THIRD', status: 'Scheduled', game_time: '2099-01-03T01:00:00Z', started_at: null },
       ])
       if (name === 'nba_games') return Response.json([{ season_year: 2099, game_date: date,
-        home_team: ['playing-replacement', 'postponed', 'postponed-text'].includes(mode) ? 'BENCH' : 'LOCK', away_team: 'OTHER',
+        home_team: ['playing-replacement', 'postponed', 'postponed-text', 'manual-start-pin', 'manual-bench-pin', 'scheduled-start-pin', 'scheduled-bench-pin'].includes(mode) ? 'BENCH' : 'LOCK', away_team: 'OTHER',
         status: mode === 'locked' ? 'InProgress' : mode === 'postponed' ? 'Postponed' : 'Scheduled',
         game_status_text: mode === 'postponed-text' ? 'PPD' : null, game_time: '2099-01-02T22:00:00Z', started_at: null }])
       if (name === 'roster_players' && staggered) return Response.json([
@@ -31,10 +31,14 @@ for (const mode of ['manual', 'scheduled', 'future-empty', 'playing-replacement'
         { player_id: 'replacement', players: { position: 'PG', eligible_positions: ['PG'], nba_team: 'LATE', injury_status: null } },
       ])
       if (name === 'roster_players') return Response.json([
-        { player_id: 'starter', players: { position: 'PF', eligible_positions: ['PF'], nba_team: mode === 'locked' ? 'LOCK' : 'OFF', injury_status: null } },
+        { player_id: 'starter', players: { position: 'PF', eligible_positions: ['PF'], nba_team: mode === 'locked' ? 'LOCK' : mode.includes('-pin') ? 'BENCH' : 'OFF', injury_status: null } },
         { player_id: 'replacement', players: { position: 'PF', eligible_positions: ['PF'], nba_team: 'BENCH', injury_status: null } },
         { player_id: 'guard', players: { position: 'PG', eligible_positions: ['PG'], nba_team: 'OFF', injury_status: null } },
       ])
+      if (name === 'lineup_player_pins') {
+        if (!new URL(request.url).searchParams.get('game_date')?.includes(date)) throw new Error('Pins must use the requested date.')
+        return Response.json(mode.includes('-pin') ? [{ player_id: mode.includes('start-pin') ? 'starter' : 'replacement', pin: mode.includes('start-pin') ? 'start' : 'bench' }] : [])
+      }
       if (name === 'lineup_slot_templates' && staggered) return Response.json([{ slot_type: 'PG', slot_count: 1 }, { slot_type: 'UTIL', slot_count: 1 }])
       if (name === 'lineup_slot_templates') return Response.json([{ slot_type: 'PF', slot_count: 1 }, { slot_type: 'PG', slot_count: 1 }])
       if (name === 'weekly_lineups' && staggered) return Response.json([

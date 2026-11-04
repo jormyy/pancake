@@ -159,7 +159,7 @@ function RosterTablePlayerItem({
             >
                 <View style={styles.rosterTableSlot}><RosterSlotTag slotType={slotType} /></View>
                 <View style={styles.rosterTablePlayerCell}>
-                    <PlayerRowContent locks={locks} name={item.players.display_name} nbaId={item.players.nba_id} team={item.players.nba_team} positions={positions}
+                    <PlayerRowContent lineupPin={item.lineupPin} locks={locks} name={item.players.display_name} nbaId={item.players.nba_id} team={item.players.nba_team} positions={positions}
                         birthdate={item.players.birthdate} yearsExp={item.players.years_exp} careerGames={item.players.career_regular_season_games} injuryStatus={item.players.injury_status}
                         stats={`${fmtStat(avgFpts)} FP · ${fmtStat(stats?.avg_minutes_played)} MIN`} />
                 </View>
@@ -305,7 +305,7 @@ export default function RosterScreen() {
     const taxi = useMemo(() => [...roster.filter((p) => p.is_on_taxi)].sort(compareRosterBySlot), [roster])
     const activationRoster = useMemo(() => {
         const toLineupPlayer = (item: RosterPlayer) => ({
-            rosterPlayerId: item.id, playerId: item.players.id, displayName: item.players.display_name,
+            lineupPin: item.lineupPin, rosterPlayerId: item.id, playerId: item.players.id, displayName: item.players.display_name,
             position: item.players.position, eligiblePositions: item.players.eligible_positions,
             nbaTeam: item.players.nba_team, injuryStatus: item.players.injury_status, nbaId: item.players.nba_id,
         })

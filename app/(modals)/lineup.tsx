@@ -4,6 +4,8 @@ import { readAssetLocks, type AssetLock } from '@/lib/locked-assets'
 import { cachedScreenView, readScreenView, subscribeScreenView } from '@/lib/cache/screen-cache'
 import { screenScope } from '@/lib/cache/screen-scope'
 import type { LineupView, RosterView } from '@/lib/cache/view-types'
+import { LineupPinControl } from '@/components/LineupPinControl'
+import { optimizeLineupDate, setLineupPlayerPin, type LineupPin } from '@/lib/lineup/pins'
 import { LineupControls } from '@/components/ui/LineupControls'
 import { SectionBand } from '@/components/ui/SectionBand'
 import { holdPwaUpdate } from '@/lib/pwa-update-guard'
@@ -60,6 +62,8 @@ const StarterRow = memo(function StarterRow({
     readOnly,
     targetState,
     locks,
+    pinDisabled,
+    onPinChange,
 }: {
     slot: LineupSlot
     index: number
@@ -72,6 +76,8 @@ const StarterRow = memo(function StarterRow({
     readOnly: boolean
     targetState: LineupMoveTargetState
     locks: readonly AssetLock[]
+    pinDisabled: boolean
+    onPinChange: (player: LineupPlayer, pin: LineupPin) => void
 }) {
     const p = slot.player
     const isLocked = !!(p?.nbaTeam && startedTeams.has(p.nbaTeam))
@@ -110,7 +116,10 @@ const StarterRow = memo(function StarterRow({
             ) : (
                 <Text style={styles.emptySlot}>Empty</Text>
             )}
-        </AssetSelectionRow></View>
+        </AssetSelectionRow>
+            {p ? <LineupPinControl name={p.displayName} pin={p.lineupPin ?? null} disabled={pinDisabled || isLocked}
+                onChange={pin => onPinChange(p, pin)} /> : null}
+        </View>
     )
 })
 
@@ -127,6 +136,8 @@ const BenchRow = memo(function BenchRow({
     readOnly,
     targetState,
     locks,
+    pinDisabled,
+    onPinChange,
 }: {
     player: LineupPlayer
     index: number
@@ -139,10 +150,16 @@ const BenchRow = memo(function BenchRow({
     readOnly: boolean
     targetState: LineupMoveTargetState
     locks: readonly AssetLock[]
+    pinDisabled: boolean
+    onPinChange: (player: LineupPlayer, pin: LineupPin) => void
 }) {
     const isLocked = !!(player.nbaTeam && startedTeams.has(player.nbaTeam))
     const isLive = !!(player.nbaTeam && liveTeams.has(player.nbaTeam))
     const benchMatchup = player.nbaTeam ? teamMatchups.get(player.nbaTeam) : undefined
+    const injuryStatus = player.injuryStatus?.trim().toLowerCase() ?? ''
+    const pinNote = injuryStatus === 'out' || injuryStatus.startsWith('ir')
+        ? 'Pinned, but Out'
+        : benchMatchup ? 'Pinned, no slot' : 'Pinned, no game'
     const benchMatchupLabel = player.nbaTeam
         ? (benchMatchup ? `${benchMatchup.isHome ? 'vs' : '@'} ${benchMatchup.opponent}` : '· No game')
         : null
@@ -169,7 +186,11 @@ const BenchRow = memo(function BenchRow({
                     <Text style={[styles.rowStatus, isLocked ? styles.lockedBadge : styles.moveBadge]}>
                 {isLocked ? isLive ? 'LIVE' : 'LOCK' : targetState === 'valid' ? 'MOVE' : ''}
             </Text>
-        </AssetSelectionRow></View>
+        </AssetSelectionRow>
+            {player.lineupPin === 'start' && !isLocked ? <Text style={styles.pinNote}>{pinNote}</Text> : null}
+            <LineupPinControl name={player.displayName} pin={player.lineupPin ?? null} disabled={pinDisabled || isLocked}
+                onChange={pin => onPinChange(player, pin)} />
+        </View>
     )
 })
 
@@ -219,6 +240,8 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
     const [reserves, setReserves] = useState<{ ir: LineupPlayer[]; taxi: LineupPlayer[] }>({ ir: [], taxi: [] })
     const [seasonOptimizerEnabled, setSeasonOptimizerEnabled] = useState(false)
     const [optimizerSaving, setOptimizerSaving] = useState(false)
+    const [pinSaving, setPinSaving] = useState(false)
+    const pinPendingRef = useRef(false)
     const [lineupLoading, setLineupLoading] = useState(true)
     const [lineupRefreshing, setLineupRefreshing] = useState(false)
     const [lineupError, setLineupError] = useState<string | null>(null)
@@ -515,6 +538,38 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
               })
             : null
 
+    const pinDisabled = readOnly || !online || saving || optimizerSaving || pinSaving || selectedDate < currentDay
+
+    async function handlePinChange(player: LineupPlayer, pin: LineupPin) {
+        if (!actionContext || pinDisabled || pinPendingRef.current || (player.nbaTeam && startedTeams.has(player.nbaTeam))) return
+        const date = selectedDate
+        const generation = sessionGeneration()
+        const identity = ownerKey
+        const isCurrent = () => activeOwnerRef.current === identity && generation === sessionGeneration()
+            && readStoredAuthState().session?.user.id === userId
+        pinPendingRef.current = true
+        setPinSaving(true)
+        setSelected(null)
+        const release = holdPwaUpdate('lineup pin')
+        let pinSaved = false
+        try {
+            await setLineupPlayerPin(actionContext.leagueId, player.playerId, date, pin)
+            pinSaved = true
+            if (!isCurrent()) return
+            await optimizeLineupDate(actionContext.memberId, actionContext.leagueId, actionContext.seasonId, date)
+            if (isCurrent() && selectedDateRef.current === date) await load(date)
+        } catch (error) {
+            if (isCurrent()) {
+                showAlert('Error', getErrorMessage(error))
+                if (pinSaved && isCurrent() && selectedDateRef.current === date) await load(date)
+            }
+        } finally {
+            pinPendingRef.current = false
+            setPinSaving(false)
+            release()
+        }
+    }
+
     async function handleDaySelect(date: string) {
         setSelectedDate(date)
         selectedDateRef.current = date
@@ -617,7 +672,7 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
             <View style={{ marginHorizontal: padX }} accessibilityLabel="Auto lineup">
                 <LineupControls
                     automatic={seasonOptimizerEnabled}
-                    automaticDisabled={readOnly || optimizerSaving}
+                    automaticDisabled={readOnly || optimizerSaving || pinSaving}
                     onAutomaticChange={(enabled) => { void (enabled ? handleEnableSeasonOptimizer() : handleDisableSeasonOptimizer()) }}
                 />
             </View>
@@ -670,7 +725,9 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
                             startedTeams={startedTeams}
                             teamMatchups={displayedMatchups}
                             onPress={() => handleTap({ kind: 'starter', index: i })}
-                            disabled={readOnly || saving || lineupRefreshing || lineupLoading}
+                            disabled={readOnly || saving || pinSaving || lineupRefreshing || lineupLoading}
+                            pinDisabled={pinDisabled}
+                            onPinChange={handlePinChange}
                             readOnly={readOnly}
                             targetState={targetState({ kind: 'starter', index: i })}
                         />
@@ -694,7 +751,9 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
                             startedTeams={startedTeams}
                             teamMatchups={displayedMatchups}
                             onPress={() => handleTap({ kind: 'bench', index: i })}
-                            disabled={readOnly || saving || lineupRefreshing || lineupLoading}
+                            disabled={readOnly || saving || pinSaving || lineupRefreshing || lineupLoading}
+                            pinDisabled={pinDisabled}
+                            onPinChange={handlePinChange}
                             readOnly={readOnly}
                             targetState={targetState({ kind: 'bench', index: i })}
                         />
@@ -702,7 +761,7 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
                     {Array.from({ length: Math.max(0, benchSlots - visibleBench.length) }, (_, i) => {
                         const index = visibleBench.length + i
                         const state = targetState({ kind: 'bench', index })
-                        const disabled = readOnly || saving || lineupRefreshing || lineupLoading || state === 'invalid'
+                        const disabled = readOnly || saving || pinSaving || lineupRefreshing || lineupLoading || state === 'invalid'
                         return (
                             <MotionPressable
                                 key={`empty-${i}`}
@@ -852,6 +911,7 @@ const styles = StyleSheet.create({
         color: colors.primaryDark,
     },
 
+    pinNote: { ...textStyles.meta, color: colors.primaryDark, paddingHorizontal: spacing.lg, paddingBottom: spacing.xs },
     playerInfo: { flex: 1, minWidth: 0, gap: spacing.xxs },
     playerName: { ...textStyles.rowTitle },
     playerMetaRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },

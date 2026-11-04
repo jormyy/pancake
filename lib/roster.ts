@@ -1,3 +1,4 @@
+import type { LineupPin } from '@/lib/lineup/pins'
 import type { AssetLock } from '@/lib/locked-assets'
 import { assertReadActive } from '@/lib/shared/read-admission'
 import { assertMutationOnline, withPwaMutation } from '@/lib/shared/pwa-mutation'
@@ -11,6 +12,7 @@ import type { RosterSlotType } from '@/types/database'
 export { isIREligible, isDTD }
 
 export type RosterPlayer = {
+    lineupPin?: LineupPin
     assetLocks?: AssetLock[]
     id: string
     is_on_ir: boolean

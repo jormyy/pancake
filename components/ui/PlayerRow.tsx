@@ -1,3 +1,5 @@
+import { LineupPinTag } from '@/components/LineupPinTag'
+import type { LineupPin } from '@/lib/lineup/pins'
 import { LockedAssetNotice } from '@/components/roster/LockedAssetNotice'
 import type { AssetLock } from '@/lib/locked-assets'
 import type { ReactNode } from 'react'
@@ -11,6 +13,7 @@ import { Avatar } from '@/components/Avatar'
 import { PosTag } from '@/components/PosTag'
 
 export type PlayerRowProps = {
+    lineupPin?: LineupPin
     locks?: readonly AssetLock[]
     playerId?: string | null
     name: string
@@ -31,7 +34,7 @@ export type PlayerRowProps = {
     variant?: 'compact' | 'standard'
 }
 
-export function PlayerRow({ locks = [], playerId, name, nbaId, headshotUrl, team, positions = [], age, birthdate, yearsExp, careerGames, injuryStatus, onTaxi, stats, metadata, live = false, compact = false, variant }: PlayerRowProps) {
+export function PlayerRow({ lineupPin, locks = [], playerId, name, nbaId, headshotUrl, team, positions = [], age, birthdate, yearsExp, careerGames, injuryStatus, onTaxi, stats, metadata, live = false, compact = false, variant }: PlayerRowProps) {
     compact = variant ? variant === 'compact' : compact
     const displayAge = usePlayerAge(playerId, birthdate, age, nbaId)
     const avatarSize = componentTokens.playerRow[compact ? 'compact' : 'standard'].avatarSize
@@ -48,6 +51,7 @@ export function PlayerRow({ locks = [], playerId, name, nbaId, headshotUrl, team
                     {yearsExp != null ? <Badge inline label={`Yr ${yearsExp + 1}`} color={colors.textMuted} /> : null}
                     <LockedAssetNotice locks={locks} />
                 </View> : null}
+                <LineupPinTag pin={lineupPin} />
                 {metadata}
             </View>
             {stats != null ? <View style={styles.stats} testID="player-stats-line">

@@ -26,6 +26,10 @@ AS $$
   SELECT md5(jsonb_build_object(
     'teams', (SELECT jsonb_agg(to_jsonb(t) ORDER BY league_id, member_id) FROM teams t),
     'roster', (SELECT jsonb_agg(to_jsonb(r) ORDER BY league_id, member_id, player_id) FROM roster r),
+    'pins', (SELECT jsonb_agg(to_jsonb(pin) ORDER BY pin.league_id, pin.member_id, pin.player_id)
+      FROM public.lineup_player_pins pin JOIN teams t ON t.league_id = pin.league_id
+        AND t.league_season_id = pin.league_season_id AND t.member_id = pin.member_id
+      WHERE pin.game_date = p_game_date),
     'slots', (SELECT jsonb_agg(to_jsonb(s) ORDER BY s.league_id, s.slot_type)
       FROM public.lineup_slot_templates s WHERE s.league_id IN (SELECT league_id FROM teams)),
     'games', (SELECT jsonb_agg(jsonb_build_array(g.id, g.game_date, g.game_time, g.home_team,

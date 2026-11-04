@@ -453,6 +453,8 @@ BEGIN
     END LOOP;
   END IF;
 
+  PERFORM private.assert_lineup_player_pins(p_league_id, p_league_season_id, p_member_id, p_game_date, p_assignments);
+
   DELETE FROM weekly_lineups
    WHERE member_id = p_member_id
      AND league_id = p_league_id

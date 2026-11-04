@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261214009600",
+  "candidateVersion": "20261214009700",
   "common": {
     "functions": [
       {
@@ -1008,6 +1008,13 @@
           "enabled": "O",
           "definition": "CREATE TRIGGER broadcast_live_change AFTER INSERT OR DELETE OR UPDATE ON public.roster_players FOR EACH ROW EXECUTE FUNCTION private.broadcast_live_change()",
           "functionName": "broadcast_live_change",
+          "functionSchema": "private"
+        },
+        {
+          "name": "clear_roster_lineup_pins",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER clear_roster_lineup_pins AFTER DELETE OR UPDATE OF league_id, league_season_id, member_id, player_id, is_on_ir, is_on_taxi ON public.roster_players FOR EACH ROW EXECUTE FUNCTION private.clear_roster_lineup_pins()",
+          "functionName": "clear_roster_lineup_pins",
           "functionSchema": "private"
         },
         {
@@ -2650,6 +2657,10 @@
     {
       "filename": "20261214009600_window_search_join.sql",
       "sha256": "3d435f084f4fc09e07fff4a6e077e5e38ccc1826ee7916404757d9a4f879cbcf"
+    },
+    {
+      "filename": "20261214009700_lineup_player_pins.sql",
+      "sha256": "8edeebdd47de77ac9cde7a02151629229aa9fa7a227a23b2ee62efbd3a85186d"
     }
   ],
   "preMigration": {

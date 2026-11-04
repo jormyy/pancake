@@ -248,14 +248,15 @@ The [trade curve report](../docs/trade-curve.md) records the real trades, roster
 
 The supplied production head is `20261214006200`, from the recorded 2.14.7 release.
 This lab does not verify hosted state.
-The local candidate ends at `20261214009200`.
+The local pin candidate ends at `20261214009700`.
+Apply the pin migration after `20261214009600`, then release the matching optimizer and frontend.
 The pending autoset change adds `20261214009400_autoset_tipoff_flexibility.sql` after `20261214009300_player_stats_windows.sql`.
 It adds player tipoff times to the optimizer context without changing the response type or permissions.
 Verify this migration on an isolated stack and regenerate both attestations before including it in a release.
 Apply it before the matching `lineup-optimizer` Edge function; old workers ignore the added JSON field.
 Prepare the deployment checkout with `npm ci` and stamp the Edge build before pausing workers or applying migrations.
 Database, then Edge, then merge the frontend.
-Apply pending migrations through `20261214009200` only during the separately authorized release.
+Apply pending migrations through `20261214009700` only during the separately authorized release.
 Regenerate the catalog, types, and both attestations from a fresh private database before the final release checks.
 
 Deploy compatible database and Edge code before enabling public snapshots.
@@ -1595,3 +1596,29 @@ Apply `20261214009600_window_search_join.sql` after `20261214009500`.
 The Waivers window join uses the current-season rows returned by `player_window_averages` without a redundant season filter.
 This preserves the row estimate needed for hash joins. The default season filter and returned JSON stay unchanged.
 No frontend or Edge update is required.
+
+
+## Daily lineup pins
+
+Apply `20261214009700_lineup_player_pins.sql` after `20261214009600`.
+Release the matching `lineup-optimizer` function with the pin controls.
+The new owner RPC saves Start, Bench, or Auto for one date.
+The client then runs the existing manual optimizer for that date.
+Background runs still require the automatic switch.
+The table has owner read policies and no direct client write grants.
+Composite foreign keys bind each pin to its member, league, and season.
+
+All optimizer paths read pins and share the assignment priorities.
+Locked players stay fixed. Filled slots take priority over pins.
+Bench pins yield before healthy playing Start pins receive priority.
+Existing projection objectives follow those priorities.
+The shared database guard rejects direct replacements that break these pin priorities.
+Manual player moves clear contradicted pins in `set_player_slot_moves_atomic`.
+Roster removal clears all pins. IR and Taxi moves clear today's and future pins.
+
+Home and Roster return today's `lineupPin` using the league timezone.
+Lineup reads return the selected date's `lineupPin`.
+Compact Home player tuples append the pin at index 12.
+Pin changes update screen versions and pre-tipoff fingerprints.
+Run `npm run test:db:lineup-pins` and the existing lineup checks on a private stack.
+Run the optimizer Deno tests and regenerate database types and release attestations.

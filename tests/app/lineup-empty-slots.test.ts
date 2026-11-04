@@ -9,8 +9,10 @@ import type { AssetLock } from '@/lib/locked-assets'
 const mocks = vi.hoisted(() => ({
     context: { current: { id: 'member-a' }, currentLeague: { id: 'league-a' } as { id: string; roster_size?: number; ir_slots?: number; taxi_slots?: number }, online: true, membershipValidated: false, membershipError: null as Error | null, refresh: vi.fn() },
     lineup: { starters: [] as { slotType: string; player: LineupPlayer | null }[], bench: [] as LineupPlayer[], benchSlots: 3 },
+    setPin: vi.fn(), optimizeDate: vi.fn(), snapshot: false,
     readView: vi.fn(), hidden: false, dirty: false, listeners: new Map<() => void, string>(),
     freshness: 'fresh', games: [] as { home_team: string; away_team: string; status: string }[], startedTeams: new Set<string>(),
+    teamMatchups: {} as Record<string, Record<string, { opponent: string; isHome: boolean }>>,
     enabled: false, setEnabled: vi.fn(), showAlert: vi.fn(), handleTap: vi.fn(), setSelected: vi.fn(),
     selection: null as { kind: 'starter' | 'bench'; index: number } | null, params: {} as { playerId?: string },
 }))
@@ -30,13 +32,17 @@ vi.mock('@/lib/cache/screen-cache', () => ({
         mocks.dirty = false
         return { context: { seasonId: `season-${scope.leagueId}`, weekNumber: 1, seasonYear: 2027, today: '2026-10-11' },
             date: scope.params.date, weekDays: [{ date: '2026-10-11', playingTeams: [] }, { date: '2026-10-12', playingTeams: [] }],
-            ir: [], taxi: [], ...lineup, optimizer: { enabled: mocks.enabled }, games: mocks.games, startedTeams: [...mocks.startedTeams], teamMatchups: {},
+            ir: [], taxi: [], ...lineup, optimizer: { enabled: mocks.enabled }, games: mocks.games, startedTeams: [...mocks.startedTeams], teamMatchups: mocks.teamMatchups[scope.params.date] ?? {},
         }
     },
 }))
 vi.mock('@/lib/lineup', () => ({ getLineupMoveTargetState: () => null }))
+vi.mock('@/lib/lineup/pins', () => ({ setLineupPlayerPin: mocks.setPin, optimizeLineupDate: mocks.optimizeDate }))
 vi.mock('@/lib/lineup/optimizerSettings', () => ({ getLineupOptimizerEnabled: async () => mocks.enabled, setLineupOptimizerEnabled: mocks.setEnabled }))
-vi.mock('@/lib/lineup/snapshot', () => ({ readLineupSnapshot: () => null, saveLineupSnapshot: vi.fn(), discardLineupSnapshot: vi.fn(), updateLineupOptimizerSnapshot: vi.fn() }))
+vi.mock('@/lib/lineup/snapshot', () => ({ readLineupSnapshot: (_scope: unknown, date: string) => mocks.snapshot ? {
+    context: { seasonId: 'season-league-a', weekNumber: 1, seasonYear: 2027, today: '2026-10-11' },
+    date, days: [{ date, playingTeams: [] }], ...mocks.lineup, ir: [], taxi: [], optimizerEnabled: false,
+} : null, saveLineupSnapshot: vi.fn(), discardLineupSnapshot: vi.fn(), updateLineupOptimizerSnapshot: vi.fn() }))
 vi.mock('@/lib/supabase', () => ({ readStoredAuthState: () => ({ session: { user: { id: 'user' } } }) }))
 vi.mock('@/lib/session-cache-registry', () => ({ sessionOwner: () => null, sessionGeneration: () => 1, onSessionCachesCleared: vi.fn() }))
 vi.mock('@/lib/shared/dates', () => ({ todayET: () => '2026-10-11', endOfETDayUTC: () => '2026-10-12T04:00:00Z' }))
@@ -68,6 +74,8 @@ beforeEach(() => {
     const page = new EventTarget()
     Object.defineProperty(page, 'visibilityState', { get: () => mocks.hidden ? 'hidden' : 'visible' })
     vi.stubGlobal('document', page)
+    mocks.snapshot = false; mocks.setPin.mockReset().mockResolvedValue({}); mocks.optimizeDate.mockReset().mockResolvedValue(undefined)
+    mocks.teamMatchups = {}
     mocks.freshness = 'fresh'; mocks.games = []; mocks.startedTeams = new Set()
     mocks.hidden = false; mocks.dirty = false; mocks.listeners.clear()
     mocks.context.current = { id: 'member-a' }; mocks.context.currentLeague = { id: 'league-a' }; mocks.enabled = false
@@ -82,6 +90,189 @@ const mount = async () => { await act(async () => { screen = create(React.create
 
 const emptyRows = () => screen.root.findAllByType('Text' as React.ElementType)
     .filter((node) => node.props.children === 'Empty bench slot')
+
+const pinPlayer = (id: string, pin: LineupPlayer['lineupPin'] = null): LineupPlayer => ({
+    playerId: id, rosterPlayerId: id, displayName: id, position: 'PG', eligiblePositions: ['PG'],
+    nbaTeam: 'LAL', nbaId: null, injuryStatus: null, lineupPin: pin,
+})
+const pinButton = (label: string) => screen.root.findByProps({ accessibilityLabel: label })
+const tapPin = (label: string) => act(async () => pinButton(label).props.onPress({ stopPropagation: vi.fn() }))
+
+it('shows Start, Auto and Bench for occupied active rows only', async () => {
+    mocks.lineup = { starters: [{ slotType: 'PG', player: pinPlayer('Starter', 'start') }, { slotType: 'SG', player: null }],
+        bench: [pinPlayer('Bench', 'bench')], benchSlots: 3 }
+    mocks.readView.mockResolvedValue({ ...mocks.lineup, ir: [pinPlayer('IR')], taxi: [pinPlayer('Taxi')] })
+    await mount()
+    expect(screen.root.findAllByProps({ accessibilityRole: 'radio' })).toHaveLength(6)
+    expect(pinButton('Pin Starter to start').props.accessibilityState.checked).toBe(true)
+    expect(pinButton('Set Starter to Auto').props.accessibilityState.checked).toBe(false)
+    expect(pinButton('Pin Bench to bench').props.accessibilityState.checked).toBe(true)
+    expect(screen.root.findAllByProps({ accessibilityLabel: 'Lineup pin for IR' })).toHaveLength(0)
+    expect(screen.root.findAllByProps({ accessibilityLabel: 'Lineup pin for Taxi' })).toHaveLength(0)
+})
+
+it('keeps Auto selected when older saved data has no pin field', async () => {
+    const player = pinPlayer('Player')
+    delete player.lineupPin
+    mocks.lineup.bench = [player]
+    await mount()
+    expect(pinButton('Set Player to Auto').props.accessibilityState.checked).toBe(true)
+})
+
+it.each(['starter', 'bench'] as const)('disables pins on locked %s rows', async kind => {
+    const player = pinPlayer('Locked')
+    if (kind === 'starter') mocks.lineup.starters = [{ slotType: 'PG', player }]
+    else mocks.lineup.bench = [player]
+    mocks.startedTeams = new Set(['LAL'])
+    await mount()
+    expect(pinButton('Pin Locked to start').props.disabled).toBe(true)
+    await tapPin('Pin Locked to start')
+    expect(mocks.setPin).not.toHaveBeenCalled()
+})
+
+it.each(['past', 'offline', 'read-only'] as const)('disables pins when %s', async mode => {
+    mocks.lineup.bench = [pinPlayer('Player')]
+    if (mode === 'offline') { mocks.snapshot = true; mocks.context.online = false }
+    await mount()
+    if (mode === 'past') await act(async () => screen.root.findByType('DaySelector' as React.ElementType).props.onSelect('2026-10-10'))
+    if (mode === 'read-only') {
+        mocks.readView.mockRejectedValueOnce(new Error('Unavailable'))
+        await act(async () => publishViewChange('league-a', {}))
+    }
+    expect(pinButton('Pin Player to start').props.disabled).toBe(true)
+    await tapPin('Pin Player to start')
+    expect(mocks.setPin).not.toHaveBeenCalled()
+})
+
+it('saves the selected date pin, optimizes it, then reloads without selecting the row', async () => {
+    mocks.lineup.bench = [pinPlayer('Player')]
+    await mount()
+    await act(async () => screen.root.findByType('DaySelector' as React.ElementType).props.onSelect('2026-10-12'))
+    const reads = mocks.readView.mock.calls.length
+    let finishPin!: () => void
+    let finishOptimize!: () => void
+    mocks.setPin.mockImplementationOnce(() => new Promise<void>(resolve => { finishPin = resolve }))
+    mocks.optimizeDate.mockImplementationOnce(() => new Promise<void>(resolve => { finishOptimize = resolve }))
+    const stopPropagation = vi.fn()
+    await act(async () => pinButton('Pin Player to start').props.onPress({ stopPropagation }))
+    expect(stopPropagation).toHaveBeenCalledOnce()
+    expect(mocks.setPin).toHaveBeenCalledExactlyOnceWith('league-a', 'Player', '2026-10-12', 'start')
+    expect(mocks.optimizeDate).not.toHaveBeenCalled()
+    expect(mocks.readView).toHaveBeenCalledTimes(reads)
+    expect(pinButton('Pin Player to bench').props.disabled).toBe(true)
+    await act(async () => finishPin())
+    expect(mocks.optimizeDate).toHaveBeenCalledExactlyOnceWith('member-a', 'league-a', 'season-league-a', '2026-10-12')
+    expect(mocks.readView).toHaveBeenCalledTimes(reads)
+    mocks.lineup.bench = [pinPlayer('Player', 'start')]
+    await act(async () => finishOptimize())
+    expect(mocks.readView).toHaveBeenCalledTimes(reads + 1)
+    expect(pinButton('Pin Player to start').props.accessibilityState.checked).toBe(true)
+    expect(mocks.handleTap).not.toHaveBeenCalled()
+    await act(async () => screen.root.findByProps({ accessibilityLabel: 'Bench Player' }).props.onPress())
+    expect(mocks.handleTap).toHaveBeenCalledExactlyOnceWith({ kind: 'bench', index: 0 })
+})
+
+it('preserves the prior pin and reports a failed pin save', async () => {
+    mocks.lineup.bench = [pinPlayer('Player', 'bench')]
+    await mount()
+    const reads = mocks.readView.mock.calls.length
+    mocks.setPin.mockRejectedValueOnce(new Error('Rejected'))
+    await tapPin('Pin Player to start')
+    expect(pinButton('Pin Player to bench').props.accessibilityState.checked).toBe(true)
+    expect(pinButton('Pin Player to start').props.disabled).toBe(false)
+    expect(mocks.showAlert).toHaveBeenCalledWith('Error', 'Rejected')
+    expect(mocks.readView).toHaveBeenCalledTimes(reads)
+    expect(mocks.optimizeDate).not.toHaveBeenCalled()
+})
+
+it.each(['start', null] as const)('reloads the saved pin after optimization fails: %s', async pin => {
+    mocks.lineup.bench = [pinPlayer('Player', 'bench')]
+    await mount()
+    await act(async () => screen.root.findByType('DaySelector' as React.ElementType).props.onSelect('2026-10-12'))
+    const reads = mocks.readView.mock.calls.length
+    mocks.setPin.mockImplementationOnce(async () => { mocks.lineup.bench = [pinPlayer('Player', pin)] })
+    mocks.optimizeDate.mockRejectedValueOnce(new Error('Optimization failed'))
+    await tapPin(pin === 'start' ? 'Pin Player to start' : 'Set Player to Auto')
+    expect(mocks.showAlert).toHaveBeenCalledWith('Error', 'Optimization failed')
+    expect(mocks.readView).toHaveBeenCalledTimes(reads + 1)
+    expect(mocks.readView).toHaveBeenLastCalledWith(expect.objectContaining({ params: { date: '2026-10-12' } }))
+    expect(mocks.showAlert.mock.invocationCallOrder[0]).toBeLessThan(mocks.readView.mock.invocationCallOrder.at(-1)!)
+    expect(pinButton(pin === 'start' ? 'Pin Player to start' : 'Set Player to Auto').props.accessibilityState.checked).toBe(true)
+    expect(pinButton('Pin Player to bench').props.disabled).toBe(false)
+})
+
+it.each(['date', 'owner'] as const)('does not reload an old pin date after the %s changes', async change => {
+    mocks.lineup.bench = [pinPlayer('Player', 'bench')]
+    await mount()
+    let failOptimize!: (error: Error) => void
+    mocks.optimizeDate.mockImplementationOnce(() => new Promise<void>((_resolve, reject) => { failOptimize = reject }))
+    await tapPin('Pin Player to start')
+    if (change === 'date') await act(async () => screen.root.findByType('DaySelector' as React.ElementType).props.onSelect('2026-10-12'))
+    else {
+        mocks.context.current = { id: 'member-b' }
+        await act(async () => screen.update(React.createElement(Component)))
+    }
+    const reads = mocks.readView.mock.calls.length
+    await act(async () => failOptimize(new Error('Optimization failed')))
+    expect(mocks.readView).toHaveBeenCalledTimes(reads)
+    if (change === 'owner') expect(mocks.showAlert).not.toHaveBeenCalled()
+    else expect(screen.root.findByType('DaySelector' as React.ElementType).props.selectedDate).toBe('2026-10-12')
+})
+
+it('clears a pin through Auto and ignores an already selected segment', async () => {
+    mocks.lineup.bench = [pinPlayer('Player', 'bench')]
+    await mount()
+    await tapPin('Pin Player to bench')
+    expect(mocks.setPin).not.toHaveBeenCalled()
+    await tapPin('Set Player to Auto')
+    expect(mocks.setPin).toHaveBeenCalledWith('league-a', 'Player', '2026-10-11', null)
+})
+
+it('shows Pinned, no slot only on an unlocked Start-pinned bench player', async () => {
+    mocks.teamMatchups['2026-10-11'] = { LAL: { opponent: 'BOS', isHome: true } }
+    mocks.lineup.starters = [{ slotType: 'PG', player: pinPlayer('Starter', 'start') }]
+    mocks.lineup.bench = [pinPlayer('Pinned', 'start'), pinPlayer('Auto'), pinPlayer('Benched', 'bench')]
+    await mount()
+    const notes = () => screen.root.findAllByType('Text' as React.ElementType).filter(node => node.props.children === 'Pinned, no slot')
+    expect(notes()).toHaveLength(1)
+    mocks.startedTeams = new Set(['LAL'])
+    await act(async () => publishViewChange('league-a', {}))
+    expect(notes()).toHaveLength(0)
+})
+
+it.each([
+    ['Out', true, 'Pinned, but Out'],
+    ['OUT', false, 'Pinned, but Out'],
+    ['IR', true, 'Pinned, but Out'],
+    ['ir-lt', false, 'Pinned, but Out'],
+    ['Ir+', true, 'Pinned, but Out'],
+    [null, false, 'Pinned, no game'],
+    ['Questionable', false, 'Pinned, no game'],
+    ['Doubtful', true, 'Pinned, no slot'],
+    ['Questionable', true, 'Pinned, no slot'],
+    [null, true, 'Pinned, no slot'],
+] as const)('explains a benched Start pin with injury %s and game %s', async (injuryStatus, hasGame, note) => {
+    mocks.lineup.bench = [{ ...pinPlayer('Player', 'start'), injuryStatus }]
+    if (hasGame) mocks.teamMatchups['2026-10-11'] = { LAL: { opponent: 'BOS', isHome: true } }
+    await mount()
+    const notes = () => screen.root.findAllByType('Text' as React.ElementType)
+        .map(node => node.props.children).filter(text => typeof text === 'string' && text.startsWith('Pinned,'))
+    expect(notes()).toEqual([note])
+    mocks.startedTeams = new Set(['LAL'])
+    await act(async () => publishViewChange('league-a', {}))
+    expect(notes()).toEqual([])
+})
+
+it('uses the selected day to explain a pin when the game schedule changes', async () => {
+    mocks.lineup.bench = [pinPlayer('Player', 'start')]
+    mocks.teamMatchups['2026-10-11'] = { LAL: { opponent: 'BOS', isHome: true } }
+    await mount()
+    const notes = () => screen.root.findAllByType('Text' as React.ElementType).map(node => node.props.children)
+    expect(notes()).toContain('Pinned, no slot')
+    await act(async () => screen.root.findByType('DaySelector' as React.ElementType).props.onSelect('2026-10-12'))
+    expect(notes()).toContain('Pinned, no game')
+    expect(notes()).not.toContain('Pinned, no slot')
+})
 
 it('shows each configured bench place on an entirely empty team', async () => {
     await mount()

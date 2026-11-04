@@ -2224,6 +2224,76 @@ export type Database = {
           },
         ]
       }
+      lineup_player_pins: {
+        Row: {
+          game_date: string
+          league_id: string
+          league_season_id: string
+          member_id: string
+          pin: string
+          player_id: string
+        }
+        Insert: {
+          game_date: string
+          league_id: string
+          league_season_id: string
+          member_id: string
+          pin: string
+          player_id: string
+        }
+        Update: {
+          game_date?: string
+          league_id?: string
+          league_season_id?: string
+          member_id?: string
+          pin?: string
+          player_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lineup_player_pins_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "leagues"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lineup_player_pins_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "v_fantasy_points"
+            referencedColumns: ["league_id"]
+          },
+          {
+            foreignKeyName: "lineup_player_pins_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_avg_fantasy_points"
+            referencedColumns: ["league_id"]
+          },
+          {
+            foreignKeyName: "lineup_player_pins_league_season_id_league_id_fkey"
+            columns: ["league_season_id", "league_id"]
+            isOneToOne: false
+            referencedRelation: "league_seasons"
+            referencedColumns: ["id", "league_id"]
+          },
+          {
+            foreignKeyName: "lineup_player_pins_member_id_league_id_fkey"
+            columns: ["member_id", "league_id"]
+            isOneToOne: false
+            referencedRelation: "league_members"
+            referencedColumns: ["id", "league_id"]
+          },
+          {
+            foreignKeyName: "lineup_player_pins_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lineup_slot_templates: {
         Row: {
           id: string
@@ -7332,6 +7402,15 @@ export type Database = {
           status: string
           years_exp: number
         }[]
+      }
+      set_lineup_player_pin: {
+        Args: {
+          p_date: string
+          p_league_id: string
+          p_pin?: string | null
+          p_player_id: string
+        }
+        Returns: Json
       }
       set_player_slot_atomic: {
         Args: {

@@ -96,3 +96,13 @@ it('explains a disabled drop without invoking the destructive action', async () 
 vi.mock('@/components/EmptyState', () => ({ EmptyState: 'EmptyState' }))
 
 vi.mock('@/lib/alert', () => ({ showAlert: vi.fn() }))
+
+it.each(['start', 'bench', null] as const)('shows the today pin on compact Roster rows: %s', async pin => {
+    await render(React.createElement(RosterPlayerItem, {
+        item: { ...rosterPlayer(), lineupPin: pin }, slotType: 'BE', togglingId: null, taxiingId: null,
+        droppingId: null, onPress: noop, onLongPress: noop, onToggleIR: noop,
+    }))
+    const labels = screen.root.findAllByType(Badge).map(node => node.props.accessibilityLabel)
+    expect(labels.includes('Pinned to start')).toBe(pin === 'start')
+    expect(labels.includes('Pinned to bench')).toBe(pin === 'bench')
+})

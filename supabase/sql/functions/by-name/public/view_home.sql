@@ -104,6 +104,22 @@ BEGIN
     'forecast', public.get_matchup_forecast(matchup.id), 'announcements', announcements, 'todaysGames', mine->'games',
     'liveStats', (mine->'liveStats') || (theirs->'liveStats'), 'startedTeams', mine->'startedTeams', 'teamMatchups', mine->'teamMatchups',
     'liveBasis',basis,'liveGames',live_games);
+  IF selected IS DISTINCT FROM league_today THEN
+    FOREACH lineup_key IN ARRAY ARRAY['myLineup','oppLineup'] LOOP
+      WITH groups AS (SELECT key,value FROM jsonb_each(payload->lineup_key) WHERE key IN ('starters','bench','ir','taxi')),
+      rows AS (SELECT key,item,ordinality,CASE WHEN key='starters' THEN item->'player' ELSE item END AS player
+        FROM groups CROSS JOIN LATERAL jsonb_array_elements(value) WITH ORDINALITY AS entry(item,ordinality)),
+      tagged AS (SELECT key,item,ordinality,CASE WHEN player IS NULL OR player='null'::jsonb THEN player
+        ELSE player || jsonb_build_object('lineupPin', (SELECT pin FROM public.lineup_player_pins
+          WHERE league_id=p_league_id AND league_season_id=(context->>'seasonId')::uuid
+            AND member_id=CASE WHEN lineup_key='myLineup' THEN subject ELSE opponent END
+            AND player_id=(player->>'playerId')::uuid AND game_date=league_today)) END AS player FROM rows),
+      combined AS (SELECT key,jsonb_agg(CASE WHEN key='starters' THEN jsonb_set(item,'{player}',COALESCE(player,'null'::jsonb))
+        ELSE player END ORDER BY ordinality) AS value FROM tagged GROUP BY key)
+      SELECT COALESCE(jsonb_object_agg(key,value),'{}'::jsonb) INTO compact_groups FROM combined;
+      payload:=jsonb_set(payload,ARRAY[lineup_key],(payload->lineup_key)||compact_groups);
+    END LOOP;
+  END IF;
   IF p_params->>'compact'='true' THEN
     FOREACH lineup_key IN ARRAY ARRAY['myLineup','oppLineup'] LOOP
       WITH groups AS (SELECT key,value FROM jsonb_each(payload->lineup_key) WHERE key IN ('starters','bench','ir','taxi')),
@@ -112,7 +128,7 @@ BEGIN
       packed AS (SELECT key,item,ordinality,CASE WHEN player IS NULL OR player='null'::jsonb THEN 'null'::jsonb
         ELSE jsonb_build_array(player->'rosterPlayerId',player->'playerId',player->'displayName',player->'position',
           player->'eligiblePositions',player->'nbaTeam',player->'yearsExp',player->'careerGames',player->'injuryStatus',
-          player->'nbaId',player->'espnId',player->'assetLocks') END AS player FROM rows),
+          player->'nbaId',player->'espnId',player->'assetLocks',player->'lineupPin') END AS player FROM rows),
       combined AS (SELECT key,jsonb_agg(CASE WHEN key='starters' THEN jsonb_build_array(item->'slotType',player)
         ELSE player END ORDER BY ordinality) AS value FROM packed GROUP BY key)
       SELECT COALESCE(jsonb_object_agg(key,value),'{}'::jsonb) INTO compact_groups FROM combined;

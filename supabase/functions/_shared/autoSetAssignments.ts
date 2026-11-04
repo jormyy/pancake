@@ -20,7 +20,7 @@ function compare(a: Cost, b: Cost): number {
     return 0
 }
 
-export function chooseAutoSetAssignments<Player extends AssignablePlayer & { gameTime?: string | null }>(
+export function chooseAutoSetAssignments<Player extends AssignablePlayer & { gameTime?: string | null; lineupPin?: 'start' | 'bench' | null }>(
     slots: string[],
     players: Player[],
     hasGame: (player: Player) => boolean,
@@ -39,13 +39,13 @@ export function chooseAutoSetAssignments<Player extends AssignablePlayer & { gam
     const futureOptions = new Map([...new Set(slots)].map(slot => [slot, cutoffs.map(time => available.filter(player =>
         !player.avoidInLineup && hasGame(player) && gameTime(player) > time
         && player.eligiblePositions.some(position => eligiblePositions[slot]?.includes(position))).length)]))
-    const zero: Cost = Array<number>(7 + cutoffs.length * 2).fill(0)
+    const zero: Cost = Array<number>(9 + cutoffs.length * 2).fill(0)
     const weights = (player: Player, slot: string): Cost => {
         const playing = !player.avoidInLineup && hasGame(player)
         const projected = Number.isFinite(player.projected) ? player.projected : 0
         const flexibility = cutoffs.flatMap((time, index) => gameTime(player) <= time
             ? [futureOptions.get(slot)![index], eligiblePositions[slot]?.length ?? 0] : [0, 0])
-        return [-1, playing ? -projected : 0, playing ? -1 : 0, ...flexibility, order.indexOf(slot),
+        return [-1, player.lineupPin === 'bench' ? 1 : 0, playing && player.lineupPin === 'start' ? -1 : 0, playing ? -projected : 0, playing ? -1 : 0, ...flexibility, order.indexOf(slot),
             stored.get(player.playerId) === slot ? -1 : 0, player.avoidInLineup ? 0 : -1, -projected]
     }
     const rowCount = slots.length

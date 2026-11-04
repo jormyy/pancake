@@ -41,6 +41,7 @@ type StarterTemplate = {
   slot_count: number
 }
 type AutoSetPlayer = {
+  lineupPin: 'start' | 'bench' | null
   playerId: string
   eligiblePositions: string[]
   nbaTeam: string | null
@@ -408,7 +409,7 @@ async function autoSetMemberDate(
   const playerIds = rosterRows.map((row) => row.player_id)
   if (playerIds.length === 0) return
 
-  const [{ data: projections, error: projectionErr }, { data: existingEntries, error: existingErr }] =
+  const [{ data: projections, error: projectionErr }, { data: existingEntries, error: existingErr }, { data: pins, error: pinErr }] =
     await Promise.all([
       loadProjections ? loadProjections(setting, dateContext, playerIds).then(data => ({ data, error: null })) : supabase.rpc('get_league_projection_rows', {
         p_league_id: setting.league_id,
@@ -426,15 +427,21 @@ async function autoSetMemberDate(
         .eq('league_id', setting.league_id)
         .eq('league_season_id', setting.league_season_id)
         .eq('game_date', dateContext.date),
+      supabase.from('lineup_player_pins').select('player_id,pin')
+        .eq('league_id', setting.league_id).eq('league_season_id', setting.league_season_id)
+        .eq('member_id', setting.member_id).eq('game_date', dateContext.date),
     ])
   if (projectionErr) throw projectionErr
   if (existingErr) throw existingErr
+  if (pinErr) throw pinErr
+  const pinMap = new Map((pins ?? []).map(pin => [pin.player_id, pin.pin]))
 
   const projectionMap = new Map(((projections ?? []) as ProjectionRow[]).map((row) => [row.player_id, row]))
   const players: AutoSetPlayer[] = rosterRows.map((row) => {
     const projection = projectionMap.get(row.player_id)
     return {
       playerId: row.player_id,
+      lineupPin: (pinMap.get(row.player_id) as 'start' | 'bench' | undefined) ?? null,
       eligiblePositions: eligiblePositions(row.players),
       nbaTeam: row.players?.nba_team ?? null,
       projected: Number(projection?.projection_fantasy_points ?? 0),

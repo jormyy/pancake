@@ -15,7 +15,7 @@ test('database type generation compiles after retired enums leave the schema', a
     const generated = `export type Database = { public: {
       Enums: { ${enums.map(name => `${name}: string`).join('; ')} }
       Tables: { ${tables.map(name => `${name}: { Row: unknown }`).join('; ')} }
-      Functions: { activate_roster_player_with_lineup_atomic: { Args: {
+      Functions: { set_lineup_player_pin: { Args: { p_pin?: string } }; activate_roster_player_with_lineup_atomic: { Args: {
         p_free_action?: string; p_free_roster_player_id?: string; p_slot_type?: string
       } }; get_live_checkpoint_work: { Returns: { checkpoint_at: string; checked_at: string; game_time: string }[] } }
     } }`
@@ -24,6 +24,7 @@ test('database type generation compiles after retired enums leave the schema', a
       cwd: directory, env: { ...process.env, PATH: `${directory}${path.delimiter}${process.env.PATH}` },
     })
     const output = await readFile(path.join(directory, 'types/database.ts'), 'utf8')
+    assert.match(output, /p_pin\?: string \| null/)
     assert.match(output, /checkpoint_at: string \| null/)
     assert.match(output, /checked_at: string \| null/)
     assert.match(output, /game_time: string \| null/)
