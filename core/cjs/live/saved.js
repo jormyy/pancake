@@ -8,11 +8,13 @@ function decodeSavedLiveView(value) {
         const result = { ...value };
         const playerFields = ['rosterPlayerId', 'playerId', 'displayName', 'position', 'eligiblePositions', 'nbaTeam', 'yearsExp', 'careerGames', 'injuryStatus', 'nbaId', 'espnId', 'assetLocks'];
         const statFields = ['points', 'rebounds', 'assists', 'steals', 'blocks', 'turnovers', 'threeMade', 'fgMade', 'fgAttempted', 'ftMade', 'ftAttempted', 'fouls', 'doubleDouble', 'tripleDouble', 'minutesPlayed', 'didNotPlay'];
+        const pinnedPlayerFields = [...playerFields, 'lineupPin'];
         const unpack = (row, fields) => {
             if (!Array.isArray(row) || row.length !== fields.length)
                 throw new Error('Invalid compact Home row');
             return Object.fromEntries(fields.map((field, index) => [field, row[index]]));
         };
+        const unpackPlayer = (row) => unpack(row, Array.isArray(row) && row.length === pinnedPlayerFields.length ? pinnedPlayerFields : playerFields);
         for (const name of ['myLineup', 'oppLineup']) {
             const lineup = result[name];
             if (!lineup)
@@ -22,10 +24,10 @@ function decodeSavedLiveView(value) {
                         throw new Error('Invalid compact Home lineup');
                     return [group, lineup[group].map(row => {
                             if (group !== 'starters')
-                                return unpack(row, playerFields);
+                                return unpackPlayer(row);
                             if (!Array.isArray(row) || row.length !== 2 || typeof row[0] !== 'string')
                                 throw new Error('Invalid compact Home starter');
-                            return { slotType: row[0], player: row[1] === null ? null : unpack(row[1], playerFields) };
+                            return { slotType: row[0], player: row[1] === null ? null : unpackPlayer(row[1]) };
                         })];
                 })) };
         }

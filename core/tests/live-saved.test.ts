@@ -32,6 +32,13 @@ describe('compact saved live scores', () => {
         expect(value.liveStats.p).toMatchObject({ points: 12, rebounds: 3, minutesPlayed: 20, didNotPlay: false, doubleDouble: false })
         expect(value.wireVersion).toBeUndefined()
     })
+    it('restores the lineup pin when the server sends it', () => {
+        const player = ['r', 'p', 'Player', 'PG', ['PG'], 'BOS', 3, 10, null, '1', '2', [], 'start']
+        const value = decodeSavedLiveView({ wireVersion: 1, liveBasis: [], myLineup: { starters: [['PG', player]], bench: [player], ir: [], taxi: [] },
+            oppLineup: null, liveStats: {} }) as unknown as { myLineup: { starters: { player: { lineupPin: string } }[]; bench: { lineupPin: string }[] } }
+        expect(value.myLineup.starters[0].player.lineupPin).toBe('start')
+        expect(value.myLineup.bench[0].lineupPin).toBe('start')
+    })
 })
 
 it('preserves the lineup date in compact scores', () => {
