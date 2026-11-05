@@ -4,7 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 import ts from 'typescript'
 import { readPwaRelease } from '../tests/e2e/pwa-update-release.mjs'
-import { recoverReleaseArtifact } from '../tests/e2e/release-artifact.mjs'
+import { fetchReleaseProvenance, recoverReleaseArtifact } from '../tests/e2e/release-artifact.mjs'
 
 const receiptName = 'release-compatibility.json'
 const hash = bytes => createHash('sha256').update(bytes).digest('hex')
@@ -109,12 +109,8 @@ export async function prepareReleaseCompatibility(root, previousRoot) {
   const localRoot = previousRoot || process.env.PANCAKE_PREVIOUS_RELEASE_ROOT
   if (localRoot) return retainReleaseAssets(root, localRoot)
   if (process.env.VERCEL_ENV !== 'production' && process.env.PANCAKE_FETCH_PREDECESSOR !== '1') return null
-  const descriptor = await readOptional(path.join(root, 'release-predecessor.json'))
-  if (!descriptor) {
-    if (process.env.VERCEL_ENV === 'production') throw new Error('Production build requires a pinned release-predecessor.json')
-    return null
-  }
-  const { url, commitSha, bundleDigest } = JSON.parse(descriptor.toString('utf8'))
+  const url = process.env.PANCAKE_PREDECESSOR_URL || 'https://pancakedynasty.vercel.app'
+  const { commitSha, bundleDigest } = await fetchReleaseProvenance(url)
   const directory = await mkdtemp(path.join(os.tmpdir(), 'pancake-release-'))
   try {
     const recovered = path.join(directory, 'previous')

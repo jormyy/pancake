@@ -100,13 +100,21 @@ The startup health loop checks the served frontend marker and Edge health before
 
 An open page can request an older route script after deployment. Keep the previous release's verified public assets available at their original paths. This prevents older clients from losing unfinished edits during missing-script recovery.
 
-Before a production build, commit `release-predecessor.json` with `url`, `commitSha`, and `bundleDigest`. Use the previous production deployment's immutable URL and its verified release marker. The build recovers and verifies the complete artifact before copying its public assets. Production builds fail without this record or when its bytes do not match.
+Production builds read `/release-provenance.json` from `https://pancakedynasty.vercel.app`.
+Set `PANCAKE_PREDECESSOR_URL` to override this address.
+The marker must contain a 40-character hexadecimal commit SHA and a 64-character hexadecimal bundle digest.
+The build uses these values to recover and verify the complete live artifact before copying its public assets.
+Production builds fail if the marker cannot be read or the artifact fails verification.
+Recovery permits HTTPS or loopback HTTP, rejects redirects, and limits each request to 30 seconds.
+The marker must keep the same source and digest during discovery and recovery.
+Recovery also checks that the marker bytes stay unchanged while downloading the artifact.
 
-Local and preview builds do not contact the pinned production predecessor by default.
+Local and preview builds do not contact production by default.
 Keep `VERCEL_ENV` unset or non-production and leave `PANCAKE_FETCH_PREDECESSOR` unset for local work.
 Remote recovery requires `VERCEL_ENV=production` or `PANCAKE_FETCH_PREDECESSOR=1`.
-Production still requires the pinned predecessor file.
-For an isolated local update check, set `PANCAKE_PREVIOUS_RELEASE_ROOT` to the previous verified export directory. This replaces the remote predecessor for that build. Never use an export with a different API issuer as a production predecessor.
+For an isolated local update check, set `PANCAKE_PREVIOUS_RELEASE_ROOT` to the previous verified export directory.
+This local directory takes priority, including during production builds, without a network request.
+Never use an export with a different API issuer as a production predecessor.
 
 The generated `release-compatibility.json` records the retained files and their source. They stay lazy and remain outside the startup precache. Each build retains one predecessor's own assets. It excludes assets inherited by that predecessor, old HTML, and old service workers. Changing the predecessor requires a clean export.
 
@@ -170,10 +178,6 @@ Its database head is `20261029000800`, with 564 migrations.
 This record identifies the source and schema.
 It does not invent an artifact digest or replace captured deployment evidence.
 Release 2.4 targets database head `20261116000500`, with 608 migrations.
-`release-predecessor.json` pins release 1 and its supplied bundle digest:
-`e3aed52c354f3bdcbb256f055d89eb2c4d95670b791395e0c2197edae3d7d32d`.
-The pin records release evidence; reading it requires no production request.
-Use `PANCAKE_PREVIOUS_RELEASE_ROOT` for a verified local predecessor.
 
 ## Migration attestations
 
