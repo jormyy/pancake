@@ -54,7 +54,6 @@ export function WaiversSection({ active, onFindPlayer }: { active: boolean; onFi
     const results = visible?.claims.filter(claim => claim.status !== 'pending') ?? []
     const renderClaim = (claim: WaiverClaim) => <View key={claim.id} style={styles.claim}>
         <RosterClaimItem claim={claim}
-            onTimeline={() => current && router.push({ pathname: '/timeline', params: { memberId: current.id, entityId: claim.id, filter: 'claims' } })}
             cancellingId={busyId ? claim.id : null} waiverMode={currentLeague?.waiver_mode ?? 'rolling'}
             onCancel={id => { if (memberId) void mutate(id, () => cancelWaiverClaim(id, memberId)) }}
             onEditBid={async (item, bidAmount) => { if (memberId) return mutate(item.id, () => editWaiverClaim(item.id, memberId, { dropPlayerId: item.dropPlayerId, bidAmount })) }}
