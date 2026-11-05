@@ -1,13 +1,20 @@
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { afterEach, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { stampReleaseProvenance } from '../scripts/stamp-release-provenance.mjs'
 import { prepareReleaseCompatibility, retainReleaseAssets } from '../scripts/retain-release-assets.mjs'
 import { FRONTEND_DEPLOYMENT_INPUTS } from './e2e/release-provenance.mjs'
 import { readPwaRelease } from './e2e/pwa-update-release.mjs'
 
 const roots: string[] = []
+beforeEach(() => {
+  vi.stubEnv('VERCEL_ENV', '')
+  vi.stubEnv('PANCAKE_FETCH_PREDECESSOR', '')
+  vi.stubEnv('PANCAKE_PREVIOUS_RELEASE_ROOT', '')
+  vi.stubEnv('PANCAKE_PREDECESSOR_URL', '')
+  vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('Unexpected network request') }))
+})
 afterEach(async () => {
   vi.unstubAllEnvs()
   vi.unstubAllGlobals()
@@ -147,43 +154,110 @@ it('rejects corrupt prior bytes and conflicting immutable paths', async () => {
   await expect(retainReleaseAssets(second, path.join(first, 'dist'))).rejects.toThrow(/bytes differ/)
 })
 
-it('requires an explicit verified predecessor for production builds', async () => {
-  const root = await exportRelease('a')
-  vi.stubEnv('VERCEL_ENV', 'production')
-  await expect(prepareReleaseCompatibility(root, undefined)).rejects.toThrow(/pinned release-predecessor/)
+it.each(['production', 'opt-in'])('discovers and verifies the live predecessor for %s', async mode => {
+  const previous = await exportRelease('previous')
+  const marker = await stampReleaseProvenance({ root: previous, commitSha: 'a'.repeat(40) })
+  const root = await exportRelease('current')
+  vi.stubEnv('VERCEL_ENV', mode === 'production' ? 'production' : 'preview')
+  vi.stubEnv('PANCAKE_FETCH_PREDECESSOR', mode === 'opt-in' ? '1' : '0')
+  if (mode === 'opt-in') vi.stubEnv('PANCAKE_PREDECESSOR_URL', 'http://127.0.0.1:9999/release')
+  const base = mode === 'production' ? 'https://pancakedynasty.vercel.app' : 'http://127.0.0.1:9999/release'
+  const fetch = vi.fn(async (url: URL) => {
+    expect(url.href.startsWith(`${base}/`)).toBe(true)
+    const name = decodeURIComponent(url.href.slice(base.length + 1))
+    return new Response(await readFile(path.join(previous, 'dist', name)))
+  })
+  vi.stubGlobal('fetch', fetch)
+  expect(await prepareReleaseCompatibility(root, undefined)).toMatchObject({
+    commitSha: marker.commitSha, bundleDigest: marker.bundleDigest,
+  })
+  expect(await readFile(path.join(root, 'dist/_expo/static/js/web/previous.js'), 'utf8')).toBe("globalThis.loaded = 'previous'")
+  const markerCalls = fetch.mock.calls.filter(([url]) => url.pathname.endsWith('/release-provenance.json'))
+  expect(markerCalls).toHaveLength(3)
+  expect(fetch).toHaveBeenCalledWith(new URL(`${base}/release-provenance.json`), {
+    redirect: 'error', headers: { 'Cache-Control': 'no-cache' }, signal: expect.any(AbortSignal),
+  })
 })
 
+it.each(['unreachable', 'missing', 'invalid JSON', 'redirected', 'null', 'missing identity', 'short SHA', 'non-hex SHA', 'numeric SHA', 'short digest', 'non-hex digest'])(
+  'fails production when the live marker is %s', async failure => {
+    const root = await exportRelease('current')
+    vi.stubEnv('VERCEL_ENV', 'production')
+    const marker = { commitSha: 'a'.repeat(40), bundleDigest: 'b'.repeat(64) }
+    const fetch = vi.fn(async () => {
+      if (failure === 'unreachable') throw new Error('Network unavailable')
+      if (failure === 'missing') return new Response('Missing', { status: 404 })
+      if (failure === 'invalid JSON') return new Response('{')
+      if (failure === 'null') return new Response('null')
+      if (failure === 'missing identity') return new Response('{}')
+      if (failure === 'short SHA') marker.commitSha = 'a'.repeat(39)
+      if (failure === 'non-hex SHA') marker.commitSha = 'g'.repeat(40)
+      if (failure === 'short digest') marker.bundleDigest = 'b'.repeat(63)
+      if (failure === 'non-hex digest') marker.bundleDigest = 'g'.repeat(64)
+      const response = new Response(JSON.stringify(failure === 'numeric SHA' ? { ...marker, commitSha: 1e39 } : marker))
+      if (failure === 'redirected') Object.defineProperty(response, 'redirected', { value: true })
+      return response
+    })
+    vi.stubGlobal('fetch', fetch)
+    await expect(prepareReleaseCompatibility(root, undefined)).rejects.toThrow()
+    expect(fetch).toHaveBeenCalledTimes(1)
+    await expect(readFile(path.join(root, 'dist/release-compatibility.json'))).rejects.toMatchObject({ code: 'ENOENT' })
+  },
+)
 
-it.each(['', 'development', 'preview'])('never fetches a pinned remote predecessor during %s local builds', async environment => {
+it.each(['http://example.test', 'https://user:password@example.test', 'https://example.test?query=1', 'https://example.test#hash'])(
+  'rejects an unsafe predecessor URL %s before fetching', async url => {
+    const root = await exportRelease('current')
+    vi.stubEnv('VERCEL_ENV', 'production')
+    vi.stubEnv('PANCAKE_PREDECESSOR_URL', url)
+    await expect(prepareReleaseCompatibility(root, undefined)).rejects.toThrow(/HTTPS or an isolated loopback/)
+    expect(fetch).not.toHaveBeenCalled()
+  },
+)
+
+it.each(['changed identity', 'corrupt bytes', 'wrong digest'])(
+  'fails production recovery for %s', async failure => {
+    const previous = await exportRelease('previous')
+    const marker = await stampReleaseProvenance({ root: previous, commitSha: 'a'.repeat(40) })
+    const root = await exportRelease('current')
+    vi.stubEnv('VERCEL_ENV', 'production')
+    let markers = 0
+    const fetch = vi.fn(async (url: URL) => {
+      const name = decodeURIComponent(url.pathname.slice(1))
+      if (name === 'release-provenance.json') {
+        markers += 1
+        return new Response(JSON.stringify({ ...marker,
+          commitSha: failure === 'changed identity' && markers > 1 ? 'b'.repeat(40) : marker.commitSha,
+          bundleDigest: failure === 'wrong digest' ? 'b'.repeat(64) : marker.bundleDigest,
+        }))
+      }
+      return new Response(failure === 'corrupt bytes' ? 'corrupted' : await readFile(path.join(previous, 'dist', name)))
+    })
+    vi.stubGlobal('fetch', fetch)
+    const error = failure === 'changed identity' ? /expected source and digest/
+      : failure === 'corrupt bytes' ? /bytes do not match/ : /digest does not match production/
+    await expect(prepareReleaseCompatibility(root, undefined)).rejects.toThrow(error)
+    await expect(readFile(path.join(root, 'dist/release-compatibility.json'))).rejects.toMatchObject({ code: 'ENOENT' })
+  },
+)
+
+it.each(['', 'development', 'preview'])('never fetches during %s local builds', async environment => {
   const root = await exportRelease('local')
-  await writeFile(path.join(root, 'release-predecessor.json'), JSON.stringify({ url: 'https://predecessor.example.test', commitSha: 'a'.repeat(40), bundleDigest: 'b'.repeat(64) }))
   vi.stubEnv('VERCEL_ENV', environment)
-  vi.stubEnv('PANCAKE_FETCH_PREDECESSOR', '0')
-  const fetch = vi.fn(async () => { throw new Error('Unexpected network request') })
-  vi.stubGlobal('fetch', fetch)
+  vi.stubEnv('PANCAKE_PREDECESSOR_URL', 'https://predecessor.example.test')
   await expect(prepareReleaseCompatibility(root, undefined)).resolves.toBeNull()
   expect(fetch).not.toHaveBeenCalled()
 })
 
-it.each(['production', 'opt-in'])('permits remote recovery only for %s', async mode => {
-  const root = await exportRelease('allowed')
-  await writeFile(path.join(root, 'release-predecessor.json'), JSON.stringify({ url: 'https://predecessor.example.test', commitSha: 'a'.repeat(40), bundleDigest: 'b'.repeat(64) }))
-  vi.stubEnv('VERCEL_ENV', mode === 'production' ? 'production' : 'preview')
-  vi.stubEnv('PANCAKE_FETCH_PREDECESSOR', mode === 'opt-in' ? '1' : '0')
-  const fetch = vi.fn(async () => new Response('{}', { status: 200 }))
-  vi.stubGlobal('fetch', fetch)
-  await expect(prepareReleaseCompatibility(root, undefined)).rejects.toThrow()
-  expect(fetch).toHaveBeenCalled()
-})
-
-it('uses a verified local predecessor without network access', async () => {
+it.each(['environment', 'argument'])('prefers a verified local predecessor from the %s during production', async source => {
   const previous = await exportRelease('previous')
-  await stampReleaseProvenance({ root: previous, commitSha: 'a'.repeat(40) })
+  const marker = await stampReleaseProvenance({ root: previous, commitSha: 'a'.repeat(40) })
   const root = await exportRelease('current')
-  vi.stubEnv('VERCEL_ENV', 'preview')
-  vi.stubEnv('PANCAKE_PREVIOUS_RELEASE_ROOT', path.join(previous, 'dist'))
-  const fetch = vi.fn(async () => { throw new Error('Unexpected network request') })
-  vi.stubGlobal('fetch', fetch)
-  expect(await prepareReleaseCompatibility(root, undefined)).toMatchObject({ commitSha: 'a'.repeat(40) })
+  vi.stubEnv('VERCEL_ENV', 'production')
+  vi.stubEnv('PANCAKE_FETCH_PREDECESSOR', '1')
+  vi.stubEnv('PANCAKE_PREVIOUS_RELEASE_ROOT', source === 'environment' ? path.join(previous, 'dist') : '/unused')
+  expect(await prepareReleaseCompatibility(root, source === 'argument' ? path.join(previous, 'dist') : undefined)).toMatchObject({
+    commitSha: marker.commitSha, bundleDigest: marker.bundleDigest,
+  })
   expect(fetch).not.toHaveBeenCalled()
 })

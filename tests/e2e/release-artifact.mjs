@@ -59,6 +59,32 @@ const validateManifest = (manifest) => {
   }
 }
 
+const releaseArtifactReader = (url, fetchImpl) => {
+  const base = new URL(url)
+  if (base.username || base.password || base.search || base.hash ||
+      (base.protocol !== 'https:' && !(base.protocol === 'http:' && ['127.0.0.1', 'localhost', '[::1]'].includes(base.hostname)))) {
+    throw new Error('Artifact recovery requires HTTPS or an isolated loopback server')
+  }
+  base.pathname = `${base.pathname.replace(/\/$/, '')}/`
+  return async (name) => {
+    const target = new URL(name.split('/').map(encodeURIComponent).join('/'), base)
+    const response = await fetchImpl(target, {
+      redirect: 'error', headers: { 'Cache-Control': 'no-cache' }, signal: AbortSignal.timeout(30_000),
+    })
+    if (!response.ok || response.redirected) throw new Error(`Artifact read failed for ${name}: HTTP ${response.status}`)
+    return Buffer.from(await response.arrayBuffer())
+  }
+}
+
+export const fetchReleaseProvenance = async (url, fetchImpl = fetch) => {
+  const marker = JSON.parse((await releaseArtifactReader(url, fetchImpl)(markerName)).toString('utf8'))
+  if (typeof marker?.commitSha !== 'string' || !/^[a-f0-9]{40}$/.test(marker.commitSha) ||
+      typeof marker?.bundleDigest !== 'string' || !/^[a-f0-9]{64}$/.test(marker.bundleDigest)) {
+    throw new Error('Live release marker requires an exact source and digest')
+  }
+  return marker
+}
+
 /**
  * @param {{ url: string, root: string, expectedCommitSha: string, expectedBundleDigest: string,
  *   fetchImpl?: (url: URL, init: RequestInit) => Promise<Response> }} options
@@ -69,20 +95,7 @@ export const recoverReleaseArtifact = async ({
   if (!/^[a-f0-9]{40}$/.test(expectedCommitSha) || !/^[a-f0-9]{64}$/.test(expectedBundleDigest)) {
     throw new Error('Artifact recovery requires an exact expected source and digest')
   }
-  const base = new URL(url)
-  if (base.username || base.password || base.search || base.hash ||
-      (base.protocol !== 'https:' && !(base.protocol === 'http:' && ['127.0.0.1', 'localhost', '[::1]'].includes(base.hostname)))) {
-    throw new Error('Artifact recovery requires HTTPS or an isolated loopback server')
-  }
-  base.pathname = `${base.pathname.replace(/\/$/, '')}/`
-  const get = async (name) => {
-    const target = new URL(name.split('/').map(encodeURIComponent).join('/'), base)
-    const response = await fetchImpl(target, {
-      redirect: 'error', headers: { 'Cache-Control': 'no-cache' }, signal: AbortSignal.timeout(30_000),
-    })
-    if (!response.ok || response.redirected) throw new Error(`Artifact read failed for ${name}: HTTP ${response.status}`)
-    return Buffer.from(await response.arrayBuffer())
-  }
+  const get = releaseArtifactReader(url, fetchImpl)
   const before = await get(markerName)
   const marker = JSON.parse(before.toString('utf8'))
   if (marker.commitSha !== expectedCommitSha || marker.bundleDigest !== expectedBundleDigest) {

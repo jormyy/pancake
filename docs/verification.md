@@ -88,7 +88,7 @@ Conditional skips remain unexecuted coverage.
 Do not run the release command, remote recovery, or hosted checks during a documentation-only review.
 Keep `VERCEL_ENV` non-production and `PANCAKE_FETCH_PREDECESSOR` unset for any local build.
 Use a verified local export through `PANCAKE_PREVIOUS_RELEASE_ROOT` for update checks.
-This avoids the pinned production predecessor.
+This avoids contacting the live production release.
 
 ## Rule coverage
 
@@ -183,7 +183,12 @@ Use [verify-pancake](../.claude/skills/verify-pancake/SKILL.md) for local releas
 Run `npm run check:quality` and the change-relevant tests before a release.
 Run `npm run e2e:soak:release` on an isolated stack when season replay evidence is required.
 The local release runner also supports `npm run release -- --dry-run --candidate <full-sha>`.
-Vercel deploys the frontend from main using `vercel.json` and `release-predecessor.json`.
+Vercel deploys the frontend from main using `vercel.json`.
+Production builds discover and verify the live predecessor through its release marker.
+`PANCAKE_PREDECESSOR_URL` overrides the default `https://pancakedynasty.vercel.app` address.
+Local and preview builds need `PANCAKE_FETCH_PREDECESSOR=1` for remote recovery.
+`PANCAKE_PREVIOUS_RELEASE_ROOT` takes priority without network access.
+After deployment, confirm that live provenance reports the merged commit SHA.
 Database and Edge releases follow the manual steps below.
 
 The [migration history](production-migration-history.md), [catalog contract](release-build-provenance.md#migration-attestations), and [artifact contract](release-build-provenance.md) own those checks.
