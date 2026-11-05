@@ -3,10 +3,10 @@ export type LeagueTab = LeagueSection | 'draftBoard' | 'auctions' | 'mockRooms'
 
 export const LEAGUE_TABS: readonly { key: LeagueSection; label: string }[] = [
     { key: 'results', label: 'Standings' },
-    { key: 'seasons', label: 'History' },
     { key: 'history', label: 'Activity' },
     { key: 'picks', label: 'Picks' },
     { key: 'schedule', label: 'Schedule' },
+    { key: 'seasons', label: 'History' },
     { key: 'draft', label: 'Draft' },
     { key: 'bracket', label: 'Bracket' },
     { key: 'settings', label: 'Settings' },
