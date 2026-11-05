@@ -1,8 +1,7 @@
 import { attestedMigrationFiles, convergenceAfter, copyAttestedMigrations } from './helpers/attested-migrations'
 import { createHash } from 'node:crypto'
-import { execFileSync, spawnSync } from 'node:child_process'
+import { spawnSync } from 'node:child_process'
 import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { createRequire } from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
 import { expect, it } from 'vitest'
@@ -197,38 +196,5 @@ console.log(JSON.stringify(JSON.parse(fs.readFileSync(file, 'utf8')).rows[0].sna
     }
   } finally {
     rmSync(dir, { recursive: true, force: true })
-  }
-})
-
-it('routes every deployment pairing to its explicit database phase', () => {
-  const yaml = createRequire(import.meta.url)('js-yaml')
-  const deploy = yaml.load(readFileSync('.github/workflows/production-deploy.yml', 'utf8'))
-  const pairs = Object.entries(deploy.jobs).filter(([, job]) => (job as { uses?: string }).uses === './.github/workflows/production-readiness.yml')
-  expect(pairs).toHaveLength(6)
-  for (const [name, job] of pairs) {
-    expect((job as { with: { database_phase: string } }).with.database_phase)
-      .toBe(name === 'verify-candidate-current-backend' ? 'pre-migration' : 'post-migration')
-  }
-  const readiness = yaml.load(readFileSync('.github/workflows/production-readiness.yml', 'utf8'))
-  expect(readiness.on.workflow_call.inputs.database_phase.required).toBe(true)
-  expect(readiness.jobs['verify-production'].env.E2E_DATABASE_PHASE).toBe("${{ inputs.database_phase || 'post-migration' }}")
-  const steps = readiness.jobs['verify-production'].steps
-  const command = steps.find((step: { name: string }) => step.name === 'Verify linked database security catalog').run
-  expect(command).toBe('npm run security:db-catalog -- --linked --phase="$E2E_DATABASE_PHASE"')
-  expect(command).not.toContain('--catalog-only')
-  const resolve = steps.find((step: { name: string }) => step.name === 'Resolve exact database phase').run
-  // Reusable workflows inherit the caller's event; phase must come from the input.
-  for (const [event, phase, expected] of [['workflow_dispatch', 'pre-migration', 'pre-migration'],
-    ['workflow_dispatch', 'post-migration', 'post-migration'], ['repository_dispatch', 'post-migration', 'post-migration']]) {
-    const dir = mkdtempSync(path.join(os.tmpdir(), 'pancake-phase-'))
-    try {
-      const output = path.join(dir, 'env')
-      execFileSync('bash', ['-e', '-c', resolve], { env: { ...process.env, GITHUB_EVENT_NAME: event, E2E_DATABASE_PHASE: phase, GITHUB_ENV: output } })
-      expect(readFileSync(output, 'utf8')).toBe(`E2E_DATABASE_PHASE=${expected}\n`)
-      const invalid = spawnSync('bash', ['-e', '-c', resolve], { encoding: 'utf8',
-        env: { ...process.env, GITHUB_EVENT_NAME: 'workflow_call', E2E_DATABASE_PHASE: '', GITHUB_ENV: output } })
-      expect(invalid.status).toBe(1)
-      expect(invalid.stdout).toContain('Missing or invalid database phase')
-    } finally { rmSync(dir, { recursive: true, force: true }) }
   }
 })

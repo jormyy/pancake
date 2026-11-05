@@ -48,8 +48,7 @@ Those simulations do not prove provider delivery or physical device prompts.
 | `E2E_PWA_PREVIOUS_ROOT`, `E2E_PWA_NEXT_ROOT` | Supply two stamped builds for update checks |
 
 Without both build roots, the matrix reports the two-build check as not run.
-Long action and gameplay matrices need separate invocations and filters for the CI time limit.
-The default matrix remains the PR browser check.
+Use separate invocations and filters to bound long action and gameplay checks.
 
 ## Layout stability sweep
 
@@ -125,7 +124,7 @@ npm run e2e:soak:release
 The exploratory command defaults to ten seasons.
 The release command requires twenty seasons and enables mandatory slices.
 The harness starts fake providers, but the running Edge functions must point to those endpoints.
-Use the environment and migration preparation in `.github/workflows/release-soak-shard.yml`.
+Use the [isolated local stack recipe](../../docs/verification.md#local-stack) for environment and migration preparation.
 The release gate needs a valid pre-upgrade baseline and the approved pending migration range.
 A fully migrated stack cannot prove the mid-life migration step.
 

@@ -1,9 +1,6 @@
 import { attestedMigrationFiles, convergenceAfter } from './helpers/attested-migrations'
-import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import os from 'node:os'
-import path from 'node:path'
+import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -226,30 +223,4 @@ describe('attested production migration history', () => {
     }
   })
 
-  it('executes the workflow target guard before collecting its attestation input', () => {
-    const workflow = readFileSync('.github/workflows/release-soak.yml', 'utf8')
-    const queryBlock = workflow.match(/test "\$\(cat supabase\/\.temp\/project-ref\)"[\s\S]*?> \/tmp\/deployed-schema-history.json/)?.[0]
-    expect(queryBlock).toBeTruthy()
-    const dir = mkdtempSync(path.join(os.tmpdir(), 'pancake-history-'))
-    try {
-      mkdirSync(path.join(dir, 'supabase/.temp'), { recursive: true })
-      writeFileSync(path.join(dir, 'input.json'), JSON.stringify([{ snapshot: fixture() }]))
-      // A local CLI double records whether the protected workflow reaches its query.
-      writeFileSync(path.join(dir, 'supabase-cli'), '#!/bin/sh\n: > queried\ncat input.json\n')
-      chmodSync(path.join(dir, 'supabase-cli'), 0o700)
-      const script = `set -e\n${queryBlock!.replace('supabase db query', './supabase-cli db query')
-        .replace('/tmp/deployed-schema-history.json', 'output.json')}`
-      const env = { ...process.env, SUPABASE_PROJECT_REF: attestation.projectRef }
-      writeFileSync(path.join(dir, 'supabase/.temp/project-ref'), 'wrong-project')
-      expect(() => execFileSync('bash', ['-c', script], { cwd: dir, env, stdio: 'pipe' })).toThrow()
-      expect(existsSync(path.join(dir, 'queried'))).toBe(false)
-      writeFileSync(path.join(dir, 'supabase/.temp/project-ref'), attestation.projectRef)
-      execFileSync('bash', ['-c', script], { cwd: dir, env, stdio: 'pipe' })
-      const snapshot = readProductionHistorySnapshot(JSON.parse(readFileSync(path.join(dir, 'output.json'), 'utf8')))
-      expect(planAttestedProductionMigrations(files, snapshot, attestation.projectRef).pendingVersions)
-        .toEqual(attestation.approvedMigrations.map((entry: { version: string }) => entry.version))
-    } finally {
-      rmSync(dir, { recursive: true, force: true })
-    }
-  })
 })

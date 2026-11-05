@@ -1,5 +1,3 @@
-import { spawnSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { planSoakShards } from './e2e/soak-shards.mjs'
 import { preparedMigrationFailures, soakBrowserArgs, soakRuntimeForShard, soakRuntimeSchemaFailures } from './e2e/soak-runtime.mjs'
@@ -10,21 +8,6 @@ import { validateRetainedSeasonReports } from './e2e/performance-budgets.mjs'
 import { validatePerfDrift } from './e2e/soak-support.mjs'
 
 describe('release soak deployment order', () => {
-
-  it('accepts startup only when the served frontend marker and Edge health match', () => {
-    const workflow = readFileSync('.github/workflows/release-soak-shard.yml', 'utf8')
-    const loop = workflow.split('frontend="$(curl --fail --silent http://127.0.0.1:8082/release-provenance.json')[1]
-    expect(loop).toBeTruthy()
-    const script = loop.split("node -e '")[1].split("' \"$health\"")[0]
-    const edge = JSON.stringify({ commitSha: 'edge', edgeArtifactDigest: 'edge-digest' })
-    const frontend = { commitSha: 'frontend', bundleDigest: 'frontend-digest' }
-    const run = (observed: string) => spawnSync(process.execPath, ['-e', script, edge, 'edge', 'edge-digest',
-      observed, 'frontend', 'frontend-digest']).status
-    expect(run(JSON.stringify(frontend))).toBe(0)
-    expect(run(JSON.stringify({ ...frontend, commitSha: 'candidate' }))).toBe(1)
-    expect(run(JSON.stringify({ ...frontend, bundleDigest: 'wrong' }))).toBe(1)
-    expect(run('not-json')).not.toBe(0)
-  })
 
   it('rejects release Edge and frontend on the deployed schema in every later shard', () => {
     const shards = planSoakShards(20, 4)

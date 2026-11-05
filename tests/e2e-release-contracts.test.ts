@@ -128,12 +128,12 @@ describe('release E2E contracts', () => {
 
   })
 
-  it('runs the full measured smoke sweep and enforces its workflow budgets in PR CI', async () => {
+  it('uses the full measured smoke sweep in the shared scenario runner', async () => {
     expect(browserCiContext('smoke').args.browserFullSweep).toBe(true)
     expect(browserCiContext('performance').args.browserFullSweep).toBe(false)
   })
 
-  it('runs every registered browser scenario as a required PR matrix entry', () => {
+  it('includes every registered browser scenario in the scenario matrix', () => {
     expect(fastBrowserScenarioMatrix().include.map(({ scenario }) => scenario).sort())
       .toEqual(BROWSER_SCENARIO_MANIFEST.map(({ id }) => id).sort())
   })

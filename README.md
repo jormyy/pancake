@@ -58,6 +58,10 @@ npm start
 
 ## Verification
 
+Use [verify-pancake](.claude/skills/verify-pancake/SKILL.md) for isolated local browser verification.
+Start with `npm run verify:launch` and follow the generated evidence path.
+Run focused checks while developing:
+
 ```sh
 npm run check:quality
 npm test
