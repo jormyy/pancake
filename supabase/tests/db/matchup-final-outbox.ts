@@ -108,7 +108,7 @@ try {
   const final = await payload(0)
   const gateName = `final-gate-${scope}`
   const gate = new Deno.Command('psql', { args: [db, '-XqAt', '--set', 'ON_ERROR_STOP=1', '-c',
-    `SET application_name='${gateName}'; BEGIN; SELECT id FROM leagues WHERE id='${league}' FOR UPDATE; SELECT pg_sleep(3); COMMIT`], stdin: 'null', stdout: 'piped', stderr: 'piped' }).spawn()
+    `SET application_name='${gateName}'; BEGIN; SELECT id FROM leagues WHERE id='${league}' FOR UPDATE; SELECT pg_sleep(0.2); COMMIT`], stdin: 'null', stdout: 'piped', stderr: 'piped' }).spawn()
   let sleeping = false
   for (let poll = 0; poll < 100; poll++) {
     if (await sql(`SELECT count(*) FROM pg_stat_activity WHERE application_name='${gateName}' AND wait_event='PgSleep'`) === '1') { sleeping = true; break }
@@ -124,7 +124,7 @@ try {
   }
   const outcomes = await Promise.all([first, second]); const gateResult = await gate.output()
   assert.equal(gateResult.code, 0, new TextDecoder().decode(gateResult.stderr)); assert.ok(blocked, 'Both real finalizations must overlap at the league lock')
-  assert.equal(outcomes.filter(outcome => outcome.error === null).length, 1)
+  assert.equal(outcomes.filter(outcome => outcome.error === null).length, 1, JSON.stringify(outcomes))
   assert.equal(outcomes.filter(outcome => outcome.error?.code === 'PT409').length, 1)
   assert.deepEqual(outcomes.find(outcome => outcome.error === null)?.data, [], 'Durable alerts must leave no inline delivery work for older workers')
   await query(admin.rpc('finalize_score_week_atomic', await payload(0)))

@@ -38,14 +38,14 @@ BEGIN
   END IF;
   FOR v_member IN SELECT member_id FROM trade_participants WHERE trade_id = p_trade_id ORDER BY member_id LOOP
     IF NOT pg_try_advisory_xact_lock(hashtext(v_trade.league_id::text), hashtext(v_member::text)) THEN
-      RAISE EXCEPTION 'The league is busy. Try this trade again.' USING ERRCODE='PT001';
+      RAISE EXCEPTION 'The league is busy. Try this trade again.' USING ERRCODE='PA010';
     END IF;
   END LOOP;
   FOR v_player IN SELECT DISTINCT id FROM (
     SELECT unnest(v_all) id UNION SELECT player_id FROM trade_items WHERE trade_id = p_trade_id
   ) ids WHERE id IS NOT NULL ORDER BY id LOOP
     IF NOT pg_try_advisory_xact_lock(hashtext(v_trade.league_id::text), hashtext(v_player::text)) THEN
-      RAISE EXCEPTION 'The league is busy. Try this trade again.' USING ERRCODE='PT001';
+      RAISE EXCEPTION 'The league is busy. Try this trade again.' USING ERRCODE='PA010';
     END IF;
   END LOOP;
   SELECT * INTO v_trade FROM trades WHERE id = p_trade_id AND (status='pending' OR status='accepted' AND jsonb_array_length(legality_issues)>0) FOR NO KEY UPDATE NOWAIT;
@@ -96,6 +96,6 @@ END request_write;
   PERFORM private.request_finish(__request_context, 'null'::jsonb);
   RETURN;
 EXCEPTION WHEN lock_not_available THEN
-  RAISE EXCEPTION 'The league is busy. Try this trade again.' USING ERRCODE='PT001';
+  RAISE EXCEPTION 'The league is busy. Try this trade again.' USING ERRCODE='PA010';
 END;
 $$;

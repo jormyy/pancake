@@ -1,6 +1,5 @@
 export type { LineupPlayer, LineupSlot, LineupContext, RosterSlotPlan, WeekDay } from './lineup/read'
 export {
-    getWeekDays,
     getWeeklyLineup,
     invalidateCachedRoster,
     setPlayerSlotMoves,

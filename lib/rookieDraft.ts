@@ -5,7 +5,6 @@ import { apiPost as sharedApiPost } from '@/lib/shared/api'
 import type { RookieTimerExpiryBehavior } from '@/lib/draft'
 import { subscribeToTableChanges, unsubscribeFromTableChanges } from '@/lib/realtime'
 
-
 export type SnakePick = {
     overallPick: number
     round: number
@@ -81,7 +80,6 @@ export type RookieDraftStartOptions = {
     timerExpiryBehavior?: RookieTimerExpiryBehavior
 }
 
-
 export async function getActiveRookieDraft(leagueId: string) {
     const { data } = await supabase
         .from('drafts')
@@ -100,140 +98,6 @@ export async function activateRookieDraftLeague(draftId: string): Promise<boolea
     const result = await sharedApiPost<{ activated?: boolean }>(`/draft/${draftId}/activate-rookie-league`, {})
     return Boolean(result?.activated)
 }
-
-export async function getRookieDraftState(draftId: string): Promise<RookieDraftState | null> {
-    const [draftResult, picksResult, ordersResult] = await Promise.all([
-        supabase
-            .from('drafts')
-            .select('id, league_id, league_season_id, league_seasons(is_current, season_year), status, is_mock, pick_timer_seconds, timer_expiry_behavior, rounds, started_at, completed_at, pause_reason, paused_at, timer_paused_remaining_seconds')
-            .eq('id', draftId)
-            .maybeSingle(),
-        supabase
-            .from('snake_draft_picks')
-            .select(
-                `overall_pick, round, pick_in_round, member_id, picked_at, skipped_at, skip_reason, timer_expires_at,
-                 players ( id, display_name, nba_team, position, nba_id, years_exp, career_regular_season_games, injury_status ),
-                 league_members ( team_name )`,
-            )
-            .eq('draft_id', draftId)
-            .order('overall_pick'),
-        supabase
-            .from('draft_orders')
-            .select('position, member_id, league_members ( team_name )')
-            .eq('draft_id', draftId)
-            .order('position'),
-    ])
-
-    if (draftResult.error) throw draftResult.error
-    if (picksResult.error) throw picksResult.error
-    if (ordersResult.error) throw ordersResult.error
-
-    const draft = draftResult.data
-    if (!draft) return null
-    const picks = picksResult.data
-    const orders = ordersResult.data
-
-    const mappedPicks: SnakePick[] = (picks ?? []).map((p) => ({
-        overallPick: p.overall_pick,
-        round: p.round,
-        pickInRound: p.pick_in_round,
-        memberId: p.member_id,
-        teamName: (p.league_members as { team_name: string } | null)?.team_name ?? 'Unknown',
-        pickedAt: p.picked_at,
-        skippedAt: p.skipped_at,
-        skipReason: p.skip_reason,
-        timerExpiresAt: p.timer_expires_at,
-        player: p.players
-            ? {
-                  id: (p.players as { id: string }).id,
-                  displayName: (p.players as { display_name: string }).display_name ?? 'Unknown',
-                  nbaTeam: (p.players as { nba_team: string | null }).nba_team,
-                  position: (p.players as { position: string | null }).position,
-                  nbaId: (p.players as { nba_id: string | null }).nba_id,
-                  yearsExp: p.players.years_exp,
-                  careerGames: p.players.career_regular_season_games,
-                  injuryStatus: p.players.injury_status,
-              }
-            : null,
-    }))
-
-    return {
-        draft: {
-            id: draft.id,
-            leagueId: draft.league_id,
-            leagueSeasonId: draft.league_season_id,
-            seasonYear: draft.league_seasons?.season_year,
-            isCurrentSeason: draft.league_seasons?.is_current === true,
-            status: draft.status,
-            isMock: draft.is_mock,
-            pickTimerSeconds: draft.pick_timer_seconds,
-            timerExpiryBehavior: (draft.timer_expiry_behavior ?? 'auto_pick') as RookieTimerExpiryBehavior,
-            rounds: draft.rounds,
-            startedAt: draft.started_at,
-            completedAt: draft.completed_at,
-            pauseReason: draft.pause_reason,
-            pausedAt: draft.paused_at,
-            pausedRemainingSeconds: draft.timer_paused_remaining_seconds,
-        },
-        picks: mappedPicks,
-        orders: (orders ?? []).map((o) => ({
-            position: o.position,
-            memberId: o.member_id,
-            teamName: (o.league_members as { team_name: string } | null)?.team_name ?? 'Unknown',
-        })),
-        nextPick: mappedPicks.find((p) => !p.player && !p.skippedAt) ?? null,
-    }
-}
-
-export async function getRookieDraftPollRevision(draftId: string): Promise<string> {
-    const [draftResult, pickResult] = await Promise.all([
-        supabase
-            .from('drafts')
-            .select('status, pause_reason, paused_at, timer_paused_remaining_seconds, completed_at, league_season_id, league_seasons(is_current, season_year)')
-            .eq('id', draftId)
-            .maybeSingle(),
-        supabase
-            .from('snake_draft_picks')
-            .select('overall_pick, player_id, picked_at, skipped_at, timer_expires_at')
-            .eq('draft_id', draftId)
-            .is('player_id', null)
-            .is('skipped_at', null)
-            .order('overall_pick', { ascending: true })
-            .limit(1)
-            .maybeSingle(),
-    ])
-    if (draftResult.error) throw draftResult.error
-    if (pickResult.error) throw pickResult.error
-    return JSON.stringify([draftResult.data, pickResult.data])
-}
-
-export async function getRookiePlayers(draftId: string, query?: string): Promise<RookieProspect[]> {
-    const pickedQuery = supabase
-        .from('snake_draft_picks')
-        .select('player_id')
-        .eq('draft_id', draftId)
-        .not('player_id', 'is', null)
-
-    let q = supabase
-        .from('players')
-        .select('id, display_name, nba_team, position, nba_id, injury_status, nba_draft_number, years_exp, career_regular_season_games')
-        .not('nba_draft_number', 'is', null)
-        .eq('years_exp', 0)
-        .order('nba_draft_number', { ascending: true })
-        .order('id', { ascending: true })
-        .limit(100)
-
-    if (query?.trim()) {
-        q = q.ilike('display_name', `%${query.trim()}%`)
-    }
-
-    const [{ data: picked, error: pickedError }, { data, error }] = await Promise.all([pickedQuery, q])
-    if (pickedError) throw pickedError
-    if (error) throw error
-    const pickedIds = new Set((picked ?? []).map((p) => p.player_id))
-    return (data ?? []).filter((p) => !pickedIds.has(p.id)) as RookieProspect[]
-}
-
 
 export type RookieStartWarning = {
     code: 'opening_night_unpublished' | 'opening_night_overrun' | null
@@ -283,7 +147,6 @@ export async function reseedRookieDraftPicks(draftId: string) {
 export async function advanceSeason(leagueId: string) {
     return sharedApiPost<any>('/league/advance-season', { leagueId })
 }
-
 
 export function subscribeToRookieDraft(draftId: string, onChange: () => void, onReconnect?: () => Promise<boolean>): RealtimeChannel {
     return subscribeToTableChanges(`rookie-draft:${draftId}`, {

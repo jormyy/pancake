@@ -3,16 +3,19 @@ import { screenScope } from '@/lib/cache/screen-scope'
 import type { RosterView } from '@/lib/cache/view-types'
 import { useAuth } from '@/hooks/use-auth'
 import { useCallback, useRef, useState } from 'react'
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { ScrollView, StyleSheet, Text, View } from 'react-native'
 import { useRouter } from 'expo-router'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useOnlineStatus } from '@/hooks/use-online-status'
 import { RosterClaimItem } from '@/components/roster/RosterItems'
+import { Button, Card, usePageMetrics } from '@/components/ui'
+import { SectionBand } from '@/components/ui/SectionBand'
 import { cancelWaiverClaim, claimProcessDateLabel, editWaiverClaim, reorderWaiverClaim, scheduledClaimRunAt, type WaiverClaim } from '@/lib/waivers'
-import { borderWidth, colors, controlSize, spacing, textStyles } from '@/constants/tokens'
+import { borderWidth, colors, layout, spacing, textStyles } from '@/constants/tokens'
 
 export function WaiversSection({ active, onFindPlayer }: { active: boolean; onFindPlayer: () => void }) {
     const { current, currentLeague } = useLeagueContext()
+    const { padX } = usePageMetrics()
     const { user } = useAuth()
     const router = useRouter()
     const online = useOnlineStatus()
@@ -56,32 +59,51 @@ export function WaiversSection({ active, onFindPlayer }: { active: boolean; onFi
             onCancel={id => { if (memberId) void mutate(id, () => cancelWaiverClaim(id, memberId)) }}
             onEditBid={async (item, bidAmount) => { if (memberId) return mutate(item.id, () => editWaiverClaim(item.id, memberId, { dropPlayerId: item.dropPlayerId, bidAmount })) }}
             onReorder={(id, direction) => { if (memberId) void mutate(id, () => reorderWaiverClaim(id, memberId, direction)) }} />
-        {claim.status === 'pending' && scheduledClaimRunAt(claim.processDate, currentLeague?.timezone).getTime() > Date.now() ? <Pressable style={styles.action} accessibilityRole="button" accessibilityLabel={`Edit claim and drop for ${claim.playerName}`}
-            disabled={Boolean(busyId)} onPress={() => router.push({ pathname: '/(modals)/claim-player', params: { playerId: claim.playerId, claimId: claim.id } })}>
-            <Text style={styles.link}>Edit claim and drop</Text>
-        </Pressable> : null}
+        {claim.status === 'pending' && scheduledClaimRunAt(claim.processDate, currentLeague?.timezone).getTime() > Date.now() ? <Button title="Edit claim and drop" variant="secondary" style={styles.editAction} accessibilityLabel={`Edit claim and drop for ${claim.playerName}`}
+            disabled={Boolean(busyId)} onPress={() => router.push({ pathname: '/(modals)/claim-player', params: { playerId: claim.playerId, claimId: claim.id } })} /> : null}
     </View>
-    return <ScrollView contentContainerStyle={styles.root}>
-        <Text style={textStyles.sectionLabel}>Waivers</Text>
-        <Text style={textStyles.body}>{currentLeague?.waiver_mode === 'faab' ? `Available FAAB $${visible?.state?.faabBalance ?? '—'}` : 'Rolling waiver priority'} · Priority #{visible?.priority ?? '—'}</Text>
-        <Text style={textStyles.meta}>Next run {claimProcessDateLabel(null, new Date(), currentLeague?.timezone)}</Text>
-        {visible?.state ? <Text style={textStyles.meta}>Pickups {visible.state.weeklyAddCount}/{visible.state.weeklyAddLimit ?? '∞'} this week</Text> : null}
-        <Pressable style={styles.action} accessibilityRole="button" onPress={onFindPlayer}><Text style={styles.link}>Find a player to claim</Text></Pressable>
+    return <ScrollView contentContainerStyle={[styles.root, { paddingHorizontal: padX }]}>
+        <Card style={styles.summary}>
+            <View style={styles.summaryRow}>
+                <View style={styles.summaryStat}>
+                    <Text style={textStyles.sectionLabel}>{currentLeague?.waiver_mode === 'faab' ? 'Available FAAB' : 'Waiver order'}</Text>
+                    <Text style={textStyles.hero}>{currentLeague?.waiver_mode === 'faab' ? `$${visible?.state?.faabBalance ?? '—'}` : 'Rolling'}</Text>
+                </View>
+                <View style={styles.priority}>
+                    <Text style={textStyles.sectionLabel}>Priority</Text>
+                    <Text style={textStyles.compactScore}>#{visible?.priority ?? '—'}</Text>
+                </View>
+            </View>
+            <View style={styles.schedule}>
+                <Text style={textStyles.body}>Next run {claimProcessDateLabel(null, new Date(), currentLeague?.timezone)}</Text>
+                {visible?.state ? <Text style={textStyles.meta}>Pickups {visible.state.weeklyAddCount}/{visible.state.weeklyAddLimit ?? '∞'} this week</Text> : null}
+            </View>
+            <Button title="Find a player to claim" icon="add" onPress={onFindPlayer} fullWidth />
+        </Card>
         {!online ? <Text style={textStyles.meta}>Offline. Changes stay pending until you reconnect.</Text> : null}
-        {error ? <View><Text accessibilityRole="alert" style={styles.error}>{error}</Text><Pressable style={styles.action} accessibilityRole="button" onPress={() => { void refresh() }}><Text style={styles.link}>Retry</Text></Pressable></View> : null}
+        {error ? <Card><Text accessibilityRole="alert" style={styles.error}>{error}</Text><Button title="Retry" variant="secondary" onPress={() => { void refresh() }} /></Card> : null}
         {loading && !visible ? <Text style={textStyles.meta}>Loading claims…</Text> : null}
-        <Text style={[textStyles.sectionLabel, styles.pendingHeading]}>Pending claims ({pending.length})</Text>
-        {pending.length ? pending.map(renderClaim) : visible ? <Text style={textStyles.meta}>No pending claims.</Text> : null}
-        <Text style={textStyles.sectionLabel}>Recent results</Text>
-        {results.length ? results.map(renderClaim) : visible ? <Text style={textStyles.meta}>No recent results.</Text> : null}
+        <Card padding="none" elevated="none" style={styles.section}>
+            <SectionBand label={`Pending claims (${pending.length})`} />
+            {pending.length ? pending.map(renderClaim) : visible ? <Text style={styles.empty}>No pending claims.</Text> : null}
+        </Card>
+        <Card padding="none" elevated="none" style={styles.section}>
+            <SectionBand label="Recent results" />
+            {results.length ? results.map(renderClaim) : visible ? <Text style={styles.empty}>No recent results.</Text> : null}
+        </Card>
     </ScrollView>
 }
 
 const styles = StyleSheet.create({
-    root: { padding: spacing.lg, gap: spacing.md },
+    root: { width: '100%', maxWidth: layout.formMaxWidth, alignSelf: 'center', paddingVertical: spacing.lg, gap: spacing.xl },
+    summary: { gap: spacing.lg },
+    summaryRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xl },
+    summaryStat: { flex: 1, minWidth: 0, gap: spacing.xs },
+    priority: { alignItems: 'center', gap: spacing.xs, borderLeftWidth: borderWidth.thin, borderLeftColor: colors.borderLight, paddingLeft: spacing.xl },
+    schedule: { gap: spacing.xs },
+    section: { overflow: 'hidden' },
     claim: { borderBottomWidth: borderWidth.thin, borderBottomColor: colors.separator },
-    pendingHeading: { borderTopWidth: borderWidth.thin, borderTopColor: colors.separator, paddingTop: spacing.md },
-    action: { minHeight: controlSize.minTouch, minWidth: controlSize.minTouch, justifyContent: 'center', alignSelf: 'flex-start' },
-    link: { ...textStyles.body, color: colors.primaryDark },
+    editAction: { marginHorizontal: spacing.lg, marginBottom: spacing.lg },
+    empty: { ...textStyles.meta, padding: spacing.lg },
     error: { ...textStyles.body, color: colors.dangerDark },
 })

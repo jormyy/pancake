@@ -389,6 +389,19 @@ it('saves a changed team name once', async () => {
     expect(mocks.refresh).toHaveBeenCalledOnce()
 })
 
+it('finishes the profile write before starting the team write', async () => {
+    let finish!: () => void
+    mocks.updateProfile.mockReturnValueOnce(new Promise<void>(resolve => { finish = resolve }))
+    await act(async () => { input('Display name').props.onChangeText('New Manager'); input('Team name').props.onChangeText('New Team') })
+    let pending!: Promise<void>
+    await act(async () => { pending = button('Save').props.onPress() })
+    const overlapping = mocks.updateTeamName.mock.calls.length
+    await act(async () => { finish(); await pending })
+    expect(overlapping).toBe(0)
+    expect(mocks.updateTeamName).toHaveBeenCalledExactlyOnceWith('member', 'New Team')
+    expect(mocks.success).toHaveBeenCalledOnce()
+})
+
 
 it('limits team names to the server maximum while editing', () => {
     expect(input('Team name').props.maxLength).toBe(40)

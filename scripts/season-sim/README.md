@@ -4,8 +4,8 @@ This harness drives local production gates, Edge handlers, and authenticated man
 Generated reports distinguish completed checks from missing coverage.
 A diagnostic run cannot establish full acceptance.
 
-The [simulator contract](../../docs/season-simulator.md) defines source classes, replay modes, and acceptance.
-The [bounded acceptance guide](../../docs/bounded-replay-acceptance.md) limits claims from resumed runs.
+The [simulator contract](../../docs/verification.md#historical-replay-acceptance) defines source classes, replay modes, and acceptance.
+The [bounded acceptance guide](../../docs/verification.md#historical-replay-acceptance) limits claims from resumed runs.
 
 ## Configuration
 

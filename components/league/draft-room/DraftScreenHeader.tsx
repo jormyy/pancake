@@ -10,5 +10,5 @@ export function DraftScreenHeader({
     onBack: () => void
     children?: ReactNode
 }) {
-    return <PageHeader title={title} onBack={onBack} backLabel="Back to league drafts" actions={children} />
+    return <PageHeader title={title} showTitle onBack={onBack} backLabel="Back to league drafts" actions={children} />
 }

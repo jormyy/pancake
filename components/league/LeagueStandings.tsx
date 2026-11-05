@@ -10,6 +10,7 @@ import { ItemSeparator } from '@/components/ItemSeparator'
 import { EmptyState } from '@/components/EmptyState'
 import { tableStyles } from '@/components/league/leagueTableStyles'
 import { usePageMetrics } from '@/components/ui'
+import { Card } from '@/components/ui/Card'
 import type { LeagueStatus } from '@/types/database'
 
 type StandingsSortKey = 'wins' | 'pf' | 'maxPf' | 'pa'
@@ -379,19 +380,19 @@ export function StandingsTable({
     )
 
     return (
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
-            <View style={styles.tableColumn}>
+        <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, { paddingHorizontal: padX }]}>
+            <Card padding="none" elevated="none" style={styles.tableColumn}>
                 {header}
                 {tableBody}
-            </View>
+            </Card>
         </ScrollView>
     )
 }
 
 const styles = StyleSheet.create({
     scroll: { flex: 1 },
-    content: { paddingBottom: spacing['3xl'] },
-    tableColumn: { width: '100%', maxWidth: layout.formMaxWidth + 2 * layout.pagePadX.regular, alignSelf: 'center' },
+    content: { paddingTop: spacing.md, paddingBottom: spacing['3xl'] },
+    tableColumn: { width: '100%', maxWidth: layout.formMaxWidth + 2 * layout.pagePadX.regular, alignSelf: 'center', overflow: 'hidden' },
     header: { gap: spacing.sm },
     headerCell: { minHeight: controlSize.minTouch, justifyContent: 'center' },
     headerCellNumeric: { alignItems: 'flex-end' },

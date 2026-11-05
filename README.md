@@ -81,7 +81,7 @@ The [release gates](docs/verification.md#release-gates) and [artifact contract](
 
 ## Documentation
 
-Read the [changelog](docs/changelog.md) and [release notes](docs/release-2.15.md).
+Read the [release notes](docs/release-2.15.md).
 Start with the [documentation index](docs/README.md).
 Use the [browser guide](tests/e2e/README.md) for local UI checks.
 

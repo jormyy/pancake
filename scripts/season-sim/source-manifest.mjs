@@ -14,7 +14,7 @@ export async function harnessManifest(root = process.cwd()) {
     }
   }
   await visit('scripts/season-sim')
-  files.push('docs/season-simulator.md')
+  files.push('docs/verification.md')
   const rows = await Promise.all(files.sort().map(async file => ({ file, sha256: sha256(await readFile(path.join(root, file))) })))
   return { sha256: sha256(JSON.stringify(rows)), files: rows }
 }

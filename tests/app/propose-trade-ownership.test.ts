@@ -220,7 +220,7 @@ beforeEach(() => {
 })
 
 describe('propose trade async ownership', () => {
-    it.each([['two', 'P0001'], ['multi', 'P0001'], ['two', 'PT001'], ['multi', 'PT001']])('recovers %s-team proposal after a definite %s rejection', async (form, code) => {
+    it.each([['two', 'P0001'], ['multi', 'P0001'], ['two', 'PT001'], ['multi', 'PT001'], ['two', 'PA010'], ['multi', 'PA010']])('recovers %s-team proposal after a definite %s rejection', async (form, code) => {
         const send = form === 'multi' ? mocks.submitMultiTeamTradeComposer : mocks.submitTradeComposer
         if (form === 'multi') {
             mocks.participantIds = ['member-a', 'member-b', 'member-c']

@@ -53,7 +53,7 @@ export async function verifyScheduleRoutes() {
         UPDATE season_weeks SET week_start=(now() AT TIME ZONE 'America/New_York')::date+14 WHERE season_year=${year} AND week_number=1;`)
       const ids = () => sql(`SELECT jsonb_agg(id ORDER BY id) FROM matchups WHERE league_season_id=${quote(season)}`)
       const call = (force: boolean) => handleApiRoute(new Request(`${api}/functions/v1/api${path}`, {
-        method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json', 'x-e2e-secret': Deno.env.get('E2E_ADMIN_SECRET')! },
+        method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json', 'x-request-id': crypto.randomUUID(), 'x-e2e-secret': Deno.env.get('E2E_ADMIN_SECRET')! },
         body: JSON.stringify({ leagueId: league, force }),
       }))
       for (const force of [false, true]) {

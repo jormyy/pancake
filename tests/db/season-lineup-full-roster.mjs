@@ -28,7 +28,7 @@ COMMIT;`)
   setup = true
   const started = performance.now()
   const response = await fetch(`${api}/functions/v1/lineup-optimizer`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json', 'x-internal-function-token': 'review-local-only' },
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'x-internal-function-token': process.env.PANCAKE_EDGE_INTERNAL_TOKEN },
     body: JSON.stringify({ mode: 'rest_of_season', leagueId: league, leagueSeasonId: season, memberId: member }),
     signal: AbortSignal.timeout(30_000),
   })

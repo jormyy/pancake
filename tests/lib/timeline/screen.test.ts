@@ -2,7 +2,6 @@ import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { TeamTimelineScreen } from '@/components/timeline/TeamTimelineScreen'
-import { TimelineEntry } from '@/components/timeline/TimelineEntry'
 import { timelineMatches, timelineRelativeTime, type TimelineEvent } from '@/lib/timeline'
 
 vi.mock('react-native', () => ({
@@ -45,14 +44,6 @@ describe('timeline screen', () => {
         await act(async () => { button.props.onPress() })
         expect(content(renderer)).toContain('Bid tied; the other team has priority.')
         expect(content(renderer)).not.toContain('Trade executed')
-        await act(async () => { renderer.unmount() })
-    })
-    it('opens the exact claim or trade history from the entry button', async () => {
-        const onOpen = vi.fn()
-        let renderer!: ReactTestRenderer
-        await act(async () => { renderer = create(React.createElement(TimelineEntry, { memberId: 'a', entityId: 'claim', filter: 'claims', onOpen })) })
-        await act(async () => { renderer.root.findByType('Pressable' as React.ElementType).props.onPress() })
-        expect(onOpen).toHaveBeenCalledWith({ memberId: 'a', entityId: 'claim', filter: 'claims' })
         await act(async () => { renderer.unmount() })
     })
     it('retains paging access when the first page has no matching category', async () => {

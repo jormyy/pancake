@@ -73,5 +73,5 @@ The [replay lab](../scripts/bench/game-night/README.md) rejects no-op runs and b
 Daily statistics inspect freshness before ANALYZE and skip fresh tables.
 The independent statistics connection does not extend the dispatch transaction.
 Bounded hourly history cleanup preserves current work and required failures.
-See [scheduler operations](operations-scheduler.md) and [capacity](db-capacity.md).
+See [scheduler operations](operations-scheduler.md) and [capacity](operations-scheduler.md#capacity).
 Diagnostics, logs, and generated rankings belong outside the repository.

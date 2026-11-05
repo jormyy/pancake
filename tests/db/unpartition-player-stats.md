@@ -126,7 +126,7 @@ All canonical paths start at `supabase/sql/functions/by-name/`.
 The migration files are `20261213000100_screen_view_costs.sql` and `20261213000200_unpartition_player_game_stats.sql`.
 
 This round adds `tests/db/unpartition-player-stats.mjs`, `unpartition-catalog.sql`, `unpartition-preservation.sql`, this recipe, and the generated result files.
-It updates `screen-view-costs.mjs`, `screen-view-costs.md`, `excellence-stats-partitions.sql`, `forecast-inputs-bound-regression.sql`, `partition-identity-isolation.sql`, and `trade-revaluation-pressure.py`.
+It updates `screen-view-costs.mjs`, `excellence-stats-partitions.sql`, `forecast-inputs-bound-regression.sql`, `partition-identity-isolation.sql`, and `trade-revaluation-pressure.py`.
 It repairs `excellence-fixture.sql`, `refresh-player-averages.sql`, and `retention-pruning.sql`.
 The generators update `supabase/sql/function-catalog.json`, `tests/e2e/release-history-attestations.json`, and `tests/e2e/db-security-catalog-attestations.json`.
 The rollout and data-flow notes change in `supabase/RELEASE-DB.md` and `docs/data-flow.md`.

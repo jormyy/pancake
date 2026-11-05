@@ -10,6 +10,7 @@ vi.mock('react-native', () => ({ View: 'View', Text: 'Text', Platform: { OS: 'we
 vi.mock('@/hooks/use-league-screen-state', () => ({ useLeagueScreenState: () => ({ current: { id: 'member' }, tab: 'history', isTabLoaded: true, isTabRefreshing: true, transactions: [], retryCurrentTab: refresh }) }))
 vi.mock('@/components/ui', () => ({ Page: 'Page', PageHeader: 'PageHeader', SegmentedControl: 'SegmentedControl', ErrorBanner: 'ErrorBanner' }))
 vi.mock('@/components/league/LeagueActivityFeed', () => ({ ActivityFeed: 'ActivityFeed' }))
+vi.mock('@/components/league/LeagueHistory', () => ({ LeagueHistory: 'LeagueHistory' }))
 vi.mock('@/components/league/LeagueStandings', () => ({ StandingsTable: 'StandingsTable' }))
 vi.mock('@/components/league/LeagueSchedule', () => ({ LeagueSchedule: 'LeagueSchedule' }))
 vi.mock('@/components/league/DraftSetupPanels', () => ({ DraftPanel: 'DraftPanel' }))

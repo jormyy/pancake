@@ -2,6 +2,10 @@
 
 Use these recipes to verify changes on isolated local fixtures and prepare release evidence. Each check states its setup and acceptance limits.
 
+Use [verify-pancake](../.claude/skills/verify-pancake/SKILL.md) for local PWA journeys and evidence.
+Start with `npm run verify:launch`; pass its evidence directory to `npm run verify:doctor --` and `npm run verify:cleanup --`.
+Use `npm run perf:app` for the [app performance harness](../tools/perf/README.md).
+
 ## Local stack
 
 Use an isolated checkout, project ID, and port block for database or browser fixtures.
@@ -146,7 +150,7 @@ Estimate checks cover frozen inputs, expiry, mismatched terms, retries, and auth
 Forecast checks cover invalidation, claims, stale publication, membership, and scoring overlap.
 The concurrency check includes a deliberately corrupted cache revision.
 See [trade estimates](trade-estimates.md), [matchup forecasts](matchup-forecasts.md), and [roster lifecycle](roster-lifecycle.md) for their contracts.
-Use the [simulator guide](season-simulator.md#fresh-replay-launch) for late-start historical acceptance and its unmeasured windows.
+Use the [simulator guide](verification.md#historical-replay-acceptance) for late-start historical acceptance and its unmeasured windows.
 
 ## Forecast history budgets
 
@@ -183,12 +187,11 @@ Rollback jobs retain the upgraded additive schema.
 Vercel also enables frontend deployments from main in `vercel.json`.
 Those deployments do not replace coordinated database and Edge release gates.
 
-The [migration history](production-migration-history.md), [catalog contract](database-readiness-catalog.md), and [artifact contract](release-build-provenance.md) own those checks.
+The [migration history](production-migration-history.md), [catalog contract](release-build-provenance.md#migration-attestations), and [artifact contract](release-build-provenance.md) own those checks.
 A source check or catalog pass alone does not authorize a release.
 The attestation files define the historical anchor, recorded production phase, and approved candidate range.
-The checked-in candidate range ends at `20261116000500`, with 608 migrations.
-Recheck it against the reviewed source before deployment.
-The [migration history](production-migration-history.md#candidate-migrations) explains these boundaries.
+Read the candidate head and count from the attestation files before deployment.
+The [migration history](production-migration-history.md#current-candidate) explains these boundaries.
 The ordered [database release steps](../supabase/RELEASE-DB.md) name the unpublished migrations and rollback checks.
 Release approval does not bypass an attestation failure.
 
@@ -254,7 +257,7 @@ npx vitest run tests/components/player/player-detail.test.ts tests/app/player-br
 
 These checks cover roster controls, season selection, compact statistics, projection labels, recent games, and collapsed league history.
 Use the [browser setup](../tests/e2e/README.md#supported-web-clients) for supported-client layout and interaction checks.
-[PWA behavior](pwa-live-data.md#player-detail) owns the screen contract.
+[PWA behavior](architecture.md#loading-and-offline-actions) owns the screen contract.
 
 ## Dependency security
 
@@ -290,58 +293,6 @@ Its report tool reads saved counters from those runs.
 Their old function names do not describe current-schema dependencies.
 The compatibility check verifies this boundary and continues checking current capacity profiling.
 
-## Third Home review
-
-Use the October 28 backup on a private migrated stack.
-Restore public data and the private ESPN listings and NBA game memberships.
-Keep cron jobs disabled while that data is present.
-
-```sh
-node tests/db/home-review-round3.mjs
-psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-roster-exact-identity.sql
-node tests/e2e/ux-round3.mjs --env=../evidence592/local-stack.env --url=http://127.0.0.1:59290 --output=../webkit592
-```
-
-Set `PANCAKE_TEST_DB_PORT` to the private database port before the SQL recipe.
-The browser recipe requires the private 592xx stack and a local release export.
-It checks Home, Bracket, the roster sheet, Players, and Waivers on iPhone 14 WebKit.
-The Home SQL recipe freezes view clocks at 9:21 PM Pacific inside a rolled-back transaction.
-The identity recipe rejects conflicting names and checks team changes and historical memberships.
-
-## Release 2.4 scope
-
-Its final app run records 3,960 passes, zero failures, and 38 skips.
-It also records 608 unique migrations and fresh-versus-upgrade artifact equality.
-A new documentation run does not repeat its database or browser measurements.
-
-The current release includes one-request screen views and versioned cache invalidation.
-It includes persistent request replay, worker pause and budgets, daily retention, and performance beacons.
-It also includes locked lineup history, linear rookie order, exact player identity, and deferred trade estimates.
-Use the focused recipes below before changing those behaviors:
-
-| Behavior | Local evidence |
-| --- | --- |
-| Cold view and cached return | `tests/screen-request-counts.test.ts` |
-| History lock and team timeline | `tests/db/historical-lineup-lock.sql`, `tests/db/timeline-lifecycle.sql` |
-| Linear order and PPG ties | `tests/db/linear-draft-order.sql` |
-| Legal trade acceptance | `tests/db/release2-trade-accept-capacity.sql`, `tests/db/trade-legality-drops.sql` |
-| Worker budgets and pause | `tests/db/dispatcher-contention.mjs`, `tests/db/io-write-reductions.sql` |
-| Exact source identity | `tests/db/player-roster-exact-identity.sql` |
-| Deferred trade work | `tests/db/trade-estimate-work.sql`, `tests/db/trade-publication.sql` |
-
-Database recipes require a disposable migrated local stack.
-A source-only pass does not establish a fresh database, browser, or production result.
-
-## Documentation review on 2026-10-28
-
-The local review compares `eb2b2168` with main at `6ad9b65e` and release 1 at `1e62824e`.
-Only documentation changes.
-The focused release, surface, and attestation tests pass all 741 tests.
-The surface checker reports 26 surfaces, five backgrounds, 20 data classes, and 22 functions.
-The attestation checker covers 608 migrations through `20261116000500`.
-The full Vitest run passes 3,960 tests with zero failures and 38 skips.
-No production endpoint is contacted.
-Database and browser evidence remains the earlier integration record.
 
 ## Database recipe triage
 
@@ -378,3 +329,30 @@ Each currently exits 3.
 The former broader API and ingestion chain remains available as `npm run test:db:integration`.
 This triage does not run that full integration chain.
 The private stack stops after verification.
+
+## Installed iPhone checks
+
+Use `scripts/ios-sim/run.mjs` and its scenario catalog for repeatable simulator captures.
+Run `node scripts/ios-sim/run.mjs --help` for current options.
+Use an isolated local stack and a separate browser or simulator.
+Verify Home Screen launch, keyboard placement, status bars, scroll restoration, and background return on a real iPhone before release.
+Browser emulation alone does not establish those behaviors.
+
+## Historical replay acceptance
+
+Use [the season simulator](../scripts/season-sim/README.md) for collection, replay, and cleanup.
+A resumed replay proves only its measured dates and actions.
+A fresh late start records earlier windows as unmeasured and keeps `fullAcceptance` false.
+Preserve source receipts, original failures, recovery evidence, and first and last measured dates outside Git.
+Verify scores against an independent oracle, ownership and pick history, rollover, and the declared cutoff.
+Keep missing source data separate from arithmetic failures.
+Outbox rows do not prove push delivery or device display.
+Negative controls must fail the same assertions used for acceptance.
+
+## Performance evidence
+
+Use [the game-night replay](../scripts/bench/game-night/README.md) for database memory pressure.
+Use `npm run perf:lab` for browser traffic and screen timings.
+Keep generated reports outside tracked docs and tests.
+Record source, fixture, runtime settings, elapsed time, and the exact measured interval.
+A report from another source version does not certify the candidate.

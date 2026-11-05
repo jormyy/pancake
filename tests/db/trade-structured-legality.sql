@@ -4,7 +4,7 @@ CREATE FUNCTION pg_temp.fail_trade_transfer()
 RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
   IF OLD.member_id<>NEW.member_id AND OLD.player_id::text=current_setting('pancake.test_fail_transfer_player',true) THEN
-    RAISE EXCEPTION 'Trade execution rollback control.' USING ERRCODE='PT002';
+    RAISE EXCEPTION 'Trade execution rollback control.' USING ERRCODE='PA011';
   END IF;
   RETURN NEW;
 END;

@@ -66,7 +66,7 @@ export async function getCurrentSeasonId(leagueId: string): Promise<string | nul
     return season?.id ?? null
 }
 
-export function getLatestSeasonId(leagueId: string): Promise<string | null> {
+function getLatestSeasonId(leagueId: string): Promise<string | null> {
     return cached(latestSeasonCache, leagueId, async () => {
         const { data, error } = await supabase
             .from('league_seasons')

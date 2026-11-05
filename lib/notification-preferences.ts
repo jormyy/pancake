@@ -1,4 +1,4 @@
-import { notificationEvents, notificationCategories, notificationEnabled, normalizeNotificationPreferences, type NotificationCategory, type NotificationEvent } from '@/supabase/functions/_shared/notificationsPreferences'
+import { notificationEvents, notificationCategories, notificationEnabled, type NotificationCategory, type NotificationEvent } from '@/supabase/functions/_shared/notificationsPreferences'
 import { withPwaMutation } from '@/lib/shared/pwa-mutation'
 import { supabase } from '@/lib/supabase'
 
@@ -34,26 +34,6 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
     masterEnabled: true,
     categories: {},
     events: {},
-}
-
-export async function getNotificationPreferences(userId: string): Promise<NotificationPreferences> {
-    const { data, error } = await supabase
-        .from('notification_preferences')
-        .select('*')
-        .eq('user_id', userId)
-        .maybeSingle()
-    if (error) throw error
-    if (!data) return DEFAULT_NOTIFICATION_PREFERENCES
-    const row = normalizeNotificationPreferences(data)
-    return {
-        tradeEnabled: row.trade_enabled,
-        waiverEnabled: row.waiver_enabled,
-        draftEnabled: row.draft_enabled,
-        activityEnabled: row.activity_enabled,
-        masterEnabled: row.master_enabled ?? true,
-        categories: row.category_settings ?? {},
-        events: row.event_settings ?? {},
-    }
 }
 
 export async function updateNotificationPreferences(

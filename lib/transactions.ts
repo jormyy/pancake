@@ -1,5 +1,3 @@
-import { supabase } from '@/lib/supabase'
-import { getPlayerRowMetadata, getEligiblePositions } from '@/lib/players'
 import type { TradePickItem } from '@/lib/trades'
 
 export { TRANSACTION_LABELS, activityEventCategory } from '@/lib/shared/transaction-labels'
@@ -25,72 +23,4 @@ export type TransactionRow = {
     title?: string
     body?: string | null
     tradePicks?: (TradePickItem & { fromTeamName: string; toTeamName: string })[]
-}
-
-type ActivityTradePick = NonNullable<TransactionRow['tradePicks']>[number]
-
-function isActivityTradePick(value: unknown): value is ActivityTradePick {
-    if (!value || typeof value !== 'object') return false
-    const pick = value as Partial<ActivityTradePick>
-    return pick.kind === 'pick' && typeof pick.pickId === 'string'
-        && typeof pick.seasonYear === 'number' && typeof pick.round === 'number'
-        && typeof pick.originalTeamName === 'string' && typeof pick.fromMemberId === 'string'
-        && typeof pick.toMemberId === 'string' && typeof pick.fromTeamName === 'string'
-        && typeof pick.toTeamName === 'string'
-}
-
-export async function getLeagueTransactions(
-    leagueId: string,
-    limit = 50,
-    offset = 0,
-): Promise<TransactionRow[]> {
-    type FeedRow = {
-        id: string
-        member_id: string | null
-        target_member_id: string | null
-        team_name: string | null
-        target_team_name: string | null
-        player_id: string | null
-        player_name: string | null
-        player_position: string | null
-        eligible_positions: string[] | null
-        nba_id: string | null
-        transaction_type: string
-        occurred_at: string
-        is_system: boolean
-        title: string | null
-        body: string | null
-        trade_picks?: unknown
-    }
-
-    const { data, error } = await supabase.rpc('get_league_activity_feed', {
-        p_league_id: leagueId,
-        p_limit: limit,
-        p_offset: offset,
-    })
-    if (error) throw error
-
-    const metadata = await getPlayerRowMetadata((data ?? []).flatMap(row => row.player_id ? [row.player_id] : []))
-    return ((data ?? []) as FeedRow[]).map((row) => ({
-        id: row.id,
-        memberId: row.member_id,
-        targetMemberId: row.target_member_id,
-        teamName: row.team_name ?? (row.is_system ? 'League' : 'Unknown'),
-        targetTeamName: row.target_team_name,
-        playerId: row.player_id,
-        playerName: row.player_name ?? row.title ?? 'Unknown',
-        position: row.player_position ?? null,
-        eligiblePositions: getEligiblePositions(row),
-        nbaId: row.nba_id ?? null,
-        nbaTeam: row.player_id ? metadata.get(row.player_id)?.nba_team : null,
-        injuryStatus: row.player_id ? metadata.get(row.player_id)?.injury_status : null,
-        yearsExp: row.player_id ? metadata.get(row.player_id)?.years_exp : null,
-        careerGames: row.player_id ? metadata.get(row.player_id)?.career_regular_season_games : null,
-        transactionType: row.transaction_type,
-        occurredAt: row.occurred_at,
-        isSystem: row.is_system,
-        title: row.title ?? undefined,
-        body: row.body ?? null,
-        tradePicks: Array.isArray(row.trade_picks) ? row.trade_picks.filter(isActivityTradePick) : [],
-    }))
 }

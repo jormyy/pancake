@@ -26,7 +26,7 @@ RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
     WHERE m.league_id = p_league_id AND m.league_season_id = (context.value->>'seasonId')::uuid
       AND NOT m.is_voided AND p_member_id IN (m.home_member_id, m.away_member_id)
   ), weeks AS (
-    SELECT DISTINCT ON (week.week_number) week.week_number, member.team_name,
+    SELECT DISTINCT ON (week.week_number) week.week_number, matchup.id AS matchup_id, member.team_name,
       (settings.value->>'today')::date BETWEEN week.week_start AND week.week_end AS is_current,
       CASE WHEN settings.skipped_weeks @> jsonb_build_array(week.week_number) THEN 'skipped'
         WHEN matchup.is_finalized THEN
@@ -54,7 +54,7 @@ RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
       'leagueId', value->'leagueId', 'memberId', value->'memberId', 'seasonId', value->'seasonId',
       'seasonYear', value->'seasonYear', 'weekNumber', value->'weekNumber', 'today', value->'today',
       'pendingIncomingCount', value->'pendingIncomingCount', 'version', (SELECT version::text FROM public.league_versions WHERE league_id = p_league_id), 'stale', false, 'league', jsonb_build_object('timezone', value->'league'->'timezone')),
-    'schedule', COALESCE((SELECT jsonb_agg(jsonb_build_object('weekNumber', week_number,
+    'schedule', COALESCE((SELECT jsonb_agg(jsonb_build_object('weekNumber', week_number, 'matchupId', matchup_id,
       'opponentTeamName', team_name, 'isCurrent', is_current, 'status', status,
       'myPoints', my_points, 'opponentPoints', opponent_points) ORDER BY week_number) FROM weeks), '[]'::jsonb))
   FROM context;

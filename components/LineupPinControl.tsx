@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native'
 import { MotionPressable } from '@/components/Motion'
-import { colors, controlSize, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { colors, componentTokens, controlSize, radii, spacing } from '@/constants/tokens'
 import type { LineupPin } from '@/lib/lineup/pins'
 
 const choices = [{ label: 'Start', pin: 'start' }, { label: 'Auto', pin: null }, { label: 'Bench', pin: 'bench' }] as const
@@ -15,6 +15,7 @@ export function LineupPinControl({ name, pin, disabled, onChange }: {
         {choices.map(choice => <MotionPressable key={choice.label}
             style={[styles.segment, choice.pin === pin && styles.selected]}
             disabled={disabled} accessibilityRole="radio"
+            aria-checked={choice.pin === pin}
             accessibilityLabel={choice.pin ? `Pin ${name} to ${choice.pin}` : `Set ${name} to Auto`}
             accessibilityState={{ checked: choice.pin === pin, disabled }}
             onPress={event => { event.stopPropagation(); if (!disabled && choice.pin !== pin) onChange(choice.pin) }}>
@@ -24,9 +25,9 @@ export function LineupPinControl({ name, pin, disabled, onChange }: {
 }
 
 const styles = StyleSheet.create({
-    control: { flexDirection: 'row', alignSelf: 'flex-end', marginHorizontal: spacing.lg, marginBottom: spacing.sm, borderWidth: 1, borderColor: colors.borderLight, borderRadius: radii.md, overflow: 'hidden', maxWidth: '100%' },
-    segment: { minHeight: controlSize.minTouch, minWidth: 60, paddingHorizontal: spacing.sm, justifyContent: 'center', alignItems: 'center' },
-    selected: { backgroundColor: colors.primaryLight },
-    label: { fontSize: fontSize.xs, fontWeight: fontWeight.medium, color: colors.textMuted },
-    selectedLabel: { color: colors.primaryDark, fontWeight: fontWeight.bold },
+    control: { flexDirection: 'row', alignSelf: 'stretch', marginHorizontal: spacing.lg, marginBottom: spacing.sm, padding: spacing.xxs, gap: spacing.xxs, backgroundColor: colors.bgSubtle, borderRadius: radii.md, maxWidth: '100%' },
+    segment: { flex: 1, minWidth: controlSize.minTouch, minHeight: controlSize.minTouch, borderRadius: radii.sm, paddingHorizontal: spacing.sm, justifyContent: 'center', alignItems: 'center' },
+    selected: { backgroundColor: colors.bgCard },
+    label: { ...componentTokens.segmentedControl.pillLabel, color: colors.textMuted },
+    selectedLabel: { color: colors.primaryDark },
 })

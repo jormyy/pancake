@@ -5,10 +5,10 @@ const expoConfig = require('eslint-config-expo/flat')
 module.exports = defineConfig([
     expoConfig,
     {
-        ignores: ['dist/*', 'core/cjs/**'],
+        ignores: ['dist/*', 'core/cjs/**', 'tools/perf/.cache/**', 'tools/verify/evidence/**'],
     },
     {
-        files: ['scripts/**/*.js', 'scripts/**/*.mjs', 'tests/**/*.js', 'tests/**/*.mjs'],
+        files: ['scripts/**/*.js', 'scripts/**/*.mjs', 'tests/**/*.js', 'tests/**/*.mjs', 'tools/**/*.mjs'],
         languageOptions: {
             globals: {
                 Buffer: 'readonly',

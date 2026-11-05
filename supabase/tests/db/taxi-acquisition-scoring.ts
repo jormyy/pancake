@@ -33,6 +33,7 @@ try{
   playerIds=JSON.parse(await sql("SELECT jsonb_agg(p.id) FROM players p JOIN taxi_acceptance_ids f ON f.id=p.id"))
   gameIds=JSON.parse(await sql("SELECT jsonb_agg(g.id) FROM nba_games g JOIN players p ON p.nba_team=g.home_team WHERE p.id=pg_temp.taxi_id('snake-started')"))
   await sql(`DO $$ DECLARE d uuid; n public.nominations%ROWTYPE; t uuid; BEGIN
+    PERFORM set_config('request.jwt.claim.sub',pg_temp.taxi_id('user-a')::text,true);
     d:=(public.start_rookie_draft_atomic(pg_temp.taxi_id('snake-league'),2,false,3600,'auto_pick')->>'id')::uuid;
     PERFORM public.make_snake_pick_atomic(d,pg_temp.taxi_id('snake-a'),pg_temp.taxi_id('snake-first'),true);
     PERFORM public.make_snake_pick_atomic(d,pg_temp.taxi_id('snake-a'),pg_temp.taxi_id('snake-capacity'),false);
@@ -41,10 +42,12 @@ try{
     PERFORM public.place_auction_bid_atomic(d,pg_temp.taxi_id('auction-b'),n.id,5,pg_temp.taxi_id('user-b'),true);
     UPDATE nominations SET countdown_expires_at=now()-interval '1 second' WHERE id=n.id;
     PERFORM public.close_auction_nomination_atomic(n.id);
+    PERFORM set_config('request.jwt.claim.sub','',true);
     t:=public.propose_trade_atomic(pg_temp.taxi_id('life-league'),pg_temp.taxi_id('life-season'),pg_temp.taxi_id('life-a'),pg_temp.taxi_id('life-b'),ARRAY[pg_temp.taxi_id('life-trade-in')],ARRAY[pg_temp.taxi_id('life-return')],ARRAY[]::uuid[],ARRAY[]::uuid[]);
     PERFORM public.set_trade_taxi_destinations_atomic(t,pg_temp.taxi_id('life-a'),ARRAY[pg_temp.taxi_id('life-return')],pg_temp.taxi_id('user-a'));
     PERFORM public.set_trade_taxi_destinations_atomic(t,pg_temp.taxi_id('life-b'),ARRAY[pg_temp.taxi_id('life-trade-in')],pg_temp.taxi_id('user-b'));
     PERFORM public.accept_trade_atomic(t,pg_temp.taxi_id('life-b'));
+    PERFORM public.complete_accepted_trade_atomic(t);
   END $$`)
   for(const leagueId of leagueIds){await sql(`DELETE FROM lineup_slot_templates WHERE league_id=${literal(leagueId)}; INSERT INTO lineup_slot_templates(league_id,slot_type,slot_count) VALUES(${literal(leagueId)},'PG',1)`)}
   const gameId=crypto.randomUUID();gameIds.push(gameId)

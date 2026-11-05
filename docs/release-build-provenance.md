@@ -174,3 +174,32 @@ Release 2.4 targets database head `20261116000500`, with 608 migrations.
 `e3aed52c354f3bdcbb256f055d89eb2c4d95670b791395e0c2197edae3d7d32d`.
 The pin records release evidence; reading it requires no production request.
 Use `PANCAKE_PREVIOUS_RELEASE_ROOT` for a verified local predecessor.
+
+## Migration attestations
+
+`tests/e2e/release-history-attestations.json` owns approved migration versions and fingerprints.
+`tests/e2e/db-security-catalog-attestations.json` owns the recorded pre-migration and candidate catalog phases.
+The historical audit anchor stays fixed as the production phase advances.
+The post-migration count equals the baseline count plus approved migrations.
+The pending count subtracts `preMigration.count` from that total.
+Catalog checks cover signatures, bodies, owners, search paths, grants, triggers, policies, and indexes.
+They complement behavioral checks.
+
+Refresh only from an isolated local stack with every repository migration applied.
+Reset that stack after changing an applied migration.
+Compare an ordered upgrade with a fresh installation before accepting new pins.
+Do not regenerate pins from an unexplained live difference.
+The refresh preserves historical aliases and the recorded pre-migration catalog.
+Advance that catalog only with evidence captured at the exact deployed version.
+
+```sh
+node scripts/regenerate-release-history-attestations.mjs
+node scripts/regenerate-release-history-attestations.mjs --check
+npm run security:db-catalog -- --local --phase=post-migration
+```
+
+Set `SUPABASE_DB_URL` and `PANCAKE_TEST_DB_PORT` to the same isolated stack.
+The refresh refuses remote addresses and requires exact applied migration bytes.
+Linked release checks require the configured project and attested project to match.
+A catalog pass does not waive compatibility, artifact, source-health, or release-soak checks.
+See [migration history](production-migration-history.md) for alias and convergence rules.

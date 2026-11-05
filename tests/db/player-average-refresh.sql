@@ -20,6 +20,7 @@ BEGIN
     WHERE league_season_id=f.season_id AND player_id=player),'the refresh stores the source average');
   INSERT INTO public.player_season_averages(league_id,league_season_id,season_year,player_id,averages,avg_fantasy_points,version)
     VALUES(f.league_id,f.season_id,9877,stale_player,'{}',0,version);
+  INSERT INTO private.screen_average_dirty(league_season_id,player_id) VALUES(f.season_id,stale_player) ON CONFLICT DO NOTHING;
   PERFORM private.refresh_player_averages(f.league_id,f.season_id,version);
   PERFORM pg_temp.check_rules(NOT EXISTS(SELECT FROM public.player_season_averages
     WHERE league_season_id=f.season_id AND player_id=stale_player),'the same source removes stale cached players');

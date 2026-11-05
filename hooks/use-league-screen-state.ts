@@ -81,6 +81,7 @@ export function useLeagueScreenState() {
         mockRooms: tabResources.mockRooms,
         nominationMode: draft.nominationMode,
         openBracket: () => push('/(modals)/bracket'),
+        openMatchup: (matchupId: string) => push({ pathname: '/(modals)/matchup', params: { matchupId } }),
         openCommissionerSettings: () => push('/(modals)/commissioner-settings'),
         openDraftRoom: draft.openDraftRoom,
         openTeamRoster: (memberId: string, teamName: string) =>
@@ -110,6 +111,7 @@ export function useLeagueScreenState() {
         setRoomScheduledAt: mockRooms.setRoomScheduledAt,
         shareInviteCode,
         schedule: tabResources.schedule,
+        seasons: tabResources.seasons,
         standings: tabResources.standings,
         tab,
         tabErr: tabResources.tabError,

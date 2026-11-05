@@ -65,7 +65,7 @@ Pass later JSONL files after the evidence path to include later verdicts.
 The report verifies catalog coverage, row schemas, source locations, and restoration evidence.
 It writes `results.jsonl`, `scores.md`, and `survivors.md` outside the repository.
 Compile failures do not count as mutation kills.
-The [simulator](../../../docs/season-simulator.md) owns full-season and restored-segment checks.
+The [simulator](../../../docs/verification.md#historical-replay-acceptance) owns full-season and restored-segment checks.
 
 ## Regression areas
 

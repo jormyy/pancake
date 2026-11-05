@@ -13,7 +13,7 @@ export function ModalScreen({
     title,
     onBack,
     backLabel = 'Back',
-    showTitle = false,
+    showTitle = true,
     divider = true,
     actions,
     children,

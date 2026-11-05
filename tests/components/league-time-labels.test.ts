@@ -3,7 +3,6 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, expect, it, vi } from 'vitest'
 import { NextProjectionCard } from '@/components/player/NextProjectionCard'
 import { TransactionHistory } from '@/components/player/TransactionHistory'
-import { HomeAnnouncementBanner } from '@/components/HomeAnnouncementBanner'
 import { TeamTimelineScreen } from '@/components/timeline/TeamTimelineScreen'
 import { tradeCardModel } from '@/components/trades/TradeCard'
 import { draftEventTime } from '@/lib/draft-display'
@@ -35,14 +34,13 @@ afterEach(async () => { if (screen) await act(async () => screen!.unmount()); sc
 it.each([
     ['America/Los_Angeles', 'Oct 27, 2026, 9:21 PM PT', '9:21 PM PT'],
     ['Asia/Tokyo', 'Oct 28, 2026, 1:21 PM GMT+9', '1:21 PM GMT+9'],
-])('renders game, history, announcement, timeline, trade and draft times in %s', async (timezone, dateTime, time) => {
+])('renders game, history, timeline, trade and draft times in %s', async (timezone, dateTime, time) => {
     fixture.timezone = timezone
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-10-28T03:00:00Z'))
     const projection = { next_game_date: '2026-10-27', next_game_time: fixture.instant, next_game_opponent: 'vs BOS', projection_fantasy_points: 12 } as LeagueProjectionRow
     expect(await render(React.createElement(NextProjectionCard, { projection }))).toContain(time)
     expect(await render(React.createElement(TransactionHistory, { playerId: 'player', leagueId: 'league', transactions: [{ id: 'event', transactionType: 'waiver_add', label: 'Claimed', teamName: 'Team', occurredAt: fixture.instant }] }))).toContain(dateTime)
-    expect(await render(React.createElement(HomeAnnouncementBanner, { announcements: [{ id: 'announcement', league_id: 'league', author_member_id: 'other', published_at: fixture.instant, body: 'Draft tonight' }], ownerId: 'owner', leagueId: 'league', padX: 16 }))).toContain(dateTime)
     expect(await render(React.createElement(TeamTimelineScreen, { leagueId: 'league', memberId: 'member', timezone }))).toContain(dateTime)
     for (const status of ['pending', 'accepted'] as const) {
         const model = tradeCardModel({ trade: trade({ status, expiresAt: fixture.instant, vetoWindowExpiresAt: fixture.instant }), myMemberId: 'member', tab: 'offers', timezone })

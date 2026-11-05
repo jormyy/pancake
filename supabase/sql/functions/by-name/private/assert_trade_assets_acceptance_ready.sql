@@ -19,7 +19,7 @@ BEGIN
       WHERE trade_id=p_trade_id AND faab_amount>0 GROUP BY from_member_id ORDER BY from_member_id
   LOOP
     IF private.available_faab_balance(p_league_id,p_league_season_id,v_faab.from_member_id,p_trade_id)<v_faab.amount THEN
-      RAISE EXCEPTION 'Trade participant no longer has enough FAAB for this trade.' USING ERRCODE='PT001';
+      RAISE EXCEPTION 'Trade participant no longer has enough FAAB for this trade.' USING ERRCODE='PA010';
     END IF;
   END LOOP;
   PERFORM private.validate_trade_rosters(p_trade_id, p_only_member_id);

@@ -1,6 +1,5 @@
 import type { LineupPin } from '@/lib/lineup/pins'
 import type { AssetLock } from '@/lib/locked-assets'
-import { assertReadActive } from '@/lib/shared/read-admission'
 import { assertMutationOnline, withPwaMutation } from '@/lib/shared/pwa-mutation'
 import { supabase } from '@/lib/supabase'
 import { getActiveSeasonId } from '@/lib/shared/season'
@@ -88,82 +87,6 @@ export async function toggleTaxi(rosterPlayerId: string, isOnTaxi: boolean): Pro
 
 export type RosterOccupancy = Pick<RosterPlayer, 'is_on_ir'>
 export type OwnedEntry = { teamName: string; memberId: string; isOnIR?: boolean; isOnTaxi?: boolean }
-type OwnedPlayerRow = {
-    player_id: string
-    member_id: string
-    is_on_ir: boolean
-    is_on_taxi: boolean
-    league_members: { team_name: string | null } | null
-}
-
-export async function getOwnedPlayerMapForSeason(leagueId: string, seasonId: string): Promise<Map<string, OwnedEntry>> {
-    const { data, error } = await supabase
-        .from('roster_players')
-        .select('player_id, member_id, is_on_ir, is_on_taxi, league_members(team_name)')
-        .eq('league_id', leagueId)
-        .eq('league_season_id', seasonId)
-
-    if (error) throw error
-    const map = new Map<string, OwnedEntry>()
-    for (const r of (data ?? []) as OwnedPlayerRow[]) {
-        map.set(r.player_id, {
-            teamName: r.league_members?.team_name ?? 'Team',
-            memberId: r.member_id,
-            isOnIR: r.is_on_ir,
-            isOnTaxi: r.is_on_taxi,
-        })
-    }
-    return map
-}
-
-export async function getPlayerRosterContext(
-    playerId: string,
-    memberId: string,
-    leagueId: string,
-    canRead?: () => boolean,
-): Promise<{ status: PlayerRosterStatus; roster: RosterOccupancy[] }> {
-    assertReadActive(canRead)
-    const seasonId = await getActiveSeasonId(leagueId)
-    assertReadActive(canRead)
-    if (!seasonId) return { status: { status: 'free_agent' }, roster: [] }
-
-    const { data, error } = await supabase
-        .from('roster_players')
-        .select('id, player_id, member_id, is_on_ir, is_on_taxi, league_members ( team_name )')
-        .eq('league_id', leagueId)
-        .eq('league_season_id', seasonId)
-        .or(`player_id.eq.${playerId},member_id.eq.${memberId}`)
-    if (error) throw error
-    const roster = (data ?? []).filter(row => row.member_id === memberId).map(row => ({ is_on_ir: row.is_on_ir }))
-    const owned = data?.find(row => row.player_id === playerId)
-    if (owned) {
-        const status: PlayerRosterStatus = owned.member_id === memberId
-            ? { status: 'mine', rosterPlayerId: owned.id, isOnTaxi: owned.is_on_taxi }
-            : { status: 'taken', ownerTeamName: owned.league_members?.team_name ?? 'Another team', isOnTaxi: owned.is_on_taxi }
-        return { status, roster }
-    }
-
-    assertReadActive(canRead)
-    const now = new Date().toISOString()
-    const { data: waiverLog, error: waiverLogError } = await supabase
-        .from('waiver_wire_log')
-        .select('id, clears_at')
-        .eq('league_id', leagueId)
-        .eq('league_season_id', seasonId)
-        .eq('player_id', playerId)
-        .is('cleared_at', null)
-        .gt('clears_at', now)
-        .order('clears_at', { ascending: true })
-        .limit(1)
-        .maybeSingle()
-    if (waiverLogError) throw waiverLogError
-
-    if (waiverLog) {
-        return { status: { status: 'on_waivers', logId: waiverLog.id, clearsAt: waiverLog.clears_at }, roster }
-    }
-
-    return { status: { status: 'free_agent' }, roster }
-}
 
 export async function addFreeAgent(
     memberId: string,
@@ -279,7 +202,6 @@ export async function activateRosterPlayerWithLineup({
         if (error) throw rpcError(error)
     })
 }
-
 
 export async function getTaxiExitPlayerIds(memberId: string, leagueId: string): Promise<Set<string>> {
     const { data, error } = await supabase.from('league_member_taxi_exits').select('player_id')

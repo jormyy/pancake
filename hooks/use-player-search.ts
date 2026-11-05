@@ -1,6 +1,5 @@
 import type { StatsWindowDays } from '@/lib/stats-window'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { AppState, type AppStateStatus } from 'react-native'
 import type { FlashListRef } from '@shopify/flash-list'
 import { useScreenView } from '@/hooks/use-screen-view'
 import { useDebouncedValue } from '@/hooks/use-debounced-value'
@@ -12,10 +11,7 @@ import { screenScope } from '@/lib/cache/screen-scope'
 import { playerSupportData, type PlayersView } from '@/lib/cache/view-types'
 import { applyVisiblePlayerTotals, type PlayerRow, type VisiblePlayerTotals } from '@/lib/players'
 import type { OwnedEntry } from '@/lib/roster'
-import { getWeekDays, type WeekDay } from '@/lib/lineup'
-import { getCurrentWeekNumber } from '@/lib/shared/week'
-import { todayLeague } from '@/lib/timezone'
-import { useLeagueTimezone } from '@/hooks/use-league-timezone'
+import type { WeekDay } from '@/lib/lineup'
 import { useLeagueDay } from '@/hooks/use-league-day'
 import { currentSeasonYear } from '@/lib/shared/season'
 import { activePlayerFilterCount, type PlayerAvailabilityFilter, type PlayerPlayingFilter, type PlayerSearchHealthFilter } from '@/lib/player-search-state'
@@ -28,70 +24,6 @@ type PlayerTotalsSnapshot = { key: string; rows: Map<string, { row: VisiblePlaye
 function playerScoringSettings(value: unknown): ScoringSettings | null {
     if (!value || typeof value !== 'object' || Array.isArray(value)) return null
     return Object.fromEntries(Object.entries(value).filter((entry): entry is [string, number] => typeof entry[1] === 'number' && Number.isFinite(entry[1])))
-}
-export function useWeeklyAvailability(enabled: boolean, active = true) {
-    const timezone = useLeagueTimezone()
-    const leagueDay = useLeagueDay(timezone)
-    const [weekDays, setWeekDays] = useState<WeekDay[]>([])
-    const [loading, setLoading] = useState(enabled)
-    const [error, setError] = useState<Error | null>(null)
-    const [loadedDay, setLoadedDay] = useState<string | null>(null)
-    const [retryToken, setRetryToken] = useState(0)
-    const retry = useCallback(() => setRetryToken(value => value + 1), [])
-
-    useEffect(() => {
-        if (!enabled) {
-            setWeekDays([])
-            setLoading(false)
-            setError(null)
-            setLoadedDay(null)
-            return
-        }
-        if (!active) return
-        let cancelled = false
-        let appState: AppStateStatus = AppState.currentState
-        let loadedDate: string | null = null
-        let requestSequence = 0
-        const load = async (includeSchedule: boolean) => {
-            if ((typeof navigator !== 'undefined' && navigator.onLine === false)
-                || (typeof document !== 'undefined' && document.visibilityState === 'hidden')) return
-            if (!includeSchedule && loadedDate === todayLeague(timezone)) return
-            const requestId = ++requestSequence
-            setLoading(true)
-            const seasonYear = currentSeasonYear()
-            const today = todayLeague(timezone)
-            try {
-                const days = includeSchedule || loadedDate !== today
-                    ? await getCurrentWeekNumber(seasonYear, timezone).then((weekNum) => getWeekDays(weekNum ?? 1, seasonYear, timezone))
-                    : null
-                if (cancelled || requestSequence !== requestId) return
-                loadedDate = today
-                setLoadedDay(today)
-                setError(null)
-                if (days) setWeekDays(days)
-            } catch (error) {
-                if (!cancelled && requestSequence === requestId) {
-                    setError(error instanceof Error ? error : new Error(String(error)))
-                    console.error(error)
-                }
-            } finally {
-                if (!cancelled && requestSequence === requestId) setLoading(false)
-            }
-        }
-        void load(true)
-        const subscription = AppState.addEventListener('change', (nextState) => {
-            const becameActive = appState !== 'active' && nextState === 'active'
-            appState = nextState
-            if (becameActive) void load(true)
-        })
-        return () => {
-            cancelled = true
-            requestSequence += 1
-            subscription.remove()
-        }
-    }, [enabled, active, retryToken, leagueDay, timezone])
-
-    return { weekDays, loading, error, retry, isSnapshot: loadedDay !== todayLeague(timezone) || loading || Boolean(error) }
 }
 
 export function usePlayerSearch(leagueId: string | null, _ownedMap: Map<string, OwnedEntry>, _waiverIds: Set<string>, currentMemberId?: string, options: { enabled?: boolean; online?: boolean; focused?: boolean; ownerId?: string; admitted?: boolean; initialLiveStats?: boolean; scoringSettings?: unknown } = {}) {

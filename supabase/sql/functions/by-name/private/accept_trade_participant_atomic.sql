@@ -72,7 +72,7 @@ BEGIN
       hashtext(v_trade.league_id::text),
       hashtext(v_member_lock::text)
     ) THEN
-      RAISE EXCEPTION 'The league is busy. Try this trade again.' USING ERRCODE='PT001';
+      RAISE EXCEPTION 'The league is busy. Try this trade again.' USING ERRCODE='PA010';
     END IF;
   END LOOP;
 
@@ -86,7 +86,7 @@ BEGIN
       hashtext(v_trade.league_id::text),
       hashtext(v_lock_player_id::text)
     ) THEN
-      RAISE EXCEPTION 'The league is busy. Try this trade again.' USING ERRCODE='PT001';
+      RAISE EXCEPTION 'The league is busy. Try this trade again.' USING ERRCODE='PA010';
     END IF;
   END LOOP;
 
@@ -244,6 +244,6 @@ BEGIN
     )
   );
 EXCEPTION WHEN lock_not_available THEN
-  RAISE EXCEPTION 'The league is busy. Try this trade again.' USING ERRCODE='PT001';
+  RAISE EXCEPTION 'The league is busy. Try this trade again.' USING ERRCODE='PA010';
 END;
 $$;

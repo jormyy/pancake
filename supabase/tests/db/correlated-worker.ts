@@ -135,10 +135,12 @@ try {
   assert.equal(runs?.length, 4, 'one canonical outcome for each of four actual executions')
   assert.equal(runs?.filter(row => row.status === 'success').length, 2)
   console.log(JSON.stringify({ case: 'real pg_net timeout then successful worker', elapsedMs: observation.finished - observation.started, worker: delayedRun.status, canonicalRows: runs?.length }))
-  const dailyCommand = `BEGIN; SELECT set_config('app.supabase_url','${base}',true); SELECT set_config('app.edge_internal_token','${internalToken}',true); SELECT public.invoke_edge_function_at_et_time('${scope}',0,0); COMMIT;`
+  const dailyCommand = `BEGIN; SELECT set_config('app.supabase_url','${base}',true); SELECT set_config('app.edge_internal_token','${internalToken}',true); INSERT INTO private.work_kinds(kind,function_name) VALUES('${scope}','${scope}') ON CONFLICT DO NOTHING; SELECT private.work_enqueue('${scope}',(now() AT TIME ZONE 'America/New_York')::date::text); COMMIT;`
   await Promise.all([sql(dailyCommand), sql(dailyCommand)])
+  assert.equal(await sql(`SELECT count(*) FROM private.work_items WHERE kind='${scope}'`), '1')
+  await sql(`BEGIN; SELECT set_config('app.supabase_url','${base}',true); SELECT set_config('app.edge_internal_token','${internalToken}',true); DO $$ DECLARE item private.work_items%ROWTYPE; BEGIN UPDATE private.work_items SET status='running',attempts=attempts+1,lease_token=gen_random_uuid(),lease_until=clock_timestamp()+interval '5 minutes' WHERE kind='${scope}' RETURNING * INTO item; PERFORM private.work_execute(item.id,item.lease_token); END $$; COMMIT;`)
   const daily = await waitFor(async () => {
-    const { data, error } = await supabase.from('edge_invocations').select('*').eq('dispatch_job_key', `et-time:${scope}`)
+    const { data, error } = await supabase.from('edge_invocations').select('*').eq('function_name', scope).not('work_item_id', 'is', null)
     if (error) throw error
     assert.equal(data?.length, 1, 'two concurrent sessions queue exactly one daily attempt')
     return data[0]
@@ -148,6 +150,6 @@ try {
   console.log(JSON.stringify({ case: 'two real SQL sessions race daily claim', invocations: 1, executed }))
 } finally {
   await activeServer.shutdown()
-  await sql(`DELETE FROM public.sync_runs WHERE function_name IN ('${scope}','cron:${scope}'); DELETE FROM net._http_response WHERE id IN (SELECT request_id FROM public.edge_invocations WHERE function_name='${scope}'); DELETE FROM public.edge_invocations WHERE function_name='${scope}'; DELETE FROM public.cron_dispatch_state WHERE job_key='et-time:${scope}';`)
+  await sql(`DELETE FROM public.sync_runs WHERE function_name IN ('${scope}','cron:${scope}'); DELETE FROM net._http_response WHERE id IN (SELECT request_id FROM public.edge_invocations WHERE function_name='${scope}'); DELETE FROM public.edge_invocations WHERE function_name='${scope}'; DELETE FROM private.work_items WHERE kind='${scope}'; DELETE FROM private.work_kinds WHERE kind='${scope}';`)
   console.log(JSON.stringify({ cleanup: 'owned invocation fixtures removed' }))
 }

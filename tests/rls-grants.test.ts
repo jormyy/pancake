@@ -203,19 +203,7 @@ describe('waiver intent oracle closure', () => {
         expect(logPolicy).toContain('league_id IN (SELECT private.my_league_ids())')
         expect(logPolicy).toContain('cleared_at IS NOT NULL')
         expect(logPolicy).toContain('OR clears_at > now()')
-        const waiverSource = readFileSync(path.resolve(__dirname, '../lib/waivers.ts'), 'utf8')
-        const playerIdsBody = waiverSource.slice(
-            waiverSource.indexOf('export async function getWaiverClearsAtForSeason'),
-            waiverSource.indexOf('export async function submitWaiverClaim'),
-        )
-        const rosterSource = readFileSync(path.resolve(__dirname, '../lib/roster.ts'), 'utf8')
-        const rosterStatusBody = rosterSource.slice(
-            rosterSource.indexOf('export async function getPlayerRosterContext'),
-            rosterSource.indexOf('export async function addFreeAgent'),
-        )
 
-        expect(playerIdsBody).toContain(".gt('clears_at', now)")
-        expect(rosterStatusBody).toContain(".gt('clears_at', now)")
     })
 
     it('rejects instant adds through the shared guard without branching on hidden claims', () => {

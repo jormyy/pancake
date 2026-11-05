@@ -10,6 +10,8 @@ const run = args => {
   assert.equal(result.status, 0, result.stderr)
   return result.stdout.trim()
 }
+const jobsQuery = "SELECT COALESCE(jsonb_agg(to_jsonb(job) ORDER BY jobid), '[]'::jsonb) FROM cron.job job"
+const jobs = run(['-c', jobsQuery])
 let installed = false
 try {
   for (const [at, day] of [
@@ -34,5 +36,10 @@ try {
     console.log(`PASS ${at}: Eastern date ${day}; both windows, partial day, boundaries, nulls, scoring and pagination`)
   }
 } finally {
-  if (installed) run(['-v', `season_sim_port=${port}`, '-f', 'scripts/season-sim/restore-clock.sql'])
+  try {
+    if (installed) run(['-v', `season_sim_port=${port}`, '-f', 'scripts/season-sim/restore-clock.sql'])
+  } finally {
+    run(['-c', `BEGIN; DELETE FROM cron.job; INSERT INTO cron.job SELECT * FROM jsonb_populate_recordset(NULL::cron.job, '${jobs.replaceAll("'", "''")}'); COMMIT;`])
+    assert.equal(run(['-c', jobsQuery]), jobs, 'The clock test preserves the scheduled job catalog')
+  }
 }

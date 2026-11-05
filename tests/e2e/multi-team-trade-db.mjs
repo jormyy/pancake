@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto'
 import { createClient } from '@supabase/supabase-js'
 import { findAvailablePlayers, setupMultiTeamTradeGameplayFixture } from './trade-fixture.mjs'
 import { runWithScenarioResourceOwner } from './scenario-resource-owner.mjs'
-import { assertCompletionFailureIsTerminal } from './multi-team-trade-db-notifications.mjs'
+import { assertCompletionFailureKeepsRepairableTrade } from './multi-team-trade-db-notifications.mjs'
 import { assertVetoRowsSurviveMemberHistoryPagination } from './multi-team-trade-db-pagination.mjs'
 import {
   accept,
@@ -20,6 +20,17 @@ import {
   setBalances,
   setLeagueRules,
 } from './multi-team-trade-db-support.mjs'
+
+const managerClient = () => createClient(env.supabaseUrl, env.anonKey, {
+  auth: { persistSession: false },
+  global: { fetch: (input, options) => {
+    const headers = new Headers(options?.headers)
+    headers.set('x-request-id', randomUUID())
+    return fetch(input, { ...options, headers })
+  } },
+})
+
+const settle = fixture => rpc(fixture.admin, 'process_due_accepted_trades_atomic', { p_limit: 200 })
 
 const assertAggregateFaabRejectionIsAtomic = async (fixture) => {
   await setLeagueRules(fixture, { waiver_mode: 'faab', trade_veto_mode: 'commissioner', trade_veto_window_hours: 1 })
@@ -144,13 +155,13 @@ const assertTradePlanCapacityAndRosterRecovery = async (fixture) => {
     [fixture.observer.id, 100],
   ])
 
-  const recipientClient = createClient(env.supabaseUrl, env.anonKey, { auth: { persistSession: false } })
+  const recipientClient = managerClient()
   const { error: signInError } = await recipientClient.auth.signInWithPassword({
     email: fixture.users[1].email,
     password: fixture.users[1].password,
   })
   if (signInError) throw new Error(`lazy-roster sign in ${fixture.users[1].email}: ${signInError.message}`)
-  const proposerClient = createClient(env.supabaseUrl, env.anonKey, { auth: { persistSession: false } })
+  const proposerClient = managerClient()
   const { error: proposerSignInError } = await proposerClient.auth.signInWithPassword({
     email: fixture.users[0].email,
     password: fixture.users[0].password,
@@ -179,8 +190,8 @@ const assertTradePlanCapacityAndRosterRecovery = async (fixture) => {
       body: JSON.stringify({ p_trade_id: twoTeamTradeId, p_accepting_member_id: fixture.recipient.id }),
       signal: AbortSignal.timeout(10_000),
     })
-    assert.equal(capacityResponse.status, 400, 'over-cap acceptance returns a client error')
-    assert.equal((await capacityResponse.json()).code, 'PT001')
+    assert.equal(capacityResponse.status, 409, 'over-cap acceptance returns a conflict')
+    assert.equal((await capacityResponse.json()).code, 'PT409')
   } catch (error) {
     capacityFailures.push(error)
   }
@@ -194,6 +205,7 @@ const assertTradePlanCapacityAndRosterRecovery = async (fixture) => {
     p_drop_player_ids: [fixture.recipientPlayer.id],
   })
   await accept(fixture, twoTeamTradeId, fixture.recipient.id)
+  await settle(fixture)
   assert.equal((await fetchTrade(fixture, twoTeamTradeId)).status, 'completed')
 
   const activeCount = async (memberId) => {
@@ -274,15 +286,12 @@ const assertTradePlanCapacityAndRosterRecovery = async (fixture) => {
   if (extraRosterError) throw new Error(`over-cap proposer roster insert: ${extraRosterError.message}`)
   assert.equal(await activeCount(fixture.proposer.id), 2)
 
-  await expectRpcError(fixture.admin, 'propose_multi_team_trade_atomic', {
-    p_league_id: fixture.league.id,
-    p_league_season_id: fixture.currentSeason.id,
-    p_proposer_member_id: fixture.proposer.id,
-    p_participant_member_ids: [fixture.proposer.id, fixture.recipient.id, fixture.observer.id],
-    p_items: faabRoutes(fixture),
-    p_notes: 'Illegal roster blocks a new offer',
-    p_expires_at: null,
-  }, { code: 'PA003' })
+  const repairableOffer = await propose(fixture, faabRoutes(fixture), 'Over-cap offer awaits a roster plan')
+  assert.equal((await fetchTrade(fixture, repairableOffer)).status, 'pending')
+  await expectRpcError(fixture.admin, 'accept_trade_atomic', {
+    p_trade_id: repairableOffer,
+    p_accepting_member_id: fixture.recipient.id,
+  }, 'regular|roster|capacity')
   const { data: extraRoster, error: extraLookupError } = await fixture.admin.from('roster_players')
     .select('id').eq('league_season_id', fixture.currentSeason.id).eq('member_id', fixture.proposer.id)
     .eq('player_id', proposerExtraTwo.id).single()
@@ -317,6 +326,7 @@ const assertTradePlanCapacityAndRosterRecovery = async (fixture) => {
   })
   await accept(fixture, multiTradeId, fixture.recipient.id)
   await accept(fixture, multiTradeId, fixture.observer.id)
+  await settle(fixture)
   assert.equal((await fetchTrade(fixture, multiTradeId)).status, 'completed')
   assert.equal(await activeCount(fixture.recipient.id), 1, 'multi-team plan keeps the recipient within capacity')
   const { error: legacyRosterError } = await fixture.admin.from('roster_players').insert({
@@ -364,11 +374,19 @@ const assertConcurrentAcceptanceCompletesOnce = async (fixture) => {
     [fixture.observer.id, 0],
   ])
   const tradeId = await propose(fixture, faabRoutes(fixture), 'DB concurrent multi-team acceptance')
-  const results = await Promise.all([
-    accept(fixture, tradeId, fixture.recipient.id),
-    accept(fixture, tradeId, fixture.observer.id),
-  ])
-  assert.equal(results.filter((result) => result.allAccepted).length, 1)
+  const members = [fixture.recipient.id, fixture.observer.id]
+  const attempts = await Promise.allSettled(members.map(memberId => accept(fixture, tradeId, memberId)))
+  const results = []
+  for (const [index, result] of attempts.entries()) {
+    if (result.status === 'fulfilled') results.push(result.value)
+    else {
+      assert.match(result.reason.message, /league is busy/i)
+      results.push(await accept(fixture, tradeId, members[index]))
+    }
+  }
+  assert.equal(results.filter(result => result.allAccepted).length, 1)
+  await settle(fixture)
+  await settle(fixture)
   assert.equal((await fetchTrade(fixture, tradeId)).status, 'completed')
   assert.equal(await balanceFor(fixture, fixture.proposer.id), 20)
   assert.equal(await balanceFor(fixture, fixture.recipient.id), 40)
@@ -455,6 +473,7 @@ const assertCompetingStandardAndMultiTeamTradesSerialize = async (fixture) => {
   assert.equal(results.filter((result) => result.status === 'fulfilled').length, 1)
   assert.equal(results.filter((result) => result.status === 'rejected').length, 1)
 
+  await settle(fixture)
   const [standardTrade, multiTrade] = await Promise.all([
     fetchTrade(fixture, standardTradeId),
     fetchTrade(fixture, multiTradeId),
@@ -534,10 +553,12 @@ const assertInactivePlayerAcceptanceAndDirectTriggerReject = async (fixture) => 
     const ids = [fixture.league.id, fixture.currentSeason.id, fixture.proposer.id, player.id, roster.id]
     for (const id of ids) assert.match(id, /^[0-9a-f-]{36}$/i)
     executeRecoverySql(`BEGIN;
+      ALTER TABLE roster_players DISABLE TRIGGER a_pending_asset_roster_move;
       DELETE FROM league_member_taxi_exits WHERE league_id='${fixture.league.id}' AND player_id='${player.id}';
       SELECT private.authorize_taxi_acquisition('${fixture.league.id}','${fixture.currentSeason.id}',
         '${fixture.proposer.id}','${player.id}','draft','${roster.id}');
       UPDATE roster_players SET is_on_taxi=true WHERE id='${roster.id}';
+      SET CONSTRAINTS ALL IMMEDIATE; ALTER TABLE roster_players ENABLE TRIGGER a_pending_asset_roster_move;
       COMMIT;`)
   }
   for (const inactiveColumn of ['is_on_ir', 'is_on_taxi']) {
@@ -549,18 +570,23 @@ const assertInactivePlayerAcceptanceAndDirectTriggerReject = async (fixture) => 
     else {
       const { error: inactiveError } = await fixture.admin.from('roster_players')
         .update({ is_on_ir: true }).eq('id', roster.id)
-      if (inactiveError) throw new Error(`${inactiveColumn} setup: ${inactiveError.message}`)
+      assert.match(inactiveError?.message ?? '', /Locked by trade/)
+      executeRecoverySql(`BEGIN; ALTER TABLE roster_players DISABLE TRIGGER a_pending_asset_roster_move;
+        UPDATE roster_players SET is_on_ir=true WHERE id='${roster.id}';
+        SET CONSTRAINTS ALL IMMEDIATE; ALTER TABLE roster_players ENABLE TRIGGER a_pending_asset_roster_move; COMMIT;`)
     }
 
     await expectRpcError(fixture.admin, 'accept_trade_atomic', {
       p_trade_id: tradeId,
       p_accepting_member_id: fixture.recipient.id,
-    }, 'active roster side')
+    }, 'IR trade rule|Taxi trade rule|active roster side')
     assert.equal((await fetchTrade(fixture, tradeId)).status, 'pending')
+    const { error: withdrawnError } = await fixture.admin.from('trades').update({ status: 'withdrawn' }).eq('id', tradeId)
+    assert.equal(withdrawnError, null)
 
-    const { error: restoreError } = await fixture.admin.from('roster_players')
-      .update({ [inactiveColumn]: false }).eq('id', roster.id)
-    if (restoreError) throw new Error(`${inactiveColumn} restore: ${restoreError.message}`)
+    executeRecoverySql(`BEGIN; ALTER TABLE roster_players DISABLE TRIGGER a_pending_asset_roster_move;
+      UPDATE roster_players SET ${inactiveColumn}=false WHERE id='${roster.id}';
+      SET CONSTRAINTS ALL IMMEDIATE; ALTER TABLE roster_players ENABLE TRIGGER a_pending_asset_roster_move; COMMIT;`)
   }
 
   const triggerTradeId = await proposeStandardAssetTrade(fixture, {
@@ -572,10 +598,11 @@ const assertInactivePlayerAcceptanceAndDirectTriggerReject = async (fixture) => 
     .update({ status: 'accepted', accepted_at: new Date().toISOString() })
     .eq('id', triggerTradeId)
   assert(triggerError, 'direct accepted-status update bypassed the canonical asset assertion trigger')
-  assert.match(triggerError.message, /active roster side/i)
+  assert.match(triggerError.message, /IR trade rule|Taxi trade rule|active roster side/i)
   assert.equal((await fetchTrade(fixture, triggerTradeId)).status, 'pending')
-  const { error: restoreError } = await fixture.admin.from('roster_players').update({ is_on_taxi: false }).eq('id', roster.id)
-  if (restoreError) throw new Error(`direct trigger taxi restore: ${restoreError.message}`)
+  executeRecoverySql(`BEGIN; ALTER TABLE roster_players DISABLE TRIGGER a_pending_asset_roster_move;
+    UPDATE roster_players SET is_on_taxi=false WHERE id='${roster.id}';
+    SET CONSTRAINTS ALL IMMEDIATE; ALTER TABLE roster_players ENABLE TRIGGER a_pending_asset_roster_move; COMMIT;`)
 }
 
 const proposerAvailablePick = async (fixture) => {
@@ -686,7 +713,7 @@ const assertCompetingAcceptedPickTradesSerialize = async (fixture) => {
   assert.equal(results.filter((result) => result.status === 'rejected').length, 1)
   const trades = await Promise.all([fetchTrade(fixture, standardTradeId), fetchTrade(fixture, multiTradeId)])
   assert.equal(trades.filter((trade) => trade.status === 'accepted').length, 1)
-  assert.equal(trades.filter((trade) => trade.status === 'pending').length, 1)
+  assert.equal(trades.filter((trade) => ['pending', 'withdrawn', 'expired'].includes(trade.status)).length, 1)
 
   const { data: persistedPick, error: pickError } = await fixture.admin.from('draft_picks')
     .select('current_owner_id, is_used').eq('id', pick.id).single()
@@ -735,6 +762,7 @@ const assertTwoTeamUsesCanonicalRoutes = async (fixture) => {
     fixture.proposer.id,
     fixture.recipient.id,
   ]))
+  await settle(fixture)
   assert.equal((await fetchTrade(fixture, tradeId)).status, 'completed')
   assert.equal(await balanceFor(fixture, fixture.proposer.id), 91)
   assert.equal(await balanceFor(fixture, fixture.recipient.id), 109)
@@ -772,7 +800,7 @@ const run = async () => {
     assertCompetingAcceptedPickTradesSerialize,
     assertTwoTeamUsesCanonicalRoutes,
     assertVetoRowsSurviveMemberHistoryPagination,
-    assertCompletionFailureIsTerminal,
+    assertCompletionFailureKeepsRepairableTrade,
   ]
   for (const check of cases) {
     try {

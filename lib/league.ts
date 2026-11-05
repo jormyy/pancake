@@ -187,7 +187,6 @@ export async function fetchUserLeagues(userId: string) {
 
 const TRADE_OPEN_STATUSES = new Set<LeagueStatus>(['drafting', 'active', 'playoffs', 'offseason'])
 
-
 export function isTradingClosed(
     league: {
         status: LeagueStatus
@@ -299,44 +298,6 @@ export type MemberTransactionState = {
     addLimitMessage: string | null
     /** The weekly reset boundary; null when the league has no schedule yet. */
     addLimitResetsLabel: string | null
-}
-
-type MemberTransactionStateRow = {
-    league_season_id: string
-    week_number: number
-    weekly_add_limit: number | null
-    weekly_add_count: number
-    waiver_mode: WaiverMode
-    faab_starting_budget: number
-    faab_balance: number
-    add_limit_resets_at: string | null
-    add_limit_message: string | null
-    add_limit_resets_label: string | null
-}
-
-export async function getMemberTransactionState(
-    memberId: string,
-    leagueId: string,
-): Promise<MemberTransactionState | null> {
-    const { data, error } = await supabase.rpc('get_member_transaction_state', {
-        p_member_id: memberId,
-        p_league_id: leagueId,
-    })
-    if (error) throw error
-    const row = data?.[0] as MemberTransactionStateRow | undefined
-    if (!row) return null
-    return {
-        leagueSeasonId: row.league_season_id,
-        weekNumber: row.week_number,
-        weeklyAddLimit: row.weekly_add_limit,
-        weeklyAddCount: row.weekly_add_count,
-        waiverMode: row.waiver_mode,
-        faabStartingBudget: row.faab_starting_budget,
-        faabBalance: row.faab_balance,
-        addLimitResetsAt: row.add_limit_resets_at,
-        addLimitMessage: row.add_limit_message,
-        addLimitResetsLabel: row.add_limit_resets_label,
-    }
 }
 
 export async function adjustFaabBalance(

@@ -171,11 +171,11 @@ async function fixture(control) {
   assert.match(f.lower,/^[0-9a-f-]{36}$/); f.claims.push(f.lower)
   await root.query(`UPDATE public.waiver_claims SET process_date=${quote(f.processDate)}::date WHERE id IN (${list(f.claims)});`)
   const expires=new Date(Date.now()+86400000).toISOString()
-  f.trade=await root.query(`BEGIN; SET LOCAL ROLE service_role;
+  f.trade=await root.query(`BEGIN; ALTER TABLE public.trade_items DISABLE TRIGGER guard_trade_item_plan_reservations; SET LOCAL ROLE service_role;
     SELECT public.propose_trade_atomic(${quote(f.league)},${quote(f.season)},
       ${quote(f.members[0])},${quote(f.members[1])},
       ARRAY[${quote(f.players[0])}]::uuid[],ARRAY[${quote(f.players[1])}]::uuid[],
-      ARRAY[]::uuid[],ARRAY[]::uuid[],'Owned accepted player exchange',${quote(expires)}::timestamptz,0,0); COMMIT;`)
+      ARRAY[]::uuid[],ARRAY[]::uuid[],'Owned accepted player exchange',${quote(expires)}::timestamptz,0,0); RESET ROLE; SET CONSTRAINTS ALL IMMEDIATE; ALTER TABLE public.trade_items ENABLE TRIGGER guard_trade_item_plan_reservations; COMMIT;`)
   assert.match(f.trade,/^[0-9a-f-]{36}$/)
   const accept=parse(await root.query(`BEGIN; SET LOCAL ROLE service_role;
     SELECT public.accept_trade_atomic(${quote(f.trade)},${quote(f.members[1])}); COMMIT;`))
@@ -207,7 +207,7 @@ const eligibleSql=(f)=>`SELECT c.id FROM public.waiver_claims c
     AND NOT EXISTS (SELECT 1 FROM public.waiver_wire_log w WHERE w.league_id=c.league_id AND w.league_season_id=c.league_season_id
       AND w.player_id=c.player_id AND w.cleared_at IS NULL AND w.clears_at>((c.process_date+time '03:00') AT TIME ZONE 'America/New_York'))`
 async function prepareWaiver(w,f,claimIds=[f.claim,f.lower]) {
-  const found=parse(await w.query(`BEGIN ISOLATION LEVEL REPEATABLE READ;
+  const found=parse(await w.query(`BEGIN ISOLATION LEVEL READ COMMITTED;
     DO $own$ BEGIN
       IF NOT pg_try_advisory_xact_lock(hashtext(${quote(f.league)}),hashtext(${quote(f.season)})) THEN
         RAISE EXCEPTION 'Own waiver batch is busy; abort without other league locks';

@@ -41,7 +41,7 @@ Approved replacements change the expected convergence body only after their migr
 Each `convergenceRedefinitions` entry must name an approved migration containing the recorded body in dollar-quoted SQL.
 An early replacement or a late baseline body fails.
 
-Refresh the range and post-migration catalog with the [local refresh command](release-history-attestations.md).
+Refresh the range and post-migration catalog with the [local refresh command](release-build-provenance.md#migration-attestations).
 The command preserves the recorded production catalog.
 
 ## Fingerprints and evidence
@@ -113,173 +113,13 @@ Verify definitions, indexes, grants, RLS, and canonical score equality after rec
 Scoring tests compare refreshed rows with `v_fantasy_points`, including changed settings, corrections, DNP, deletion, and game eligibility.
 Local recovery evidence does not establish production lock availability or device performance.
 
-## Candidate migrations
+## Current candidate
 
-The candidate adds the approved suffix after the security attestation's `preMigration.version`.
-The release-history attestation defines its final version and total count.
-These additions cover scoring, identity, drafts, notifications, roster rules, and taxi acquisitions.
-They preserve published migration files.
-The approved release range includes every file recorded in `approvedMigrations` and its baseline.
-An ordered local upgrade must match a fresh installation at the approved candidate version.
-Preserve earlier source fingerprints and review each addition to the attested range.
-The release must pass the soak, compatibility, and immediate production preflight gates.
-The [database release steps](../supabase/RELEASE-DB.md#release-order-for-this-release) list this release's unpublished migrations.
-
-Migrations `20261020000001` through `20261020000007` add Sleeper projections, update readers and scheduling, and bound operational cleanup.
-They preserve the historical aliases and belong to the reviewed 431-row production phase.
-Any migration beyond the attested range requires another reviewed contract update.
-The canonical function catalog records current completion and cleanup helpers separately.
-
-| Migration | Change |
-| --- | --- |
-| `20261020000001` | Adds the Sleeper player-game store, completion RPC, and projection period index |
-| `20261020000002` | Adds Sleeper-first readers, projection dispatch, fingerprints, and resource hints |
-| `20261020000003` | Bounds operational retention and projection cleanup; compacts FantasyPros snapshots |
-| `20261020000004` | Keeps game-day recovery independent of Monday; fixes compaction trigger permissions |
-| `20261020000005` | Replaces absent upcoming snapshot games; excludes old-team lines; expires reconciled worker crashes |
-| `20261020000006` | Preserves filtered source rows and prior-team games; returns projection freshness |
-| `20261020000007` | Guards snapshot replacement below 70% upcoming coverage; retains accepted updates and records failure |
-
-Apply the schema before deploying `sync-sleeper-projections`.
-The scheduler retains dispatch claims and invocation reconciliation.
-Frontend rollback retains these database changes.
-[Source monitoring](source-monitoring.md) owns projection and retention behavior.
-[Verification](verification.md#sleeper-projections-and-weekly-cleanup) owns the focused checks.
-
-The release 2.4 candidate ends at `20261116000500`, with 608 migrations.
-The audit baseline stays at `20261005000003`, with 329 migrations.
-Release 1 reaches production on 2026-10-27 at `20261029000800`, with 564 migrations.
-Its frontend commit is `1e62824e43044d30007b9601a8a3993c576b6a7e`.
-The pre-migration catalog now records that release.
-The earlier 431-row catalog remains historical evidence.
-
-| Migration | Change |
-| --- | --- |
-| `20261029000100` | Requires scheduled FAAB claims for every pickup |
-| `20261029000200` | Allows eligible IR and taxi players on the trade block |
-| `20261029000300` | Stores trade roster moves and reserves settlement capacity |
-| `20261029000400` | Stores trade estimates with their exact terms and inputs |
-| `20261029000500` | Stores matchup forecasts and schedules their updates |
-| `20261029000600` | Revalues historical trades with current inputs |
-| `20261029000700` | Allows scheduled lineup updates beside live game locks |
-| `20261029000800` | Uses a consistent lock order when saving matchup forecasts |
-
-Local checks on 2026-10-26 compare a fresh installation with an ordered upgrade from the audit baseline.
-Both paths have equal migration names, statement counts, stored-SQL fingerprints, helper definitions, and security catalogs.
-An intermediate state at `20261011000010` matches its expected mix of helper definitions.
-The upgrade from that state also matches the fresh installation through `20261029000800`.
-
-## Release 2.4 candidate
-
-Release 2.4 adds 44 migrations after the recorded release 1 head.
-The audited range contains 279 migrations after the fixed 329-row baseline.
-
-| Migration | Change |
-| --- | --- |
-| `20261101000100` | Adds stored screen results and their refresh queue. |
-| `20261101000200` | Adds member-scoped screen reads and refresh functions. |
-| `20261102000100` | Adds league versions and one change event per committed league write. |
-| `20261103000100` | Stores request receipts to make write retries safe. |
-| `20261103000200` | Expires request receipts during history cleanup. |
-| `20261103000300` | Saves client settings through request receipts. |
-| `20261104000100` | Replaces separate job schedules with a leased work queue and dispatcher. |
-| `20261105000100` | Stores sampled screen timing beacons and private summaries. |
-| `20261106000100` | Stores private team timeline events. |
-| `20261106000200` | Records claims, trades, lineups and score events. |
-| `20261106000300` | Records lineup slot setting changes. |
-| `20261107000100` | Preserves locked historical lineups. |
-| `20261107000101` | Restores retained lineup history. |
-| `20261107000102` | Protects closed lineup dates. |
-| `20261107000200` | Adds linear rookie draft order. |
-| `20261107000201` | Keeps rookie mock draft order consistent. |
-| `20261107000300` | Stores league time zones. |
-| `20261107000400` | Adds player birthdates to screen views. |
-| `20261107000500` | Adds player injury details. |
-| `20261107000501` | Includes injury details in player search. |
-| `20261107000600` | Adds player mentions to league activity. |
-| `20261109000100` | Runs daily bounded retention and records cleanup results. |
-| `20261109000900` | Derives provider history windows from policy and preserves career eligibility. |
-| `20261110000100` | Adds complete server views for client screens. |
-| `20261111000100` | Publishes screen refresh versions. |
-| `20261112000100` | Gives tied rookie records the higher points-per-game pick first. |
-| `20261112000200` | Records every trade transition with player identity and preserves feed privacy. |
-| `20261113000100` | Bounds notification checks before stale and preference evaluation. |
-| `20261113000200` | Gives workers five-minute leases and avoids renewal lock waits. |
-| `20261114000100` | Bounds retention, refresh batches, active workers and database waits. |
-| `20261114000200` | Adds the operator pause control before SQL dispatch claims. |
-| `20261114000300` | Limits dispatch transactions and avoids duplicate queue insertion waits. |
-| `20261114000400` | Preserves birthdate bounds through the supported transaction clock. |
-| `20261115000100` | Removes idle hint worker writes, bounds cron history, and tunes owned hot tables. |
-| `20261115000200` | Skips equal screen content and separates trade publication freshness. |
-| `20261115000300` | Coalesces repeated league hint scopes and publication topics. |
-| `20261115000400` | Skips identical score and stat progress writes. |
-| `20261115000500` | Bounds player history reads and preserves forecast scoring. |
-| `20261115000600` | Stores forecast inputs and updates season projections with stat changes. |
-| `20261116000100` | Uses league dates on Home and includes roster birthdates. |
-| `20261116000200` | Rejects conflicting player identities and repairs impossible game teams. |
-| `20261116000300` | Queues trade estimates after the offer commits. |
-| `20261116000400` | Rejects repeated pending offers and bounds trade write locks. |
-| `20261116000500` | Queues trade events and screen updates after trade writes. |
-
-The recorded pre-migration security catalog stays pinned to release 1 at 564 migrations.
-The private mini applies the integrated migrations, then rebuilds all 608 migrations from empty.
-Both paths produce identical migration attestations, security attestations, function catalogs, and database types.
-The final migration history contains 608 rows through `20261116000500`.
-The shared attestation supplies the soak and immediate preflight ranges.
-
-The latest supplied operator report places production at `20261113000200`.
-This documentation review makes no live production query.
-The recorded pre-migration catalog still describes release 1 at `20261029000800`.
-These are different checkpoints.
-The planner validates the actual applied prefix before choosing the pending suffix.
-
-Release 2.4 keeps IO migrations at `20261115000100`–`20261115000400`.
-Forecast migrations use `20261115000500`–`20261115000600`.
-UI migrations keep `20261116000100`–`20261116000200`.
-Trade migrations use `20261116000300`–`20261116000500`.
-The ordered history has no duplicate versions.
-The candidate adds 12 migrations after `origin/main` at `6ad9b65e` and 11 after integration base `c3209ddc`.
-Integration uses private mini project `pt4bafabler24` and ports `598xx`.
-It performs no production access.
-
-## Release 2.5 candidate
-
-Release 2.5 starts from release 2.4 source `d267428f` at 608 migrations.
-It adds 13 migrations and ends at `20261123000100`, for 621 total migrations.
-The fixed 329-migration audit anchor leaves 292 approved migrations.
-The recorded 564-migration release 1 security baseline leaves a 57-migration candidate suffix.
-The release planner derives the actual pending suffix from verified applied history.
-The older supplied operator checkpoint does not establish the current production head.
-This integration makes no production request.
-
-| Migration | Change |
-| --- | --- |
-| `20261117000100_player_link_identity_index.sql` | Indexes player links for identity resolution. |
-| `20261117000200_stat_player_resolution.sql` | Resolves stat identities without locking player rows. |
-| `20261118000100_public_cli.sql` | Adds share tokens, public reads, limits, and audit retention. |
-| `20261118000200_public_matchup_state.sql` | Preserves void flags and multiweek matchup ranges in public reads. |
-| `20261118000300_public_stats_seasons.sql` | Reads player statistics from seasons before league creation. |
-| `20261120000100_onenumber_trade_values.sql` | Adds value storage, review matching, publication, and daily work. |
-| `20261120000200_trade_value_readers.sql` | Supplies stored values to player profiles and trade details. |
-| `20261120000300_trade_value_cache_refresh.sql` | Refreshes league readers after value publication or review. |
-| `20261121000001_league_midnight_waivers.sql` | Processes scheduled claims at each league midnight. |
-| `20261121000004_reschedule_waivers_timezone.sql` | Moves pending claims and drop holds when league time changes. |
-| `20261121000005_league_local_view_day.sql` | Uses the league date in shared screen context. |
-| `20261122000100_player_views.sql` | Splits player sections and improves dynasty sorting. |
-| `20261123000100_release25_player_values_and_schedule.sql` | Preserves league-midnight waivers, daily values, and both profile formats. |
-
-The incoming branches have no timestamp collisions; their migration versions stay unchanged.
-The final migration combines daily value scheduling with league-midnight waiver work.
-It also preserves stored values in compact and legacy player profiles.
-The function source checks detect both overwritten definitions before that repair.
-The combined behavior test fails before the repair and passes afterward.
-
-Private project `pt4bafabler25` uses ports `582xx` with cron launch disabled.
-The incremental upgrade and fresh 621-migration installation produce identical generated artifacts.
-Those artifacts are both attestations, `supabase/sql/function-catalog.json`, and `types/database.ts`.
-The generator preserves the recorded production baseline and historical aliases.
-[Release contract](../supabase/RELEASE-DB.md) owns deployment order and the complete Edge function list.
-
+The attestation files define the approved head and migration count.
+Read those files instead of carrying forward counts from an older release.
+Apply only the reviewed suffix after the recorded pre-migration phase.
+An ordered upgrade must match a fresh installation at the same candidate version.
+The [database release steps](../supabase/RELEASE-DB.md) own rollout and recovery.
 
 ## Release 2.6 candidate
 
@@ -300,12 +140,6 @@ All four timestamps are distinct and remain unchanged.
 The final scheduler retains daily values and league-local midnight waivers.
 Successful values queue pick predictions before versioned trade re-analysis.
 The retry RPC retains its claim-release and 30-minute retry rules beside that chain.
-Private project `pt4bafabler26` uses ports `586xx`.
-Both attestations, the function catalog, and database types come from that private database.
-An ordered upgrade and fresh installation produce identical bytes for all four artifacts.
-The audit anchor, historical aliases, and recorded production catalog remain unchanged.
-No production metadata or application data is read during this integration.
-[Release contract](../supabase/RELEASE-DB.md) owns rollout order and all five changed Edge functions.
 
 ## Release 2.6.3 candidate
 
@@ -319,123 +153,3 @@ Their versions have zero collisions.
 | --- | --- | --- |
 | 1 | `20261129000100_restore_hashtag_rankings.sql` | Restores Hashtag ranking writes, screen sources, and hourly scheduling. Preserves trade calculations. |
 | 2 | `20261130000100_player_page_speed.sql` | Keeps Hashtag sources and computes fantasy averages once per dynasty read. |
-
-The fixed audit anchor stays at 329 migrations through `20261005000003`.
-The approved range contains 299 migrations.
-The recorded security baseline stays at 564 migrations through `20261029000800`.
-Its candidate suffix contains 64 migrations.
-Historical aliases and the recorded pre-migration catalog stay unchanged.
-
-The private project is `pt4bafabler263`, with ports `592xx`.
-Both attestations, the function catalog, and database types regenerate from that database.
-The ordered upgrade and a fresh 628-migration install produce identical bytes for all four artifacts.
-The generated database types remain unchanged.
-The function catalog restores two private helpers.
-The release preserves function arguments, output columns, grants, and all 18 paired JSON snapshots.
-No production service receives a request.
-[Release contract](../supabase/RELEASE-DB.md#release-263) owns rollout and rollback.
-Only the restored `sync-rankings` Edge function changes against `origin/main` at `045f2d09`.
-It requires deployment after both migrations and before the frontend.
-
-## Release 2.7 candidate
-
-The source starts at `acafdf80`, release 2.6.4.
-The supplied production head is `20261130000100`, with 628 migrations.
-The private upgrade applies 47 missing migrations in numeric order.
-Twenty-eight versions precede the supplied head and require inclusion in the pending set.
-No timestamp collides. No migration is renumbered.
-
-| Order | Migration | Change |
-| --- | --- | --- |
-| 1 | `20261119000100_skip_unchanged_lineup_slots.sql` | Skip unchanged lineup slots. |
-| 2 | `20261119000200_churn_table_storage_policy.sql` | Churn table storage policy. |
-| 3 | `20261119000300_player_identity_lookup.sql` | Player identity lookup. |
-| 4 | `20261119000400_reviewed_player_provider_links.sql` | Reviewed player provider links. |
-| 5 | `20261119000500_reconcile_missing_final_stats.sql` | Reconcile missing final stats. |
-| 6 | `20261119000600_provider_write_gate.sql` | Provider write gate. |
-| 7 | `20261119000700_terminal_work_retention.sql` | Terminal work retention. |
-| 8 | `20261119000800_application_session_limits.sql` | Application session limits. |
-| 9 | `20261119000900_schedule_write_gate.sql` | Schedule write gate. |
-| 10 | `20261119001000_append_event_time_index.sql` | Append event time index. |
-| 11 | `20261119001100_preserve_lock_free_stat_resolution.sql` | Preserve lock free stat resolution. |
-| 12 | `20261119001200_preserve_incomplete_season_calendar.sql` | Preserve incomplete season calendar. |
-| 13 | `20261119001300_partition_beacons_and_receipts.sql` | Partition beacons and receipts. |
-| 14 | `20261119001400_scope_notification_lineup_checks.sql` | Scope notification lineup checks. |
-| 15 | `20261119001500_partition_events_and_invocations.sql` | Partitions events and invocations. Preserves column grants, policies, and version triggers. |
-| 16 | `20261119001600_complete_public_read_retention.sql` | Complete public read retention. |
-| 17 | `20261119001700_refresh_trade_value_statistics.sql` | Refresh trade value statistics. |
-| 18 | `20261125000100_partition_player_game_stats.sql` | Partition player game stats. |
-| 19 | `20261125000200_partition_notification_outbox.sql` | Partition notification outbox. |
-| 20 | `20261125000300_restore_missing_final_stats_schedule.sql` | Restore missing final stats schedule. |
-| 21 | `20261125000400_restore_native_outbox_uniqueness.sql` | Restore native outbox uniqueness. |
-| 22 | `20261125000500_preserve_reconciliation_after_rankings_retirement.sql` | Preserve reconciliation after rankings retirement. |
-| 23 | `20261125000600_batch_lineup_notification_claims.sql` | Batch lineup notification claims. |
-| 24 | `20261125000700_skip_unchanged_forecast_queue_writes.sql` | Skip unchanged forecast queue writes. |
-| 25 | `20261125000800_remove_roster_member_prefix_index.sql` | Remove roster member prefix index. |
-| 26 | `20261125000900_index_pending_edge_invocations.sql` | Index pending edge invocations. |
-| 27 | `20261126000100_corroborate_null_team_player_identities.sql` | Repairs nine player identities from matching source evidence. |
-| 28 | `20261127000100_database_probe_repairs.sql` | Versions league events and moves public-read retention into dispatcher work. |
-| 29 | `20261201000100_daily_screen_statistics.sql` | Daily screen statistics. |
-| 30 | `20261201000200_preserve_reconciliation_with_hashtag_rankings.sql` | Keeps missing-stat repair and updates existing guarded minute jobs. |
-| 31 | `20261201000300_reuse_current_forecast_projection_inputs.sql` | Reuse current forecast projection inputs. |
-| 32 | `20261201000400_index_recent_score_dispatches.sql` | Index recent score dispatches. |
-| 33 | `20261201000500_share_player_average_refresh_source.sql` | Share player average refresh source. |
-| 34 | `20261201000600_bound_hint_drain.sql` | Applies the guarded five-second hint drain through cron.alter_job. |
-| 35 | `20261201000800_defer_contended_balance_publications.sql` | Defer contended balance publications. |
-| 36 | `20261201000900_draft_only_realtime.sql` | Publishes the exact union of current client subscriptions. |
-| 37 | `20261201001000_cap_worker_dispatch.sql` | Cap worker dispatch. |
-| 38 | `20261201001100_player_game_keyset.sql` | Player game keyset. |
-| 39 | `20261201001200_guard_minute_workers.sql` | Keeps both minute workers bounded and prevents overlapping runs. |
-| 40 | `20261201001300_separate_forecast_publication.sql` | Separate forecast publication. |
-| 41 | `20261201001400_gate_idle_screen_refresh.sql` | Gate idle screen refresh. |
-| 42 | `20261202000100_authorize_trade_receipt_replays.sql` | Requires current membership and request ownership before trade receipt replay. |
-| 43 | `20261204000100_trade_structured_legality.sql` | Adds structured legality, incoming destinations, and atomic saved roster moves. |
-| 44 | `20261205000100_pending_asset_locks.sql` | Locks pending assets and preserves transaction-bound executor proof. |
-| 45 | `20261206000100_trade_pick_labels.sql` | Adds pick ownership to activity readers and shared pick labels. |
-| 46 | `20261207000100_release27_dispatcher_convergence.sql` | Combines scheduler work and handles trade capacity conflicts during waiver processing. |
-| 47 | `20261209000500_matchup_forecast_season_fallback.sql` | Adds current-season averages to both forecast context readers. |
-
-The final history contains 675 migrations through `20261209000500`.
-The fixed audit anchor stays at 329 migrations through `20261005000003`.
-The approved range contains 346 migrations.
-The recorded security baseline stays at 564 migrations through `20261029000800`.
-Its candidate suffix contains 111 migrations.
-Historical aliases and the recorded pre-migration catalog stay unchanged.
-
-The private upgrade uses project `pt4bafabler27`, with ports `600xx`.
-Both attestations, the function catalog, and database types regenerate from that database.
-The final scheduler keeps rankings, missing-stat repair, analysis, and dispatcher-owned public-read retention.
-Both minute cron jobs retain overlap guards and use idempotent changes to existing job IDs.
-The event partition migration preserves column grants and version capture.
-The roster guard combines pending locks with transaction-bound executor proof.
-The publication keeps all 16 active client watch tables and removes six unwatched tables.
-The earlier draft-only publication is superseded. Its migration version stays unchanged.
-The changed Edge functions are `api`, `backfill`, `matchup-forecast`, `process-trades`, `refresh-views`, `sync-players`, and `sync-schedule`.
-No production service receives a request.
-[Release contract](../supabase/RELEASE-DB.md#release-27) owns rollout and rollback.
-
-## Release 2.7.1 candidate
-
-The source starts at `f1c1f6ec`, the release 2.7 source.
-The supplied production head is `20261209000500`, with 675 migrations.
-The private rehearsal applies that full prefix before the four candidate migrations.
-The final history contains 679 migrations through `20261210000300`.
-No version collides or changes.
-
-| Order | Migration | Change |
-| --- | --- | --- |
-| 1 | `20261209000600_league_schedule.sql` | Reads each member's season schedule. |
-| 2 | `20261210000100_scheduler_watchdog.sql` | Adds bounded health checks, degradation levels, and restricted dispatch. |
-| 3 | `20261210000200_certify_inactive_zero_rows.sql` | Removes and audits absent inactive zero rows during final certification. |
-| 4 | `20261210000300_isolate_screen_statistics.sql` | Retires inline analysis and schedules independent daily statistics. |
-
-The fixed audit anchor remains 329 migrations through `20261005000003`.
-Its approved range contains 350 migrations.
-The recorded security baseline remains 564 migrations through `20261029000800`.
-Its candidate suffix contains 115 migrations.
-Historical aliases and the recorded pre-migration catalog stay unchanged.
-The function catalog, database types, and both attestations regenerate on private project `pt4bafabler271`, using ports `612xx`.
-Schedule adds no realtime subscription; the publication remains equal to the 16-table client watch set.
-The changed Edge functions are `api`, `backfill`, `live-poll`, `season-boundary`, `sync-scores`, and `sync-stats`.
-This integration makes no production request.
-[Release contract](../supabase/RELEASE-DB.md#release-271) owns rollout, watchdog thresholds, health reads, and rollback.

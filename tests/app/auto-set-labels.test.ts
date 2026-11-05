@@ -3,7 +3,8 @@ import { act, create } from 'react-test-renderer'
 import { expect, it, vi } from 'vitest'
 import { AutoSetModal } from '@/components/AutoSetModal'
 
-vi.mock('react-native', () => ({ View: 'View', Platform: { OS: 'web' }, StyleSheet: { create: (value: unknown) => value } }))
+vi.mock('react-native', () => ({ View: 'View', Text: 'Text', Platform: { OS: 'web' }, StyleSheet: { create: (value: unknown) => value } }))
+vi.mock('@expo/vector-icons/MaterialIcons', () => ({ default: 'MaterialIcons' }))
 vi.mock('@/components/ui/Button', () => ({ Button: 'Button' }))
 vi.mock('@/components/ui/Sheet', () => ({ Sheet: 'Sheet' }))
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true

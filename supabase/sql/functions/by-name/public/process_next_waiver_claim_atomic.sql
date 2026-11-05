@@ -557,7 +557,7 @@ BEGIN
       SELECT true, failed.id, failed.member_id, failed.player_id, failed.status, failed.failure_reason
         FROM failed;
       RETURN;
-    EXCEPTION WHEN SQLSTATE 'PA008' OR SQLSTATE 'PT001' OR SQLSTATE 'PT409' OR SQLSTATE 'PA004' THEN
+    EXCEPTION WHEN SQLSTATE 'PA008' OR SQLSTATE 'PA010' OR SQLSTATE 'PT409' OR SQLSTATE 'PA004' THEN
       IF SQLSTATE='PA004' AND COALESCE(v_claim.drop_roster_slot,'active') NOT IN ('taxi','ir') THEN
         RAISE;
       END IF;

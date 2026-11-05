@@ -463,11 +463,12 @@ const ItemSeparator = () => <View style={styles.separator} />
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgScreen },
-    body: { flex: 1 },
+    body: { flex: 1, marginHorizontal: spacing.lg, marginBottom: spacing.lg, backgroundColor: colors.bgCard, borderWidth: 1, borderColor: colors.borderLight, borderRadius: radii.xl, overflow: 'hidden' },
     bodyDesktop: {
         width: '100%',
         maxWidth: layout.formMaxWidth,
         alignSelf: 'center',
+        marginHorizontal: spacing.none,
         borderLeftWidth: 1,
         borderRightWidth: 1,
         borderColor: colors.borderLight,

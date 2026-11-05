@@ -4,9 +4,11 @@ SET LOCAL app.supabase_url='http://127.0.0.1:1';
 SET LOCAL app.edge_internal_token='standings-dispatch-fixture';
 DELETE FROM private.work_items;
 DELETE FROM private.screen_refresh_queue;
+DELETE FROM cron.job_run_details;
+UPDATE private.worker_controls SET paused=false,scheduler_level='normal',scheduler_last_dispatch_at=NULL WHERE id;
 DO $$
 DECLARE f record; matchup uuid:=gen_random_uuid(); game uuid:=gen_random_uuid(); last_day date:=(now() AT TIME ZONE 'America/New_York')::date-1;
-  payload jsonb; standings_payload jsonb; claim jsonb; initial_version bigint; finalized_version bigint; published jsonb;
+  payload jsonb; standings_payload jsonb; initial_version bigint; finalized_version bigint;
 BEGIN
   SELECT * INTO f FROM pg_temp.rules_fixture(2,9582);
   INSERT INTO season_weeks(season_year,week_number,week_start,week_end) VALUES(9582,1,last_day-6,last_day);
@@ -30,14 +32,11 @@ BEGIN
   SELECT version INTO finalized_version FROM private.screen_refresh_queue WHERE league_season_id=f.season_id;
   PERFORM pg_temp.check_rules(finalized_version>initial_version AND (SELECT dirty FROM private.screen_refresh_queue WHERE league_season_id=f.season_id),'finalization queues a new standings version');
   PERFORM pg_temp.check_rules((SELECT wins=0 FROM standings_current WHERE member_id=f.member_ids[1]),'current standings wait for the refresh worker');
+  UPDATE private.screen_refresh_queue SET available_at=now(),changed_at=now()-interval '1 day' WHERE league_season_id=f.season_id;
   PERFORM public.dispatch_work();
-  PERFORM pg_temp.check_rules((SELECT count(*)=1 AND bool_and(jobname='work-dispatcher' AND schedule='* * * * *') FROM cron.job WHERE jobname NOT IN ('io-hint-drain','io-cron-history-retention','public-read-retention')),'only the minute dispatcher owns scheduling');
-  PERFORM pg_temp.check_rules(EXISTS(SELECT 1 FROM edge_invocations invocation JOIN private.work_items work ON work.id=invocation.work_item_id
-    WHERE invocation.function_name='refresh-views' AND work.kind='refresh-views'),'single dispatcher invokes the correlated refresh worker');
-  SELECT value INTO claim FROM jsonb_array_elements(public.view_refresh_work(p_params:='{"operation":"claim","limit":10}')) WHERE value->>'seasonId'=f.season_id::text;
-  PERFORM pg_temp.check_rules(claim->>'claimToken' IS NOT NULL,'refresh worker claims finalized standings');
-  published:=public.view_refresh_work(f.league_id,NULL,claim||'{"operation":"complete","tradeValues":[]}');
-  PERFORM pg_temp.check_rules(published='true'::jsonb,'worker publishes the finalized version');
+  PERFORM pg_temp.check_rules((SELECT count(*)=1 AND bool_and(jobname='work-dispatcher' AND schedule='* * * * *') FROM cron.job WHERE jobname NOT IN ('io-hint-drain','io-cron-history-retention','public-read-retention','screen-statistics')),'only the minute dispatcher owns scheduling');
+  PERFORM pg_temp.check_rules(EXISTS(SELECT 1 FROM private.work_items WHERE kind='refresh-views' AND status='succeeded'),
+    'single dispatcher completes the standings refresh worker');
   PERFORM pg_temp.check_rules((SELECT wins=1 AND losses=0 AND points_for=10 AND points_against=5 FROM standings_current WHERE member_id=f.member_ids[1])
     AND (SELECT losses=1 AND wins=0 AND points_for=5 FROM standings_current WHERE member_id=f.member_ids[2]),'refresh_standings publishes the final week records and points');
   PERFORM pg_temp.check_rules((SELECT NOT dirty FROM private.screen_refresh_queue WHERE league_season_id=f.season_id),'publication clears pending standings work');

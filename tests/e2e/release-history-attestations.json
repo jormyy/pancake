@@ -3560,6 +3560,41 @@
       "statementCount": 31,
       "statementsSha256": "3500ac1cc6045e54487897a7264b6e75d023cd5daca150810228e27717f41534",
       "sha256": "8edeebdd47de77ac9cde7a02151629229aa9fa7a227a23b2ee62efbd3a85186d"
+    },
+    {
+      "name": "league_history",
+      "version": "20261214009800",
+      "statementCount": 4,
+      "statementsSha256": "6c72d82b495c3b8369269129cf9e1fbf83239bcf2eec2e36cbb70d9cc00bc2d5",
+      "sha256": "d45e27e1b02a49c928fb75d2257aa02dbb619835c0c3a9976980d53a066b9a4c"
+    },
+    {
+      "name": "schedule_matchup_links",
+      "version": "20261214009900",
+      "statementCount": 1,
+      "statementsSha256": "695234c7fab82a75517a56fbfd1cbfa0d4479dd0f94cd606e317452ee7ff13ae",
+      "sha256": "ff91904fbb6609ba651bdb02e086e78a6aa340180e28de057a25ee2a4c9982f2"
+    },
+    {
+      "name": "trade_rule_error_transport",
+      "version": "20261214010000",
+      "statementCount": 11,
+      "statementsSha256": "e8777ee59ad257b3d21ec5092bf0bb69acb1985d9f7313552586d2218b724905",
+      "sha256": "165137daabe2d450648dfd82bdd41e596141287d472a50d24fe55bb7eacd380b"
+    },
+    {
+      "name": "bound_version_hint_payload",
+      "version": "20261214010100",
+      "statementCount": 5,
+      "statementsSha256": "d445392c8add637bfdaeafb0418c472e23cfdf59722c3ab1e41925fee1878927",
+      "sha256": "1733e114ef015f2e59e4db17375dccda63623a1057d882737276e0f2aebd7621"
+    },
+    {
+      "name": "register_retention_lifetimes",
+      "version": "20261214010200",
+      "statementCount": 3,
+      "statementsSha256": "57e51bad7cf4ff7b3bfbfa5c165b2f16ebf2fee6466abbe40a7bb1d5fd253adb",
+      "sha256": "d337e31efda5c124895a6c32d2aeb565204be0e5ec26076c7d5abdb4a81a9421"
     }
   ]
 }

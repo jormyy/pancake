@@ -2,7 +2,7 @@ import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, expect, it, vi } from 'vitest'
 import { MatchupForecastSummary } from '@/components/MatchupForecastSummary'
-import type { MatchupForecast } from '@/hooks/use-matchup-forecast'
+import type { MatchupForecast } from '@/types/matchup-forecast'
 import { colors, spacing } from '@/constants/tokens'
 
 vi.mock('react-native', () => ({ Platform: { OS: 'web' }, View: 'View', Text: 'Text', StyleSheet: { create: (value: unknown) => value } }))

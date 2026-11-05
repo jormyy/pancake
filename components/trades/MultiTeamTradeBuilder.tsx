@@ -287,7 +287,7 @@ export function MultiTeamTradeBuilder({
                                 testID={`trade-sender-${participant.memberId}`}
                                 id={`trade-sender-${participant.memberId}`}
                             >
-                                <Text style={[styles.senderTabText, active && styles.senderTabTextActive]} numberOfLines={1}>
+                                <Text style={[styles.senderTabText, active && styles.senderTabTextActive]} numberOfLines={2}>
                                     {participant.memberId === myMemberId ? 'You' : participantName(participant.memberId)}
                                 </Text>
                             </Pressable>
@@ -410,19 +410,20 @@ const styles = StyleSheet.create({
         fontWeight: fontWeight.semibold,
         color: colors.textPrimary,
     },
-    summaryRow: { flexDirection: 'row', alignItems: 'center', marginHorizontal: spacing.lg, marginTop: spacing.sm, gap: spacing.sm },
+    summaryRow: { flexDirection: 'row', alignItems: 'center', marginHorizontal: spacing.xl, marginTop: spacing.md, marginBottom: spacing.lg, gap: spacing.md },
     compactSummary: {
         flex: 1,
         minHeight: controlSize.minTouch,
-        paddingHorizontal: spacing.md,
+        minWidth: 0,
+        paddingHorizontal: spacing.lg,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
         gap: spacing.md,
-        borderTopWidth: 1,
-        borderBottomWidth: 1,
-        borderColor: uiColors.borderNeutral,
-        backgroundColor: uiColors.surfaceAlt,
+        borderWidth: 1,
+        borderRadius: radii.xl,
+        borderColor: colors.borderLight,
+        backgroundColor: colors.bgCard,
     },
     compactSummaryCopy: { minWidth: 0, flex: 1 },
     compactSummaryMeta: {
@@ -441,27 +442,28 @@ const styles = StyleSheet.create({
     scroller: { marginBottom: spacing.lg },
     // flexGrow lets team panels share the full builder width instead of
     // sitting at their minimum width inside the sideways scroller.
-    columns: { flexGrow: 1, flexDirection: 'row', gap: spacing.md, paddingHorizontal: spacing.xl, paddingBottom: spacing.sm },
+    columns: { flexGrow: 1, flexDirection: 'row', gap: spacing.xl, paddingHorizontal: spacing.xl, paddingBottom: spacing.sm },
     senderTabs: {
         flexDirection: 'row',
         flexWrap: 'wrap',
-        gap: spacing.sm,
-        paddingHorizontal: spacing.xl,
-        paddingBottom: spacing.md,
+        gap: spacing.md,
+        marginHorizontal: spacing.xl,
+        marginBottom: spacing.lg,
+        padding: spacing.sm,
+        borderRadius: radii.xl,
+        backgroundColor: colors.bgSubtle,
     },
     senderTab: {
-        flexGrow: 1,
-        flexBasis: 96,
-        minWidth: 96,
-        maxWidth: 200,
+        flex: 1,
+        minWidth: controlSize.minTouch,
         minHeight: controlSize.minTouch,
         paddingHorizontal: spacing.md,
         borderRadius: radii.md,
         alignItems: 'center',
         justifyContent: 'center',
     },
-    senderTabActive: { backgroundColor: colors.primaryLight },
-    senderTabText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textMuted },
+    senderTabActive: { backgroundColor: colors.bgCard },
+    senderTabText: { ...textStyles.rowTitle, color: colors.textMuted, textAlign: 'center' },
     senderTabTextActive: { color: colors.primaryDark },
     notesInput: {
         marginHorizontal: spacing.xl,

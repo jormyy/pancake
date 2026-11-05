@@ -4,7 +4,7 @@
 
 CREATE OR REPLACE FUNCTION private.publish_league_version(p_league_id uuid,p_topics text[],p_sources text[])
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
-DECLARE stored public.league_versions%ROWTYPE; readers uuid[]; change_topic text; change_scope jsonb; forecast_ids jsonb;
+DECLARE stored public.league_versions%ROWTYPE; readers uuid[]; change_topic text; change_scope jsonb; forecast_ids jsonb; hint_details jsonb;
 BEGIN
     IF auth.role()='service_role'
       AND COALESCE(NULLIF(current_setting('request.headers',true),'')::jsonb,'{}'::jsonb)->>'x-pancake-public-checkpoint'='true'
@@ -47,9 +47,13 @@ BEGIN
     INSERT INTO public.league_changes(league_id,version,topic,scope,created_at)
       VALUES(stored.league_id,stored.version,change_topic,change_scope,stored.updated_at);
     DELETE FROM public.league_changes WHERE league_id=stored.league_id AND version<=stored.version-128;
+    hint_details:=jsonb_build_array(jsonb_build_object(
+      'version',stored.version::text,'topic',change_topic,'scope',change_scope,'created_at',stored.updated_at));
+    IF octet_length(hint_details::text)>4096 THEN
+      hint_details:=jsonb_set(hint_details,'{0,scope,hints}','[]'::jsonb);
+    END IF;
     INSERT INTO public.league_change_hints AS hint(league_id,topic,revision,scopes,details,updated_at)
-      VALUES(stored.league_id,'version',stored.version,NULL,jsonb_build_array(jsonb_build_object(
-        'version',stored.version::text,'topic',change_topic,'scope',change_scope,'created_at',stored.updated_at)),stored.updated_at)
+      VALUES(stored.league_id,'version',stored.version,NULL,hint_details,stored.updated_at)
     ON CONFLICT(league_id,topic) DO UPDATE SET revision=EXCLUDED.revision,scopes=NULL,details=EXCLUDED.details,updated_at=EXCLUDED.updated_at;
 END;
 $$;

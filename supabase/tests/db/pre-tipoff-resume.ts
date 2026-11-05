@@ -43,7 +43,6 @@ const proxy = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, asyn
   if (path.endsWith('/get_pre_tipoff_lineup_context')) {
     contexts.push(body.p_member_id)
     if (body.p_member_id === failContext) {
-      failContext = ''
       return Response.json({ message: 'Synthetic context service unavailable' }, { status: 503 })
     }
   }
@@ -120,7 +119,7 @@ class Fixture {
   async queue() {
     const due = await query(admin.from('nba_games').select('id').eq('status', 'Scheduled').gt('game_time', new Date().toISOString()).lte('game_time', new Date(Date.now() + 120000).toISOString()))
     assert.deepEqual(due?.map(row => row.id), [this.game], 'Only the owned tipoff may dispatch')
-    await sql(`BEGIN; SELECT set_config('app.supabase_url','${workerBase}',true); SELECT set_config('app.edge_internal_token','${internalToken}',true); SELECT invoke_pre_tipoff_optimizer_if_due(); COMMIT`)
+    await sql(`BEGIN; SELECT set_config('app.supabase_url','${workerBase}',true); SELECT set_config('app.edge_internal_token','${internalToken}',true); UPDATE private.work_items SET due_at=now() WHERE kind='pre-tipoff' AND (payload->>'tipoffAt')::timestamptz='${this.tipoff}'::timestamptz AND status='failed'; SELECT private.enqueue_pre_tipoff_optimizer(); DO $$ DECLARE item private.work_items%ROWTYPE; BEGIN FOR item IN UPDATE private.work_items SET status='running',attempts=attempts+1,lease_token=gen_random_uuid(),lease_until=clock_timestamp()+interval '45 seconds' WHERE kind='pre-tipoff' AND (payload->>'tipoffAt')::timestamptz='${this.tipoff}'::timestamptz AND status IN ('pending','failed') AND due_at<=now() RETURNING * LOOP PERFORM private.work_execute(item.id,item.lease_token); END LOOP; END $$; COMMIT`)
   }
   async dispatch() { return await query(admin.from('lineup_tipoff_dispatches').select('token,status,lease_until,input_revision,error').eq('tipoff_at', this.tipoff).single()) }
   async completed() {
@@ -129,6 +128,7 @@ class Fixture {
     return await query(admin.from('lineup_tipoff_members').select('member_id,completed_at').eq('tipoff_at', this.tipoff).eq('input_revision', revision).order('member_id'))
   }
   async cleanup() {
+    if (this.tipoff) await sql(`DELETE FROM public.edge_invocations WHERE work_item_id IN (SELECT id FROM private.work_items WHERE kind='pre-tipoff' AND (payload->>'tipoffAt')::timestamptz='${this.tipoff}'::timestamptz); DELETE FROM private.work_items WHERE kind='pre-tipoff' AND (payload->>'tipoffAt')::timestamptz='${this.tipoff}'::timestamptz`)
     await query(admin.from('lineup_tipoff_members').delete().eq('tipoff_at', this.tipoff))
     await query(admin.from('lineup_tipoff_dispatches').delete().eq('tipoff_at', this.tipoff))
     await query(admin.from('leagues').delete().eq('id', this.league))
@@ -172,16 +172,21 @@ try {
   failContext = first.members[0]
   await query(admin.from('players').update({ injury_status: 'Out' }).eq('id', first.players[0]))
   await first.queue(); await waitFor(async () => roots.length, count => count === 3)
-  assert.equal(roots[2].status, 500); assert.equal(roots[2].result.failed, 1)
-  assert.match((await first.dispatch())?.error ?? '', /Synthetic context service unavailable/)
+  assert.equal(roots[2].status, 200); assert.equal(roots[2].result.failed, 1)
+  const recorded = await query(admin.from('lineup_tipoff_members').select('error').eq('tipoff_at', first.tipoff).eq('member_id', first.members[0]).eq('input_revision', (await first.dispatch())!.input_revision).single())
+  assert.match(recorded?.error ?? '', /Synthetic context service unavailable/)
+  assert.equal((await first.dispatch())?.status, 'succeeded')
   const beforeRetry = contexts.length
+  failContext = ''
+  await first.queue()
+  assert.equal(contexts.length, beforeRetry, 'A durably recorded member failure does not hot-loop')
+  await query(admin.from('players').update({ injury_status: 'Questionable' }).eq('id', first.players[0]))
   await first.queue(); await waitFor(async () => roots.length, count => count === 4)
-  assert.equal(roots[3].status, 200)
-  assert.equal(contexts.length - beforeRetry, 1, 'Only the failed team may repeat context work')
-  assert.equal((await first.completed())?.filter(row => row.member_id === first.members[0]).length, 1)
+  assert.equal(roots[3].status, 200); assert.equal(roots[3].result.failed, 0)
+  assert.equal(contexts.length - beforeRetry, 101, 'Changed inputs give every member a fresh context')
   const lineup = await query(admin.from('weekly_lineups').select('player_id').eq('league_id', first.league))
-  assert.deepEqual(lineup?.map(row => row.player_id), [first.players[1]])
-  console.log(JSON.stringify({ case: 'changed inputs refresh, healthy teams persist, only failed team retries', retryContextReads: contexts.length - beforeRetry }))
+  assert.deepEqual(lineup?.map(row => row.player_id).sort(), [...first.players].sort())
+  console.log(JSON.stringify({ case: 'member failures are durable without hot-looping and new inputs recover all teams', recoveredContextReads: contexts.length - beforeRetry }))
   await first.cleanup()
 
   const crashed = new Fixture(); fixtures.push(crashed); await crashed.seed()

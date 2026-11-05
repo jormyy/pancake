@@ -11,7 +11,6 @@ vi.mock('@/hooks/use-league-day', () => ({ useLeagueDay: () => '2026-10-11' }))
 vi.mock('@/components/home/InlineLineupEditor', () => ({ InlineLineupEditor: 'InlineLineupEditor' }))
 vi.mock('@/components/home/DailyWaivers', () => ({ DailyWaivers: 'DailyWaivers' }))
 
-vi.mock('@/hooks/use-matchup-forecast', () => ({ useMatchupForecast: () => ({ forecast: null, loading: false }) }))
 vi.mock('@/components/MatchupForecastSummary', () => ({ MatchupForecastSummary: 'MatchupForecastSummary' }))
 
 const mocks = vi.hoisted(() => ({

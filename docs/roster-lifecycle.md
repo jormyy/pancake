@@ -31,7 +31,7 @@ Waiver and trade-plan reservations share team and player locks.
 `private.lineup_game_started` owns the database lock predicate.
 `private.is_ir_designation` owns IR injury eligibility.
 Player merges preserve history under the surviving identity and reject unresolved ownership conflicts.
-The [backend inventory](supabase-backend-route-inventory.md) maps public action paths.
+The [backend inventory](architecture.md#screen-views) maps public action paths.
 
 ## History lock
 
@@ -443,3 +443,20 @@ Roster, lineup, and waiver snapshots include those locks in the same request.
 The trade asset controls use the roster snapshot.
 Lock changes publish a league version before deferred trade activity finishes.
 The phone shows a lock badge, the server reason, and a link to the pending action.
+
+## Rookie draft order
+
+## Linear order
+
+Rookie drafts use linear order by default.
+Each original team keeps the same slot in every round.
+A traded pick goes to its current owner without moving its original slot.
+Commissioners can select `snake` with the `rookie_draft_order` league setting.
+Snake order reverses every second round.
+Each draft saves its order choice and seed when it starts.
+Worse records pick first.
+Equal records use higher points per game first, then the stored seed.
+Points per game uses the played-game count, not the raw points total.
+Rookie mock drafts follow the same saved order rule.
+Saved draft orders remain stable when the server repeats generation.
+Existing drafts keep their saved snake order.

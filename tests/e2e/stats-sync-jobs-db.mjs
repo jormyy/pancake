@@ -395,11 +395,10 @@ try {
     '1',
     'durable stats dispatcher cron is not installed',
   )
-  assert.equal(
-    scalar("SELECT command FROM cron.job WHERE jobname = 'work-dispatcher';"),
-    'SELECT public.dispatch_work()',
-    'durable stats dispatcher cron does not go through its idle gate',
-  )
+  const dispatchCommand = scalar("SELECT command FROM cron.job WHERE jobname = 'work-dispatcher';")
+  assert.match(dispatchCommand, /PERFORM public\.dispatch_work\(\)/, 'dispatcher reaches the idle gate')
+  assert.match(dispatchCommand, /pg_try_advisory_lock/, 'overlapping scheduled dispatchers do not compete')
+  assert.match(dispatchCommand, /pg_advisory_unlock/, 'dispatcher releases its overlap guard')
   assert.match(
     scalar("SELECT pg_get_functiondef('private.enqueue_stats_sync_dispatch(timestamp with time zone)'::regprocedure);"),
     /"dispatch":true,"jobId":"00000000-0000-4000-8000-000000000000"/,

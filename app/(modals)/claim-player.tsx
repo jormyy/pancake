@@ -42,6 +42,8 @@ import { blockedActionProps } from '@/lib/a11y'
 import { useAddLimitGate } from '@/hooks/use-add-limit-gate'
 import { colors, controlSize, fontFamily, fontSize, fontWeight, layout, radii, spacing, table, textStyles, uiColors } from '@/constants/tokens'
 import { LoadingState, PageHeader, usePageMetrics } from '@/components/ui'
+import { Card } from '@/components/ui/Card'
+import { SectionBand } from '@/components/ui/SectionBand'
 import { showAlert, showSuccess } from '@/lib/alert'
 
 import { EmptyState } from '@/components/EmptyState'
@@ -345,6 +347,7 @@ export default function ClaimPlayerScreen() {
         return (
             <PageHeader
                 title="Waiver Claim"
+                showTitle
                 onBack={goBack}
                 backLabel="Back"
                 actions={renderSubmitButton()}
@@ -376,7 +379,7 @@ export default function ClaimPlayerScreen() {
 
     function renderClaimSummary() {
         return (
-            <View style={styles.claimCard}>
+            <Card style={styles.claimCard}>
                 <View style={styles.claimPlayerRow}>
                     <PlayerRowContent locks={readAssetLocks(myRoster.find(row => row.players.id === player?.id))} name={player?.display_name ?? '—'} nbaId={player?.nba_id} team={player?.nba_team}
                         positions={player?.eligible_positions?.length ? player.eligible_positions : player?.position ? [player.position] : []}
@@ -402,7 +405,7 @@ export default function ClaimPlayerScreen() {
                         <Text style={styles.bidBalance}>{transactionState ? `of $${transactionState.faabBalance}` : 'Balance unavailable'}</Text>
                     </View>
                 ) : null}
-            </View>
+            </Card>
         )
     }
 
@@ -422,10 +425,10 @@ export default function ClaimPlayerScreen() {
                         {compactDropMode ? 'DROP A PLAYER FOR CLAIM' : needsDrop ? 'DROP A PLAYER (required)' : 'DROP A PLAYER (optional)'}
                     </Text>
                                     </View>
-                {groupRosterOptions(myRoster).map(group => <View key={group.label} style={styles.dropGroup}>
-                    <Text accessibilityRole="header" style={styles.dropGroupLabel}>{group.label}</Text>
+                {groupRosterOptions(myRoster).map(group => <Card key={group.label} padding="none" elevated="none" style={styles.dropGroup}>
+                    <SectionBand label={group.label} />
                     <View style={styles.rosterList}>{renderRosterDropRows(group.players)}</View>
-                </View>)}
+                </Card>)}
             </View>
         )
     }
@@ -590,15 +593,7 @@ const styles = StyleSheet.create({
     limitBody: { ...textStyles.body },
     limitMeta: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: uiColors.brandText },
 
-    claimCard: {
-        padding: spacing.lg,
-        backgroundColor: colors.bgCard,
-        borderRadius: radii.lg,
-        borderCurve: 'continuous' as const,
-        borderWidth: 1,
-        borderColor: colors.borderLight,
-        gap: spacing.md,
-    },
+    claimCard: { gap: spacing.lg },
     claimPlayerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
     claimPlayerCopy: { flex: 1, minWidth: 0, gap: spacing.xxs },
     claimName: { ...textStyles.rowTitle },
@@ -625,17 +620,9 @@ const styles = StyleSheet.create({
 
     dropSection: { gap: spacing.md },
     dropHeading: { gap: spacing.xs },
-    dropGroup: { gap: spacing.xs },
-    dropGroupLabel: { ...textStyles.sectionLabel },
+    dropGroup: { overflow: 'hidden' },
     sectionTitle: { ...textStyles.sectionLabel, textTransform: 'none' as const },
-    rosterList: {
-        borderWidth: 1,
-        borderColor: colors.borderLight,
-        borderRadius: radii.lg,
-        borderCurve: 'continuous' as const,
-        backgroundColor: colors.bgCard,
-        overflow: 'hidden',
-    },
+    rosterList: { overflow: 'hidden' },
     rosterRow: {
         flexDirection: 'row',
         alignItems: 'center',

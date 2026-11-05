@@ -26,7 +26,7 @@ CREATE FUNCTION pg_temp.reject_settlement() RETURNS trigger LANGUAGE plpgsql AS 
 BEGIN
   IF NEW.member_id IS DISTINCT FROM OLD.member_id THEN
     PERFORM nextval('pg_temp.plan_transfer_attempts');
-    IF NEW.player_id::text=current_setting('dynasty.fail_player',true) THEN RAISE EXCEPTION 'forced settlement failure' USING ERRCODE='PT001'; END IF;
+    IF NEW.player_id::text=current_setting('dynasty.fail_player',true) THEN RAISE EXCEPTION 'forced settlement failure' USING ERRCODE='PA010'; END IF;
   END IF;
   RETURN NEW;
 END;

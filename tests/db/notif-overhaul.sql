@@ -1,4 +1,5 @@
 BEGIN;
+\ir notification-scan-support.sql
 CREATE TEMP TABLE notif_fixture AS SELECT gen_random_uuid() AS league,gen_random_uuid() AS other_league,
   gen_random_uuid() AS season,gen_random_uuid() AS prior_season,
   gen_random_uuid() AS owner,gen_random_uuid() AS opponent,gen_random_uuid() AS outsider,
@@ -150,16 +151,16 @@ BEGIN
   VALUES(d,f.league,f.season,'snake','in_progress',false,1);
   INSERT INTO snake_draft_picks(id,draft_id,member_id,round,pick_in_round,overall_pick,timer_expires_at)
   VALUES(p,d,f.member,1,1,1,t+interval '1 minute');
-  PERFORM notif_scan_due_atomic(t-interval '1 microsecond');
+  PERFORM pg_temp.scan_notifications(t-interval '1 microsecond');
   IF EXISTS (SELECT 1 FROM notification_outbox WHERE event_type = 'draft_timer_expiring' AND data->>'pickId' = p::text) THEN RAISE EXCEPTION 'scanner fired outside the window'; END IF;
-  PERFORM notif_scan_due_atomic(t);
-  PERFORM notif_scan_due_atomic(t);
+  PERFORM pg_temp.scan_notifications(t);
+  PERFORM pg_temp.scan_notifications(t);
   IF (SELECT count(*) FROM notification_outbox WHERE event_type = 'draft_timer_expiring' AND data->>'pickId' = p::text) <> 1 THEN RAISE EXCEPTION 'scanner boundary or dedupe failed'; END IF;
 END $$;
 SELECT json_build_object('onClockRows',(SELECT json_agg(json_build_object(
   'id',o.id,'claim_token',gen_random_uuid(),'member_id',o.member_id,'title',o.title,'body',o.body,'data',o.data,'category',o.category))
   FROM notification_outbox o WHERE o.event_type = 'draft_on_clock' AND o.data ? 'draftId' AND o.data->>'draftId' IN
-    (SELECT id::text FROM drafts WHERE status = 'completed')));
+    (SELECT id::text FROM drafts WHERE status = 'completed' AND league_id=(SELECT league FROM notif_fixture))));
 SELECT set_config('request.jwt.claim.sub',(SELECT owner::text FROM notif_fixture),true);
 SET LOCAL ROLE authenticated;
 DO $$

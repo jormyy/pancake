@@ -1,4 +1,5 @@
 import { Badge } from '@/components/ui/Badge'
+import { MotionPressable } from '@/components/Motion'
 import { useDraftActivity as useModalActivity } from '@/components/league/draft-room/useDraftActivity'
 import {
     View,
@@ -181,12 +182,17 @@ function MatchupCard({
     isFinal?: boolean
     compact: boolean
 }) {
+    const router = useRouter()
     const homeWon = matchup.isFinalized && matchup.winnerId === matchup.homeId
     const awayWon = matchup.isFinalized && matchup.winnerId === matchup.awayId
     const inProgress = !matchup.isFinalized && matchup.homePoints != null
 
     return (
-        <View style={[styles.card, compact && styles.cardCompact, isFinal && styles.cardFinal]}>
+        <MotionPressable style={[styles.card, compact && styles.cardCompact, isFinal && styles.cardFinal]}
+            onPress={() => router.push(`/matchup?matchupId=${matchup.id}`)}
+            role="button" accessibilityRole="button"
+            aria-label={`Open ${matchup.homeName} versus ${matchup.awayName}`}
+            accessibilityLabel={`Open ${matchup.homeName} versus ${matchup.awayName}`}>
             <View style={[styles.cardHeader, compact && styles.cardHeaderCompact]}>
                 <Text style={styles.weekLabel}>{(matchup.endWeekNumber ?? matchup.weekNumber) === matchup.weekNumber
                     ? `Week ${matchup.weekNumber}` : `Weeks ${matchup.weekNumber}–${matchup.endWeekNumber}`}</Text>
@@ -217,7 +223,7 @@ function MatchupCard({
                 isMe={matchup.awayId === myMemberId}
                 compact={compact}
             />
-        </View>
+        </MotionPressable>
     )
 }
 

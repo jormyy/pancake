@@ -1,8 +1,18 @@
 const path = require('node:path')
+const { readdirSync } = require('node:fs')
 const { getDefaultConfig } = require('expo/metro-config')
 const { scopeWebModuleIds } = require('./scripts/scope-web-module-ids.js')
 
 const config = getDefaultConfig(__dirname)
+const appRoot = path.join(__dirname, 'app')
+const routeInlineBlockList = Object.fromEntries(readdirSync(appRoot, { recursive: true })
+  .filter(file => /\.[jt]sx?$/.test(file)).sort().map(file => [path.join(appRoot, file), true]))
+const getTransformOptions = config.transformer.getTransformOptions
+config.transformer.getTransformOptions = async (entryPoints, options, getDependencies) => {
+  const original = await getTransformOptions(entryPoints, options, getDependencies)
+  if (options.dev !== false || options.platform !== 'web') return original
+  return { ...original, transform: { ...original.transform, inlineRequires: { blockList: routeInlineBlockList } } }
+}
 config.resolver.assetExts = [...config.resolver.assetExts, 'woff2']
 config.transformer.babelTransformerPath = require.resolve('./scripts/stable-css-transformer.js')
 if (process.env.NODE_ENV === 'production') {

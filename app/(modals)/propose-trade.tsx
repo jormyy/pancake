@@ -552,7 +552,7 @@ export default function ProposeTradeScreen() {
         } catch (error) {
             if (ownsOwner(ownerIdentity) && submissionRef.current === submission) {
                 // Rule and input rejections roll this request back. A conflicting receipt can be committed.
-                const rejected = error instanceof RequestError && (error.code === 'P0001' || error.code === 'PT001' ||
+                const rejected = error instanceof RequestError && (error.code === 'P0001' || error.code === 'PT001' || error.code === 'PA010' ||
                     (error.code === '22023' && error.message !== 'This request key already belongs to different trade terms.'))
                 if (rejected) {
                     retainedAttemptRef.current = null
@@ -679,6 +679,7 @@ export default function ProposeTradeScreen() {
         <PageFrame style={styles.container}>
             <PageHeader
                 title={tradeComposerTitle(mode)}
+                showTitle
                 onBack={leave}
                 backLabel="Cancel trade proposal"
                 actions={(

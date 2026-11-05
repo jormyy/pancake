@@ -215,7 +215,7 @@ Transfer uses measured encoded phone responses plus conservative decoded interna
 The [official egress guidance](https://supabase.com/kb/troubleshooting/all-about-supabase-egress-a_Sg_e) describes outgoing bytes and both transfer legs.
 It does not promise API-specific gzip billing. Local compression and byte lengths are verified; hosted compression and actual billing remain rollout checks.
 Headers and TLS overhead are not modeled. [Realtime billing](https://supabase.com/docs/guides/platform/manage-your-usage/realtime-messages) counts sends and deliveries.
-Official history has no automatic expiry; see [capacity and retention](db-capacity.md).
+Official history has no automatic expiry; see [capacity and retention](operations-scheduler.md#capacity).
 
 
 ## Follow-ups
@@ -225,3 +225,25 @@ The predecessor can accept an incomplete NBA final that omits a player.
 Forecast inputs can omit an unfinished prior-day game after Eastern midnight.
 An unexpectedly early first game remains undiscovered while no live worker is running.
 Public start receipts fix active-worker discovery; they do not start a worker before its admission window.
+
+## Inactive players and final certification
+
+`public.save_game_stats_atomic(uuid,text,jsonb,boolean)` removes absent inactive rows before its final coverage check.
+The row must have `did_not_play=true`, zero minutes, and explicit zeros for every numeric stat.
+Both double-double flags must be false.
+Null values, played rows, and nonzero values still fail the coverage check.
+Live imports skip players whose box-score status is `INACTIVE`.
+Final imports keep every supplied player.
+
+Cleanup, stat writes, final certification, and the cleanup receipt share one database transaction.
+A failure rolls back all four.
+The integer result still counts inserted and updated rows.
+Each cleanup writes a successful `sync_runs` receipt named `sync-stats:inactive-cleanup`.
+Its `details` contain `game_id`, `nba_game_id`, and the complete `removed_inactive_rows`.
+An unchanged revision creates no duplicate receipt.
+
+## Stats certification release order
+
+Apply `20261210000200` before updating Edge.
+The migration adds the cleanup receipt field and replaces `public.save_game_stats_atomic`.
+It preserves the existing RPC arguments and return value.

@@ -66,6 +66,11 @@ BEGIN
       JOIN pg_attribute a ON a.attrelid=d.adrelid AND a.attnum=d.adnum
       WHERE (n.nspname IN ('public','private') OR (n.nspname='net' AND c.relname='_http_response')) AND a.attgenerated=''
       ON CONFLICT(kind,name) DO UPDATE SET definition=EXCLUDED.definition;
+    INSERT INTO season_sim.restore_objects
+      SELECT 'view',format('%I.%I',v.schemaname,v.viewname),
+        format('CREATE OR REPLACE VIEW %I.%I %s AS %s',v.schemaname,v.viewname,CASE WHEN c.reloptions IS NULL THEN '' ELSE 'WITH ('||array_to_string(c.reloptions,',')||')' END,v.definition)
+      FROM pg_views v JOIN pg_namespace n ON n.nspname=v.schemaname JOIN pg_class c ON c.relnamespace=n.oid AND c.relname=v.viewname WHERE v.schemaname IN ('public','private')
+      ON CONFLICT(kind,name) DO UPDATE SET definition=EXCLUDED.definition;
     FOR saved IN SELECT definition FROM season_sim.restore_clock LOOP EXECUTE saved.definition; END LOOP;
     FOREACH function_name IN ARRAY ARRAY['now','clock_timestamp','transaction_timestamp','statement_timestamp'] LOOP
       EXECUTE format('ALTER FUNCTION pg_catalog.%I() RENAME TO %I',function_name,'season_sim_native_' || function_name);
