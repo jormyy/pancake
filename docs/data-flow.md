@@ -60,7 +60,7 @@ Roster moves, lineup saves, trade acceptance, waivers, and draft actions execute
 Request IDs make retries idempotent; actor, payload, ownership, locks, and permissions are checked again.
 Realtime delivers committed action and official-score changes.
 Public lines never authorize a write or establish a final result.
-See [architecture](architecture.md) and [offline behavior](pwa-live-data.md).
+See [architecture](architecture.md) and [offline behavior](architecture.md#loading-and-offline-actions).
 
 ## Stored statistics
 
@@ -76,7 +76,7 @@ The [IO model](io-audit.md) separates reads, writes, WAL, and memory pressure.
 
 Performance captures and generated rankings belong in an external evidence directory.
 They are not the application contract and do not replace this document.
-Use the [screen lab](perf-lab.md) for browser traffic and the [game-night lab](../scripts/bench/game-night/README.md) for memory pressure.
+Use the [screen lab](verification.md#performance-evidence) for browser traffic and the [game-night lab](../scripts/bench/game-night/README.md) for memory pressure.
 
 ## Free-agent response compatibility
 
@@ -85,3 +85,39 @@ It preserves the function signature and all other response fields.
 Explicit support-player reads retain ownership entries.
 Release 2.9.1 remains compatible with this response change; either side can ship first.
 The current feature release still follows database, Edge, then frontend ordering.
+
+## Statistics windows
+
+Waivers offers Season, Past 7 days, and Past 15 days.
+Season remains the default. Its existing automatic and explicit season choices stay unchanged.
+Requests without a statistics window retain the original response shape, without window metadata.
+
+## Dates and values
+
+Both windows include the current NBA calendar date in America/New_York and the preceding N−1 dates.
+The summary shows both dates, ET, per-game units, and “Includes today.”
+These are calendar windows, not the last seven or fifteen appearances.
+They ignore the season selector and never fall back to another season.
+
+Waivers uses `player_window_averages` and `stats_window`.
+The aggregation joins actual `player_game_stats` to the canonical `nba_games.game_date`.
+It includes regular-season games and excludes DNP rows, preseason games, and dates outside the window.
+Available current-day rows can change during a game.
+
+Each box-score average uses the non-null values for that statistic.
+Fantasy points use `v_fantasy_points`, including league weights, bonuses, and rounding each game before averaging.
+No appearances means zero GP and blank averages. A recorded game can still have an unavailable statistic.
+The new windows preserve that statistic as null instead of substituting a season average.
+
+## Sorting and state
+
+Players sorts the full filtered pool by the selected window before pagination.
+All pages use the same selection. Switching windows rejects older requests.
+Clear returns Players to its existing defaults.
+The My Team screen and My Team search filter keep their season statistics.
+Waivers refreshes its window identity at Eastern midnight and follow game-stat changes.
+
+## Player read release order
+
+Migration `20261130000100` replaces the dynasty reader without changing inputs, output columns, grants, or JSON values.
+Database, then Edge, then merge the frontend.

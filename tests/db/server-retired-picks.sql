@@ -10,7 +10,13 @@ BEGIN
   SELECT id INTO requested FROM draft_picks WHERE league_id=f.league_id AND round=3 AND original_owner_id=f.member_ids[2];
   offer:=public.propose_trade_atomic(f.league_id,f.season_id,f.member_ids[1],f.member_ids[2],'{}','{}',ARRAY[dead],ARRAY[requested]);
   PERFORM set_config('request.jwt.claim.sub',(SELECT commissioner_id::text FROM public.leagues WHERE id=f.league_id),true);
-  PERFORM pg_temp.reject_rules(format('SELECT public.start_rookie_draft_atomic(%L,2,false)',f.league_id),'%reserved%','a pending pick blocks the draft until withdrawal');
+  BEGIN
+    PERFORM set_config('request.jwt.claim.sub','',true);
+    PERFORM public.accept_trade_atomic(offer,f.member_ids[2]);
+    PERFORM set_config('request.jwt.claim.sub',f.user_ids[1]::text,true);
+    PERFORM pg_temp.reject_rules(format('SELECT public.start_rookie_draft_atomic(%L,2,false)',f.league_id),'%reserved%','an accepted pick blocks the draft until settlement');
+    RAISE EXCEPTION 'Restore pending control' USING ERRCODE='P8888';
+  EXCEPTION WHEN SQLSTATE 'P8888' THEN NULL; END;
   PERFORM public.withdraw_trade_atomic(offer,f.member_ids[1],f.user_ids[1]);
   draft:=(public.start_rookie_draft_atomic(p_league_id=>f.league_id,p_rounds=>2,p_is_mock=>false)->>'id')::uuid;
   PERFORM pg_temp.check_rules((SELECT status='withdrawn' FROM trades WHERE id=offer),'withdrawing the locked offer permits pick retirement');

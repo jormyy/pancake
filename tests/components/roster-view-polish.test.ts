@@ -7,6 +7,7 @@ import type { RosterView } from '@/lib/cache/view-types'
 import { WaiversSection } from '@/components/waivers/WaiversSection'
 import { memberTransactionState } from '@/tests/helpers/fixtures'
 import { clearSessionCaches, setSessionOwner } from '@/lib/session-cache-registry'
+import { Card } from '@/components/ui/Card'
 
 const mocks = vi.hoisted(() => ({ roster: vi.fn(), claims: vi.fn(), post: vi.fn(), push: vi.fn(), cancel: vi.fn(), edit: vi.fn(), reorder: vi.fn(), viewRead: vi.fn(), width: 358, online: true,
     view: { data: null as RosterView | null, loading: false, refreshing: false, error: null, refresh: vi.fn() },
@@ -46,7 +47,7 @@ vi.mock('@/lib/lineup', () => ({ getRosterSlotPlan: async () => ({ slots: [], as
 vi.mock('@/lib/shared/season', () => ({ getActiveSeasonId: async () => 'season' }))
 vi.mock('@/lib/league', () => ({ isTradingClosed: () => false, getMemberTransactionState: async () => memberTransactionState({ faabBalance: 100, weeklyAddLimit: 2, weeklyAddCount: 0 }) }))
 vi.mock('@/lib/format', () => ({ countLabel: String, formatPoints: String, playerHeadshotUrl: () => null }))
-vi.mock('@/components/ui', () => ({ Page: 'Page', PageHeader: 'PageHeader', Button: 'Button', usePageMetrics: () => ({ padX: 16, usableWidth: mocks.width }) }))
+vi.mock('@/components/ui', async () => ({ Page: 'Page', PageHeader: 'PageHeader', Button: (await import('@/components/ui/Button')).Button, Card: (await import('@/components/ui/Card')).Card, usePageMetrics: () => ({ padX: 16, usableWidth: mocks.width }) }))
 vi.mock('@/components/EmptyState', () => ({ EmptyState: 'EmptyState' }))
 vi.mock('@/components/NoLeagueState', () => ({ NoLeagueState: 'NoLeagueState' }))
 vi.mock('@/components/roster/RosterItems', () => ({
@@ -102,14 +103,18 @@ it('keeps the Waivers copy and touch target sizes with the shared view', async (
     expect(mocks.viewRead).toHaveBeenCalledWith(expect.objectContaining({ screen: 'roster', accountId: 'user', params: expect.objectContaining({ section: 'waivers' }) }), true)
     expect(mocks.claims).not.toHaveBeenCalled()
     const text = screen.root.findAllByType('Text' as React.ElementType).map(node => React.Children.toArray(node.props.children).join('')).join(' ')
-    expect(text).toContain('Available FAAB $100 · Priority #6')
+    expect(text).toContain('Available FAAB $100')
+    expect(text).toContain('Priority #6')
     expect(text).toContain('Next run ')
     expect(text).toContain('Pickups 0/2 this week')
     expect(text).not.toMatch(/Dropped players wait|Bids stay private|Higher bids go first|Claim order decides|Successful pickups|scoring week/)
-    for (const target of screen.root.findAllByType('Pressable' as React.ElementType)) {
-        expect(target.props.style.minHeight).toBeGreaterThanOrEqual(44)
-        expect(target.props.style.minWidth).toBeGreaterThanOrEqual(44)
+    const targets = screen.root.findAllByType('Pressable' as React.ElementType)
+    expect(targets.length).toBeGreaterThan(0)
+    for (const target of targets) {
+        const style = Object.assign({}, ...target.props.style({}).flat(Infinity).filter(Boolean))
+        expect(style.minHeight).toBeGreaterThanOrEqual(44)
     }
+    expect(targets.find(target => target.props.accessibilityLabel === 'Find a player to claim')?.props.style({}).flat(Infinity)).toContainEqual({ width: '100%' })
 })
 
 it.each(['cancel', 'edit', 'reorder'])('refreshes the shared Waivers view after %s', async operation => {
@@ -145,11 +150,13 @@ it('keeps offline claim actions available for the merged mutation queue', async 
     expect(mocks.view.refresh).toHaveBeenCalledExactlyOnceWith(true)
 })
 
-it('separates the pending heading and each claim with shared borders', async () => {
+it('uses shared section borders around the pending heading and each claim', async () => {
     await act(async () => { screen = create(React.createElement(WaiversSection, { active: true, onFindPlayer: vi.fn() })) })
     const { borderWidth, colors } = await import('@/constants/tokens')
-    const heading = screen.root.findAllByType('Text' as React.ElementType).find(node => JSON.stringify(node.props.children).includes('Pending claims'))!
-    expect(heading.props.style).toContainEqual(expect.objectContaining({ borderTopWidth: borderWidth.thin, borderTopColor: colors.separator }))
+    const heading = screen.root.findByProps({ accessibilityLabel: 'Pending claims (1)' })
+    expect(heading.props.style).toContainEqual(expect.objectContaining({ borderBottomWidth: borderWidth.thin, borderBottomColor: colors.borderLight }))
+    const section = screen.root.findAllByType(Card).find(card => card.findAllByProps({ accessibilityLabel: 'Pending claims (1)' }).length > 0)!
+    expect(section.props).toMatchObject({ padding: 'none', elevated: 'none', style: { overflow: 'hidden' } })
     expect(screen.root.findByType('RosterClaimItem' as React.ElementType).parent!.props.style).toEqual(expect.objectContaining({ borderBottomWidth: borderWidth.thin, borderBottomColor: colors.separator }))
 })
 

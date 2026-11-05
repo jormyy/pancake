@@ -1,5 +1,5 @@
 import { expect, it, vi } from 'vitest'
-import type { MatchupForecast } from '@/hooks/use-matchup-forecast'
+import type { MatchupForecast } from '@/types/matchup-forecast'
 
 const { computeForecast } = await vi.importActual<{ computeForecast: (context: ReturnType<typeof fixture>) => Pick<MatchupForecast, 'status' | 'teams' | 'games' | 'missingInputs'> }>('../supabase/functions/matchup-forecast/compute.ts')
 

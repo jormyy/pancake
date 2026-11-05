@@ -110,9 +110,8 @@ export class Clock {
   minute = ''
   async start(at: string) {
     this.jobs = JSON.parse(await sql("SELECT json_agg(row_to_json(j)) FROM (SELECT jobname,schedule,command,active FROM cron.job) j"))
-    const command = this.jobs.find(job => job.jobname === 'notification-dispatch-minute')?.command
-    assert.ok(command)
-    this.minute = command
+    assert.ok(this.jobs.some(job => job.jobname === 'work-dispatcher'))
+    this.minute = `SELECT public.notif_scan_due_atomic(); DO $$ DECLARE result jsonb; was_paused boolean; BEGIN SELECT paused INTO was_paused FROM private.worker_controls WHERE id; UPDATE private.worker_controls SET paused=true WHERE id; LOOP result:=private.complete_notification_scan_chunk(); EXIT WHEN NOT (result->>'remaining')::boolean; END LOOP; UPDATE private.worker_controls SET paused=was_paused WHERE id; END $$;`
     const ms = String(Date.parse(at))
     await sqlFile('scripts/season-sim/clock.sql', ['-v', `season_sim_port=${port}`, '-v', `sim_ms=${ms}`, '-v', `real_ms=${Date.now()}`, '-v', 'rate=0', '-v', `cap_ms=${ms}`])
     this.active = true

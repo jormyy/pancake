@@ -50,6 +50,8 @@ tests/e2e-pwa-update-report.json
 
 # Recipe and browser-script reports written under the checkout root
 /evidence/
+/tools/perf/.cache/
+/tools/verify/evidence/
 
 /*.md
 !README.md
@@ -62,7 +64,10 @@ tests/e2e-pwa-update-report.json
 skills-lock.json
 
 # claude code
-.claude/
+.claude/*
+!.claude/skills/
+.claude/skills/*
+!.claude/skills/verify-pancake/
 
 # editor
 .vscode/*

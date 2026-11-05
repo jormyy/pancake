@@ -31,7 +31,7 @@ BEGIN
   PERFORM pg_temp.check_rules((SELECT count(*)=1 AND min(schedule)='15 10 * * *' FROM cron.job WHERE jobname='screen-statistics'),'one independent daily job runs at 10:15 UTC');
   PERFORM pg_temp.check_rules(source LIKE '%statement_timeout=''10min''%' AND source LIKE '%lock_timeout=''2s''%' AND source LIKE '%private.refresh_screen_statistics()%','the cron command owns its timeout budgets');
   SELECT jobid INTO job_id FROM cron.job WHERE jobname='screen-statistics';
-  PERFORM cron.schedule('screen-statistics','15 10 * * *',source);
+  PERFORM cron.alter_job(job_id,schedule:='15 10 * * *',command:=source);
   PERFORM pg_temp.check_rules((SELECT jobid=job_id FROM cron.job WHERE jobname='screen-statistics'),'scheduling the named job again preserves its identity');
   PERFORM pg_temp.check_rules(NOT has_function_privilege('authenticated','private.refresh_screen_statistics()','EXECUTE')
     AND NOT has_function_privilege('anon','private.refresh_screen_statistics()','EXECUTE')

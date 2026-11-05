@@ -75,6 +75,7 @@ BEGIN
   PERFORM public.accept_trade_atomic(offer,f.member_ids[2]);
   PERFORM pg_temp.check_rules((SELECT status='accepted' FROM trades WHERE id=offer), 'live rookie draft permits player trades');
   UPDATE drafts SET status='cancelled' WHERE id=draft;
+  UPDATE trades SET status='pending' WHERE id=pending_offer;
   INSERT INTO drafts(league_id,league_season_id,draft_type,status,is_mock)
     VALUES(f.league_id,f.season_id,'auction','in_progress',false);
   PERFORM pg_temp.reject_rules(format('SELECT public.accept_trade_atomic(%L,%L)',pending_offer,f.member_ids[2]),

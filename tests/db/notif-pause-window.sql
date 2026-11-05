@@ -19,6 +19,7 @@ DO $$ BEGIN
   END IF;
 END $$;
 BEGIN;
+\ir notification-scan-support.sql
 CREATE TEMP TABLE notif_fixture AS SELECT gen_random_uuid() AS league,gen_random_uuid() AS other_league,
   gen_random_uuid() AS season,gen_random_uuid() AS prior_season,
   gen_random_uuid() AS owner,gen_random_uuid() AS opponent,gen_random_uuid() AS outsider,
@@ -56,7 +57,7 @@ BEGIN
     PERFORM set_config('request.jwt.claim.sub',(SELECT commissioner_id::text FROM public.leagues WHERE id=f.league),true);
     SELECT (start_rookie_draft_atomic(f.league,1,false,timer)->>'id')::uuid INTO d;
     SELECT id,timer_expires_at INTO p,initial_deadline FROM snake_draft_picks WHERE draft_id=d AND overall_pick=1;
-    PERFORM notif_scan_due_atomic(initial_deadline-interval '30 seconds');
+    PERFORM pg_temp.scan_notifications(initial_deadline-interval '30 seconds');
     SELECT id INTO expiry FROM notification_outbox WHERE event_type='draft_timer_expiring' AND data->>'pickId'=p::text;
     IF expiry IS NULL THEN RAISE EXCEPTION 'real scanner did not enqueue expiry'; END IF;
     CREATE TEMP TABLE paused_claims ON COMMIT DROP AS SELECT * FROM claim_notification_outbox_atomic(200,60)

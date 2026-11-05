@@ -91,7 +91,7 @@ Deno.test({
         : Response.json({ injuries: [{ injuries: [{ status: 'Out', athlete: { displayName: 'Other Player' } }, { status: 'Out' }] }] })
       if (url.pathname === '/news') return Response.json({ articles: [] })
       if (url.pathname === '/players/nba') return Response.json(Object.fromEntries(athletes.map((athlete, index) => [String(700000 + index), {
-        player_id: String(700000 + index), sport: 'nba', first_name: athlete.firstName, last_name: athlete.lastName, team: codes[Math.floor(index / 12)], years_exp: Math.max(0, athlete.experience.years - 1), position: 'PG',
+        player_id: String(700000 + index), sport: 'nba', birth_date: '2000-01-01', first_name: athlete.firstName, last_name: athlete.lastName, team: codes[Math.floor(index / 12)], years_exp: Math.max(0, athlete.experience.years - 1), position: 'PG',
       }])))
       if (url.pathname === '/staticData/playerIndex.json') return Response.json({ resultSets: [{
         headers: ['PERSON_ID', 'PLAYER_FIRST_NAME', 'PLAYER_LAST_NAME', 'ROSTER_STATUS', 'TEAM_ABBREVIATION', 'POSITION', 'FROM_YEAR'],

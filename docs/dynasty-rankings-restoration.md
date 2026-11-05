@@ -43,31 +43,3 @@ The year uses the season ending year internally.
 The display uses the calendar draft year.
 A current-year first-round pick one season ahead returns 619, with a 441–796 range.
 Hashtag supplies the rookie list; this original curve supplies future pick values.
-
-## Verification
-
-Run these checks against the private local stack.
-The integration runner requires its configured private project and loopback ports.
-Release 2.6.3 sets `HASHTAG_TEST_PROJECT=pt4bafabler263`, `PANCAKE_TEST_API_PORT=59221`, and `PANCAKE_TEST_DB_PORT=59222`.
-It blocks outbound requests outside its fixture origin and local API.
-The browser check needs the local frontend on port 59080 and the local Edge functions.
-
-```sh
-node tests/e2e/dynasty-ranking-rpc.mjs --browser
-psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/hashtag-ranking-restoration.sql
-npx vitest run tests/hooks/dynasty-rankings-identity.test.ts tests/components/player/player-detail.test.ts tests/lib/dynasty-ranking-values.test.ts
-```
-
-The integration runner starts with 400 five-year, 400 three-year, and 52 rookie rows.
-It also publishes 450 trade rows and 27 pick bands from the stored trade fixture.
-It invokes the real sync handler for each Hashtag view.
-It checks the authenticated player view route used by the player page.
-It publishes trade values again and checks that shared Hashtag ranks stay unchanged.
-The pick regression checks the current-year value without any stored trade bands.
-The browser checks both point labels on desktop and phone layouts through the player page.
-It checks a 2026 rookie pick while stored trade bands start in 2027.
-
-The old writer fails the metadata check because it inserts no rows.
-The old player view fails because it returns no five-year points.
-The old ranking hook fails because the current-year pick returns zero.
-An incorrect forecast label makes the browser check fail.

@@ -293,7 +293,7 @@ export async function readScreenView<T>(scope: ScreenScope, options: { force?: b
             if (cached) return cached.value
             throw new Error('Offline. Open this screen online first.')
         }
-        if (!cached && scope.leagueId && typeof window !== 'undefined' && typeof window.WebSocket === 'function') {
+        if (!cached && scope.screen !== 'home' && scope.leagueId && typeof window !== 'undefined' && typeof window.WebSocket === 'function') {
             const { waitForLeagueChanges } = await import('@/lib/league-changes')
             await waitForLeagueChanges(scope.leagueId)
         }

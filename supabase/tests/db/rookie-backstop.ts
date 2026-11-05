@@ -36,6 +36,7 @@ for (const state of cases.filter(value => !selectedCase || value === selectedCas
       INSERT INTO draft_picks(league_id,season_year,round,original_owner_id,current_owner_id) SELECT ${quote(league)},${year},r,m,m FROM unnest(ARRAY[${members.map(quote).join(',')}]::uuid[]) m CROSS JOIN generate_series(1,3) r;
       INSERT INTO season_weeks(season_year,week_number,week_start,week_end) SELECT ${year},w,date '2026-10-20'+(w-1)*7,date '2026-10-26'+(w-1)*7 FROM generate_series(1,3) w;
       ${players.map(player => `INSERT INTO players(id,first_name,last_name,position,eligible_positions,years_exp,nba_draft_number) VALUES(${quote(player)},'Synthetic',${quote(player)},'PG',ARRAY['PG'],0,1);`).join('\n')}
+      SELECT set_config('request.jwt.claim.sub',${quote(users[0])},true);
       ${state === 'missing' ? '' : state === 'auction' ? `SELECT start_auction_draft_atomic(${quote(league)});` : `SELECT start_rookie_draft_atomic(${quote(league)},3,false);`}
       ${['mock', 'mock_resume'].includes(state) ? `UPDATE drafts SET is_mock=true WHERE league_id=${quote(league)};` : ''}
       ${state === 'paused' ? `UPDATE drafts SET status='paused',pause_reason='timer_expired_pause' WHERE league_id=${quote(league)};` : ''}

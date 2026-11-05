@@ -248,15 +248,21 @@ The [trade curve report](../docs/trade-curve.md) records the real trades, roster
 
 The supplied production head is `20261214006200`, from the recorded 2.14.7 release.
 This lab does not verify hosted state.
-The local pin candidate ends at `20261214009700`.
+The local candidate ends at `20261214010200`.
 Apply the pin migration after `20261214009600`, then release the matching optimizer and frontend.
+The pending history change adds `20261214009800_league_history.sql` after the pin migration.
+It adds completed Pancake seasons, final standings, champions, and season totals to the League screen.
+The sweep adds `20261214009900_schedule_matchup_links.sql` for schedule destinations.
+It adds `20261214010000_trade_rule_error_transport.sql` for valid trade error responses.
+The matching Edge code maps the new rule codes to HTTP 409.
+Apply it before releasing the matching frontend.
 The pending autoset change adds `20261214009400_autoset_tipoff_flexibility.sql` after `20261214009300_player_stats_windows.sql`.
 It adds player tipoff times to the optimizer context without changing the response type or permissions.
 Verify this migration on an isolated stack and regenerate both attestations before including it in a release.
 Apply it before the matching `lineup-optimizer` Edge function; old workers ignore the added JSON field.
 Prepare the deployment checkout with `npm ci` and stamp the Edge build before pausing workers or applying migrations.
 Database, then Edge, then merge the frontend.
-Apply pending migrations through `20261214009700` only during the separately authorized release.
+Apply pending migrations through `20261214010200` only during the separately authorized release.
 Regenerate the catalog, types, and both attestations from a fresh private database before the final release checks.
 
 Deploy compatible database and Edge code before enabling public snapshots.
@@ -1622,3 +1628,7 @@ Compact Home player tuples append the pin at index 12.
 Pin changes update screen versions and pre-tipoff fingerprints.
 Run `npm run test:db:lineup-pins` and the existing lineup checks on a private stack.
 Run the optimizer Deno tests and regenerate database types and release attestations.
+
+The candidate also bounds live version hints in `20261214010100_bound_version_hint_payload.sql`. Large batches retain their full durable change record.
+
+`20261214010200_register_retention_lifetimes.sql` records the existing lifetime of fourteen tables in the retention catalog.

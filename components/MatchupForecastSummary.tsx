@@ -1,5 +1,5 @@
 import { StyleSheet, Text, View } from 'react-native'
-import type { MatchupForecastDisplay } from '@/hooks/use-matchup-forecast'
+import type { MatchupForecastDisplay } from '@/types/matchup-forecast'
 import { colors, radii, spacing, textStyles } from '@/constants/tokens'
 
 export function MatchupForecastSummary({ forecast, myMemberId, opponentMemberId, error }: {

@@ -369,11 +369,11 @@ it.skipIf(!available)('documents database-first release order for new client dep
     const pipelineNotes = baseNotes.match(/^## Pipeline night\n([\s\S]*?)(?=^## |$(?![\s\S]))/m)?.[1] ?? ''
     const publicNotes = readFileSync('docs/public-cli.md', 'utf8')
         .match(/^## Public CLI release order\n([\s\S]*?)(?=^## |$(?![\s\S]))/m)?.[1] ?? ''
-    const playerReadNotes = readFileSync('docs/db-health.md', 'utf8')
+    const playerReadNotes = readFileSync('docs/data-flow.md', 'utf8')
         .match(/^## Player read release order\n([\s\S]*?)(?=^## |$(?![\s\S]))/m)?.[1] ?? ''
-    const tradeReceiptNotes = readFileSync('docs/trade-receipts.md', 'utf8')
+    const tradeReceiptNotes = readFileSync('docs/trade-legality.md', 'utf8')
         .match(/^## Trade receipt release order\n([\s\S]*?)(?=^## |$(?![\s\S]))/m)?.[1] ?? ''
-    const statsCertificationNotes = readFileSync('docs/live-scoring-inactive-certification.md', 'utf8')
+    const statsCertificationNotes = readFileSync('docs/live-scores.md', 'utf8')
         .match(/^## Stats certification release order\n([\s\S]*?)(?=^## |$(?![\s\S]))/m)?.[1] ?? ''
     const refreshNotes = readFileSync('docs/data-flow.md', 'utf8')
         .match(/^## Screen refresh\n([\s\S]*?)(?=^## |$(?![\s\S]))/m)?.[1] ?? ''

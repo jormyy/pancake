@@ -4,9 +4,9 @@ SELECT pg_stat_statements_reset();
 BEGIN;
 SET LOCAL app.supabase_url = 'http://127.0.0.1:1';
 SET LOCAL app.edge_internal_token = 'synthetic-local-load-token';
-SELECT public.invoke_live_poll_if_due() FROM generate_series(1,60);
-SELECT public.invoke_close_expired_nominations_if_due() FROM generate_series(1,60);
-SELECT public.invoke_stats_sync_dispatch_if_due() FROM generate_series(1,60);
+SELECT private.enqueue_live_poll(now()) FROM generate_series(1,60);
+SELECT private.enqueue_close_expired_nominations(now()) FROM generate_series(1,60);
+SELECT private.enqueue_stats_sync_dispatch(now()) FROM generate_series(1,60);
 SELECT private.reconcile_edge_invocations() FROM generate_series(1,12);
 SELECT public.invoke_edge_function('load-fixture') FROM generate_series(1,10);
 WITH rows AS (SELECT ctid FROM net._http_response WHERE created<now()-interval '6 hours' ORDER BY created LIMIT 1000)
@@ -21,7 +21,7 @@ INSERT INTO public.player_game_stats(player_id,game_id,season_year,week_number,p
 SELECT id,'db300000-0000-4000-8000-000000009999',public.current_season_year_et(),1,20,5,5,15
 FROM public.players WHERE id::text LIKE 'db200000-%' ORDER BY id LIMIT 30;
 UPDATE public.player_game_stats SET points=21 WHERE game_id='db300000-0000-4000-8000-000000009999';
-SELECT public.invoke_live_poll_if_due() FROM generate_series(1,20);
+SELECT private.enqueue_live_poll(now()) FROM generate_series(1,20);
 SELECT 'SELECT private.flush_player_stats_hints();' WHERE to_regprocedure('private.flush_player_stats_hints()') IS NOT NULL \gexec
 ROLLBACK;
 \o

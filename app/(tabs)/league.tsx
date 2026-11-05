@@ -9,6 +9,7 @@ import { colors, fontSize, spacing } from '@/constants/tokens'
 import { ErrorBanner, Page, PageHeader, SegmentedControl } from '@/components/ui'
 import { NoLeagueState } from '@/components/NoLeagueState'
 import { StandingsTable } from '@/components/league/LeagueStandings'
+import { LeagueHistory } from '@/components/league/LeagueHistory'
 import { ActivityFeed } from '@/components/league/LeagueActivityFeed'
 import { DraftPanel } from '@/components/league/DraftSetupPanels'
 import { MockRoomsPanel } from '@/components/league/MockRoomsPanel'
@@ -60,6 +61,10 @@ function LeagueScreen() {
                     onOpenBracket={screen.openBracket}
                 />
             )
+        }
+
+        if (screen.tab === 'seasons') {
+            return <LeagueHistory key={screen.currentLeague?.id} seasons={screen.seasons} onRefresh={screen.retryCurrentTab} refreshing={screen.isTabRefreshing} />
         }
 
         if (screen.tab === 'draft') {
@@ -126,7 +131,7 @@ function LeagueScreen() {
             )
         }
 
-        if (screen.tab === 'schedule') return <LeagueSchedule rows={screen.schedule} />
+        if (screen.tab === 'schedule') return <LeagueSchedule rows={screen.schedule} onOpenMatchup={screen.openMatchup} />
 
         if (screen.tab === 'settings') {
             return (

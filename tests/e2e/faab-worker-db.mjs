@@ -25,13 +25,13 @@ const sql = statement => {
   return result.stdout.trim()
 }
 const rpc = async (client, name, body) => {
-  const result = await client.rpc(name, body)
+  const result = await client.rpc(name, body).setHeader('x-request-id', randomUUID())
   assert.ifError(result.error)
   return result.data
 }
 const route = async (index, path, body, expected = 200) => {
   const response = await fetch(`${origin}/functions/v1/api${path}`, {
-    method: 'POST', headers: { apikey: publishable, authorization: `Bearer ${users[index].accessToken}`, 'content-type': 'application/json' },
+    method: 'POST', headers: { apikey: publishable, authorization: `Bearer ${users[index].accessToken}`, 'content-type': 'application/json', 'x-request-id': randomUUID() },
     body: JSON.stringify(body), signal: AbortSignal.timeout(25_000),
   })
   const result = await response.json()

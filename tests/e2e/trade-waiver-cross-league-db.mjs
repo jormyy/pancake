@@ -112,7 +112,7 @@ const orderedArrayGuard = (sql,ids,label) => `DO $guard$ DECLARE got uuid[]; BEG
     RAISE EXCEPTION '${label}: candidate set includes or replaces an owned row';
   END IF; END $guard$;`
 async function prepareQueue(q,f,ids=f.tradeOrder) {
-  await q.query(`BEGIN ISOLATION LEVEL REPEATABLE READ;
+  await q.query(`BEGIN ISOLATION LEVEL READ COMMITTED;
     SELECT id FROM public.trades WHERE id IN (${list(ids)}) ORDER BY id FOR UPDATE NOWAIT;`)
   const found=parse(await q.query(`SELECT COALESCE(jsonb_agg(id),'[]') FROM (${queueCandidates(ids.length)}) candidates;`))
   assert.deepEqual(found,ids,'Abort: global first two trade candidates must be exactly owned, in order')
@@ -120,7 +120,7 @@ async function prepareQueue(q,f,ids=f.tradeOrder) {
   print('exact-owned-trade-queue',{control:f.control,ids:found,unrelatedResourcesLocked:false})
 }
 async function prepareWaiver(w,f,ids=f.claims) {
-  await w.query(`BEGIN ISOLATION LEVEL REPEATABLE READ;
+  await w.query(`BEGIN ISOLATION LEVEL READ COMMITTED;
     DO $own$ BEGIN
       ${f.parts.map(p=>`IF NOT pg_try_advisory_xact_lock(hashtext(${quote(p.league)}),hashtext(${quote(p.season)})) THEN
         RAISE EXCEPTION 'Own waiver fixture is busy'; END IF;`).join('\n')}
@@ -334,7 +334,7 @@ try {
       assert.deepEqual(parse(await root.query(stateSql(f))),before)
       await release(bw)
       const waiver=unwrap(await pendingW)
-      assert.equal(waiver.ok,true)
+      assert.equal(waiver.ok,true,JSON.stringify(waiver))
       assert.deepEqual(waiver.rows.map(row=>row.claim_id),[f.parts[0].claim])
       assert.equal(waiver.rows[0].status,'succeeded')
       const deferred=parse(await root.query(stateSql(f)))

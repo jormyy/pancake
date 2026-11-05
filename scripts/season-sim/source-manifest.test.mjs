@@ -11,7 +11,7 @@ test('source evidence changes when a harness input changes', async () => {
     await mkdir(path.join(root, 'scripts/season-sim'), { recursive: true })
     await mkdir(path.join(root, 'docs'))
     await writeFile(path.join(root, 'scripts/season-sim/a.mjs'), 'baseline')
-    await writeFile(path.join(root, 'docs/season-simulator.md'), 'description')
+    await writeFile(path.join(root, 'docs/verification.md'), 'description')
     const before = await harnessManifest(root)
     await writeFile(path.join(root, 'scripts/season-sim/a.mjs'), 'changed')
     const after = await harnessManifest(root)

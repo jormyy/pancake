@@ -19,6 +19,7 @@ DO $$ BEGIN
   END IF;
 END $$;
 BEGIN;
+\ir notification-scan-support.sql
 CREATE TEMP TABLE notif_fixture AS SELECT gen_random_uuid() AS league,gen_random_uuid() AS other_league,
   gen_random_uuid() AS season,gen_random_uuid() AS prior_season,
   gen_random_uuid() AS owner,gen_random_uuid() AS opponent,gen_random_uuid() AS outsider,
@@ -110,12 +111,12 @@ BEGIN
   VALUES(d,f.league,f.season,'snake','in_progress',false,1,60);
   INSERT INTO snake_draft_picks(id,draft_id,member_id,round,pick_in_round,overall_pick,timer_expires_at)
   VALUES(p,d,f.member,1,1,1,'2030-01-01 00:01:00+00');
-  PERFORM notif_scan_due_atomic('2030-01-01 00:01:00+00');
+  PERFORM pg_temp.scan_notifications('2030-01-01 00:01:00+00');
   IF EXISTS (SELECT 1 FROM notification_outbox WHERE event_type='draft_timer_expiring' AND data->>'pickId'=p::text) THEN
     RAISE EXCEPTION 'scanner included an already-expired deadline';
   END IF;
-  PERFORM notif_scan_due_atomic('2030-01-01 00:00:00+00');
-  PERFORM notif_scan_due_atomic('2030-01-01 00:00:00+00');
+  PERFORM pg_temp.scan_notifications('2030-01-01 00:00:00+00');
+  PERFORM pg_temp.scan_notifications('2030-01-01 00:00:00+00');
   IF (SELECT count(*) FROM notification_outbox WHERE event_type='draft_timer_expiring' AND data->>'pickId'=p::text) <> 1 THEN
     RAISE EXCEPTION 'scanner one-minute inclusive upper boundary failed';
   END IF;

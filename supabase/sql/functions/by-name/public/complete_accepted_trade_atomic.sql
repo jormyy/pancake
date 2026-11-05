@@ -101,7 +101,7 @@ BEGIN
 
   BEGIN
     PERFORM private.validate_trade_rosters(p_trade_id);
-  EXCEPTION WHEN SQLSTATE 'PT001' OR SQLSTATE 'PT409' THEN
+  EXCEPTION WHEN SQLSTATE 'PA010' OR SQLSTATE 'PT409' THEN
     PERFORM public.hold_trade_for_legality_atomic(p_trade_id,NULL);
     RETURN;
   END;
@@ -118,7 +118,7 @@ BEGIN
     v_balance := private.ensure_faab_balance(v_trade.league_id, v_trade.league_season_id, v_from_member);
     IF v_balance < v_item_faab_amount THEN
       RAISE EXCEPTION 'Trade participant no longer has enough FAAB for this trade.'
-        USING ERRCODE = 'PT001';
+        USING ERRCODE = 'PA010';
     END IF;
   END LOOP;
 
@@ -139,7 +139,7 @@ BEGIN
 
       IF NOT FOUND THEN
         RAISE EXCEPTION 'Player asset is no longer owned by the expected active roster side'
-          USING ERRCODE = 'PT001';
+          USING ERRCODE = 'PA010';
       END IF;
     ELSIF v_item.pick_id IS NOT NULL THEN
       PERFORM 1
@@ -152,13 +152,13 @@ BEGIN
 
       IF NOT FOUND THEN
         RAISE EXCEPTION 'Draft-pick asset is no longer owned by the expected trade side'
-          USING ERRCODE = 'PT001';
+          USING ERRCODE = 'PA010';
       END IF;
     ELSE
       v_item_faab_amount := COALESCE(v_item.faab_amount, 0);
       IF v_item_faab_amount <= 0 THEN
         RAISE EXCEPTION 'Trade item must include a player, pick, or positive FAAB amount'
-          USING ERRCODE = 'PT001';
+          USING ERRCODE = 'PA010';
       END IF;
 
     END IF;
@@ -186,7 +186,7 @@ BEGIN
     GET DIAGNOSTICS v_rows = ROW_COUNT;
     IF v_rows <> 1 THEN
       RAISE EXCEPTION 'Trade participant no longer has enough FAAB for this trade.'
-        USING ERRCODE = 'PT001';
+        USING ERRCODE = 'PA010';
     END IF;
   END LOOP;
 
@@ -210,7 +210,7 @@ BEGIN
     WHERE participant.trade_id=p_trade_id ORDER BY roster.player_id FOR UPDATE OF roster
   LOOP
     IF private.roster_status_game_started(v_move.player_id) THEN
-      RAISE EXCEPTION 'A planned roster move waits for the player game slate to end.' USING ERRCODE='PT002';
+      RAISE EXCEPTION 'A planned roster move waits for the player game slate to end.' USING ERRCODE='PA011';
     END IF;
     PERFORM private.authorize_taxi_acquisition(v_trade.league_id,v_trade.league_season_id,v_move.member_id,v_move.player_id,'trade',p_trade_id);
     UPDATE roster_players SET is_on_ir=v_move.destination='ir',is_on_taxi=v_move.destination='taxi',
@@ -281,18 +281,18 @@ BEGIN
       GET DIAGNOSTICS v_rows = ROW_COUNT;
       IF v_rows <> 1 THEN
         RAISE EXCEPTION 'Failed to move player asset atomically'
-          USING ERRCODE = 'PT001';
+          USING ERRCODE = 'PA010';
       END IF;
 
       EXCEPTION WHEN SQLSTATE 'P0001' THEN
         -- A game in progress only delays a taxi destination: keep the accepted trade for a later run.
         IF v_item.to_taxi AND SQLERRM LIKE 'This player''s game has already started%' THEN
-          RAISE EXCEPTION 'A taxi destination waits for the player''s game slate to end.' USING ERRCODE='PT002';
+          RAISE EXCEPTION 'A taxi destination waits for the player''s game slate to end.' USING ERRCODE='PA011';
         END IF;
         -- A changed destination precondition expires this trade, not the whole queue.
         RAISE EXCEPTION '% acquisition failed: %',
           CASE WHEN v_item.to_taxi THEN 'Taxi' WHEN v_item.to_ir THEN 'IR' ELSE 'Player' END,
-          SQLERRM USING ERRCODE='PT001';
+          SQLERRM USING ERRCODE='PA010';
       END;
 
       INSERT INTO roster_transactions (
@@ -318,13 +318,13 @@ BEGIN
       GET DIAGNOSTICS v_rows = ROW_COUNT;
       IF v_rows <> 1 THEN
         RAISE EXCEPTION 'Failed to move draft-pick asset atomically'
-          USING ERRCODE = 'PT001';
+          USING ERRCODE = 'PA010';
       END IF;
     ELSE
       v_item_faab_amount := COALESCE(v_item.faab_amount, 0);
       IF v_item_faab_amount <= 0 THEN
         RAISE EXCEPTION 'Trade item must include a player, pick, or positive FAAB amount'
-          USING ERRCODE = 'PT001';
+          USING ERRCODE = 'PA010';
       END IF;
 
       INSERT INTO faab_balances (

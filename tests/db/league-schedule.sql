@@ -35,7 +35,7 @@ DECLARE f record; result jsonb; changed jsonb;
 BEGIN
   SELECT * INTO f FROM schedule_fixture;
   result := public.view_league_schedule(f.league_id, f.member_ids[1]);
-  PERFORM pg_temp.check_rules(result->'schedule' = (SELECT rows FROM schedule_expected), '20-week schedule matches JSON snapshot');
+  PERFORM pg_temp.check_rules((SELECT jsonb_agg(row - 'matchupId' ORDER BY ordinality) FROM jsonb_array_elements(result->'schedule') WITH ORDINALITY AS item(row, ordinality)) = (SELECT rows FROM schedule_expected), '20-week schedule matches JSON snapshot');
   PERFORM pg_temp.check_rules(octet_length(result::text) < 8192, '20-week payload stays under 8 KB');
   RAISE NOTICE 'Schedule payload: % bytes', octet_length(result::text);
   PERFORM pg_temp.check_rules((SELECT array_agg(key ORDER BY key) FROM jsonb_object_keys(result) key) = ARRAY['context','schedule'], 'only context and schedule are returned');

@@ -161,7 +161,7 @@ async function fixture(control) {
  return f
 }
 async function prepare(w,f) {
- const ids=parse(await w.query(`BEGIN ISOLATION LEVEL REPEATABLE READ; SET LOCAL deadlock_timeout='1s';
+ const ids=parse(await w.query(`BEGIN ISOLATION LEVEL READ COMMITTED; SET LOCAL deadlock_timeout='1s';
  DO $own$ BEGIN IF NOT pg_try_advisory_xact_lock(hashtext(${quote(f.league)}),hashtext(${quote(f.season)}))
  THEN RAISE EXCEPTION 'Abort: owned queue is busy'; END IF; END $own$; ${queue(f)}`))
  assert.deepEqual(ids,f.claims.slice().sort());print('exact-own-eligible-queue',{control:f.control,ids})
@@ -208,7 +208,7 @@ try {
   await prepare(w,f)
   let settled=false
   const pendingW=w.query(call(f)).then(raw=>({value:parse(raw)}),error=>({error})).finally(()=>{settled=true})
-  const wait=await waitOn(wPid,barrierPid,()=>settled)
+  const wait=await waitOn(wPid,barrierPid,()=>settled).catch(async error=>{throw new Error(`${error.message}: ${JSON.stringify(await pendingW)}`)})
   print('actual-owned-balance-wait',{control,wait,uiHasSyntheticPrelock:false})
   assert.deepEqual(parse(await root.query(state(f))),before)
   const reads=[]

@@ -115,7 +115,7 @@ const styles = StyleSheet.create({
     groupFooter: { paddingHorizontal: spacing.xs },
     card: {
         backgroundColor: colors.bgCard,
-        borderRadius: radii.lg,
+        borderRadius: radii.xl,
         borderCurve: 'continuous',
         borderWidth: 1,
         borderColor: colors.borderLight,

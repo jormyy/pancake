@@ -181,11 +181,11 @@ const stateSql = (f) => `SELECT jsonb_build_object(
 const offerCall = (f) => `SELECT pg_temp.capture_offer(${quote(f.users[2])},${quote(f.request)},
   ${quote(f.members[2])},${json(f.payload)});`
 
-async function observeWait(aPid,bPid,f) {
+async function observeWait(aPid,bPid,f,allowRefusal=false) {
   const deadline = Date.now()+6000
   while (Date.now()<deadline) {
     const evidence = parse(await root.query(`SELECT jsonb_build_object(
-      'aPid',${aPid},'bPid',${bPid},'waitType',a.wait_event_type,'waitEvent',a.wait_event,
+      'aPid',${aPid},'bPid',${bPid},'state',a.state,'waitType',a.wait_event_type,'waitEvent',a.wait_event,
       'blockingPids',pg_blocking_pids(a.pid),'waitsOnB',${bPid}=ANY(pg_blocking_pids(a.pid)),
       'memberLocks',(SELECT count(*) FROM pg_locks l WHERE l.pid=${aPid} AND l.granted
         AND l.locktype='advisory' AND l.classid::bigint=(hashtext(${quote(f.league)})::bigint & 4294967295)
@@ -197,6 +197,7 @@ async function observeWait(aPid,bPid,f) {
           AND h.pid=${bPid} AND h.granted AND h.mode='ExclusiveLock')))
       FROM pg_stat_activity a WHERE a.pid=${aPid};`))
     if (evidence.waitType==='Lock' && evidence.waitsOnB) return evidence
+    if (allowRefusal && evidence.state==='idle in transaction' && evidence.waitType==='Client' && evidence.waitEvent==='ClientRead') return { ...evidence, refused: true }
     await sleep(25)
   }
   throw new Error('Own fresh offer never waits on B within six seconds')
@@ -232,7 +233,7 @@ const globalCandidates = (limit) => `SELECT trade.id
 async function prepareQueue(q,f,ids=f.trades) {
   // Same snapshot prevents a new/changed earlier unrelated candidate entering between guard and invocation.
   // Own row locks prevent SKIP LOCKED from excluding these candidates; NOWAIT aborts instead of waiting.
-  const found=parse(await q.query(`BEGIN ISOLATION LEVEL REPEATABLE READ;
+  const found=parse(await q.query(`BEGIN ISOLATION LEVEL READ COMMITTED;
     DO $own$ BEGIN
       PERFORM 1 FROM public.trades WHERE id IN (${list(ids)}) ORDER BY id FOR UPDATE NOWAIT;
       IF (SELECT count(*) FROM public.trades WHERE id IN (${list(ids)}) AND league_id=${quote(f.league)}
@@ -297,9 +298,18 @@ try {
       print('actual-queue-waits-on-own-faab-barrier',{control,queueWait,held})
       pendingA=a.query(`BEGIN; SET LOCAL ROLE service_role; ${offerCall(f)}`)
         .then((output)=>({output}),(error)=>({error}))
-      const offerWait=await observeWait(aPid,qPid,f)
-      assert.equal(offerWait.waitEvent, 'advisory')
+      const offerWait=await observeWait(aPid,qPid,f,true)
+      if (!offerWait.refused) assert.equal(offerWait.waitEvent, 'advisory')
       assert.equal(offerWait.memberLocks, 0)
+      if (offerWait.refused) {
+        const initial = await pendingA
+        if ('error' in initial) throw initial.error
+        const refused = parse(initial.output)
+        assert.equal(refused.ok, false)
+        assert.equal(refused.sqlstate, 'PA010')
+        assert.match(refused.message, /busy|try.*again/i)
+        await a.query('ROLLBACK;')
+      }
       print('actual-proposal-waits-on-queue',{expected,control,offerWait})
       assert.deepEqual(parse(await root.query(stateSql(f))),before)
       let resultA,queueRows
@@ -312,7 +322,7 @@ try {
         assert.match(cancelled.error.message,/canceling statement due to user request/)
         await q.close()
         await releaseBarrier(barrier)
-        const doneA=await pendingA
+        const doneA=offerWait.refused ? {output:await a.query(`BEGIN; SET LOCAL ROLE service_role; ${offerCall(f)}`)} : await pendingA
         if ('error' in doneA) throw doneA.error
         resultA=parse(doneA.output); assert.equal(resultA.ok,true)
         assert.deepEqual(parse(await root.query(stateSql(f))),before,'Queue rollback restores sources/balances; A remains uncommitted')
@@ -333,7 +343,7 @@ try {
         const done=await Promise.all([pendingA,pendingQueue])
         if ('error' in done[0]) throw done[0].error
         if ('error' in done[1]) throw done[1].error
-        resultA=parse(done[0].output); queueRows=parse(done[1].output)
+        resultA=offerWait.refused ? parse(await a.query(`BEGIN; SET LOCAL ROLE service_role; ${offerCall(f)}`)) : parse(done[0].output); queueRows=parse(done[1].output)
         await a.query('COMMIT;')
         assertQueueRows(queueRows,f.trades)
         assert(!['55P03','57014'].includes(resultA.sqlstate),'Timeout never proves actual queue deadlock')

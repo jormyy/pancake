@@ -39,9 +39,13 @@ BEGIN
   END LOOP;
   trade := public.propose_trade_atomic(league,season,members[1],members[2],'{}','{}',ARRAY[picks[1]],ARRAY[picks[2]]);
   BEGIN
-    UPDATE draft_picks SET current_owner_id=members[2] WHERE id=picks[1];
-    RAISE EXCEPTION 'Pending pick permits an ordinary ownership change' USING ERRCODE='P9999';
-  EXCEPTION WHEN SQLSTATE 'PA004' THEN NULL; END;
+    PERFORM public.accept_trade_atomic(trade,members[2]);
+    BEGIN
+      UPDATE draft_picks SET current_owner_id=members[2] WHERE id=picks[1];
+      RAISE EXCEPTION 'Accepted pick permits an ordinary ownership change' USING ERRCODE='P9999';
+    EXCEPTION WHEN SQLSTATE 'PA004' THEN NULL; END;
+    RAISE EXCEPTION 'Restore pending control' USING ERRCODE='P8888';
+  EXCEPTION WHEN SQLSTATE 'P8888' THEN NULL; END;
   PERFORM pg_temp.server_pick_change(format('UPDATE draft_picks SET current_owner_id=%L WHERE id=%L',members[2],picks[1]));
   SELECT completion_failure_reason INTO reason FROM trades WHERE id=trade;
   PERFORM pg_temp.assert_pick_year(reason='The 2028 round 1 pick is no longer owned by Team 1.','lost pick notice uses stored pick year');

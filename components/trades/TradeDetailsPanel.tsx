@@ -7,6 +7,7 @@ import { PendingTradeRosterPlan } from './PendingTradeRosterPlan'
 import { tradePickContext } from '@/lib/trade-pick-label'
 import { TradeReviewCancellation } from './TradeReviewCancellation'
 import { Button } from '@/components/ui/Button'
+import { Card } from '@/components/ui/Card'
 import { MotionPressable } from '@/components/Motion'
 import { MultiTeamTradeOverview } from '@/components/trades/MultiTeamTradeOverview'
 import {
@@ -50,7 +51,7 @@ export function TradeDetailsPanel({
     const proposed = `Proposed by ${trade.proposerMemberId === myMemberId ? 'you' : trade.proposerTeamName} · ${formatLeagueDateTime(trade.proposedAt, currentLeague?.timezone)}`
 
     return (
-        <View style={styles.root}>
+        <Card style={styles.root} elevated="none">
             {showHeader ? (
                 <View style={styles.header}>
                     <Text style={styles.title} numberOfLines={2}>{model.opponentName}</Text>
@@ -106,7 +107,7 @@ export function TradeDetailsPanel({
             >
                 <Text style={styles.analyzeText}>Revalue with current inputs</Text>
             </MotionPressable>
-        </View>
+        </Card>
     )
 }
 

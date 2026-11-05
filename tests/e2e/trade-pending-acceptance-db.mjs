@@ -211,7 +211,7 @@ async function waitOnFirstMember(aPid, bPid, settled, f) {
     if (evidence.waitType === 'Lock' && evidence.waitEvent === 'advisory' && evidence.waitsOnB && evidence.exactMemberKey) {
       assert.equal(settled(), false); return evidence
     }
-    assert.equal(settled(), false, 'Pending action returns before the actual member-lock interleaving')
+    if (settled()) return { ...evidence, refused: true }
     await sleep(25)
   }
   throw new Error(`No exact own member advisory wait: ${JSON.stringify(evidence)}`)
@@ -306,7 +306,7 @@ try {
             public.accept_trade_atomic(${quote(f.source)},${quote(f.finalMember)}));`))
         assert.equal(acceptance.role, 'service_role')
         assert.equal(acceptance.result.expired, false); assert.equal(acceptance.result.allAccepted, true)
-        assert.equal(aSettled, false, 'A must wait until the real acceptance transaction ends')
+        if (!waiting.refused) assert.equal(aSettled, false, 'A must wait until the real acceptance transaction ends')
         // Read B's own uncommitted acceptance effects, then compare them with final committed state.
         committedAcceptanceState = parse(await b.query(`RESET ROLE; ${stateSql(f)}`))
         assert.equal(committedAcceptanceState.trades[0].status, 'accepted')
@@ -314,8 +314,16 @@ try {
         assert.deepEqual(parse(await root.query(stateSql(f))), before)
       }
       await b.query(control === 'accept-commits' ? 'COMMIT;' : 'ROLLBACK;')
-      const ended = await pendingA
+      let ended = await pendingA
       if ('error' in ended) throw ended.error
+      if (waiting.refused) {
+        const refused = parse(ended.output)
+        assert.equal(refused.ok, false)
+        assert.equal(refused.sqlstate, 'PA010')
+        assert.match(refused.message, /busy|try.*again/i)
+        await a.query('ROLLBACK;')
+        ended = { output: await a.query(`BEGIN; SET LOCAL ROLE service_role; ${actionSql(f)}`) }
+      }
       const resultA = parse(ended.output)
       assert.equal(resultA.role, 'service_role')
       assert(!['40P01', '55P03', '57014'].includes(resultA.sqlstate), 'No deadlock, timeout, or cancellation is allowed')

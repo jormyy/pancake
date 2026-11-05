@@ -223,9 +223,9 @@ const styles = StyleSheet.create({
     panel: {
         borderWidth: 1,
         borderColor: colors.borderLight,
-        borderRadius: radii.md,
+        borderRadius: radii.xl,
         borderCurve: 'continuous' as const,
-        backgroundColor: uiColors.surfaceAlt,
+        backgroundColor: colors.bgCard,
         overflow: 'hidden',
     },
     panelColumn: { flexGrow: 1, flexShrink: 0, flexBasis: 260, minWidth: 260, maxWidth: 440 },

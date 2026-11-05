@@ -39,7 +39,7 @@ BEGIN
   GET DIAGNOSTICS v_rows = ROW_COUNT;
   IF v_rows <> 1 THEN
     RAISE EXCEPTION '%', p_missing_message
-      USING ERRCODE = 'PT001';
+      USING ERRCODE = 'PA010';
   END IF;
 
   INSERT INTO waiver_wire_log (

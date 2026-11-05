@@ -24,6 +24,9 @@ SELECT format('ALTER POLICY %I ON %I.%I',policyname,schemaname,tablename)
   || CASE WHEN qual IS NULL THEN '' ELSE ' USING (' || qual || ')' END
   || CASE WHEN with_check IS NULL THEN '' ELSE ' WITH CHECK (' || with_check || ')' END
 FROM pg_policies WHERE schemaname IN ('public','private');
+INSERT INTO current_clock_bindings
+SELECT format('CREATE OR REPLACE VIEW %I.%I %s AS %s',v.schemaname,v.viewname,CASE WHEN c.reloptions IS NULL THEN '' ELSE 'WITH ('||array_to_string(c.reloptions,',')||')' END,v.definition)
+FROM pg_views v JOIN pg_namespace n ON n.nspname=v.schemaname JOIN pg_class c ON c.relnamespace=n.oid AND c.relname=v.viewname WHERE v.schemaname IN ('public','private');
 DO $$
 DECLARE name text; saved record;
 BEGIN

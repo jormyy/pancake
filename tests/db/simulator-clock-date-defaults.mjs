@@ -33,12 +33,14 @@ try {
     assert.equal(beforeAudit[form].objects.filter(object => !(form === 'current_date' && object.kind === 'default')).length, 0, `Uncovered SQL clock form: ${form}`)
   }
   checks.push('runtime-clock-audit-before-install')
-  sql(`CREATE TABLE public.${table}(label text,day date DEFAULT CURRENT_DATE)`)
+  sql(`CREATE TABLE public.${table}(label text,day date DEFAULT CURRENT_DATE); CREATE VIEW public.${table}_view WITH (security_invoker=true) AS SELECT now() AS at`)
+  const viewOptions = () => sql(`SELECT reloptions::text FROM pg_class WHERE oid='public.${table}_view'::regclass`)
   const before = defaults()
   const native = sql("SELECT pg_get_functiondef('pg_catalog.now()'::regprocedure)")
   const result = file('clock', '2001-01-01T01:00:00Z')
   assert.equal(result.status, 0, result.stderr)
   installed = true
+  assert.equal(viewOptions(), '{security_invoker=true}')
   const installedAudit = audit()
   for (const form of ['current_timestamp', 'current_date', 'current_time', 'localtimestamp', 'localtime', 'timeofday']) assert.equal(installedAudit[form].occurrences, 0, `Uncovered installed SQL clock form: ${form}`)
   for (const [form, entry] of Object.entries(installedAudit)) if (form.startsWith('season_sim_native_')) assert.equal(entry.occurrences, 0, `Native clock binding remains: ${form}`)
@@ -71,6 +73,8 @@ try {
   const restored = file('restore-clock', '2001-01-03T01:00:00Z')
   assert.equal(restored.status, 0, restored.stderr)
   installed = false
+  assert.equal(viewOptions(), '{security_invoker=true}')
+  sql(`DROP VIEW public.${table}_view`)
   assert.equal(defaults(), before, 'All application and HTTP response defaults restore exactly')
   assert.equal(sql("SELECT pg_get_functiondef('pg_catalog.now()'::regprocedure)"), native)
   checks.push('exact-default-and-native-clock-restoration')
@@ -91,6 +95,6 @@ try {
     const restored = file('restore-clock', '2001-01-03T01:00:00Z')
     assert.equal(restored.status, 0, restored.stderr)
   }
-  sql(`DROP TABLE IF EXISTS public.${unsupported}; DROP TABLE IF EXISTS public.${table}`)
+  sql(`DROP VIEW IF EXISTS public.${table}_view; DROP TABLE IF EXISTS public.${unsupported}; DROP TABLE IF EXISTS public.${table}`)
   for (const job of jobs) sql(`SELECT cron.schedule(${literal(job.jobname)},${literal(job.schedule)},${literal(job.command)}); SELECT cron.alter_job(jobid,active:=${job.active}) FROM cron.job WHERE jobname=${literal(job.jobname)}`)
 }

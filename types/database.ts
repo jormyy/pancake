@@ -7671,6 +7671,10 @@ export type Database = {
         Args: { p_league_id: string; p_member_id: string; p_params?: Json }
         Returns: Json
       }
+      view_league_history: {
+        Args: { p_league_id: string; p_member_id: string; p_params?: Json }
+        Returns: Json
+      }
       view_league_schedule: {
         Args: { p_league_id: string; p_member_id: string; p_params?: Json }
         Returns: Json

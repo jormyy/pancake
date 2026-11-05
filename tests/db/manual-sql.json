@@ -1,0 +1,22 @@
+{
+  "forecast-inputs-bound-regression.sql": "Requires a restored populated matchup from the forecast benchmark.",
+  "forecast-inputs-bound.sql": "Invoked by forecast-inputs-bound.mjs with phase and sample arguments.",
+  "future-pick-backfill.sql": "Verifies a named historical league from a restored database.",
+  "l1-live-broadcast.sql": "Requires populated production-shaped league and matchup fixtures.",
+  "l4d-pick-bounds.sql": "Requires a restored pick and its trade-value source snapshot.",
+  "league-actions-oracle.sql": "Included by the league action harness before its fixture.",
+  "lineup-draft-fixture.sql": "Included by the lineup and draft action harness.",
+  "lineup-draft-freeze.sql": "Installs the clock used by the lineup and draft action harness.",
+  "lineup-draft-http.sql": "Installs audit hooks used by the lineup and draft HTTP harness.",
+  "pipeline-night-context.sql": "Measures fifteen restored matchups across three weeks.",
+  "pipeline-night-forecast-starvation.sql": "Requires the restored nightly forecast backlog.",
+  "roster-actions-clean-http.sql": "Cleans audit fixtures created by the roster HTTP harness.",
+  "roster-actions-clean-idempotency.sql": "Cleans persistent fixtures created by the roster action harness.",
+  "roster-actions-fixture.sql": "Included by the roster action harness.",
+  "screen-view-costs.sql": "Measures populated restored leagues.",
+  "slow-screen-addendum.sql": "Extends the restored slow-screen benchmark.",
+  "slow-screens.sql": "Measures restored leagues with three managers.",
+  "trade-revaluation-night.sql": "Invoked with phase and restored revaluation inputs.",
+  "trade-revaluation-writers.sql": "Measures restored populated trade input writers.",
+  "unpartition-preservation.sql": "Invoked with a migration path and restored statistics."
+}

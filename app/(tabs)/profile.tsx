@@ -91,13 +91,17 @@ export default function ProfileScreen() {
         submittingOwnersRef.current.add(ownerId)
         setSavingOwners((current) => new Set(current).add(ownerId))
         try {
-            const saves: Promise<void>[] = [
-                updateProfile(user.id, { display_name: trimmedDisplay }),
+            const saves: (() => Promise<void>)[] = [
+                () => updateProfile(user.id, { display_name: trimmedDisplay }),
             ]
             if (current && trimmedTeam && trimmedTeam !== current.team_name) {
-                saves.push(updateTeamName(current.id, trimmedTeam))
+                saves.push(() => updateTeamName(current.id, trimmedTeam))
             }
-            const results = await Promise.allSettled(saves)
+            const results: PromiseSettledResult<void>[] = []
+            for (const save of saves) {
+                if (activeUserIdRef.current !== ownerId) return
+                results.push(...await Promise.allSettled([save()]))
+            }
             if (activeUserIdRef.current !== ownerId) return
             const failure = results.find((result) => result.status === 'rejected')
             if (failure) {
@@ -197,6 +201,7 @@ export default function ProfileScreen() {
     return (
         <Page title="Profile">
             <PageHeader
+                showTitle
                 title="Profile"
                 onBack={goBack}
                 actions={editing ? (

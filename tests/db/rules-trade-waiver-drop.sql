@@ -84,7 +84,7 @@ BEGIN
   UPDATE public.trades SET veto_window_expires_at = now() - interval '1 minute' WHERE id = v_other_trade;
   SELECT jsonb_agg(to_jsonb(result)) INTO v_result FROM public.process_due_accepted_trades_atomic(200) result;
   PERFORM pg_temp.check_rules(v_result @> jsonb_build_array(jsonb_build_object('trade_id', v_trade,
-    'status', 'deferred', 'error_code', 'PT001')), 'non-taxi P0001 holds the trade for repair');
+    'status', 'deferred', 'error_code', 'PA010')), 'non-taxi P0001 holds the trade for repair');
   PERFORM pg_temp.check_rules(EXISTS(SELECT 1 FROM jsonb_array_elements(v_result) result
     WHERE result->>'trade_id'=v_trade::text AND result->>'error_message' LIKE 'IR acquisition failed: Destination changed before settlement.%'),
     'IR terminal failure names its destination');

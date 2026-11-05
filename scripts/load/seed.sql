@@ -1,4 +1,3 @@
-SELECT cron.alter_job(jobid,active:=false) FROM cron.job WHERE username=current_user;
 BEGIN;
 INSERT INTO auth.users(id,aud,role,email,encrypted_password,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at)
 VALUES ('db000000-0000-4000-8000-000000000001','authenticated','authenticated','db-load@example.test','x',now(),'{}','{}',now(),now());

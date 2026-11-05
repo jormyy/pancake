@@ -4,7 +4,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { beforeEach, expect, it, vi } from 'vitest'
 import BracketScreen from '@/app/(modals)/bracket'
 
-const state = vi.hoisted(() => ({ active: true, epoch: 0, getBracket: vi.fn(), dismissTo: vi.fn(), replace: vi.fn() }))
+const state = vi.hoisted(() => ({ active: true, epoch: 0, getBracket: vi.fn(), dismissTo: vi.fn(), replace: vi.fn(), push: vi.fn() }))
 vi.mock('@/components/league/draft-room/useDraftActivity', () => {
     const gate = { canRead: () => state.active, capture: () => state.epoch,
         isCurrent: (epoch: number) => state.active && epoch === state.epoch }
@@ -12,8 +12,10 @@ vi.mock('@/components/league/draft-room/useDraftActivity', () => {
 })
 vi.mock('react-native', () => ({ Platform: { OS: 'ios' }, View: 'View', Text: 'Text', ScrollView: 'ScrollView',
     StyleSheet: { create: (styles: unknown) => styles }, useWindowDimensions: () => ({ width: 1200, height: 900 }) }))
-vi.mock('expo-router', () => ({ Stack: { Screen: () => null }, useRouter: () => ({ replace: state.replace, dismissTo: state.dismissTo }) }))
+vi.mock('expo-router', () => ({ Stack: { Screen: () => null }, useRouter: () => ({ replace: state.replace, dismissTo: state.dismissTo, push: state.push }) }))
 vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => ({ current: { id: 'member' }, currentLeague: { id: 'league' } }) }))
+vi.mock('@/components/Motion', () => ({ MotionPressable: 'MotionPressable' }))
+vi.mock('@/components/ui/Badge', () => ({ Badge: 'Badge' }))
 vi.mock('@/lib/bracket', () => ({ getPlayoffBracket: state.getBracket }))
 vi.mock('@/lib/format', () => ({ formatPoints: String }))
 vi.mock('@/components/EmptyState', () => ({ EmptyState: 'EmptyState' }))
@@ -87,4 +89,19 @@ it('dismisses the bracket when returning to standings', async () => {
     expect(state.dismissTo).toHaveBeenCalledExactlyOnceWith('/league?tab=results')
     expect(state.replace).not.toHaveBeenCalled()
     await act(async () => view.unmount())
+})
+
+it('opens the selected playoff matchup from its card', async () => {
+    const matchup = { id: 'semifinal-1', round: 'semifinal', weekNumber: 20, homeId: 'member', homeName: 'Owls', homePoints: 12, awayId: 'other', awayName: 'Foxes', awayPoints: 9, winnerId: null, isFinalized: false }
+    state.getBracket.mockResolvedValue({ quarterfinals: [], semifinals: [matchup], final: null, champion: null })
+    let view!: ReactTestRenderer
+    await act(async () => { view = create(React.createElement(BracketScreen)) })
+    try {
+        const button = view.root.findByProps({ accessibilityLabel: 'Open Owls versus Foxes' })
+        expect(button.props.accessibilityRole).toBe('button')
+        await act(async () => button.props.onPress())
+        expect(state.push).toHaveBeenCalledExactlyOnceWith('/matchup?matchupId=semifinal-1')
+    } finally {
+        await act(async () => view.unmount())
+    }
 })

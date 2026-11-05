@@ -11,6 +11,7 @@ vi.mock('@/components/ui/ScreenStatusOverlay', () => ({ ScreenStatusScrollView: 
 vi.mock('@/components/ui/ListHeader', () => ({ ListHeader: 'View' }))
 vi.mock('@/components/ui', () => ({ usePageMetrics: () => ({ padX: 12 }) }))
 vi.mock('@/components/EmptyState', () => ({ EmptyState: 'EmptyState' }))
+vi.mock('@/components/Motion', () => ({ MotionPressable: 'Pressable' }))
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
 it('renders ordered weeks, skipped weeks, scores, current state, and undecided playoffs from the SQL snapshot', async () => {
@@ -61,4 +62,24 @@ it('shows an empty state before a season calendar exists', async () => {
     await act(async () => { screen = create(React.createElement(LeagueSchedule, { rows: [] })) })
     expect(screen.root.findByType('EmptyState' as React.ElementType).props.message).toBe('No schedule yet.')
     await act(async () => screen.unmount())
+})
+
+it('opens the selected matchup and leaves placeholders without an action', async () => {
+    const onOpenMatchup = vi.fn()
+    const rows = [
+        { weekNumber: 3, matchupId: 'matchup-3', opponentTeamName: 'Cedar Owls', isCurrent: true, status: 'live', myPoints: 123, opponentPoints: 117 },
+        { weekNumber: 4, matchupId: null, opponentTeamName: null, isCurrent: false, status: 'upcoming', myPoints: null, opponentPoints: null },
+    ] as LeagueScheduleRow[]
+    let screen!: ReturnType<typeof create>
+    await act(async () => { screen = create(React.createElement(LeagueSchedule, { rows, onOpenMatchup } as React.ComponentProps<typeof LeagueSchedule>)) })
+    try {
+        const actions = screen.root.findAllByProps({ accessibilityRole: 'button' })
+        expect(actions).toHaveLength(1)
+        expect(actions[0].props.accessibilityLabel).toContain('Week 3')
+        expect(actions[0].props.accessibilityLabel).toContain('Cedar Owls')
+        await act(async () => actions[0].props.onPress())
+        expect(onOpenMatchup).toHaveBeenCalledExactlyOnceWith('matchup-3')
+    } finally {
+        await act(async () => screen.unmount())
+    }
 })

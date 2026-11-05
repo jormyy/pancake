@@ -117,7 +117,7 @@ The comparison alternates baseline and candidate observations on the same warmed
 It checks equal scores, standings, score timestamps, and notification content.
 It records source hashes, output digests, statement snapshots, plans, and host load.
 Run no competing workload during measurement.
-See [measurement limits](../../docs/supabase-performance-capacity.md).
+See [measurement limits](../../docs/operations-scheduler.md#capacity).
 
 ## Regression checks
 

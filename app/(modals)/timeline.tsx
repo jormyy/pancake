@@ -1,9 +1,11 @@
-import { Component, Suspense } from 'react'
+import { Component, Suspense, lazy } from 'react'
 import { Text, View } from 'react-native'
 import { Button } from '@/components/ui/Button'
 import { spacing, textStyles } from '@/constants/tokens'
 
-import { loadTimeline } from '@/components/navigation/TimelineScreenLoader'
+function loadTimeline() {
+    return lazy(() => import('@/components/timeline/TimelineScreen'))
+}
 
 export default class TimelineRoute extends Component<object, { failed: boolean; Screen: ReturnType<typeof loadTimeline> }> {
     state = { failed: false, Screen: loadTimeline() }

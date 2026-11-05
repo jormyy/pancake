@@ -88,7 +88,7 @@ export function Sheet({
 
 const styles = StyleSheet.create({
     scrim: { flex: 1, backgroundColor: scrim },
-    scrimBottom: { justifyContent: 'flex-end' },
+    scrimBottom: { justifyContent: 'flex-end', padding: spacing.lg },
     scrimCenter: { justifyContent: 'center', alignItems: 'center', padding: spacing['3xl'] },
     panel: {
         backgroundColor: colors.bgCard,
@@ -101,8 +101,7 @@ const styles = StyleSheet.create({
     panelBottom: {
         width: '100%',
         maxHeight: componentTokens.sheet.phoneMaxHeight,
-        borderTopLeftRadius: componentTokens.sheet.phoneRadius,
-        borderTopRightRadius: componentTokens.sheet.phoneRadius,
+        borderRadius: componentTokens.sheet.phoneRadius,
     },
     panelCenter: {
         width: '100%',
@@ -128,7 +127,7 @@ const styles = StyleSheet.create({
         borderBottomWidth: 1,
         borderBottomColor: colors.borderLight,
     },
-    title: { flex: 1 },
+    title: { flex: 1, minWidth: 0 },
     close: { width: controlSize.minTouch, height: controlSize.minTouch, alignItems: 'center', justifyContent: 'center', borderRadius: radii.md },
     body: { flexGrow: 0, flexShrink: 1, minHeight: 0 },
     bodyContent: { padding: componentTokens.sheet.contentPadding },

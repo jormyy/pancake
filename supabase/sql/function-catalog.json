@@ -566,6 +566,7 @@
     "public.view_draft_rooms(uuid,uuid,jsonb)": {"acl":["authenticated|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.view_game_day(uuid,uuid,jsonb)": {"acl":["authenticated|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.view_home(uuid,uuid,jsonb)": {"acl":["authenticated|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},
+    "public.view_league_history(uuid,uuid,jsonb)": {"acl":["authenticated|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.view_league_schedule(uuid,uuid,jsonb)": {"acl":["authenticated|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.view_league_settings(uuid,uuid,jsonb)": {"acl":["authenticated|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.view_league(uuid,uuid,jsonb)": {"acl":["authenticated|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},

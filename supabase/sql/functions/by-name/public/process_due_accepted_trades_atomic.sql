@@ -101,7 +101,7 @@ BEGIN
         NULL::text,
         NULL::text;
     EXCEPTION
-      WHEN SQLSTATE 'PT001' OR SQLSTATE 'PT409' THEN
+      WHEN SQLSTATE 'PA010' OR SQLSTATE 'PT409' THEN
         v_error_code := SQLSTATE;
         v_error_message := SQLERRM;
 
@@ -119,7 +119,7 @@ BEGIN
           'deferred'::text,
           v_error_code,
           v_error_message;
-      WHEN SQLSTATE 'PT002' THEN
+      WHEN SQLSTATE 'PA011' THEN
         -- Deferred, not failed: the trade stays accepted and settles once the game slate ends.
         v_error_code := SQLSTATE;
         v_error_message := SQLERRM;

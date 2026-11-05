@@ -6,59 +6,9 @@ vi.mock('@/lib/shared/api', () => ({ apiPost: mocks.apiPost }))
 vi.mock('@/lib/realtime', () => ({ subscribeToTableChanges: vi.fn(), unsubscribeFromTableChanges: vi.fn() }))
 
 import { validateRookieTimerSeconds } from '@/lib/draft-options'
-import { getRookieDraftPollRevision, getRookieDraftState, getRookiePlayers, startRookieDraft } from '@/lib/rookieDraft'
-
-function query(result: { data: unknown; error: unknown }) {
-    const chain: Record<string, unknown> & PromiseLike<typeof result> = {
-        then: (resolve) => Promise.resolve(result).then(resolve),
-    }
-    for (const method of ['select', 'eq', 'is', 'not', 'order', 'limit', 'ilike']) {
-        chain[method] = vi.fn(() => chain)
-    }
-    chain.single = vi.fn(async () => result)
-    chain.maybeSingle = vi.fn(async () => result)
-    return chain
-}
+import { startRookieDraft } from '@/lib/rookieDraft'
 
 beforeEach(() => vi.clearAllMocks())
-
-describe('rookie draft reads', () => {
-    it('polls a constant-size draft revision without reading the full board', async () => {
-        const draft = query({ data: { status: 'in_progress' }, error: null })
-        const nextPick = query({ data: { overall_pick: 12, player_id: null }, error: null })
-        mocks.from.mockImplementation((table: string) => table === 'drafts' ? draft : nextPick)
-
-        const revision = await getRookieDraftPollRevision('draft')
-
-        expect(revision).toContain('in_progress')
-        expect(mocks.from.mock.calls.map(([table]) => table)).toEqual(['drafts', 'snake_draft_picks'])
-        expect(nextPick.is).toHaveBeenNthCalledWith(1, 'player_id', null)
-        expect(nextPick.is).toHaveBeenNthCalledWith(2, 'skipped_at', null)
-        expect(nextPick.order).toHaveBeenCalledWith('overall_pick', { ascending: true })
-        expect(nextPick.limit).toHaveBeenCalledWith(1)
-        expect(mocks.from).not.toHaveBeenCalledWith('draft_orders')
-        expect(mocks.from).not.toHaveBeenCalledWith('players')
-    })
-
-    it.each(['drafts', 'snake_draft_picks', 'draft_orders'])('rejects when the %s board query fails', async (failedTable) => {
-        mocks.from.mockImplementation((table: string) => query(table === failedTable
-            ? { data: null, error: new Error(`${table} unavailable`) }
-            : table === 'drafts'
-                ? { data: { id: 'draft', league_id: 'league', status: 'in_progress', is_mock: false, pick_timer_seconds: 60, timer_expiry_behavior: 'auto_pick', rounds: 3, started_at: null, completed_at: null, pause_reason: null, paused_at: null, timer_paused_remaining_seconds: null }, error: null }
-                : { data: [], error: null }))
-
-        await expect(getRookieDraftState('draft')).rejects.toThrow(`${failedTable} unavailable`)
-    })
-
-    it('rejects prospect loading when picked-player identity cannot be read', async () => {
-        mocks.from.mockImplementation((table: string) => query(table === 'snake_draft_picks'
-            ? { data: null, error: new Error('picked ids unavailable') }
-            : { data: [], error: null }))
-
-        await expect(getRookiePlayers('draft')).rejects.toThrow('picked ids unavailable')
-    })
-})
-
 
 describe('rookie draft startup', () => {
     it('normalizes the real server draft type for room navigation', async () => {
@@ -66,22 +16,6 @@ describe('rookie draft startup', () => {
         const result = await startRookieDraft('league', { timerSeconds: 600, rounds: 3 })
         expect(result.draft).toMatchObject({ id: 'annual', draftType: 'snake' })
     })
-})
-
-it('starts the bounded prospect read before the picked-player reply arrives', async () => {
-    let finish!: (value: { data: unknown; error: unknown }) => void
-    const pending = new Promise<{ data: unknown; error: unknown }>(resolve => { finish = resolve })
-    const picked = query({ data: [], error: null })
-    picked.then = resolve => pending.then(resolve)
-    const players = query({ data: [{ id: 'picked' }, { id: 'available' }], error: null })
-    mocks.from.mockImplementation((table: string) => table === 'snake_draft_picks' ? picked : players)
-    const result = getRookiePlayers('draft')
-    await Promise.resolve()
-    await Promise.resolve()
-    expect(mocks.from).toHaveBeenCalledWith('players')
-    finish({ data: [{ player_id: 'picked' }], error: null })
-    await expect(result).resolves.toEqual([{ id: 'available' }])
-    expect(players.limit).toHaveBeenCalledWith(100)
 })
 
 describe('rookie timer range', () => {
@@ -92,18 +26,4 @@ describe('rookie timer range', () => {
         await expect(startRookieDraft('league', { timerSeconds: value })).rejects.toThrow('1 minute and 7 days')
         expect(mocks.apiPost).not.toHaveBeenCalled()
     })
-})
-
-it('loads the fantasy season for the rookie draft year label', async () => {
-    const draft = query({ data: { id: 'draft', league_id: 'league', league_season_id: 'season', league_seasons: { is_current: true, season_year: 2028 } }, error: null })
-    mocks.from.mockImplementation((table: string) => table === 'drafts' ? draft : query({ data: [], error: null }))
-    const state = await getRookieDraftState('draft')
-    expect(state?.draft.seasonYear).toBe(2028)
-    expect(draft.select).toHaveBeenCalledWith(expect.stringContaining('league_seasons(is_current, season_year)'))
-})
-
-it('preserves player row metadata in rookie draft history', async () => {
-    mocks.from.mockImplementation((table: string) => query({ data: table === 'drafts' ? { id: 'draft' } : table === 'snake_draft_picks' ? [{ overall_pick: 1, players: { id: 'player', display_name: 'Player', years_exp: 0, career_regular_season_games: 10, injury_status: 'Out' } }] : [], error: null }))
-    const state = await getRookieDraftState('draft')
-    expect(state?.picks[0].player).toMatchObject({ yearsExp: 0, careerGames: 10, injuryStatus: 'Out' })
 })

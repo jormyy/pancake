@@ -23,7 +23,7 @@ const messages = Array.from({ length: 5 }, () => [] as Record<string, unknown>[]
 let checks = 0
 async function q<T>(operation: PromiseLike<{ data: T; error: { message: string } | null }>): Promise<T> {
   const { data, error } = await operation
-  if (error) throw new Error(error.message)
+  if (error) throw new Error(JSON.stringify(error))
   return data
 }
 async function sql(command: string, expected = 0) {
@@ -200,6 +200,7 @@ try {
   assert.equal(Reflect.get(await hint('resources'), 'details'), null); checks++
   await q(admin.from('league_seasons').delete().in('id', extraSeasons.map(row => row.id)))
   assert.equal(Reflect.get(await hint('inventory'), 'details'), null); checks += 2
+  await q(admin.from('nba_games').update({ status: 'Final' }).eq('id', game))
   const resourcesBeforeLive = await hint('resources')
   const beforeLiveStats = await q(admin.from('league_change_hints').select('revision').eq('league_id', league).eq('topic', 'score').maybeSingle())
   await sql(`UPDATE public.league_change_hints SET updated_at=clock_timestamp()-interval '61 seconds' WHERE league_id='${league}' AND topic='score'`)
@@ -210,7 +211,7 @@ try {
   const firstLiveStats = await hint('score')
   assert.equal(firstLiveStats.revision, (beforeLiveStats?.revision ?? 0) + 1)
   assert.equal(firstLiveStats.scopes, null)
-  assert.equal(firstLiveStats.details, null)
+  assert.deepEqual(firstLiveStats.details, [{ resource: 'averages', season_id: season }])
   await waitFor(() => messages[0].some(row => row.topic === 'score' && row.revision === firstLiveStats.revision)
     && messages[1].some(row => row.topic === 'score' && row.revision === firstLiveStats.revision), 'Live player stats hint misses a league member')
   await q(admin.from('player_game_stats').update({ points: 6 }).eq('game_id', game))

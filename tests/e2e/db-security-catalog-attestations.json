@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261214009700",
+  "candidateVersion": "20261214010200",
   "common": {
     "functions": [
       {
@@ -1102,7 +1102,7 @@
           "roles": [
             "authenticated"
           ],
-          "using": "(EXISTS ( SELECT 1\n   FROM league_members member\n  WHERE ((member.league_id = league_events.league_id) AND (member.user_id = auth.uid()) AND ((league_events.kind <> 'claim.failed'::text) OR (member.id = league_events.member_id)) AND ((league_events.kind <> ALL (ARRAY['trade.sent'::text, 'trade.countered'::text, 'trade.edited'::text, 'trade.accepted'::text, 'trade.failed'::text, 'trade.rejected'::text, 'trade.withdrawn'::text, 'trade.expired'::text])) OR ((league_events.detail -> 'member_ids'::text) ? (member.id)::text) OR ((member.id)::text = ANY (ARRAY[(league_events.detail ->> 'proposer_member_id'::text), (league_events.detail ->> 'recipient_member_id'::text)]))))))",
+          "using": "(EXISTS ( SELECT 1\n   FROM league_members member\n  WHERE ((member.league_id = league_events.league_id) AND (member.user_id = uid()) AND ((league_events.kind <> 'claim.failed'::text) OR (member.id = league_events.member_id)) AND ((league_events.kind <> ALL (ARRAY['trade.sent'::text, 'trade.countered'::text, 'trade.edited'::text, 'trade.accepted'::text, 'trade.failed'::text, 'trade.rejected'::text, 'trade.withdrawn'::text, 'trade.expired'::text])) OR ((league_events.detail -> 'member_ids'::text) ? (member.id)::text) OR ((member.id)::text = ANY (ARRAY[(league_events.detail ->> 'proposer_member_id'::text), (league_events.detail ->> 'recipient_member_id'::text)]))))))",
           "command": "SELECT",
           "permissive": "PERMISSIVE"
         }
@@ -2661,6 +2661,26 @@
     {
       "filename": "20261214009700_lineup_player_pins.sql",
       "sha256": "8edeebdd47de77ac9cde7a02151629229aa9fa7a227a23b2ee62efbd3a85186d"
+    },
+    {
+      "filename": "20261214009800_league_history.sql",
+      "sha256": "d45e27e1b02a49c928fb75d2257aa02dbb619835c0c3a9976980d53a066b9a4c"
+    },
+    {
+      "filename": "20261214009900_schedule_matchup_links.sql",
+      "sha256": "ff91904fbb6609ba651bdb02e086e78a6aa340180e28de057a25ee2a4c9982f2"
+    },
+    {
+      "filename": "20261214010000_trade_rule_error_transport.sql",
+      "sha256": "165137daabe2d450648dfd82bdd41e596141287d472a50d24fe55bb7eacd380b"
+    },
+    {
+      "filename": "20261214010100_bound_version_hint_payload.sql",
+      "sha256": "1733e114ef015f2e59e4db17375dccda63623a1057d882737276e0f2aebd7621"
+    },
+    {
+      "filename": "20261214010200_register_retention_lifetimes.sql",
+      "sha256": "d337e31efda5c124895a6c32d2aeb565204be0e5ec26076c7d5abdb4a81a9421"
     }
   ],
   "preMigration": {

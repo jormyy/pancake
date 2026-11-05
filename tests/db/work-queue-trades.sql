@@ -18,6 +18,9 @@ DO $$ BEGIN
   END IF;
 END $$;
 BEGIN;
+UPDATE public.trades SET expires_at=now()+interval '1 day' WHERE status='pending';
+UPDATE public.trades SET veto_window_expires_at=now()+interval '1 day' WHERE status='accepted';
+UPDATE public.notification_outbox SET available_at=now()+interval '1 day';
 DO $$ BEGIN IF EXISTS(SELECT 1 FROM cron.job WHERE jobname='nba-process-trades') THEN
   RAISE EXCEPTION 'Duplicate trade cron remains';
 END IF; END $$;

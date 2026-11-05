@@ -36,7 +36,7 @@ try {
   assert.match(command, /lock_timeout\s*=\s*'250ms'/)
   const releaseDispatcher = await hold("SELECT pg_advisory_xact_lock(hashtextextended('public.dispatch_work',0))")
   let started = performance.now()
-  assert.equal(sql(command), '0')
+  assert.equal(sql("SELECT public.dispatch_work()"), '0')
   const overlapMs = performance.now() - started
   assert.ok(overlapMs < 500, `Overlapping dispatcher waits: ${overlapMs} ms`)
   await releaseDispatcher()
@@ -53,7 +53,7 @@ try {
   assert.ok(dispatchMs < 5000, `Dispatcher exceeds its budget: ${dispatchMs} ms`)
   assert.equal(sql(`SELECT count(*) FROM private.work_items WHERE key LIKE '${prefix}-running-%' AND status='running'`), '4')
   const failed = Number(sql(`SELECT count(*) FROM private.work_items WHERE key LIKE '${prefix}-pending-%' AND last_error ILIKE '%lock timeout%'`))
-  assert.ok(failed > 0 && failed <= 8, `One dispatch retries too many blocked items: ${failed}`)
+  assert.equal(failed, 0, 'A saturated dispatcher must not attempt another network job')
   assert.equal(Number(sql(`SELECT count(*) FROM private.work_items WHERE key LIKE '${prefix}-pending-%' AND status='pending'`)), 24 - failed)
   await releaseNetwork()
   await releaseWorkers()

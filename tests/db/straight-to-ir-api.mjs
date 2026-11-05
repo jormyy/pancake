@@ -30,7 +30,7 @@ try {
   assert.equal(signed.error, null)
   const post = async (path, body) => {
     const result = await fetch(`${api}/functions/v1/api${path}`, { method: 'POST', headers: {
-      authorization: `Bearer ${signed.data.session.access_token}`, 'content-type': 'application/json',
+      authorization: `Bearer ${signed.data.session.access_token}`, 'content-type': 'application/json', 'x-request-id': randomUUID(),
     }, body: JSON.stringify(body) })
     const content = await result.json()
     assert.equal(result.status, 200, JSON.stringify(content))

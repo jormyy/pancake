@@ -73,7 +73,7 @@ Account changes clear private caches and reject late replies.
 League selection clears screen results before changing the selected member.
 Offline screens retain saved data and show an offline notice.
 The service worker caches public files separately from private screen data.
-See [loading](instant-loading.md) and [PWA behavior](pwa-live-data.md).
+See [loading](architecture.md#loading-and-offline-actions) and [PWA behavior](architecture.md#loading-and-offline-actions).
 
 ## Live scores
 
@@ -129,7 +129,7 @@ Plans reserve outgoing assets, retained-player moves, drops, and incoming capaci
 Settlement applies all participants' changes atomically.
 The Activity section records trade transitions with privacy rules for pending offers.
 Private team timelines project events from `league_events`.
-See [roster lifecycle](roster-lifecycle.md) and [drafts](draft.md).
+See [roster lifecycle](roster-lifecycle.md) and [drafts](roster-lifecycle.md#rookie-draft-order).
 
 ## Trade estimates and forecasts
 
@@ -206,3 +206,21 @@ Backend-only summaries support performance review.
 | Shared calculations | `core/`, `supabase/shared-src/` |
 
 [Verification](verification.md) lists source, database, browser, and release checks.
+
+## Loading and offline actions
+
+Saved complete content renders before background validation.
+Cold reads show loading until the view arrives; a valid empty result shows the empty state.
+A failed refresh retains saved content and exposes Retry.
+Account or league changes reject late responses from the previous scope.
+Hidden screens defer reads and resume with the current scope.
+
+The persistent mutation queue retains each action's original input and request ID.
+Reconnect replays actions in order under the matching account.
+An action failure blocks later queued actions until retry.
+Sign-out clears private caches, durable actions, and saved authentication state.
+If remote session revocation fails, the app reports device-only sign-out.
+PWA updates wait while unsent forms or queued actions hold the update guard.
+The service worker caches public assets separately from private view data.
+
+See [verification](verification.md) for browser, offline, and update checks.

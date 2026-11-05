@@ -33,7 +33,7 @@ for (const testCase of cases) {
       const syntheticSunday = start === 2024 ? '2024-11-24' : '2025-11-23'
       const synthetic = buildScheduleSyncPlan(fixture.games.filter((game: { gameDate: string }) => game.gameDate !== syntheticSunday), new Date(`${start}-10-01T00:00:00Z`))
       assert.equal(Reflect.get(synthetic.rows[0], 'schedule_complete'), false, 'A partial caller cannot attest a complete source snapshot from game count alone')
-      assert.equal(synthetic.weeks.length, 24, 'SYNTHETIC missing Sunday: one empty day across Monday must not create a second merged week')
+      assert.equal(synthetic.weeks.length, 25, 'An incomplete schedule preserves provider weeks without inferring the All-Star merge')
       console.log(JSON.stringify({ case: testCase, season: start + 1, weeks: plan.weeks }))
     }
     if (testCase === 'cup') {

@@ -328,6 +328,6 @@ BEGIN
 
   RETURN v_trade_id;
 EXCEPTION WHEN lock_not_available THEN
-  RAISE EXCEPTION 'The league is busy. Try this trade again.' USING ERRCODE='PT001';
+  RAISE EXCEPTION 'The league is busy. Try this trade again.' USING ERRCODE='PA010';
 END;
 $$;

@@ -135,6 +135,88 @@ describe('versioned screen cache', () => {
         setLeagueChangesConnected(selected.leagueId, false)
         vi.stubGlobal('window', undefined)
     })
+    it('reads cold Home before realtime joins and keeps its published version', async () => {
+        vi.stubGlobal('window', { WebSocket: class {} })
+        const selected: ScreenScope = { ...scope, leagueId: 'home-baseline-league', screen: 'home' }
+        const view = { context: { version: '2' }, rows: ['fresh'] }
+        mocks.version = '0'
+        mocks.fetch.mockResolvedValue(Response.json({ ok: true, view }))
+        const task = readScreenView(selected, { checkVersion: false })
+        try {
+            await new Promise(resolve => setImmediate(resolve))
+            expect(mocks.fetch).toHaveBeenCalledOnce()
+            expect(await task).toEqual(view)
+            expect(cachedScreenView(selected)).toMatchObject({ version: '2', dirty: false })
+            expect(mocks.check).not.toHaveBeenCalled()
+        } finally {
+            setLeagueChangesConnected(selected.leagueId!, true)
+            notifyLeagueChange(selected.leagueId!, { topic: 'catchup', scopes: null })
+            await task
+            setLeagueChangesConnected(selected.leagueId!, false)
+            vi.stubGlobal('window', undefined)
+        }
+    })
+    it('rereads cold Home when a newer hint arrives before its response', async () => {
+        vi.stubGlobal('window', { WebSocket: class {} })
+        const selected: ScreenScope = { ...scope, screen: 'home' }
+        const fresh = { context: { version: '2' }, rows: ['fresh'] }
+        let finish!: (response: Response) => void
+        mocks.fetch.mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
+            .mockImplementation(async () => Response.json({ ok: true, view: fresh }))
+        const stop = subscribeScreenView(selected, () => {})
+        try {
+            const task = readScreenView(selected, { checkVersion: false })
+            await new Promise(resolve => setImmediate(resolve))
+            expect(mocks.fetch).toHaveBeenCalledOnce()
+            bump('lineup')
+            finish(Response.json({ ok: true, view: { context: { version: '1' }, rows: ['old'] } }))
+            expect(await task).toEqual(fresh)
+            expect(mocks.fetch).toHaveBeenCalledTimes(2)
+            expect(cachedScreenView(selected)).toMatchObject({ version: '2', dirty: false, value: fresh })
+        } finally { stop(); vi.stubGlobal('window', undefined) }
+    })
+    it('invalidates published Home for a newer late baseline but keeps a matching baseline clean', async () => {
+        vi.stubGlobal('window', { WebSocket: class {} })
+        const selected: ScreenScope = { ...scope, screen: 'home' }
+        const published = { context: { version: '2' }, rows: ['published'] }
+        const listener = vi.fn()
+        const stop = subscribeScreenView(selected, listener)
+        mocks.version = '0'
+        mocks.fetch.mockImplementation(async () => Response.json({ ok: true, view: published }))
+        try {
+            expect(await readScreenView(selected, { checkVersion: false })).toEqual(published)
+            bump('lineup')
+            bump('lineup')
+            expect(cachedScreenView(selected)).toMatchObject({ version: '2', dirty: false })
+            expect(mocks.fetch).toHaveBeenCalledOnce()
+            listener.mockClear()
+            bump('lineup')
+            expect(listener).toHaveBeenCalledOnce()
+            expect(cachedScreenView(selected)).toMatchObject({ version: '2', dirty: true })
+            const fresh = { context: { version: '3' }, rows: ['fresh'] }
+            mocks.fetch.mockImplementation(async () => Response.json({ ok: true, view: fresh }))
+            expect(await readScreenView(selected, { checkVersion: false })).toEqual(fresh)
+            expect(mocks.fetch).toHaveBeenCalledTimes(2)
+            expect(cachedScreenView(selected)).toMatchObject({ version: '3', dirty: false, value: fresh })
+        } finally { stop(); vi.stubGlobal('window', undefined) }
+    })
+    it('rejects cold Home after the account clears while its response is pending', async () => {
+        vi.stubGlobal('window', { WebSocket: class {} })
+        const selected: ScreenScope = { ...scope, screen: 'home' }
+        let finish!: (response: Response) => void
+        mocks.fetch.mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
+        try {
+            const task = readScreenView(selected, { checkVersion: false })
+            await new Promise(resolve => setImmediate(resolve))
+            expect(mocks.fetch).toHaveBeenCalledOnce()
+            clearScreenViews()
+            mocks.generation += 1
+            mocks.owner = 'other'
+            finish(Response.json({ ok: true, view: { context: { version: '1' }, rows: ['private'] } }))
+            await expect(task).rejects.toThrow('changed')
+            expect(cachedScreenView(selected)).toBeUndefined()
+        } finally { vi.stubGlobal('window', undefined) }
+    })
     it('keeps an unrelated screen and refetches an awarded claim within one bump', async () => {
         saveScreenView(scope, { claims: [{ status: 'pending' }] }, '1')
         const stop = subscribeScreenView(scope, () => {})

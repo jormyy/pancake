@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { createClient } from '@supabase/supabase-js'
+import { ownScenarioResource } from './scenario-resource-owner.mjs'
 import {
   env,
   executeRecoverySql,
@@ -19,13 +20,21 @@ export const assertVetoRowsSurviveMemberHistoryPagination = async (fixture) => {
   }))
   const { data: personalTrades, error: historyError } = await fixture.admin.from('trades').insert(personalRows).select('id')
   if (historyError) throw new Error(`pagination history insert: ${historyError.message}`)
-  const { error: historyParticipantError } = await fixture.admin.from('trade_participants').insert(
-    personalTrades.flatMap((trade) => [
-      { trade_id: trade.id, member_id: fixture.observer.id, sort_order: 0, is_initiator: true, accepted_at: new Date().toISOString() },
-      { trade_id: trade.id, member_id: fixture.recipient.id, sort_order: 1, is_initiator: false, accepted_at: new Date().toISOString() },
-    ]),
-  )
-  if (historyParticipantError) throw new Error(`pagination participant insert: ${historyParticipantError.message}`)
+  ownScenarioResource(`trade-pagination:${fixture.league.id}`, 'trade pagination history', async () => {
+    for (let offset = 0; offset < personalTrades.length; offset += 100) {
+      const { error } = await fixture.admin.from('trades').delete().in('id', personalTrades.slice(offset, offset + 100).map(trade => trade.id))
+      if (error) throw new Error(`pagination history cleanup: ${error.message}`)
+    }
+  })
+  for (let offset = 0; offset < personalTrades.length; offset += 100) {
+    const { error } = await fixture.admin.from('trade_participants').insert(
+      personalTrades.slice(offset, offset + 100).flatMap(trade => [
+        { trade_id: trade.id, member_id: fixture.observer.id, sort_order: 0, is_initiator: true, accepted_at: new Date().toISOString() },
+        { trade_id: trade.id, member_id: fixture.recipient.id, sort_order: 1, is_initiator: false, accepted_at: new Date().toISOString() },
+      ]),
+    )
+    if (error) throw new Error(`pagination participant insert: ${error.message}`)
+  }
 
   const { data: outgoingTrades, error: outgoingError } = await fixture.admin.from('trades').insert(
     Array.from({ length: 80 }, (_, index) => ({

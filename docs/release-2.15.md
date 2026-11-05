@@ -47,7 +47,7 @@ Long-term growth requires an explicit history policy or a larger plan.
 Hosted acceptance of 32 MB shared buffers and PostgREST pool two still requires read-back during rollout.
 If either setting is refused, stop before merging and measure the supported configuration separately.
 Local gzip is verified; hosted compression and billed transfer remain rollout checks.
-See [live scores](live-scores.md) for the budget model and [capacity](db-capacity.md) for retention.
+See [live scores](live-scores.md) for the budget model and [capacity](operations-scheduler.md#capacity) for retention.
 
 ## Release order and recovery
 

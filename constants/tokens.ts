@@ -540,7 +540,7 @@ export const uiColors = {
     brandSurfaceSoft: webColor('ui-brand-surface-soft', palette.maple50),
     brandText: webColor('ui-brand-text', palette.maple600),
     brandTextStrong: webColor('ui-brand-text-strong', palette.maple900),
-    borderNeutral: webColor('ui-border-neutral', palette.gray300),
+    borderNeutral: webColor('ui-border-neutral', palette.cream300),
     dangerBorder: webColor('ui-danger-border', palette.red200),
     dangerSurface: webColor('ui-danger-surface', palette.red50),
     dangerText: webColor('ui-danger-text', palette.red900),
@@ -552,7 +552,7 @@ export const uiColors = {
     successText: webColor('ui-success-text', palette.green800),
     successTextLive: webColor('ui-success-text-live', palette.green600),
     successTextStrong: webColor('ui-success-text-strong', palette.green700),
-    surfaceAlt: webColor('ui-surface-alt', palette.gray50),
+    surfaceAlt: webColor('ui-surface-alt', palette.cream50),
     tableText: webColor('ui-table-text', palette.gray900),
     taxi: webColor('ui-taxi', palette.purple500),
     textFaint: webColor('ui-text-faint', palette.gray500),
@@ -710,7 +710,7 @@ export const componentTokens = {
         phoneRadius: radii['3xl'],
         desktopRadius: radii['2xl'],
         contentPadding: spacing.xl,
-        title: textStyles.rowTitle,
+        title: textStyles.pageTitle,
     },
 } as const
 

@@ -1,6 +1,7 @@
 import { LockedAssetNotice } from '@/components/roster/LockedAssetNotice'
 import { readAssetLocks, type AssetLock } from '@/lib/locked-assets'
 import { ListHeader } from '@/components/ui/ListHeader'
+import { Card } from '@/components/ui/Card'
 import { pickLabel, draftYear } from '@/lib/picks'
 import { ScreenStatusScrollView as ScrollView } from '@/components/ui/ScreenStatusOverlay'
 import { View, Text, StyleSheet } from 'react-native'
@@ -388,9 +389,10 @@ export function PicksBankList({
     return (
         <ScrollView
             style={styles.picksBankScroll}
-            contentContainerStyle={[styles.picksBankContent, styles.column]}
+            contentContainerStyle={[styles.picksBankContent, styles.column, { paddingHorizontal: padX }]}
             removeClippedSubviews={false}
         >
+            <Card padding="none" elevated="none" style={styles.tableCard}>
             {ledgerHeader}
             <View
                 nativeID={PICK_FILTER_PANEL_ID}
@@ -444,11 +446,13 @@ export function PicksBankList({
                     </View>
                 )}
             </View>
+            </Card>
         </ScrollView>
     )
 }
 
 const styles = StyleSheet.create({
+    tableCard: { overflow: 'hidden' },
     column: { width: '100%', maxWidth: layout.formMaxWidth + 2 * layout.pagePadX.regular, alignSelf: 'center' },
     picksBankHeaderRound: { width: 56 },
     picksBankHeaderFrom: { flex: 1, marginLeft: spacing.lg },
@@ -483,5 +487,5 @@ const styles = StyleSheet.create({
         paddingBottom: spacing.md,
     },
     picksBankScroll: { flex: 1 },
-    picksBankContent: { paddingBottom: spacing['3xl'] },
+    picksBankContent: { paddingTop: spacing.md, paddingBottom: spacing['3xl'] },
 })

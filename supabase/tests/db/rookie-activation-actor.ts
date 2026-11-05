@@ -29,7 +29,7 @@ async function sql(command: string) {
 }
 async function activate(side?: number, body = {}) {
   const response = await fetch(`${api}/functions/v1/api/draft/${draft}/activate-rookie-league`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json', ...(side === undefined ? {} : { Authorization: `Bearer ${tokens[side]}` }) }, body: JSON.stringify(body),
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'x-request-id': crypto.randomUUID(), ...(side === undefined ? {} : { Authorization: `Bearer ${tokens[side]}` }) }, body: JSON.stringify(body),
   })
   return { status: response.status, body: await response.json() }
 }
@@ -87,7 +87,7 @@ try {
   const gateName = `rookie-role-${scope}`
   const gate = new Deno.Command('psql', { args: [db, '-XqAt', '--set', 'ON_ERROR_STOP=1', '-c',
     `SET application_name='${gateName}'; BEGIN; SELECT id FROM leagues WHERE id='${league}' FOR UPDATE;
-    UPDATE league_members SET role='manager' WHERE id='${members[0]}'; SELECT pg_sleep(3); COMMIT`], stdin: 'null', stdout: 'piped', stderr: 'piped' }).spawn()
+    UPDATE league_members SET role='manager' WHERE id='${members[0]}'; SELECT pg_sleep(0.2); COMMIT`], stdin: 'null', stdout: 'piped', stderr: 'piped' }).spawn()
   let sleeping = false
   for (let poll = 0; poll < 100; poll++) {
     if (await sql(`SELECT count(*) FROM pg_stat_activity WHERE application_name='${gateName}' AND wait_event='PgSleep'`) === '1') { sleeping = true; break }

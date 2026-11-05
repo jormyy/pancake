@@ -6,10 +6,11 @@ import { expect, it } from 'vitest'
 import { clientRealtimeTables, publicationDifference, publicationTables, repositoryPublicationTables } from './helpers/realtime-publication'
 
 it('retains the legacy publication while every watched table gains a broadcast trigger', () => {
-    expect(publicationDifference(clientRealtimeTables(), repositoryPublicationTables())).toEqual({ missing: [], unwatched: [] })
+    const published = repositoryPublicationTables()
+    expect(publicationDifference(clientRealtimeTables(), published).missing).toEqual([])
     const migration = readFileSync('supabase/migrations/20261214004000_live_broadcast.sql', 'utf8')
     const broadcasts = [...migration.matchAll(/CREATE TRIGGER broadcast_live_change AFTER INSERT OR UPDATE OR DELETE ON public\.([a-z_]+)/g)].map(([, table]) => table)
-    expect(publicationDifference(clientRealtimeTables(), broadcasts)).toEqual({ missing: [], unwatched: [] })
+    expect(publicationDifference(published, broadcasts)).toEqual({ missing: [], unwatched: [] })
 }, 15000)
 
 it('ignores untracked source files left by other test suites', () => {

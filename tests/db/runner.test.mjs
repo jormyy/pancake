@@ -74,3 +74,11 @@ test('fixed regressions run in the standard sweep and fail on regression', () =>
   assert.equal(failed.status, 1)
   assert.match(failed.stdout, /FAIL regressions\/fixed.sql/)
 }))
+
+test('manual SQL requires its documented fixture and stays out of the automatic sweep', () => fixture((directory, run) => {
+  writeFileSync(join(directory, 'tests/db/manual-sql.json'), JSON.stringify({ 'replay.sql': 'Requires a restored matchup and explicit benchmark arguments.' }))
+  writeFileSync(join(directory, 'tests/db/replay.sql'), 'SELECT :matchup_id;\n')
+  const inventory = JSON.parse(run(['--list']).stdout)
+  assert.deepEqual(inventory.cases.map(entry => entry.file), ['root.sql'])
+  assert.deepEqual(inventory.manual, { 'replay.sql': 'Requires a restored matchup and explicit benchmark arguments.' })
+}))

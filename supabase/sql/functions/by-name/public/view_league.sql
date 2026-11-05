@@ -8,6 +8,7 @@ DECLARE result jsonb; active uuid;
 BEGIN
   CASE COALESCE(p_params->>'tab', 'results')
     WHEN 'results' THEN result := public.view_standings(p_league_id, p_member_id, p_params);
+    WHEN 'seasons' THEN RETURN public.view_league_history(p_league_id, p_member_id, p_params);
     WHEN 'history' THEN result := public.view_activity(p_league_id, p_member_id, p_params);
     WHEN 'picks' THEN result := public.view_picks(p_league_id, p_member_id, p_params);
     WHEN 'draftBoard' THEN result := public.view_picks(p_league_id, p_member_id, p_params);

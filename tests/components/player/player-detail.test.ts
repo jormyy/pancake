@@ -8,11 +8,9 @@ import { SeasonSelector as WebSeasonSelector } from '@/components/player/SeasonS
 import { StatsOverview } from '@/components/player/StatsOverview'
 import { NextProjectionCard } from '@/components/player/NextProjectionCard'
 import { GameLogTable } from '@/components/player/GameLogTable'
-import { PlayerHistory } from '@/components/player/PlayerHistory'
 import { headerPlayer } from '@/tests/helpers/fixtures'
 import type { GameLogEntry, PlayerSeasonAverages } from '@/lib/players'
 import type { LeagueProjectionRow } from '@/lib/projections'
-import { controlSize } from '@/constants/tokens'
 vi.mock('@/hooks/use-league-timezone', () => ({ useLeagueTimezone: () => 'America/Los_Angeles' }))
 
 vi.mock('react-native', () => ({
@@ -275,20 +273,6 @@ it.each([false, true])('keeps minutes and game paging with compact=%s', async co
         games: [game()], fantasyPointsMap: null, hasMore: true, loadingMore: true, onLoadMore,
     })))
     expect(screen.root.findByType(type('Pressable')).props.disabled).toBe(true)
-})
-
-it('keeps history collapsed until requested and omits empty history', async () => {
-    const props = { playerId: 'player', leagueId: 'league', transactions: [{ id: 'tx', transactionType: 'drop', label: 'Dropped', teamName: 'Maple Hoops', occurredAt: '2026-10-22' }] }
-    await render(React.createElement(PlayerHistory, props))
-    expect(screen.root.findAllByType(type('TransactionHistory'))).toHaveLength(0)
-    const toggle = screen.root.findByType(type('Pressable'))
-    expect(toggle.props['aria-expanded']).toBe(false)
-    expect(screen.root.findByType(type('MaterialIcons')).props).toMatchObject({ name: 'expand-more', size: controlSize.icon.md })
-    await act(async () => toggle.props.onPress())
-    expect(screen.root.findByType(type('MaterialIcons')).props).toMatchObject({ name: 'expand-less', size: controlSize.icon.md })
-    expect(screen.root.findByType(type('TransactionHistory')).props.transactions).toEqual(props.transactions)
-    await act(async () => screen.update(React.createElement(PlayerHistory, { ...props, transactions: [] })))
-    expect(screen.toJSON()).toBeNull()
 })
 
 it('shows the owning team on the third header line for your player', async () => {

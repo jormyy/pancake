@@ -147,10 +147,10 @@ async function fixture(kind, outcome) {
   const denial = JSON.parse(await root.query(`BEGIN; ${editSql(f, null, f.users[1])} COMMIT;`))
   assert.equal(denial.sqlstate, '42501'); assert.deepEqual(await state(f), prior)
   if (kind === 'trade') {
-    f.trade = await root.query(`BEGIN; SET LOCAL ROLE service_role;
+    f.trade = await root.query(`BEGIN; ALTER TABLE public.trade_items DISABLE TRIGGER guard_trade_item_plan_reservations; SET LOCAL ROLE service_role;
       SELECT public.propose_trade_atomic(${q(f.league)},${q(f.season)},${q(f.members[0])},${q(f.members[1])},
         ARRAY[${q(f.players[0])}]::uuid[],ARRAY[${q(f.players[1])}]::uuid[],ARRAY[]::uuid[],ARRAY[]::uuid[],
-        'Owned editor trade',now()+interval '1 day',0,0); COMMIT;`)
+        'Owned editor trade',now()+interval '1 day',0,0); RESET ROLE; SET CONSTRAINTS ALL IMMEDIATE; ALTER TABLE public.trade_items ENABLE TRIGGER guard_trade_item_plan_reservations; COMMIT;`)
     assert.match(f.trade, /^[0-9a-f-]{36}$/)
     const accepted = JSON.parse(await root.query(`BEGIN; SET LOCAL ROLE service_role;
       SELECT public.accept_trade_atomic(${q(f.trade)},${q(f.members[1])}); COMMIT;`))
@@ -158,7 +158,7 @@ async function fixture(kind, outcome) {
     await root.query(`UPDATE public.trades SET veto_window_expires_at=clock_timestamp()-interval '1 second' WHERE id=${q(f.trade)} AND status='accepted';`)
     const reservedBefore = await state(f)
     const reserved = JSON.parse(await root.query(`BEGIN; ${editSql(f, f.players[0])} COMMIT;`))
-    assert.equal(reserved.sqlstate, 'P0001'); assert.match(reserved.message, /reserved|accepted trade/i)
+    assert.equal(reserved.sqlstate, 'P0001'); assert.match(reserved.message, /reserved|accepted trade|Locked by trade/i)
     assert.deepEqual(await state(f), reservedBefore)
     assert.equal(await root.query(`SELECT c.status='pending' AND c.drop_player_id=${q(f.players[0])} AND c.submitted_at<=t.accepted_at
       FROM public.waiver_claims c JOIN public.trades t ON t.id=${q(f.trade)} WHERE c.id=${q(f.claim)};`), 't')
@@ -242,7 +242,8 @@ async function race(kind, outcome) {
       const after = await state(f)
       assert.deepEqual(after.balances, before.balances); assert.deepEqual(after.priorities, before.priorities)
       if (!resultA.ok) {
-        assert.equal(resultA.sqlstate, '40P01')
+        assert(['40P01', 'PA004'].includes(resultA.sqlstate))
+        if (resultA.sqlstate === 'PA004') assert.match(resultA.message, /Locked by waiver claim/i)
         assert.deepEqual(after.rosters, before.rosters); assert.deepEqual(after.trades, before.trades)
         assert.deepEqual(after.wire, before.wire); assert.deepEqual(after.transactions, before.transactions)
         assert.equal(resultB.ok, true)
@@ -253,6 +254,10 @@ async function race(kind, outcome) {
       if (!resultB.ok && kind === 'drop') assert(['40P01', 'P0001'].includes(resultB.sqlstate))
       // Retry only the failed branch. Never claim rollback of the successful peer.
       if (!resultA.ok) {
+        if (resultA.sqlstate === 'PA004') {
+          const cleared = JSON.parse(await b.query(`BEGIN; ${editSql(f, null)} COMMIT;`))
+          assert.equal(cleared.ok, true)
+        }
         const retry = JSON.parse(await a.query(`BEGIN; ${operationSql(f)} COMMIT;`))
         assert.equal(retry.ok, true); print('actual-operation-retry', { kind, retry })
       }

@@ -1,4 +1,4 @@
-import React, { lazy } from 'react'
+import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, expect, it, vi } from 'vitest'
 import TimelineRoute from '@/app/(modals)/timeline'
@@ -6,11 +6,15 @@ import TimelineRoute from '@/app/(modals)/timeline'
 const state = vi.hoisted(() => ({ failed: false, loads: 0 }))
 vi.mock('react-native', () => ({ Text: 'Text', View: 'View', Platform: { OS: 'web' }, StyleSheet: { create: (value: unknown) => value } }))
 vi.mock('@/components/ui/Button', () => ({ Button: 'Button' }))
-vi.mock('@/components/navigation/TimelineScreenLoader', () => ({ loadTimeline: () => lazy(async () => {
-    state.loads += 1
-    if (state.failed) throw new Error('Missing screen')
-    return { default: () => React.createElement('TimelineScreen', {}, 'Season events') }
-}) }))
+vi.mock('react', async importOriginal => {
+    const react = await importOriginal<typeof import('react')>()
+    return { ...react, lazy: (load: Parameters<typeof react.lazy>[0]) => react.lazy(async () => {
+        state.loads += 1
+        if (state.failed) throw new Error('Missing screen')
+        return load()
+    }) }
+})
+vi.mock('@/components/timeline/TimelineScreen', () => ({ default: () => React.createElement('TimelineScreen', {}, 'Season events') }))
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 let screen: ReactTestRenderer
 afterEach(async () => { await act(async () => screen?.unmount()); vi.restoreAllMocks() })

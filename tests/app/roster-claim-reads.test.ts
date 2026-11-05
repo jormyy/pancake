@@ -50,7 +50,7 @@ vi.mock('@/lib/lineup', () => ({ getRosterSlotPlan: async () => ({ slots: [], as
 vi.mock('@/lib/shared/season', () => ({ getActiveSeasonId: async () => 'season' }))
 vi.mock('@/lib/league', () => ({ isTradingClosed: () => false, getMemberTransactionState: async () => memberTransactionState({ faabBalance: 100, weeklyAddLimit: 2, weeklyAddCount: 0 }) }))
 vi.mock('@/lib/format', () => ({ countLabel: String }))
-vi.mock('@/components/ui', () => ({ Page: 'Page', PageHeader: 'PageHeader', Button: 'Button', usePageMetrics: () => ({ padX: 16, usableWidth: 358 }) }))
+vi.mock('@/components/ui', async () => ({ Page: 'Page', PageHeader: 'PageHeader', Button: 'Button', Card: (await import('@/components/ui/Card')).Card, usePageMetrics: () => ({ padX: 16, usableWidth: 358 }) }))
 vi.mock('@/components/EmptyState', () => ({ EmptyState: 'EmptyState' }))
 vi.mock('@/components/NoLeagueState', () => ({ NoLeagueState: 'NoLeagueState' }))
 vi.mock('@/components/roster/RosterItems', () => ({
@@ -114,7 +114,8 @@ it('keeps pending claims out of the Roster screen', async () => {
 it('keeps the Waivers budget, priority, next run and pickup count without explanatory prose', async () => {
     await act(async () => { screen = create(React.createElement(WaiversSection, { active: true, onFindPlayer: vi.fn() })) })
     const text = screen.root.findAllByType('Text' as React.ElementType).map(node => React.Children.toArray(node.props.children).join('')).join(' ')
-    expect(text).toContain('Available FAAB $100 · Priority #6')
+    expect(text).toContain('Available FAAB $100')
+    expect(text).toContain('Priority #6')
     expect(text).toContain('Next run ')
     expect(text).toContain('Pickups 0/2 this week')
     expect(text).not.toMatch(/Dropped players wait|Bids stay private|Higher bids go first|Claim order decides|Successful pickups|scoring week/)

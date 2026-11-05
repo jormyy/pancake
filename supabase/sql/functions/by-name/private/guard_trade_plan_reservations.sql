@@ -38,7 +38,7 @@ BEGIN
       WHERE trade.league_id=v_trade.league_id AND trade.league_season_id=v_trade.league_season_id
         AND trade.status='accepted' AND trade.id<>NEW.trade_id
         AND (v_player=ANY(participant.drop_player_ids) OR participant.roster_moves @> jsonb_build_array(jsonb_build_object('playerId',v_player::text)))) THEN
-      RAISE EXCEPTION 'Player is reserved by another trade roster plan.' USING ERRCODE='PT001';
+      RAISE EXCEPTION 'Player is reserved by another trade roster plan.' USING ERRCODE='PA010';
     END IF;
     IF TG_TABLE_NAME='trade_participants' THEN
       IF EXISTS (SELECT 1 FROM trade_items item JOIN trades trade ON trade.id=item.trade_id
@@ -46,7 +46,7 @@ BEGIN
           AND trade.status IN ('pending','accepted') AND trade.id<>NEW.trade_id AND item.player_id=v_player)
         OR EXISTS (SELECT 1 FROM waiver_claims WHERE league_season_id=v_trade.league_season_id
           AND status='pending' AND (drop_player_id=v_player OR player_id=v_player)) THEN
-        RAISE EXCEPTION 'Planned drop or move is reserved by another trade or active waiver claim.' USING ERRCODE='PT001';
+        RAISE EXCEPTION 'Planned drop or move is reserved by another trade or active waiver claim.' USING ERRCODE='PA010';
       END IF;
     END IF;
   END LOOP;

@@ -195,6 +195,7 @@ try {
     supabase.from('players').insert(
       players.map((id, index) => ({
         id,
+        nba_id: String(700000000 + Number.parseInt(token.slice(0, 5), 16) * 10 + index),
         first_name: 'Synthetic',
         last_name: `Span ${token}-${index}`,
         position: 'PG' as const,

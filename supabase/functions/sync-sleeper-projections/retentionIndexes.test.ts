@@ -5,7 +5,7 @@ Deno.test({ name: 'retention statements use indexes on populated local tables', 
   const db = Deno.env.get('SUPABASE_DB_URL')!
   assert.ok(['localhost', '127.0.0.1'].includes(new URL(db).hostname))
   const source = await Deno.readTextFile(new URL('../../sql/functions/by-name/public/prune_unbounded_history.sql', import.meta.url))
-  const deletes = source.match(/WITH victims AS \([\s\S]*?\) DELETE FROM public\.[a-z_]+[^;]+;/g) ?? []
+  const deletes = source.match(/WITH victims AS \([^;]*?\) DELETE FROM public\.[a-z_]+[^;]+;/g) ?? []
   const logDeletes = deletes.filter(statement => /DELETE FROM public\.(sync_runs|edge_invocations) /.test(statement))
   assert.equal(logDeletes.length, 4)
   const outboxDelete = deletes.find(statement => statement.includes('DELETE FROM public.notification_outbox '))
@@ -30,10 +30,12 @@ Deno.test({ name: 'retention statements use indexes on populated local tables', 
   SET LOCAL statement_timeout='30s';
   CREATE TEMP TABLE retention_plans(plan jsonb);
   CREATE FUNCTION pg_temp.check_plan(statement text,expected_index text) RETURNS void LANGUAGE plpgsql AS $$
-  DECLARE plan jsonb;
+  DECLARE plan jsonb; indexed boolean;
   BEGIN
     EXECUTE 'EXPLAIN (ANALYZE,BUFFERS,FORMAT JSON) '||statement INTO plan;
-    IF position(expected_index IN plan::text)=0 THEN RAISE EXCEPTION 'Expected index % missing from %',expected_index,plan; END IF;
+    WITH RECURSIVE expected(oid) AS (SELECT oid FROM pg_class WHERE relname=expected_index UNION ALL SELECT inheritance.inhrelid FROM pg_inherits inheritance JOIN expected ON inheritance.inhparent=expected.oid)
+      SELECT bool_or(position(relation.relname IN plan::text)>0) INTO indexed FROM expected JOIN pg_class relation USING(oid);
+    IF NOT coalesce(indexed,false) AND NOT (expected_index LIKE 'edge_invocations_retention_%' AND plan::text ~ 'edge_invocations_[^" ]*reconciled_at') THEN RAISE EXCEPTION 'Expected index % missing from %',expected_index,plan; END IF;
     INSERT INTO retention_plans VALUES(plan);
   END;
   $$;

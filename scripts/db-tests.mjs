@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { basename, join } from 'node:path'
 
 const options = new Set(process.argv.slice(2))
@@ -13,7 +13,9 @@ const registered = new Set([
 const sqlFiles = readdirSync('tests/db').filter(file => file.endsWith('.sql')).sort()
 const included = new Set(sqlFiles.flatMap(file => [...readFileSync(`tests/db/${file}`, 'utf8')
   .matchAll(/^\s*\\ir\s+([^\s]+)/gm)].map(match => basename(match[1]))))
-const roots = sqlFiles.filter(file => !included.has(file))
+const manual = existsSync('tests/db/manual-sql.json') ? JSON.parse(readFileSync('tests/db/manual-sql.json', 'utf8')) : {}
+assert.ok(Object.keys(manual).every(file => sqlFiles.includes(file)), 'Manual SQL entries must name existing files')
+const roots = sqlFiles.filter(file => !included.has(file) && !Object.hasOwn(manual, file))
 const recipes = roots.filter(file => !options.has('--omit-registered') || !registered.has(file))
   .sort((a, b) => Number(a === 'league-version-writes.sql') - Number(b === 'league-version-writes.sql') || a.localeCompare(b))
 const bugs = JSON.parse(readFileSync('tests/db/known-bugs.json', 'utf8'))
@@ -27,7 +29,7 @@ const cases = options.has('--bugs') ? bugs.map(bug => ({ file: bug.file, expecte
     ? ['durable', 'outside', 'cross-week'].map(mode => ({ file, mode }))
     : file === 'notif-producers.sql' ? ['false', 'true'].map(mode => ({ file, mode })) : [{ file }])
 if (options.has('--list')) {
-  console.log(JSON.stringify({ cases, included: [...included].filter(file => sqlFiles.includes(file)).sort() }, null, 2))
+  console.log(JSON.stringify({ cases, manual, included: [...included].filter(file => sqlFiles.includes(file)).sort() }, null, 2))
   process.exit(0)
 }
 

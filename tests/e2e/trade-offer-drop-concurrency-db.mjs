@@ -262,7 +262,7 @@ try {
       } else {
         assert.equal(deadlocks.length, 0); assert.equal(resultB.ok, true)
         assert.equal(resultA.ok, false); assert.ok(resultA.sqlstate)
-        assert.match(resultA.message, f.propose ? /no longer owned/ : /Only pending offers|no longer pending/)
+        assert.match(resultA.message, f.propose ? /no longer own(?:s|ed)/ : /Only pending offers|no longer pending/)
         assert.equal(after.rosters.some((roster) => roster.id === f.rosters[0]), false)
         assert.equal(after.rosters.some((roster) => roster.id === f.rosters[1]), true)
         assert.equal(after.waivers, 1); assert.equal(after.drops, 1); assert.equal(after.receipts.length, 0)

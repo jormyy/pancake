@@ -59,7 +59,6 @@ export function Badge({
                 size === 'ownership' && styles.ownership,
                 maxWidth ? { maxWidth } : undefined,
                 style,
-    textStyle,
             ]}
         >
             {/* Soft tint via an opacity layer so any color works — including the

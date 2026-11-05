@@ -32,8 +32,8 @@ BEGIN
   PERFORM publish_nba_schedule_atomic(9525,rows,weeks);
   IF '${selected}'='missing' THEN
     PERFORM publish_nba_schedule_atomic(9525,rows-0,weeks);
-    IF (SELECT private.lineup_game_available(status,game_status_text) FROM nba_games WHERE nba_game_id=target) THEN
-      RAISE EXCEPTION 'FAIL: a non-final game missing from a complete season feed remains available';
+    IF (SELECT NOT private.lineup_game_available(status,game_status_text) FROM nba_games WHERE nba_game_id=target) THEN
+      RAISE EXCEPTION 'FAIL: absence from a feed changes the availability of a retained game';
     END IF;
     UPDATE nba_games SET game_status_text=NULL WHERE nba_game_id=target;
     PERFORM publish_nba_schedule_atomic(9525,jsonb_build_array(rows->1),weeks);
@@ -41,7 +41,7 @@ BEGIN
       RAISE EXCEPTION 'FAIL: a partial feed marks an unseen game unavailable';
     END IF;
     IF NOT EXISTS(SELECT 1 FROM nba_games WHERE season_year=9525 AND status='Final') THEN RAISE EXCEPTION 'Final game history disappeared'; END IF;
-    RAISE NOTICE 'PASS: complete-feed disappearance, partial-feed safety, and final history';
+    RAISE NOTICE 'PASS: missing-game retention, partial-feed safety, and final history';
   ELSE
     INSERT INTO auth.users(id,aud,role,email,raw_app_meta_data,raw_user_meta_data)
     VALUES(usr,'authenticated','authenticated',usr||'@example.test','{}','{}'),(other_usr,'authenticated','authenticated',other_usr||'@example.test','{}','{}');
