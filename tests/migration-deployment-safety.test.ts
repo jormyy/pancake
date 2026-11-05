@@ -4,7 +4,6 @@ import { describe, expect, it } from 'vitest'
 
 const migrationsDirectory = path.join(process.cwd(), 'supabase/migrations')
 const predeployDirectory = path.join(process.cwd(), 'supabase/predeploy')
-const productionDeployWorkflow = path.join(process.cwd(), '.github/workflows/production-deploy.yml')
 const read = (filename: string) => readFileSync(path.join(migrationsDirectory, filename), 'utf8')
 const readPredeploy = (filename: string) => readFileSync(path.join(predeployDirectory, filename), 'utf8')
 const topLevelStatements = (source: string): string[] => {
@@ -201,7 +200,7 @@ describe('branch migration deployment safety', () => {
         )).toBe(false)
     })
 
-    it('builds the push-token lookup index online before the production migration transaction', () => {
+    it('keeps online push-token lookup preparation compatible with the bounded migration', () => {
         const filename = '20260710130000_profiles_push_token_lookup.sql'
         const dropInvalidFilename = '20260710130000_profiles_push_token_lookup_drop_invalid.sql'
         const quarantineInvalidFilename = '20260710130000_profiles_push_token_lookup_quarantine_invalid.sql'
@@ -209,9 +208,6 @@ describe('branch migration deployment safety', () => {
         const dropInvalid = readPredeploy(dropInvalidFilename).trim().replace(/\s+/g, ' ')
         const quarantineInvalid = readPredeploy(quarantineInvalidFilename).trim().replace(/\s+/g, ' ')
         const migration = read(filename).replace(/\s+/g, ' ')
-        const workflow = readFileSync(productionDeployWorkflow, 'utf8')
-        const predeployCommand = 'supabase db query --linked --agent=no'
-        const migrationCommand = 'supabase db push --linked --yes'
 
         expect(predeploy).toContain(
             'CREATE INDEX CONCURRENTLY IF NOT EXISTS profiles_push_token_lookup ON public.profiles (push_token) WHERE push_token IS NOT NULL;',
@@ -232,17 +228,6 @@ describe('branch migration deployment safety', () => {
         )
         expect(migration).not.toContain('CREATE INDEX CONCURRENTLY')
         expect(bounded(read(filename))).toBe(true)
-        const firstDrop = workflow.indexOf(`-f supabase/predeploy/${dropInvalidFilename}`)
-        const quarantine = workflow.indexOf(`-f supabase/predeploy/${quarantineInvalidFilename}`)
-        const secondDrop = workflow.indexOf(`-f supabase/predeploy/${dropInvalidFilename}`, firstDrop + 1)
-        const build = workflow.indexOf(`-f supabase/predeploy/${filename}`)
-        expect(firstDrop).toBeGreaterThanOrEqual(0)
-        expect(quarantine).toBeGreaterThan(firstDrop)
-        expect(secondDrop).toBeGreaterThan(quarantine)
-        expect(build).toBeGreaterThan(secondDrop)
-        expect(workflow.indexOf(predeployCommand)).toBeGreaterThanOrEqual(0)
-        expect(workflow.indexOf(predeployCommand)).toBeLessThan(workflow.indexOf(migrationCommand))
-        expect(build).toBeLessThan(workflow.indexOf(migrationCommand))
     })
 
     it.each(['from', 'to'] as const)(

@@ -29,7 +29,6 @@ The seed removes the previous seed's league and users. Use only disposable local
 Internal jobs require `PANCAKE_EDGE_INTERNAL_TOKEN` to match the database dispatch token.
 The database dispatcher reads `app.edge_internal_token` or the Vault fallback.
 Its Supabase origin comes from `app.supabase_url` or the corresponding Vault fallback.
-The CI database setup in `.github/workflows/test.yml` shows the local dispatch wiring.
 Do not apply that wiring to a hosted project.
 
 For `npm run test:db`, set `PANCAKE_TEST_DB_PORT` and `PANCAKE_TEST_API_PORT` to this checkout's private ports.
@@ -60,7 +59,7 @@ The [simulator](../scripts/season-sim/README.md) and [profiler](../scripts/bench
 | Autonomous seasons | `npm run e2e:perpetual` | Local stack; see [browser guide](../tests/e2e/README.md) |
 | Release runner contracts | `npx vitest run tests/release-script.test.ts` | No network; source and command fixtures |
 | Release rehearsal | `npm run release -- --dry-run --candidate <full-sha>` | Private 594xx mini stack, clean candidate, replay and full-check receipts; see [runner guide](../scripts/release/README.md) |
-| Release soak | `npm run e2e:soak:release` | Release workflow setup and migration baseline |
+| Release soak | `npm run e2e:soak:release` | Isolated local stack and migration baseline |
 
 Run focused tests while iterating. Reserve full suites and heavy replay for the release checks.
 A skipped check or missing metric is not a pass.
@@ -180,12 +179,12 @@ Keep reports and screenshots outside tracked documentation.
 
 ## Release gates
 
-The protected workflow is named `Deploy production` in `.github/workflows/production-deploy.yml`.
-It calls `Release soak` and `Hosted production readiness` before coordinated promotion.
-Its jobs verify candidate/current pairings, apply the approved migration range, deploy Edge, and promote the frontend.
-Rollback jobs retain the upgraded additive schema.
-Vercel also enables frontend deployments from main in `vercel.json`.
-Those deployments do not replace coordinated database and Edge release gates.
+Use [verify-pancake](../.claude/skills/verify-pancake/SKILL.md) for local release verification.
+Run `npm run check:quality` and the change-relevant tests before a release.
+Run `npm run e2e:soak:release` on an isolated stack when season replay evidence is required.
+The local release runner also supports `npm run release -- --dry-run --candidate <full-sha>`.
+Vercel deploys the frontend from main using `vercel.json` and `release-predecessor.json`.
+Database and Edge releases follow the manual steps below.
 
 The [migration history](production-migration-history.md), [catalog contract](release-build-provenance.md#migration-attestations), and [artifact contract](release-build-provenance.md) own those checks.
 A source check or catalog pass alone does not authorize a release.

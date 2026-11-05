@@ -453,7 +453,7 @@ it.skipIf(!available)('keeps objects used by deployed consumers and release tool
     const migrations = git('ls-tree', '-r', '--name-only', 'origin/main', '--', 'supabase/migrations').split('\n').filter(file => file.endsWith('.sql'))
     const cron = retainedCronCommands(git('show', ...migrations.map(file => `origin/main:${file}`)), releaseMigrations().join('\n'))
     consumers.push({ file: 'cron', source: cron })
-    for (const root of ['tests/e2e', 'scripts', '.github/workflows']) {
+    for (const root of ['tests/e2e', 'scripts']) {
         for (const entry of readdirSync(root, { recursive: true })) {
             const file = `${root}/${entry}`
             if (/\.(?:[cm]?[jt]sx?|ya?ml|sh)$/.test(file) && !/\.test\.[cm]?[jt]sx?$/.test(file) && !['scripts/bench/pre-tipoff.ts', 'scripts/bench/report-metrics.ts'].includes(file)) consumers.push({ file, source: readFileSync(file, 'utf8'), quotedNames: true })
@@ -496,10 +496,9 @@ it('preserves positional arguments and permits appended search columns', () => {
     expect(brokenRpcContracts(["db.rpc('offer')"], definition('p_id uuid', 'TABLE(id uuid)'), definition('p_id uuid', 'TABLE(id uuid, career_regular_season_games int)'))).toEqual([])
 })
 
-it('detects quoted dropped names in release scripts and workflows', () => {
+it('detects quoted dropped names in release scripts', () => {
     expect(droppedObjectCalls('DROP TABLE public.retired_rows, analytics.old_totals; DROP FUNCTION public.retired_call();', [
         { file: 'tests/e2e/health.mjs', source: "const tables = ['retired_rows']", quotedNames: true },
-        { file: '.github/workflows/release.yml', source: "run: check 'retired_call'", quotedNames: true },
         { file: 'scripts/bench.mjs', source: "db.schema('analytics').from('old_totals')", quotedNames: true },
-    ])).toEqual(['tests/e2e/health.mjs: table retired_rows', '.github/workflows/release.yml: function retired_call', 'scripts/bench.mjs: table old_totals'])
+    ])).toEqual(['tests/e2e/health.mjs: table retired_rows', 'scripts/bench.mjs: table old_totals'])
 })

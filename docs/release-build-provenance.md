@@ -13,7 +13,7 @@ It preserves exact output bytes.
 The marker contains a sorted file manifest with sizes and SHA-256 hashes.
 It also retains the four build-input files as base64.
 It excludes environment files, credentials, and provider settings.
-Vercel's build command uses the same Metro graph option as the release workflow.
+Vercel's build command enables the Metro graph option with `EXPO_UNSTABLE_METRO_OPTIMIZE_GRAPH=1`.
 
 ## Artifact recovery
 
@@ -30,7 +30,7 @@ The complete bundle digest must match the independently captured expected digest
 It rejects altered, missing, extra, duplicate, reordered, or unsafe manifest entries.
 It also rejects changed inputs, redirects, or a marker that changes during retrieval.
 Existing output directories remain protected from overwrite.
-Recovered inputs serve as evidence; the workflow never executes them.
+Recovered inputs serve as evidence; the recovery command never executes them.
 
 The compatibility gate requires the recovered digest to equal the captured live digest.
 It separately builds trusted source with loopback test endpoints.

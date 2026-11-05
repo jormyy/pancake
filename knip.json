@@ -32,6 +32,11 @@
   "entry": [
     "tools/perf/{run,edge,profile,harness.test}.mjs",
     "tools/verify/{run,run.test,browser,fixture,observe}.mjs",
+    "tests/e2e/static-web-server.mjs",
+    "tests/e2e/taxi-acquisitions-db.mjs",
+    "tests/e2e/validate-production-target.mjs",
+    "tests/e2e/release-soak-migration-plan.mjs",
+    "scripts/stamp-edge-release-provenance.mjs",
     "tests/db/l1-integration-local.mjs",
     "tests/db/pipeline-night*.mjs",
     "tests/db/l1-realtime-verify.mjs",

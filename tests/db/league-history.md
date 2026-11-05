@@ -88,7 +88,7 @@ Focused Vitest files cover unmapped UI, cache, routing, SQL sources, release met
 
 ```sh
 npx vitest run tests/app/league-history.test.ts tests/app/league-activity-refresh.test.ts tests/lib/league-tab.test.ts tests/hooks/league-resource-identity.test.ts tests/hooks/league-section-entry.test.ts tests/hooks/league-draft-shared-read.test.ts tests/lib/cache/screen-cache.test.ts tests/db-function-source-parity.test.ts tests/release-history-attestations.test.ts tests/db-security-catalog-contract.test.ts tests/ui/design-system.test.ts tests/ui-polish-backup.test.ts
-npx vitest run tests/e2e-attestation-head.test.ts tests/e2e-database-type-generator.test.ts tests/ios-sim/stack.test.ts tests/production-migration-preflight.test.ts tests/soak-shards.test.ts
+npx vitest run tests/e2e-attestation-head.test.ts tests/e2e-database-type-generator.test.ts tests/ios-sim/stack.test.ts tests/soak-shards.test.ts
 ```
 
 These runs pass 1176 tests across 17 files.
