@@ -9,7 +9,7 @@ let jobs: QueuedMutation[] | undefined
 const senders = new Map<string, Sender>()
 let replay: Promise<void> | undefined
 const listeners = new Set<() => void>()
-const waiters = new Map<string, { resolve: (value: unknown) => void; reject: (error: Error) => void }>()
+const waiters = new Map<string, { promise: Promise<unknown>; resolve: (value: unknown) => void; reject: (error: Error) => void }>()
 
 function read(): QueuedMutation[] {
     if (jobs) return jobs
@@ -48,17 +48,22 @@ export function configureMutationReplay(send: Sender, transport: 'api' | 'rpc' =
 export function queueMutation<T>(input: MutationInput, id?: string): Promise<T> {
     const selectedId = requestId(id)
     if (input.accountId !== sessionOwner()) return Promise.reject(new Error('Your account changed. Please retry.'))
+    const waiting = waiters.get(selectedId)
+    if (waiting) { void replayMutations(); return waiting.promise as Promise<T> }
     const current = read().find(job => job.id === selectedId && job.accountId === input.accountId)
     if (!current) jobs = [...read(), { ...input, id: selectedId, status: 'pending', error: null, createdAt: Date.now() }]
     try { publish() } catch (error) { jobs = read().filter(job => job.id !== selectedId); return Promise.reject(error) }
-    const promise = new Promise<T>((resolve, reject) => waiters.set(selectedId, { resolve: value => resolve(value as T), reject }))
+    let resolve!: (value: unknown) => void
+    let reject!: (error: Error) => void
+    const promise = new Promise<unknown>((done, fail) => { resolve = done; reject = fail })
+    waiters.set(selectedId, { promise, resolve, reject })
     void replayMutations()
-    return promise
+    return promise as Promise<T>
 }
 
 export function retryMutation(id: string): void {
     const job = read().find(item => item.id === id && item.accountId === sessionOwner())
-    if (!job) return
+    if (!job || job.status !== 'failed') return
     jobs = read().map(item => item === job ? { ...item, status: 'pending', error: null } : item)
     publish()
     void replayMutations()

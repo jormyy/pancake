@@ -10,6 +10,40 @@ beforeEach(() => {
     vi.stubGlobal('navigator', { get onLine() { return online } }); vi.stubGlobal('window', { localStorage: storage, addEventListener: vi.fn() })
 })
 describe('durable ordered mutation replay', () => {
+    it('ignores retry while a pending action is already being sent', async () => {
+        const queue = await import('@/lib/cache/mutation-queue')
+        let finish!: (value: string) => void
+        const sender = vi.fn().mockReturnValueOnce(new Promise<string>(resolve => { finish = resolve })).mockResolvedValue('saved')
+        queue.configureMutationReplay(sender)
+        const result = queue.queueMutation(input)
+        const id = queue.pendingMutations()[0].id
+        online = true
+        const replay = queue.replayMutations()
+        expect(sender).toHaveBeenCalledOnce()
+        queue.retryMutation(id)
+        finish('saved')
+        await replay
+        await expect(result).resolves.toBe('saved')
+        expect(sender).toHaveBeenCalledOnce()
+        expect(queue.pendingMutations()).toEqual([])
+    })
+
+    it('settles every caller that queues the same request ID', async () => {
+        const queue = await import('@/lib/cache/mutation-queue')
+        const sender = vi.fn(async () => 'saved')
+        queue.configureMutationReplay(sender)
+        let firstResult: unknown
+        let secondResult: unknown
+        void queue.queueMutation(input, '10000000-0000-4000-8000-000000000001').then(value => { firstResult = value })
+        void queue.queueMutation(input, '10000000-0000-4000-8000-000000000001').then(value => { secondResult = value })
+        online = true
+        await queue.replayMutations()
+        expect(sender).toHaveBeenCalledOnce()
+        expect(firstResult).toBe('saved')
+        expect(secondResult).toBe('saved')
+        expect(queue.pendingMutations()).toEqual([])
+    })
+
     it('saves input and row badges offline, then sends each request once in order', async () => {
         const queue = await import('@/lib/cache/mutation-queue')
         const sender = vi.fn(async job => job.body)
