@@ -100,14 +100,6 @@ export function queueMutation<T>(input: MutationInput, id?: string): Promise<T> 
     return promise as Promise<T>
 }
 
-export function discardMutation(id: string): void {
-    const job = read().find(item => item.id === id && item.accountId === sessionOwner())
-    if (!job || sending.has(id)) return
-    complete(job)
-    waiters.get(id)?.reject(new Error('This action was discarded.'))
-    waiters.delete(id)
-}
-
 export function retryMutation(id: string): void {
     const job = read().find(item => item.id === id && item.accountId === sessionOwner())
     if (!job || job.status !== 'failed') return

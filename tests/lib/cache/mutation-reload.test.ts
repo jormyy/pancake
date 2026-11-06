@@ -106,7 +106,7 @@ describe('settled mutation persistence across reload', () => {
         expect(queue.pendingMutations()).toEqual([])
     })
 
-    it.each(['send', 'discard'] as const)('rejects reuse of a request id after %s even if a stale tab restores it', async outcome => {
+    it('rejects reuse of a request id after success even if a stale tab restores it', async () => {
         const session = await import('@/lib/session-cache-registry')
         session.setSessionOwner('account')
         const queue = await import('@/lib/cache/mutation-queue')
@@ -114,11 +114,9 @@ describe('settled mutation persistence across reload', () => {
         const id = '10000000-0000-4000-8000-000000000001'
         const result = queue.queueMutation(input, id).catch(error => error.message)
         const stale = values.get(key)!
-        if (outcome === 'send') {
-            online = true
-            queue.configureMutationReplay(async () => 'saved')
-            await queue.replayMutations()
-        } else queue.discardMutation(id)
+        online = true
+        queue.configureMutationReplay(async () => 'saved')
+        await queue.replayMutations()
         await result
         values.set(key, stale)
         session.setSessionOwner('other')
@@ -158,7 +156,7 @@ describe('settled mutation persistence across reload', () => {
         expect(queue.pendingMutations().find(job => job.id === id)?.status).toBe('pending')
     })
 
-    it.each(['completes', 'removes'] as const)('does not restore an unsaved rejection after another tab %s its job', async outcome => {
+    it('does not restore an unsaved rejection after another tab completes its job', async () => {
         const session = await import('@/lib/session-cache-registry')
         session.setSessionOwner('account')
         const queue = await import('@/lib/cache/mutation-queue')
@@ -175,12 +173,10 @@ describe('settled mutation persistence across reload', () => {
         const secondSession = await import('@/lib/session-cache-registry')
         secondSession.setSessionOwner('account')
         const secondTab = await import('@/lib/cache/mutation-queue')
-        if (outcome === 'completes') {
-            const completed = vi.fn(async () => 'saved')
-            secondTab.configureMutationReplay(completed)
-            await secondTab.replayMutations()
-            expect(completed).toHaveBeenCalledOnce()
-        } else secondTab.discardMutation(secondTab.pendingMutations()[0].id)
+        const completed = vi.fn(async () => 'saved')
+        secondTab.configureMutationReplay(completed)
+        await secondTab.replayMutations()
+        expect(completed).toHaveBeenCalledOnce()
         expect(JSON.parse(values.get(key) ?? '[]')).toEqual([])
         session.setSessionOwner('other')
         session.setSessionOwner('account')
