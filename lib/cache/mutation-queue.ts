@@ -7,7 +7,7 @@ type Sender = (mutation: QueuedMutation) => Promise<unknown>
 const key = 'pancake:offline-mutations:v1'
 let jobs: QueuedMutation[] | undefined
 const senders = new Map<string, Sender>()
-let replay: Promise<void> | undefined
+let replay: { generation: number; promise: Promise<void> } | undefined
 const listeners = new Set<() => void>()
 const waiters = new Map<string, { promise: Promise<unknown>; resolve: (value: unknown) => void; reject: (error: Error) => void }>()
 
@@ -70,9 +70,9 @@ export function retryMutation(id: string): void {
 }
 
 export function replayMutations(): Promise<void> {
-    if (replay) return replay
-    if (!senders.size || typeof navigator !== 'undefined' && navigator.onLine === false) return Promise.resolve()
     const generation = sessionGeneration()
+    if (replay?.generation === generation) return replay.promise
+    if (!senders.size || typeof navigator !== 'undefined' && navigator.onLine === false) return Promise.resolve()
     const task = (async () => {
         while (typeof navigator === 'undefined' || navigator.onLine !== false) {
             const job = pendingMutations()[0]
@@ -98,8 +98,9 @@ export function replayMutations(): Promise<void> {
             }
         }
     })()
-    replay = task
-    void task.finally(() => { if (replay === task) replay = undefined })
+    const running = { generation, promise: task }
+    replay = running
+    void task.finally(() => { if (replay === running) replay = undefined })
     return task
 }
 

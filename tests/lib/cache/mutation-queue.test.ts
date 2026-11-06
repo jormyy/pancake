@@ -10,6 +10,34 @@ beforeEach(() => {
     vi.stubGlobal('navigator', { get onLine() { return online } }); vi.stubGlobal('window', { localStorage: storage, addEventListener: vi.fn() })
 })
 describe('durable ordered mutation replay', () => {
+    it.each(['resolve', 'reject'] as const)('starts the next account replay before the old send can %s', async outcome => {
+        const queue = await import('@/lib/cache/mutation-queue')
+        let finishOld!: (value: string) => void
+        let failOld!: (error: Error) => void
+        const sender = vi.fn().mockReturnValueOnce(new Promise<string>((resolve, reject) => { finishOld = resolve; failOld = reject })).mockResolvedValue('new account saved')
+        queue.configureMutationReplay(sender)
+        const oldResult = queue.queueMutation(input)
+        const oldRejection = expect(oldResult).rejects.toThrow('account changed')
+        online = true
+        const oldReplay = queue.replayMutations()
+        identity.owner = 'other'
+        identity.generation += 1
+        for (const clear of identity.clears) clear()
+        let nextResult: unknown
+        void queue.queueMutation({ ...input, accountId: 'other' }).then(value => { nextResult = value })
+        const nextReplay = queue.replayMutations()
+        await Promise.resolve()
+        const sendsBeforeOldCompletion = sender.mock.calls.length
+        if (outcome === 'resolve') finishOld('old account saved')
+        else failOld(new Error('Old send failed'))
+        await Promise.all([oldReplay, nextReplay, oldRejection])
+        expect(sendsBeforeOldCompletion).toBe(2)
+        expect(sender.mock.calls.map(([job]) => job.accountId)).toEqual(['account', 'other'])
+        expect(nextResult).toBe('new account saved')
+        expect(queue.pendingMutations()).toEqual([])
+        expect(queue.pendingMutations('account')).toHaveLength(1)
+    })
+
     it('ignores retry while a pending action is already being sent', async () => {
         const queue = await import('@/lib/cache/mutation-queue')
         let finish!: (value: string) => void
