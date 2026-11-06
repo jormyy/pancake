@@ -96,6 +96,26 @@ const trade = (id: string): Trade => ({
 })
 
 describe('useTradeActions', () => {
+    it.each([true, false])('routes acceptance failures through roster recovery when handled is %s', async handled => {
+        const failure = new Error('Roster eligibility changed')
+        mocks.acceptTrade.mockRejectedValueOnce(failure)
+        const onRosterError = vi.fn(async () => handled)
+        const onAction = vi.fn()
+        let latest!: ReturnType<typeof useTradeActions>
+        const Probe = () => {
+            latest = useTradeActions({ memberId: 'member-a', leagueId: 'league-a', onAction, onRosterError })
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+        await act(async () => { await latest.accept(trade('trade-a')) })
+        expect(onRosterError).toHaveBeenCalledExactlyOnceWith(failure)
+        expect(mocks.showAlert).toHaveBeenCalledTimes(handled ? 0 : 1)
+        expect(onAction).not.toHaveBeenCalled()
+        expect(latest.busyTradeId).toBeNull()
+        await act(async () => { renderer.unmount() })
+    })
+
     it('does not send or queue decisions after online authority is lost, including an open confirmation', async () => {
         let latest!: ReturnType<typeof useTradeActions>
         let confirm!: () => Promise<void>

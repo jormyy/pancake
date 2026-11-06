@@ -7,29 +7,39 @@ type Sender = (mutation: QueuedMutation) => Promise<unknown>
 const key = 'pancake:offline-mutations:v1'
 let jobs: QueuedMutation[] | undefined
 const senders = new Map<string, Sender>()
-let replay: Promise<void> | undefined
+const sending = new Map<string, Promise<void>>()
+const unsaved = new Map<string, QueuedMutation | null>()
+const jobKey = (job: Pick<QueuedMutation, 'id' | 'accountId'>) => `${job.accountId}:${job.id}`
+let replay: { generation: number; promise: Promise<void> } | undefined
 const listeners = new Set<() => void>()
-const waiters = new Map<string, { resolve: (value: unknown) => void; reject: (error: Error) => void }>()
+const waiters = new Map<string, { promise: Promise<unknown>; resolve: (value: unknown) => void; reject: (error: Error) => void }>()
 
 function read(): QueuedMutation[] {
     if (jobs) return jobs
-    try {
-        const saved: unknown = typeof window !== 'undefined' ? JSON.parse(window.localStorage.getItem(key) ?? '[]') : []
-        jobs = Array.isArray(saved) ? saved.filter((job): job is QueuedMutation => job && typeof job.id === 'string' && typeof job.accountId === 'string' && typeof job.path === 'string' && typeof job.body === 'string' && Array.isArray(job.rowIds) && ['pending', 'failed'].includes(job.status)) : []
-    } catch { jobs = [] }
+    let saved: unknown
+    try { saved = typeof window !== 'undefined' ? JSON.parse(window.localStorage.getItem(key) ?? '[]') : [] } catch { saved = [] }
+    const stored = Array.isArray(saved) ? saved.filter((job): job is QueuedMutation => job && typeof job.id === 'string' && typeof job.accountId === 'string' && typeof job.path === 'string' && typeof job.body === 'string' && Array.isArray(job.rowIds) && ['pending', 'failed'].includes(job.status)) : []
+    jobs = [...new Map([...stored.map(job => [jobKey(job), job] as const), ...unsaved]).values()].filter((job): job is QueuedMutation => job !== null)
     return jobs
 }
 
-function publish(): void {
+function publish(required = false): void {
     if (typeof window !== 'undefined') {
-        try { window.localStorage.setItem(key, JSON.stringify(read())) } catch { throw new Error('Could not save your pending action. Keep this screen open and retry.') }
+        try {
+            window.localStorage.setItem(key, JSON.stringify(read()))
+            unsaved.clear()
+        } catch (error) {
+            if (required) throw new Error('Could not save your pending action. Keep this screen open and retry.')
+            console.error('Could not save the result of this action.', error)
+            if (!read().length) try { window.localStorage.removeItem(key); unsaved.clear() } catch {}
+        }
     }
-    for (const listener of listeners) listener()
+    for (const listener of listeners) {
+        try { listener() } catch (error) { console.error('Could not update pending actions.', error) }
+    }
 }
 
-export function mutationSnapshot(): readonly QueuedMutation[] {
-    return read()
-}
+export const mutationSnapshot: () => readonly QueuedMutation[] = read
 
 export function pendingMutations(accountId = sessionOwner()): QueuedMutation[] {
     return read().filter(job => job.accountId === accountId)
@@ -48,53 +58,67 @@ export function configureMutationReplay(send: Sender, transport: 'api' | 'rpc' =
 export function queueMutation<T>(input: MutationInput, id?: string): Promise<T> {
     const selectedId = requestId(id)
     if (input.accountId !== sessionOwner()) return Promise.reject(new Error('Your account changed. Please retry.'))
-    const current = read().find(job => job.id === selectedId && job.accountId === input.accountId)
-    if (!current) jobs = [...read(), { ...input, id: selectedId, status: 'pending', error: null, createdAt: Date.now() }]
-    try { publish() } catch (error) { jobs = read().filter(job => job.id !== selectedId); return Promise.reject(error) }
-    const promise = new Promise<T>((resolve, reject) => waiters.set(selectedId, { resolve: value => resolve(value as T), reject }))
+    const waiting = waiters.get(selectedId)
+    if (waiting) { void replayMutations(); return waiting.promise as Promise<T> }
+    if (sending.has(selectedId) || unsaved.get(jobKey({ accountId: input.accountId, id: selectedId })) === null) return Promise.reject(new Error('This action belongs to an earlier session. Refresh before retrying.'))
+    const previous = read()
+    const job: QueuedMutation = previous.find(item => item.id === selectedId && item.accountId === input.accountId)
+        ?? { ...input, id: selectedId, status: 'pending', error: null, createdAt: Date.now() }
+    if (!previous.includes(job)) jobs = [...previous, job]
+    try { publish(true) } catch (error) { jobs = previous; return Promise.reject(error) }
+    let resolve!: (value: unknown) => void
+    let reject!: (error: Error) => void
+    const promise = new Promise<unknown>((done, fail) => { resolve = done; reject = fail })
+    waiters.set(selectedId, { promise, resolve, reject })
     void replayMutations()
-    return promise
+    return promise as Promise<T>
 }
 
 export function retryMutation(id: string): void {
     const job = read().find(item => item.id === id && item.accountId === sessionOwner())
-    if (!job) return
-    jobs = read().map(item => item === job ? { ...item, status: 'pending', error: null } : item)
-    publish()
+    if (!job || job.status !== 'failed') return
+    const previous = read()
+    const retry: QueuedMutation = { ...job, status: 'pending', error: null }
+    jobs = previous.map(item => item === job ? retry : item)
+    try { publish(true) } catch (error) { jobs = previous; throw error }
     void replayMutations()
 }
 
 export function replayMutations(): Promise<void> {
-    if (replay) return replay
-    if (!senders.size || typeof navigator !== 'undefined' && navigator.onLine === false) return Promise.resolve()
     const generation = sessionGeneration()
+    if (replay?.generation === generation) return replay.promise
+    if (!senders.size || typeof navigator !== 'undefined' && navigator.onLine === false) return Promise.resolve()
     const task = (async () => {
         while (typeof navigator === 'undefined' || navigator.onLine !== false) {
+            if (generation !== sessionGeneration()) return
             const job = pendingMutations()[0]
-            if (!job || job.status === 'failed' || generation !== sessionGeneration()) return
+            if (!job || job.status === 'failed') { if ([...unsaved.values()].includes(null)) publish(); return }
+            const active = sending.get(job.id)
+            if (active) { await active; continue }
+            const sender = senders.get(job.transport ?? 'api')
+            if (!sender) return
+            const current = () => generation === sessionGeneration() && job.accountId === sessionOwner()
+            let finish!: () => void
+            sending.set(job.id, new Promise<void>(resolve => { finish = resolve }))
             try {
-                const sender = senders.get(job.transport ?? 'api')
-                if (!sender) return
                 const value = await sender(job)
-                if (generation !== sessionGeneration() || job.accountId !== sessionOwner()) return
-                jobs = read().filter(item => item !== job)
+                unsaved.set(jobKey(job), null)
+                jobs = read().filter(item => jobKey(item) !== jobKey(job))
                 publish()
-                waiters.get(job.id)?.resolve(value)
-                waiters.delete(job.id)
+                if (current()) { waiters.get(job.id)?.resolve(value); waiters.delete(job.id) }
             } catch (cause) {
-                if (generation !== sessionGeneration()) return
                 if (typeof navigator !== 'undefined' && navigator.onLine === false) return
                 const error = cause instanceof Error ? cause.message : 'Could not send this action.'
-                jobs = read().map(item => item === job ? { ...item, status: 'failed', error } : item)
+                const failed: QueuedMutation = { ...job, status: 'failed', error }
+                unsaved.set(jobKey(job), failed)
+                jobs = read().map(item => jobKey(item) === jobKey(job) ? failed : item)
                 publish()
-                waiters.get(job.id)?.reject(new Error(error))
-                waiters.delete(job.id)
-                return
-            }
+                if (current()) { waiters.get(job.id)?.reject(new Error(error)); waiters.delete(job.id) }
+            } finally { sending.delete(job.id); finish() }
         }
     })()
-    replay = task
-    void task.finally(() => { if (replay === task) replay = undefined })
+    replay = { generation, promise: task }
+    void task.finally(() => { if (replay?.promise === task) replay = undefined })
     return task
 }
 

@@ -55,7 +55,7 @@ export function useTradeActions({
         tradeId: string,
         operation: (tradeId: string, memberId: string) => Promise<void>,
         fallbackMessage: string,
-        onComplete?: () => void | Promise<unknown>,
+        options: { onComplete?: () => void | Promise<unknown>; onError?: (error: unknown) => Promise<boolean> } = {},
     ) => {
         if (!enabledRef.current || !mountedRef.current || !memberId || identityRef.current !== identity || mutationInFlight.current) return
         mutationInFlight.current = true
@@ -64,10 +64,10 @@ export function useTradeActions({
         setBusyTradeId(tradeId)
         try {
             await operation(tradeId, memberId)
-            finishAction(requestId, ownerIdentity, onComplete)
+            finishAction(requestId, ownerIdentity, options.onComplete)
         } catch (error) {
             if (mountedRef.current && requestSequence.current === requestId && identityRef.current === ownerIdentity) {
-                const handled = operation === acceptTrade && await onRosterError?.(error)
+                const handled = await options.onError?.(error)
                 if (!handled && mountedRef.current && requestSequence.current === requestId && identityRef.current === ownerIdentity) showAlert('Error', getErrorMessage(error) ?? fallbackMessage)
             }
         } finally {
@@ -76,7 +76,7 @@ export function useTradeActions({
                 setBusyTradeId(null)
             }
         }
-    }, [finishAction, identity, memberId, onRosterError])
+    }, [finishAction, identity, memberId])
 
     const accept = useCallback(async (trade: Trade) => {
         if (!enabledRef.current || !mountedRef.current || !memberId || !leagueId || mutationInFlight.current) return
@@ -107,8 +107,8 @@ export function useTradeActions({
         }
         if (!enabledRef.current || !mountedRef.current || identityRef.current !== identity || mutationInFlight.current) return
         return confirmAction('Accept trade?', message,
-            () => runTerminalAction(trade.id, (tradeId, ownMemberId) => acceptTrade(tradeId, ownMemberId, confirmedPlan), 'Could not accept trade.'), 'Accept', false)
-    }, [beforeAccept, identity, leagueId, memberId, runTerminalAction])
+            () => runTerminalAction(trade.id, (tradeId, ownMemberId) => acceptTrade(tradeId, ownMemberId, confirmedPlan), 'Could not accept trade.', { onError: onRosterError }), 'Accept', false)
+    }, [beforeAccept, identity, leagueId, memberId, onRosterError, runTerminalAction])
 
     const setTaxiDestination = useCallback((trade: Trade, playerId: string, toTaxi: boolean) => {
         const playerIds = trade.routedItems.flatMap((item) => item.kind === 'player' && item.toMemberId === memberId &&
@@ -123,7 +123,7 @@ export function useTradeActions({
         return runTerminalAction(trade.id, async (tradeId, receiverId) => {
             savedPlan = await setTradeRosterPlan(tradeId, receiverId, plan)
         }, 'Could not save the roster plan.',
-        onRosterPlanSaved ? () => onRosterPlanSaved(trade.id, savedPlan) : undefined)
+        { onComplete: onRosterPlanSaved ? () => onRosterPlanSaved(trade.id, savedPlan) : undefined })
     }, [onRosterPlanSaved, runTerminalAction])
 
     const reject = useCallback((tradeId: string) => {
