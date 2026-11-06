@@ -60,6 +60,13 @@ function read(): QueuedMutation[] {
         for (const job of stored) if (!entries.has(jobKey(job)) && !unsaved.has(jobKey(job))) unsaved.set(jobKey(job), job)
         jobs = [...new Map([...stored.map(job => [jobKey(job), job] as const), ...entries, ...unsaved]).values()].filter((job): job is QueuedMutation => job !== null)
     } else {
+        const updated = jobs.map(job => {
+            const saved = entries.get(jobKey(job))
+            if (job.status !== 'pending' || saved?.status !== 'failed' || sending.has(job.id) || unsaved.get(jobKey(job)) === null) return job
+            if (unsaved.has(jobKey(job))) unsaved.set(jobKey(job), saved)
+            return saved
+        })
+        if (updated.some((job, index) => job !== jobs![index])) jobs = updated
         const known = new Set(jobs.map(jobKey))
         const added = [...entries.values()].filter(job => !known.has(jobKey(job)) && !unsaved.has(jobKey(job)))
         if (added.length) jobs = [...jobs, ...added]
@@ -69,6 +76,10 @@ function read(): QueuedMutation[] {
     const active = jobs.filter(job => !completed.has(jobKey(job)) && unsaved.get(jobKey(job)) !== null)
     for (const job of jobs) if (completed.has(jobKey(job)) && job.accountId === sessionOwner()) rejectCompleted(job)
     if (active.length !== jobs.length) jobs = active
+    for (const job of jobs) if (job.status === 'failed' && !sending.has(job.id) && job.accountId === sessionOwner()) {
+        waiters.get(job.id)?.reject(new Error(job.error ?? 'Could not send this action.'))
+        waiters.delete(job.id)
+    }
     return jobs
 }
 
