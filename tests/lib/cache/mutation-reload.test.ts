@@ -27,6 +27,36 @@ afterEach(() => {
 })
 
 describe('settled mutation persistence across reload', () => {
+    it.each(['once', 'always'] as const)('preserves a newly saved action from another tab when completion writes fail %s', async failure => {
+        const session = await import('@/lib/session-cache-registry')
+        session.setSessionOwner('account')
+        const firstTab = await import('@/lib/cache/mutation-queue')
+        const input = { accountId: 'account', leagueId: null, rowIds: [], path: '/action', body: '{}' }
+        const result = firstTab.queueMutation(input)
+        const completedId = firstTab.pendingMutations()[0].id
+        vi.resetModules()
+        const secondSession = await import('@/lib/session-cache-registry')
+        secondSession.setSessionOwner('account')
+        const secondTab = await import('@/lib/cache/mutation-queue')
+        void secondTab.queueMutation({ ...input, path: '/unrelated' })
+        const sibling = secondTab.pendingMutations()[1]
+        const save = vi.spyOn(storage, 'setItem')
+        if (failure === 'once') save.mockImplementationOnce(() => { throw new Error('Disk full') })
+        else save.mockImplementation(() => { throw new Error('Disk full') })
+        online = true
+        const sender = vi.fn(async () => 'saved')
+        firstTab.configureMutationReplay(sender)
+        await firstTab.replayMutations()
+        await expect(result).resolves.toBe('saved')
+        expect(sender).toHaveBeenCalledOnce()
+        vi.resetModules()
+        const restoredSession = await import('@/lib/session-cache-registry')
+        restoredSession.setSessionOwner('account')
+        const restored = await import('@/lib/cache/mutation-queue')
+        expect(restored.pendingMutations()).toContainEqual(sibling)
+        if (failure === 'once') expect(restored.pendingMutations().some(job => job.id === completedId)).toBe(false)
+    })
+
     it.each(['once', 'always'] as const)('creates one mock room when completion writes fail %s', async failure => {
         const drafts: { id: string }[] = []
         const send = vi.fn(async () => {
