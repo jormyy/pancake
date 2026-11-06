@@ -94,8 +94,9 @@ it.each(seeds)('preserves queue invariants through seeded sequence %i', async se
         await flush()
         check(label)
     }
+    const nextId = () => `${seed.toString(16).padStart(8, '0')}-0000-4000-8000-${(++serial).toString(16).padStart(12, '0')}`
     const enqueue = () => {
-        const id = `${seed.toString(16).padStart(8, '0')}-0000-4000-8000-${(++serial).toString(16).padStart(12, '0')}`
+        const id = nextId()
         const action: Action = { id, accountId: account, phase: 'pending', sends: 0, allowance: 1, outcomeAt: 0 }
         actions.set(id, action)
         void queue.queueMutation({ accountId: account, leagueId: null, rowIds: [id], path: `/sequence/${id}`, body: '{}' }, id).catch(() => {})
@@ -133,24 +134,35 @@ it.each(seeds)('preserves queue invariants through seeded sequence %i', async se
         session.setSessionOwner(account)
         start()
     }
-    const otherTab = (complete: boolean, selectedId?: string) => {
-        const action = selectedId ? actions.get(selectedId) : pick([...actions.values()].filter(item => item.phase === 'pending' || item.phase === 'failed'))
+    const otherTab = (operation: 'reject' | 'complete' | 'remove' | 'enqueue', selectedId?: string) => {
+        const action: Action | undefined = operation === 'enqueue'
+            ? { id: nextId(), accountId: account === 'A' ? 'B' : 'A', phase: 'pending', sends: 0, allowance: 1, outcomeAt: 0 }
+            : selectedId ? actions.get(selectedId) : pick([...actions.values()].filter(item => item.phase === 'pending' || operation !== 'reject' && item.phase === 'failed'))
         if (!action || held.has(action.id) || action.phase === 'settled') return
         const wasOnline = online
         online = false
         const records = disk()
-        expect(records.some(job => job.id === action.id)).toBe(true)
-        if (complete) {
-            saved = JSON.stringify(records.filter(job => job.id !== action.id))
-            action.phase = 'settled'
-            action.outcomeAt = ++clock
-            coverage.tabCompletion = (coverage.tabCompletion ?? 0) + 1
+        if (operation === 'enqueue') {
+            actions.set(action.id, action)
+            const job: QueuedMutation = { id: action.id, accountId: action.accountId, leagueId: null, rowIds: [action.id], path: `/external/${action.id}`, body: '{}', status: 'pending', error: null, createdAt: Date.now() }
+            saved = JSON.stringify([...records, job])
+            coverage.tabEnqueue = (coverage.tabEnqueue ?? 0) + 1
         } else {
-            action.phase = 'failed'
-            action.error = `Other tab rejected ${action.id}`
-            saved = JSON.stringify(records.map(job => job.id === action.id ? { ...job, status: 'failed', error: action.error } : job))
-            action.outcomeAt = savedAt
-            coverage.tabStatusWrite = (coverage.tabStatusWrite ?? 0) + 1
+            expect(records.some(job => job.id === action.id)).toBe(true)
+            if (operation === 'reject') {
+                action.phase = 'failed'
+                action.error = `Other tab rejected ${action.id}`
+                saved = JSON.stringify(records.map(job => job.id === action.id ? { ...job, status: 'failed', error: action.error } : job))
+                action.outcomeAt = savedAt
+                coverage.tabStatusWrite = (coverage.tabStatusWrite ?? 0) + 1
+            } else {
+                const remaining = records.filter(job => job.id !== action.id)
+                saved = operation === 'remove' && !remaining.length ? undefined : JSON.stringify(remaining)
+                action.phase = 'settled'
+                action.outcomeAt = ++clock
+                const label = operation === 'complete' ? 'tabCompletion' : 'tabRemoval'
+                coverage[label] = (coverage[label] ?? 0) + 1
+            }
         }
         switchAccount()
         switchAccount()
@@ -183,8 +195,22 @@ it.each(seeds)('preserves queue invariants through seeded sequence %i', async se
     await step('malformedStart', () => { expect(saved).toBe('{invalid'); expect(queue.mutationSnapshot()).toEqual([]) })
     let external = ''
     await step('enqueue', () => { external = enqueue(); expect(() => JSON.parse(saved!)).not.toThrow() })
-    await step('tabWrite', () => otherTab(false, external))
-    await step('tabComplete', () => otherTab(true, external))
+    await step('tabWrite', () => otherTab('reject', external))
+    await step('tabComplete', () => otherTab('complete', external))
+    let stale = ''
+    await step('enqueue', () => { stale = enqueue() })
+    await step('hold', () => { online = true; start() })
+    await step('writeFault', () => { failures = 1 })
+    await step('failure', () => release(stale, false))
+    await step('tabComplete', () => otherTab('complete', stale))
+    await step('tabEnqueue', () => otherTab('enqueue'))
+    let successor = ''
+    await step('enqueue', () => { successor = enqueue() })
+    await step('success', () => release(successor, true))
+    await step('offline', () => { online = false })
+    let removed = ''
+    await step('enqueue', () => { removed = enqueue() })
+    await step('tabRemove', () => otherTab('remove', removed))
     let first = ''
     await step('enqueue', () => { first = enqueue() })
     await step('hold', () => { online = true; start() })
@@ -207,7 +233,7 @@ it.each(seeds)('preserves queue invariants through seeded sequence %i', async se
     await step('hold', () => { online = true; start() })
     await step('reload', reload)
     for (let turn = 0; turn < 80; turn++) {
-        const operation = random(12)
+        const operation = random(14)
         if (operation < 2) await step('enqueue', () => { enqueue() })
         else if (operation === 2) await step('success', () => release(pick([...held.keys()]), true))
         else if (operation === 3) await step('failure', () => release(pick([...held.keys()]), false))
@@ -217,8 +243,10 @@ it.each(seeds)('preserves queue invariants through seeded sequence %i', async se
         else if (operation === 7) await step('reload', reload)
         else if (operation === 8) await step('hold', () => { online = true; start() })
         else if (operation === 9) await step('offline', () => { online = false })
-        else if (operation === 10) await step('tabWrite', () => otherTab(false))
-        else await step('tabComplete', () => otherTab(true))
+        else if (operation === 10) await step('tabWrite', () => otherTab('reject'))
+        else if (operation === 11) await step('tabComplete', () => otherTab('complete'))
+        else if (operation === 12) await step('tabRemove', () => otherTab('remove'))
+        else await step('tabEnqueue', () => otherTab('enqueue'))
     }
     failures = 0
     online = true
@@ -229,6 +257,6 @@ it.each(seeds)('preserves queue invariants through seeded sequence %i', async se
     online = false
     session.setSessionOwner(null)
     for (const operation of ['enqueue', 'success', 'failure', 'hold', 'retry', 'writeFault', 'switch', 'reload']) expect(coverage[operation], String(seed)).toBeGreaterThan(0)
-    for (const outcome of ['writeFailure', 'sendStarted', 'sendSuccess', 'sendFailure', 'retryAccepted', 'offlineFailure', 'tabStatusWrite', 'tabCompletion', 'malformedStart', 'unsavedRejectionSwitch']) expect(coverage[outcome], String(seed)).toBeGreaterThan(0)
+    for (const outcome of ['writeFailure', 'sendStarted', 'sendSuccess', 'sendFailure', 'retryAccepted', 'offlineFailure', 'tabStatusWrite', 'tabCompletion', 'malformedStart', 'unsavedRejectionSwitch', 'tabEnqueue', 'tabRemoval']) expect(coverage[outcome], String(seed)).toBeGreaterThan(0)
     console.log(JSON.stringify({ seed, steps: stepCount, actions: actions.size, sends: [...actions.values()].reduce((sum, action) => sum + action.sends, 0), coverage }))
 })

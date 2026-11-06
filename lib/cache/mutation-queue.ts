@@ -17,8 +17,9 @@ const waiters = new Map<string, { promise: Promise<unknown>; resolve: (value: un
 function read(): QueuedMutation[] {
     if (jobs) return jobs
     let saved: unknown
-    try { saved = typeof window !== 'undefined' ? JSON.parse(window.localStorage.getItem(key) ?? '[]') : [] } catch { saved = [] }
+    try { saved = typeof window !== 'undefined' ? JSON.parse(window.localStorage.getItem(key) ?? '[]') : [] } catch { saved = undefined }
     const stored = Array.isArray(saved) ? saved.filter((job): job is QueuedMutation => job && typeof job.id === 'string' && typeof job.accountId === 'string' && typeof job.path === 'string' && typeof job.body === 'string' && Array.isArray(job.rowIds) && ['pending', 'failed'].includes(job.status)) : []
+    for (const [id, job] of unsaved) if (job && Array.isArray(saved) && !stored.some(item => jobKey(item) === id)) unsaved.delete(id)
     jobs = [...new Map([...stored.map(job => [jobKey(job), job] as const), ...unsaved]).values()].filter((job): job is QueuedMutation => job !== null)
     return jobs
 }
