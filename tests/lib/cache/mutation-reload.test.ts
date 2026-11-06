@@ -27,6 +27,33 @@ afterEach(() => {
 })
 
 describe('settled mutation persistence across reload', () => {
+    it('repairs a failed rejection save on the next enqueue before reload', async () => {
+        const session = await import('@/lib/session-cache-registry')
+        session.setSessionOwner('account')
+        const queue = await import('@/lib/cache/mutation-queue')
+        const input = { accountId: 'account', leagueId: null, rowIds: [], path: '/first', body: '{}' }
+        queue.configureMutationReplay(async () => { throw new Error('Server rejected action') })
+        const result = queue.queueMutation(input).catch(error => error.message)
+        vi.spyOn(storage, 'setItem').mockImplementationOnce(() => { throw new Error('Disk full') })
+        online = true
+        await queue.replayMutations()
+        await expect(result).resolves.toBe('Server rejected action')
+        void queue.queueMutation({ ...input, path: '/second' })
+        const memory = queue.pendingMutations().map(job => job.status)
+        const disk = JSON.parse(values.get(key)!).map((job: { status: string }) => job.status)
+        vi.resetModules()
+        const restoredSession = await import('@/lib/session-cache-registry')
+        restoredSession.setSessionOwner('account')
+        const restored = await import('@/lib/cache/mutation-queue')
+        const sends: string[] = []
+        restored.configureMutationReplay(async job => { sends.push(job.path) })
+        await restored.replayMutations()
+        console.log(JSON.stringify({ memory, disk, sendsWithoutRetry: sends }))
+        expect(disk).toEqual(['failed', 'pending'])
+        expect(sends).toEqual([])
+        expect(restored.pendingMutations()[0]).toMatchObject({ status: 'failed', error: 'Server rejected action' })
+    })
+
     async function reviewSetup() {
         const session = await import('@/lib/session-cache-registry')
         session.setSessionOwner('account')
