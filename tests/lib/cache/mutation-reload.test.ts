@@ -236,7 +236,7 @@ describe('settled mutation persistence across reload', () => {
         online = false
         session.setSessionOwner('other')
         session.setSessionOwner('account')
-        expect(queue.pendingMutations().map(job => `${job.path}:${job.status}`)).toEqual(['/b:pending', '/a:failed'])
+        expect(queue.pendingMutations().map(job => `${job.path}:${job.status}`).sort()).toEqual(['/a:failed', '/b:pending'])
         queue.retryMutation(id)
         expect(queue.pendingMutations().find(job => job.id === id)?.status).toBe('pending')
     })

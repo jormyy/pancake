@@ -3,6 +3,8 @@ import { sessionOwner, onSessionCachesCleared, sessionGeneration } from '@/lib/s
 
 export type QueuedMutation = { transport?: 'api' | 'rpc'; id: string; accountId: string; leagueId: string | null; rowIds: string[]; path: string; body: string; status: 'pending' | 'failed'; error: string | null; createdAt: number }
 export type MutationInput = Pick<QueuedMutation, 'accountId' | 'leagueId' | 'rowIds' | 'path' | 'body' | 'transport'>
+type LegacySnapshot = { kind: 'available'; jobs: QueuedMutation[] } | { kind: 'unavailable' }
+type DiskSnapshot = { kind: 'available' | 'unavailable'; legacy: LegacySnapshot; entries: Map<string, QueuedMutation>; missing: Set<string> }
 type Sender = (mutation: QueuedMutation) => Promise<unknown>
 const key = 'pancake:offline-mutations:v1'
 const completionPrefix = 'pancake:offline-mutation-done:v1:'
@@ -54,31 +56,64 @@ function acknowledge(id: string, ids: string[]): void {
     for (const failureId of ids) acknowledged.get(id)!.add(failureId)
 }
 
-function read(): QueuedMutation[] {
-    const entries = new Map<string, QueuedMutation>()
-    if (typeof window !== 'undefined') try {
-        const storage = window.localStorage
+function legacySnapshot(): LegacySnapshot {
+    let raw: string | null
+    try { raw = typeof window !== 'undefined' ? window.localStorage.getItem(key) : null }
+    catch { return { kind: 'unavailable' } }
+    try {
+        const saved: unknown = JSON.parse(raw ?? '[]')
+        return { kind: 'available', jobs: Array.isArray(saved) ? saved.filter(isQueuedMutation) : [] }
+    } catch { return { kind: 'available', jobs: [] } }
+}
+
+function diskSnapshot(): DiskSnapshot {
+    const legacy = legacySnapshot()
+    const snapshot: DiskSnapshot = { kind: legacy.kind, legacy, entries: new Map(), missing: new Set() }
+    if (typeof window === 'undefined') return snapshot
+    let storage: typeof window.localStorage
+    try { storage = window.localStorage } catch { snapshot.kind = 'unavailable'; return snapshot }
+    const loadEntry = (name: string) => {
+        const raw = storage.getItem(name)
+        const id = name.slice(entryPrefix.length)
+        if (raw === null) { snapshot.missing.add(id); return }
+        snapshot.missing.delete(id)
+        try {
+            const value: unknown = JSON.parse(raw)
+            if (isQueuedMutation(value) && name === entryPrefix + jobKey(value)) snapshot.entries.set(jobKey(value), value)
+        } catch {}
+    }
+    try {
         for (let index = 0; index < storage.length; index++) {
             const name = storage.key(index)
             if (!name || ![entryPrefix, failurePrefix, retryPrefix].some(prefix => name.startsWith(prefix))) continue
             try {
-                const value = JSON.parse(storage.getItem(name) ?? 'null')
-                if (name.startsWith(entryPrefix) && isQueuedMutation(value) && name === entryPrefix + jobKey(value)) entries.set(jobKey(value), value)
-                else if (name.startsWith(failurePrefix) && value && typeof value.id === 'string' && typeof value.failureId === 'string' && typeof value.error === 'string' && name === failurePrefix + value.id + ':' + value.failureId) observeFailure(value.id, value.failureId, value.error)
-                else if (name.startsWith(retryPrefix) && value && typeof value.id === 'string' && Array.isArray(value.failures) && value.failures.every((id: unknown) => typeof id === 'string') && name.startsWith(retryPrefix + value.id + ':')) acknowledge(value.id, value.failures)
-            } catch {}
+                if (name.startsWith(entryPrefix)) { loadEntry(name); continue }
+                const raw = storage.getItem(name)
+                try {
+                    const value = JSON.parse(raw ?? 'null')
+                    if (name.startsWith(failurePrefix) && value && typeof value.id === 'string' && typeof value.failureId === 'string' && typeof value.error === 'string' && name === failurePrefix + value.id + ':' + value.failureId) observeFailure(value.id, value.failureId, value.error)
+                    else if (name.startsWith(retryPrefix) && value && typeof value.id === 'string' && Array.isArray(value.failures) && value.failures.every((id: unknown) => typeof id === 'string') && name.startsWith(retryPrefix + value.id + ':')) acknowledge(value.id, value.failures)
+                } catch {}
+            } catch { snapshot.kind = 'unavailable' }
         }
-    } catch {}
-    let saved: unknown
-    try { saved = typeof window !== 'undefined' ? JSON.parse(window.localStorage.getItem(key) ?? '[]') : [] } catch { saved = undefined }
-    const stored: QueuedMutation[] = Array.isArray(saved) ? saved.filter(isQueuedMutation) : []
-    for (const job of [...stored.filter(job => !entries.has(jobKey(job))), ...entries.values()]) {
+    } catch { snapshot.kind = 'unavailable' }
+    const known = [...legacy.kind === 'available' ? legacy.jobs : [], ...jobs ?? [], ...[...unsaved.values()].filter((job): job is QueuedMutation => job !== null)]
+    for (const id of new Set(known.map(jobKey))) if (!snapshot.entries.has(id)) {
+        try { loadEntry(entryPrefix + id) } catch { snapshot.kind = 'unavailable' }
+    }
+    return snapshot
+}
+
+function read(snapshot = diskSnapshot()): QueuedMutation[] {
+    const { legacy, entries, missing } = snapshot
+    const stored = legacy.kind === 'available' ? legacy.jobs : []
+    for (const job of [...stored.filter(job => missing.has(jobKey(job)) && !entries.has(jobKey(job))), ...entries.values()]) {
         if (job.status === 'failed') observeFailure(jobKey(job), 'legacy', job.error ?? 'Could not send this action.')
     }
-    for (const job of stored) if (!entries.has(jobKey(job)) && !unsaved.has(jobKey(job)) && !completedJobs.has(jobKey(job))) unsaved.set(jobKey(job), jobs?.find(item => jobKey(item) === jobKey(job)) ?? job)
-    const candidate = [...new Map([...(jobs ?? []).map(job => [jobKey(job), job] as const), ...stored.filter(job => !completedJobs.has(jobKey(job))).map(job => [jobKey(job), job] as const), ...[...entries].filter(([id]) => !completedJobs.has(id)), ...(jobs ?? []).map(job => [jobKey(job), job] as const), ...unsaved]).values()].filter((job): job is QueuedMutation => job !== null)
+    for (const job of stored) if (missing.has(jobKey(job)) && !entries.has(jobKey(job)) && !unsaved.has(jobKey(job)) && !completedJobs.has(jobKey(job))) unsaved.set(jobKey(job), jobs?.find(item => jobKey(item) === jobKey(job)) ?? job)
+    const candidate = [...new Map([...(jobs ?? []).map(job => [jobKey(job), job] as const), ...stored.filter(job => !completedJobs.has(jobKey(job))).map(job => [jobKey(job), job] as const), ...[...entries].filter(([id]) => !completedJobs.has(id)), ...(jobs ?? []).map(job => [jobKey(job), job] as const), ...unsaved]).values()].filter((job): job is QueuedMutation => job !== null).sort((left, right) => left.createdAt - right.createdAt)
     const updated = candidate.map(job => {
-        if (sending.has(job.id)) return job
+        if (sending.has(job.id) || snapshot.kind === 'unavailable' && !failures.has(jobKey(job))) return job
         const open = [...failures.get(jobKey(job)) ?? []].filter(([id]) => !acknowledged.get(jobKey(job))?.has(id))
         const error = open.at(-1)?.[1] ?? null
         const status = open.length ? 'failed' : 'pending'
@@ -114,7 +149,8 @@ function complete(job: QueuedMutation): void {
 function publish(required = false, last?: string): void {
     if (typeof window !== 'undefined') {
         try {
-            read()
+            const snapshot = diskSnapshot()
+            read(snapshot)
             const changes = [...unsaved].sort(([left], [right]) => Number(left === last) - Number(right === last))
             for (const [id, job] of changes) {
                 if (job === null) window.localStorage.removeItem(entryPrefix + id)
@@ -124,10 +160,10 @@ function publish(required = false, last?: string): void {
                 }
             }
             unsaved.clear()
-            try { window.localStorage.setItem(key, JSON.stringify(read())) }
+            if (snapshot.kind === 'available') try { window.localStorage.setItem(key, JSON.stringify(read(snapshot))) }
             catch (error) {
                 console.error('Could not save the pending action list.', error)
-                if (!read().length) try { window.localStorage.removeItem(key) } catch {}
+                if (!read(snapshot).length) try { window.localStorage.removeItem(key) } catch {}
             }
         } catch (error) {
             if (required) throw new Error('Could not save your pending action. Keep this screen open and retry.')
@@ -205,9 +241,11 @@ export function replayMutations(): Promise<void> {
     const task = (async () => {
         while (typeof navigator === 'undefined' || navigator.onLine !== false) {
             if (generation !== sessionGeneration()) return
-            const job = pendingMutations()[0]
+            const snapshot = diskSnapshot()
+            if (snapshot.kind === 'unavailable') return
+            const job = read(snapshot).find(item => item.accountId === sessionOwner())
             if (!job || job.status === 'failed') { if ([...unsaved.values()].includes(null)) publish(); return }
-            if ([...unsaved.values()].some(value => value !== null)) {
+            if (typeof window !== 'undefined' && [...unsaved.values()].some(value => value !== null)) {
                 try { publish(true) } catch { return }
                 continue
             }

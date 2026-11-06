@@ -307,3 +307,91 @@ it('does not let a stale retry acknowledge a newer rejection', async () => {
     expect(race.run(first, 'queue.pendingMutations()[0].error')).toBe('New rejection')
     expect(race.run(first, 'queue.pendingMutations()[0].status')).toBe('failed')
 })
+
+it('preserves unreadable legacy input and restores its order before newer input', async () => {
+    const { storageRace, records, enqueue, start } = await import('../../helpers/mutation-storage-race')
+    const race = storageRace([records[0]])
+    race.onGet = key => { if (key === 'pancake:offline-mutations:v1') throw new Error('Read unavailable') }
+    const first = race.tab('A')
+    first.input = { ...records[1], accountId: 'A', path: '/new' }
+    race.run(first, enqueue + ';' + start)
+    expect(race.sends).toEqual([])
+    race.onGet = undefined
+    const restored = race.tab('A')
+    expect(race.run(restored, 'queue.pendingMutations().map(job=>job.path)')).toEqual(['/action', '/new'])
+    race.run(first, 'paths=[];queue.configureMutationReplay(async job=>{paths.push(job.path);return "saved"});' + start)
+    expect(Array.from(first.paths)).toEqual(['/action', '/new'])
+})
+
+it('retains saved retry intent when an input read fails over a stale failed cache', async () => {
+    const { storageRace, records, enqueue, start } = await import('../../helpers/mutation-storage-race')
+    const race = storageRace()
+    const first = race.tab('A')
+    race.run(first, enqueue + ';queue.configureMutationReplay(async()=>{record();throw new Error("Rejected")});' + start)
+    race.run(first, 'navigator.onLine=false')
+    race.onBeforeSet = key => { if (key === 'pancake:offline-mutations:v1') throw new Error('Cache write unavailable') }
+    race.run(first, 'queue.retryMutation(input.id)')
+    race.onBeforeSet = undefined
+    let once = true
+    race.onGet = key => { if (once && key === 'pancake:offline-mutation:v1:A:' + records[0].id) { once = false; throw new Error('Read unavailable') } }
+    race.run(first, 'queue.pendingMutations()')
+    race.onGet = undefined
+    expect(race.run(first, 'queue.pendingMutations()[0].status')).toBe('pending')
+    race.run(first, start)
+    expect(race.sends).toEqual(['A', 'A'])
+})
+
+it('makes progress when an imported input record cannot be read back', async () => {
+    const { runInContext } = await import('node:vm')
+    const { storageRace, records, start } = await import('../../helpers/mutation-storage-race')
+    const race = storageRace([records[0]])
+    const first = race.tab('A')
+    let writes = 0
+    race.onSet = () => { writes++ }
+    race.onGet = key => { if (key === 'pancake:offline-mutation:v1:A:' + records[0].id) throw new Error('Read unavailable') }
+    expect(() => runInContext(start, first, { timeout: 200 })).not.toThrow()
+    expect(writes).toBeLessThan(20)
+    expect(race.sends).toEqual([])
+    race.onGet = undefined
+    race.run(first, start)
+    expect(race.sends).toEqual(['A'])
+})
+
+it('keeps saved retry intent when enumeration is unavailable', async () => {
+    const { storageRace, enqueue, start } = await import('../../helpers/mutation-storage-race')
+    const race = storageRace()
+    const first = race.tab('A')
+    race.run(first, enqueue + ';queue.configureMutationReplay(async()=>{record();throw new Error("Rejected")});' + start)
+    race.run(first, 'navigator.onLine=false')
+    race.onBeforeSet = key => { if (key === 'pancake:offline-mutations:v1') throw new Error('Cache write unavailable') }
+    race.run(first, 'queue.retryMutation(input.id)')
+    race.onBeforeSet = undefined
+    race.onEnumerate = () => { throw new Error('Enumeration unavailable') }
+    expect(race.run(first, 'queue.pendingMutations()[0].status')).toBe('pending')
+    race.run(first, start)
+    expect(race.sends).toEqual(['A'])
+    race.onEnumerate = undefined
+    race.run(first, start)
+    expect(race.sends).toEqual(['A', 'A'])
+})
+
+it('rejects an unsaved caller safely when access to storage itself is denied', async () => {
+    const { storageRace, enqueue } = await import('../../helpers/mutation-storage-race')
+    const race = storageRace()
+    const first = race.tab('A')
+    Object.defineProperty(first.window, 'localStorage', { get() { throw new Error('Access denied') } })
+    expect(() => race.run(first, 'queue.mutationSnapshot()')).not.toThrow()
+    expect(() => race.run(first, enqueue)).not.toThrow()
+    expect(first.result).toBe('Could not save your pending action. Keep this screen open and retry.')
+})
+
+it('replays in memory without a browser instead of waiting for nonexistent storage', async () => {
+    const { runInContext } = await import('node:vm')
+    const { storageRace, enqueue, start } = await import('../../helpers/mutation-storage-race')
+    const race = storageRace()
+    const first = race.tab('A')
+    race.run(first, 'delete globalThis.window')
+    expect(() => runInContext(enqueue + ';' + start, first, { timeout: 200 })).not.toThrow()
+    expect(first.result).toBe('saved')
+    expect(race.sends).toEqual(['A'])
+})
