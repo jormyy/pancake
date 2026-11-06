@@ -130,3 +130,41 @@ it('publishes completion proof before another tab observes the empty queue', asy
     race.run(first, start)
     expect(race.sends).toEqual(['A'])
 })
+
+it('settles completion observed by the first queue read when later reads fail', async () => {
+    const { storageRace, records, completionPrefix, enqueue, start } = await import('../../helpers/mutation-storage-race')
+    const race = storageRace(records)
+    const first = race.tab('A'), second = race.tab('A')
+    const marker = completionPrefix + 'A:' + records[0].id
+    race.onGet = name => {
+        if (name !== marker) return
+        race.onGet = undefined
+        race.run(first, start)
+        race.onGet = (key, value) => {
+            if (key === marker && value) race.onGet = () => { throw new Error('Storage unavailable after observing completion') }
+        }
+    }
+    race.run(second, enqueue)
+    race.onGet = undefined
+    race.run(second, start)
+    expect(second.result).toBe('This action completed in another tab. Refresh to see the result.')
+    race.run(second, 'queue.queueMutation(input,input.id).then(v=>retry=v,e=>retry=e.message)')
+    expect(second.retry).toBe('This action belongs to an earlier session. Refresh before retrying.')
+    expect(race.run(second, 'queue.pendingMutations().length')).toBe(0)
+    expect(race.sends).toEqual(['A'])
+})
+
+it('keeps observed completion after saving unrelated work while marker reads fail', async () => {
+    const { storageRace, records, completionPrefix, enqueue, start } = await import('../../helpers/mutation-storage-race')
+    const race = storageRace(records)
+    const first = race.tab('A'), second = race.tab('A')
+    race.run(second, enqueue)
+    race.run(first, start)
+    race.run(second, 'queue.pendingMutations()')
+    race.run(second, 'queue.queueMutation(input,"10000000-0000-4000-8000-000000000003").catch(()=>{})')
+    race.onGet = name => {
+        if (name === completionPrefix + 'A:' + records[0].id) throw new Error('Storage unavailable')
+    }
+    race.run(second, 'queue.queueMutation(input,input.id).then(v=>retry=v,e=>retry=e.message)')
+    expect(second.retry).toBe('This action belongs to an earlier session. Refresh before retrying.')
+})

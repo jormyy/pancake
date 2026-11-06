@@ -6,6 +6,7 @@ export type MutationInput = Pick<QueuedMutation, 'accountId' | 'leagueId' | 'row
 type Sender = (mutation: QueuedMutation) => Promise<unknown>
 const key = 'pancake:offline-mutations:v1'
 const completionPrefix = 'pancake:offline-mutation-done:v1:'
+const completedJobs = new Set<string>()
 const completionMaxAge = 7 * 24 * 60 * 60 * 1000
 let jobs: QueuedMutation[] | undefined
 const senders = new Map<string, Sender>()
@@ -17,10 +18,13 @@ const listeners = new Set<() => void>()
 const waiters = new Map<string, { promise: Promise<unknown>; resolve: (value: unknown) => void; reject: (error: Error) => void }>()
 
 function isCompleted(id: string): boolean {
+    if (completedJobs.has(id)) return true
     try {
         const timestamp = typeof window !== 'undefined' ? Number(window.localStorage.getItem(completionPrefix + id)) : 0
         const now = Date.now()
-        return Number.isFinite(timestamp) && timestamp > 0 && timestamp >= now - completionMaxAge
+        const completed = Number.isFinite(timestamp) && timestamp > 0 && timestamp >= now - completionMaxAge
+        if (completed) completedJobs.add(id)
+        return completed
     } catch { return false }
 }
 
@@ -47,6 +51,7 @@ function read(): QueuedMutation[] {
 function complete(job: QueuedMutation): void {
     unsaved.set(jobKey(job), null)
     jobs = read().filter(item => jobKey(item) !== jobKey(job))
+    completedJobs.add(jobKey(job))
     if (typeof window !== 'undefined') {
         try { window.localStorage.setItem(completionPrefix + jobKey(job), String(Date.now())) }
         catch (error) { console.error('Could not record action completion.', error) }
@@ -92,14 +97,14 @@ export function queueMutation<T>(input: MutationInput, id?: string): Promise<T> 
     const waiting = waiters.get(selectedId)
     if (waiting) { void replayMutations(); return waiting.promise as Promise<T> }
     if (sending.has(selectedId) || unsaved.get(jobKey({ accountId: input.accountId, id: selectedId })) === null || isCompleted(jobKey({ accountId: input.accountId, id: selectedId }))) return Promise.reject(new Error('This action belongs to an earlier session. Refresh before retrying.'))
-    const previous = read()
-    const job: QueuedMutation = previous.find(item => item.id === selectedId && item.accountId === input.accountId)
-        ?? { ...input, id: selectedId, status: 'pending', error: null, createdAt: Date.now() }
-    if (!previous.includes(job)) jobs = [...previous, job]
     let resolve!: (value: unknown) => void
     let reject!: (error: Error) => void
     const promise = new Promise<unknown>((done, fail) => { resolve = done; reject = fail })
     waiters.set(selectedId, { promise, resolve, reject })
+    const previous = read()
+    const job: QueuedMutation = previous.find(item => item.id === selectedId && item.accountId === input.accountId)
+        ?? { ...input, id: selectedId, status: 'pending', error: null, createdAt: Date.now() }
+    if (!previous.includes(job)) jobs = [...previous, job]
     try { publish(true) } catch (error) {
         jobs = previous
         waiters.delete(selectedId)
