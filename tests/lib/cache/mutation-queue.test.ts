@@ -86,7 +86,9 @@ describe('durable ordered mutation replay', () => {
         expect(sender.mock.calls.map(([job]) => job.accountId)).toEqual(['account', 'other'])
         expect(nextResult).toBe('new account saved')
         expect(queue.pendingMutations()).toEqual([])
-        expect(queue.pendingMutations('account')).toHaveLength(1)
+        if (outcome === 'resolve') expect(queue.pendingMutations('account')).toEqual([])
+        else expect(queue.pendingMutations('account')).toEqual([expect.objectContaining({ accountId: 'account', status: 'failed', error: 'Old send failed' })])
+        expect(JSON.parse([...values.values()][0])).toEqual(queue.pendingMutations('account'))
     })
 
     it('ignores retry while a pending action is already being sent', async () => {

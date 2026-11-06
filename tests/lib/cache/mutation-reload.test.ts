@@ -82,6 +82,35 @@ describe('settled mutation persistence across reload', () => {
     })
 
 
+    it.each(['saved', 'failed'] as const)('keeps a %s result after returning to the account before completion without replaying', async outcome => {
+        const session = await import('@/lib/session-cache-registry')
+        session.setSessionOwner('account')
+        const queue = await import('@/lib/cache/mutation-queue')
+        let finish!: () => void
+        const sender = vi.fn(async () => {
+            await new Promise<void>(resolve => { finish = resolve })
+            if (outcome === 'failed') throw new Error('Send failed')
+            return 'saved'
+        })
+        queue.configureMutationReplay(sender)
+        const result = queue.queueMutation({ accountId: 'account', leagueId: null, rowIds: [], path: '/draft/mock-room/create', body: '{}' })
+        const rejected = expect(result).rejects.toThrow('account changed')
+        const job = queue.pendingMutations()[0]
+        online = true
+        const original = queue.replayMutations()
+        session.setSessionOwner('other')
+        session.setSessionOwner('account')
+        expect(queue.pendingMutations()).toEqual([job])
+        finish()
+        await Promise.all([original, rejected])
+        const expected = outcome === 'saved' ? [] : [{ ...job, status: 'failed', error: 'Send failed' }]
+        expect(JSON.parse(values.get(key)!)).toEqual(expected)
+        expect(queue.mutationSnapshot()).toEqual(expected)
+        expect(queue.pendingMutations()).toEqual(expected)
+        await queue.replayMutations()
+        expect(sender).toHaveBeenCalledOnce()
+    })
+
     it('removes every completed room when a later write succeeds without losing another tab job', async () => {
         let created = 0
         vi.stubGlobal('fetch', vi.fn(async () => Response.json({ ok: true, draft: { id: ++created } })))

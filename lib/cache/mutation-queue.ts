@@ -108,14 +108,14 @@ export function replayMutations(): Promise<void> {
             try {
                 const value = await sender(job)
                 settled.add(jobKey(job))
-                if (current()) jobs = read().filter(item => jobKey(item) !== jobKey(job))
+                jobs = read().filter(item => jobKey(item) !== jobKey(job))
                 publish(job)
                 if (current()) { waiters.get(job.id)?.resolve(value); waiters.delete(job.id) }
             } catch (cause) {
                 if (typeof navigator !== 'undefined' && navigator.onLine === false) return
                 const error = cause instanceof Error ? cause.message : 'Could not send this action.'
                 const failed: QueuedMutation = { ...job, status: 'failed', error }
-                if (current()) jobs = read().map(item => jobKey(item) === jobKey(job) ? failed : item)
+                jobs = read().map(item => jobKey(item) === jobKey(job) ? failed : item)
                 publish(failed)
                 if (current()) { waiters.get(job.id)?.reject(new Error(error)); waiters.delete(job.id) }
             } finally { sending.delete(job.id); finish() }
