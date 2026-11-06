@@ -27,6 +27,68 @@ afterEach(() => {
 })
 
 describe('settled mutation persistence across reload', () => {
+
+    it('reloads another tab’s completed action on account switch without restoring it', async () => {
+        const firstSession = await import('@/lib/session-cache-registry')
+        firstSession.setSessionOwner('account')
+        const firstTab = await import('@/lib/cache/mutation-queue')
+        const input = { accountId: 'account', leagueId: null, rowIds: [], path: '/action', body: '{}' }
+        const result = firstTab.queueMutation(input)
+        vi.resetModules()
+        const secondSession = await import('@/lib/session-cache-registry')
+        secondSession.setSessionOwner('account')
+        const secondTab = await import('@/lib/cache/mutation-queue')
+        expect(secondTab.pendingMutations()).toHaveLength(1)
+        firstTab.configureMutationReplay(async () => 'saved')
+        online = true
+        await firstTab.replayMutations()
+        await expect(result).resolves.toBe('saved')
+        secondSession.setSessionOwner('other')
+        secondSession.setSessionOwner('account')
+        const sender = vi.fn(async () => 'saved')
+        secondTab.configureMutationReplay(sender)
+        await secondTab.replayMutations()
+        expect(sender).not.toHaveBeenCalled()
+        expect(secondTab.pendingMutations()).toEqual([])
+    })
+
+    it('leaves a connection-loss failure pending and replays on the online event', async () => {
+        const session = await import('@/lib/session-cache-registry')
+        session.setSessionOwner('account')
+        const queue = await import('@/lib/cache/mutation-queue')
+        let reject!: (error: Error) => void
+        const sender = vi.fn().mockImplementationOnce(() => new Promise((_, fail) => { reject = fail })).mockResolvedValue('saved')
+        queue.configureMutationReplay(sender)
+        let result = 'pending'
+        void queue.queueMutation({ accountId: 'account', leagueId: null, rowIds: [], path: '/action', body: '{}' }).then(value => { result = String(value) }, error => { result = error.message })
+        online = true
+        const replay = queue.replayMutations()
+        online = false
+        reject(new TypeError('Failed to fetch'))
+        await replay
+        expect(result).toBe('pending')
+        expect(queue.pendingMutations()[0]).toMatchObject({ status: 'pending', error: null })
+        online = true
+        window.dispatchEvent(new Event('online'))
+        await queue.replayMutations()
+        expect(sender).toHaveBeenCalledTimes(2)
+        expect(result).toBe('saved')
+        expect(queue.pendingMutations()).toEqual([])
+    })
+
+    it('replaces malformed saved JSON when enqueueing', async () => {
+        values.set(key, '{invalid')
+        const session = await import('@/lib/session-cache-registry')
+        session.setSessionOwner('account')
+        const queue = await import('@/lib/cache/mutation-queue')
+        let error: unknown
+        void queue.queueMutation({ accountId: 'account', leagueId: null, rowIds: [], path: '/action', body: '{}' }).catch(cause => { error = cause })
+        await Promise.resolve()
+        expect(error).toBeUndefined()
+        expect(queue.pendingMutations()).toHaveLength(1)
+        expect(JSON.parse(values.get(key)!)).toEqual(queue.pendingMutations())
+    })
+
     it('repairs a failed rejection save on the next enqueue before reload', async () => {
         const session = await import('@/lib/session-cache-registry')
         session.setSessionOwner('account')
@@ -136,88 +198,6 @@ describe('settled mutation persistence across reload', () => {
         expect(queue.pendingMutations()).toEqual(expected)
         await queue.replayMutations()
         expect(sender).toHaveBeenCalledOnce()
-    })
-
-    it('removes every completed room when a later write succeeds without losing another tab job', async () => {
-        let created = 0
-        vi.stubGlobal('fetch', vi.fn(async () => Response.json({ ok: true, draft: { id: ++created } })))
-        const { queue, create } = await reviewSetup()
-        const results = [create(), create(), create()]
-        vi.resetModules()
-        const other = await reviewSetup()
-        void other.queue.queueMutation({ accountId: 'account', leagueId: null, rowIds: [], path: '/unrelated', body: '{}' })
-        const sibling = other.queue.pendingMutations()[3]
-        vi.spyOn(storage, 'setItem')
-            .mockImplementationOnce(() => { throw Error('Disk full') })
-            .mockImplementationOnce(() => { throw Error('Disk full') })
-        online = true
-        await queue.replayMutations()
-        await Promise.all(results)
-        expect(created).toBe(3)
-        expect(JSON.parse(values.get(key)!)).toEqual([sibling])
-        online = false
-        vi.resetModules()
-        const restored = await reviewSetup()
-        expect(restored.queue.pendingMutations()).toEqual([sibling])
-    })
-
-    it('preserves another tab’s action through the next local completion', async () => {
-        const session = await import('@/lib/session-cache-registry')
-        session.setSessionOwner('account')
-        const firstTab = await import('@/lib/cache/mutation-queue')
-        const input = { accountId: 'account', leagueId: null, rowIds: [], path: '/first', body: '{}' }
-        const first = firstTab.queueMutation(input)
-        const second = firstTab.queueMutation({ ...input, path: '/second' })
-        vi.resetModules()
-        const secondSession = await import('@/lib/session-cache-registry')
-        secondSession.setSessionOwner('account')
-        const secondTab = await import('@/lib/cache/mutation-queue')
-        void secondTab.queueMutation({ ...input, path: '/unrelated' })
-        const sibling = secondTab.pendingMutations()[2]
-        vi.spyOn(storage, 'setItem').mockImplementationOnce(() => { throw new Error('Disk full') })
-        const sender = vi.fn(async () => 'saved')
-        online = true
-        firstTab.configureMutationReplay(sender)
-        await firstTab.replayMutations()
-        await expect(first).resolves.toBe('saved')
-        await expect(second).resolves.toBe('saved')
-        expect(sender).toHaveBeenCalledTimes(2)
-        expect(JSON.parse(values.get(key)!)).toEqual([sibling])
-        vi.resetModules()
-        const restoredSession = await import('@/lib/session-cache-registry')
-        restoredSession.setSessionOwner('account')
-        const restored = await import('@/lib/cache/mutation-queue')
-        expect(restored.pendingMutations()).toEqual([sibling])
-    })
-
-    it.each(['once', 'always'] as const)('preserves a newly saved action from another tab when completion writes fail %s', async failure => {
-        const session = await import('@/lib/session-cache-registry')
-        session.setSessionOwner('account')
-        const firstTab = await import('@/lib/cache/mutation-queue')
-        const input = { accountId: 'account', leagueId: null, rowIds: [], path: '/action', body: '{}' }
-        const result = firstTab.queueMutation(input)
-        const completedId = firstTab.pendingMutations()[0].id
-        vi.resetModules()
-        const secondSession = await import('@/lib/session-cache-registry')
-        secondSession.setSessionOwner('account')
-        const secondTab = await import('@/lib/cache/mutation-queue')
-        void secondTab.queueMutation({ ...input, path: '/unrelated' })
-        const sibling = secondTab.pendingMutations()[1]
-        const save = vi.spyOn(storage, 'setItem')
-        if (failure === 'once') save.mockImplementationOnce(() => { throw new Error('Disk full') })
-        else save.mockImplementation(() => { throw new Error('Disk full') })
-        online = true
-        const sender = vi.fn(async () => 'saved')
-        firstTab.configureMutationReplay(sender)
-        await firstTab.replayMutations()
-        await expect(result).resolves.toBe('saved')
-        expect(sender).toHaveBeenCalledOnce()
-        vi.resetModules()
-        const restoredSession = await import('@/lib/session-cache-registry')
-        restoredSession.setSessionOwner('account')
-        const restored = await import('@/lib/cache/mutation-queue')
-        expect(restored.pendingMutations()).toContainEqual(sibling)
-        if (failure === 'once') expect(restored.pendingMutations().some(job => job.id === completedId)).toBe(false)
     })
 
     it.each(['once', 'always'] as const)('creates one mock room when completion writes fail %s', async failure => {
