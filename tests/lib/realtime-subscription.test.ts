@@ -58,6 +58,21 @@ afterEach(async () => {
 })
 
 describe('database broadcast subscriptions', () => {
+    it('reports a permanent removal failure to every replacement listener', async () => {
+        const watch = { mode: 'fallback' as const, watches: [{ table: 'trades', filter: 'league_id=eq.permanent-failure' }], onChange: vi.fn() }
+        const first = subscribeToTableChanges('first', watch)
+        realtime.removeChannel.mockRejectedValueOnce(new Error('Removal unavailable')).mockRejectedValueOnce(new Error('Still unavailable'))
+        const removal = unsubscribeFromTableChanges(first).catch(() => {})
+        const statuses = [vi.fn(), vi.fn(), vi.fn()]
+        subscribeToTableChanges('second', { ...watch, onStatus: statuses[0] })
+        subscribeToTableChanges('third', { ...watch, onStatus: statuses[1] })
+        await removal
+        await Promise.resolve()
+        subscribeToTableChanges('later', { ...watch, onStatus: statuses[2] })
+        await Promise.resolve()
+        for (const status of statuses) expect(status).toHaveBeenCalledExactlyOnceWith('CHANNEL_ERROR')
+    })
+
     it('retries rejected removal before starting a waiting replacement', async () => {
         const changed = vi.fn()
         const options = { mode: 'fallback' as const, watches: [{ table: 'trades', filter: 'league_id=eq.retirement-failure' }], onChange: changed }

@@ -77,7 +77,10 @@ function acquireBroadcast(topic: string, listener: BroadcastListener): Broadcast
             for (const receiver of connection.listeners) receiver.status(status)
         })
     }
-    if (retiring) void retiring.pending.then(start, () => listener.status('CHANNEL_ERROR'))
+    if (retiring) void retiring.pending.then(start, () => {
+        connection.status = 'CHANNEL_ERROR'
+        for (const receiver of connection.listeners) receiver.status('CHANNEL_ERROR')
+    })
     else start()
     return connection
 }

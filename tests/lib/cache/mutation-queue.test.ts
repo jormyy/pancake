@@ -11,6 +11,28 @@ beforeEach(() => {
 })
 afterEach(() => { vi.restoreAllMocks() })
 describe('durable ordered mutation replay', () => {
+    it('keeps a failed action blocked when saving its explicit retry fails', async () => {
+        const queue = await import('@/lib/cache/mutation-queue')
+        const sender = vi.fn().mockRejectedValueOnce(new Error('Send failed')).mockResolvedValue('saved')
+        queue.configureMutationReplay(sender)
+        const result = queue.queueMutation(input)
+        const rejection = expect(result).rejects.toThrow('Send failed')
+        online = true
+        await queue.replayMutations()
+        await rejection
+        const id = queue.pendingMutations()[0].id
+        vi.spyOn(storage, 'setItem').mockImplementationOnce(() => { throw new Error('Disk full') })
+        expect(() => queue.retryMutation(id)).toThrow('Could not save')
+        await queue.replayMutations()
+        expect(sender).toHaveBeenCalledOnce()
+        expect(queue.pendingMutations()[0]).toMatchObject({ status: 'failed', error: 'Send failed' })
+        expect(JSON.parse([...values.values()][0])[0]).toMatchObject({ status: 'failed' })
+        queue.retryMutation(id)
+        await queue.replayMutations()
+        expect(sender).toHaveBeenCalledTimes(2)
+        expect(queue.pendingMutations()).toEqual([])
+    })
+
     it.each([
         ['storage', 'sent'], ['storage', 'failed'], ['subscriber', 'sent'], ['subscriber', 'failed'],
     ] as const)('settles a %s fault after the sender is %s without losing its result', async (fault, outcome) => {

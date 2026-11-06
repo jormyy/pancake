@@ -69,8 +69,9 @@ export function queueMutation<T>(input: MutationInput, id?: string): Promise<T> 
 export function retryMutation(id: string): void {
     const job = read().find(item => item.id === id && item.accountId === sessionOwner())
     if (!job || job.status !== 'failed') return
-    jobs = read().map(item => item === job ? { ...item, status: 'pending', error: null } : item)
-    publish()
+    const previous = read()
+    jobs = previous.map(item => item === job ? { ...item, status: 'pending', error: null } : item)
+    try { publish() } catch (error) { jobs = previous; throw error }
     void replayMutations()
 }
 
