@@ -128,14 +128,7 @@ it.each(seeds)('preserves queue invariants through seeded sequence %i', async se
     }
     const switchAccount = () => {
         const persisted = new Map(disk().map(job => [job.id, job]))
-        for (const action of actions.values()) {
-            if (action.phase === 'failed' && persisted.get(action.id)?.status === 'pending') {
-                action.phase = 'pending'
-                action.error = undefined
-                action.allowance++
-                coverage.unsavedFailureCacheDrop = (coverage.unsavedFailureCacheDrop ?? 0) + 1
-            }
-        }
+        if ([...actions.values()].some(action => action.phase === 'failed' && persisted.get(action.id)?.status === 'pending')) coverage.unsavedRejectionSwitch = (coverage.unsavedRejectionSwitch ?? 0) + 1
         account = account === 'A' ? 'B' : 'A'
         session.setSessionOwner(account)
         start()
@@ -197,6 +190,8 @@ it.each(seeds)('preserves queue invariants through seeded sequence %i', async se
     await step('hold', () => { online = true; start() })
     await step('writeFault', () => { failures = 1 })
     await step('failure', () => release(first, false))
+    await step('switch', switchAccount)
+    await step('switch', switchAccount)
     await step('enqueue', () => { enqueue() })
     await step('switch', switchAccount)
     await step('enqueue', () => { enqueue() })
@@ -234,6 +229,6 @@ it.each(seeds)('preserves queue invariants through seeded sequence %i', async se
     online = false
     session.setSessionOwner(null)
     for (const operation of ['enqueue', 'success', 'failure', 'hold', 'retry', 'writeFault', 'switch', 'reload']) expect(coverage[operation], String(seed)).toBeGreaterThan(0)
-    for (const outcome of ['writeFailure', 'sendStarted', 'sendSuccess', 'sendFailure', 'retryAccepted', 'offlineFailure', 'tabStatusWrite', 'tabCompletion', 'malformedStart']) expect(coverage[outcome], String(seed)).toBeGreaterThan(0)
+    for (const outcome of ['writeFailure', 'sendStarted', 'sendSuccess', 'sendFailure', 'retryAccepted', 'offlineFailure', 'tabStatusWrite', 'tabCompletion', 'malformedStart', 'unsavedRejectionSwitch']) expect(coverage[outcome], String(seed)).toBeGreaterThan(0)
     console.log(JSON.stringify({ seed, steps: stepCount, actions: actions.size, sends: [...actions.values()].reduce((sum, action) => sum + action.sends, 0), coverage }))
 })

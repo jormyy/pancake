@@ -27,6 +27,41 @@ afterEach(() => {
 })
 
 describe('settled mutation persistence across reload', () => {
+    it('retains an unsaved rejection across account changes until explicit retry', async () => {
+        const session = await import('@/lib/session-cache-registry')
+        session.setSessionOwner('account')
+        const queue = await import('@/lib/cache/mutation-queue')
+        const sender = vi.fn().mockRejectedValueOnce(new Error('Server rejected')).mockResolvedValue('saved')
+        queue.configureMutationReplay(sender)
+        const input = { accountId: 'account', leagueId: null, rowIds: [], path: '/action', body: '{}' }
+        const result = queue.queueMutation(input).catch(error => error.message)
+        const id = queue.pendingMutations()[0].id
+        const save = vi.spyOn(storage, 'setItem').mockImplementation(() => { throw new Error('Disk full') })
+        online = true
+        await queue.replayMutations()
+        await expect(result).resolves.toBe('Server rejected')
+        expect(queue.pendingMutations()[0]).toMatchObject({ id, status: 'failed', error: 'Server rejected' })
+        expect(JSON.parse(values.get(key)!)[0].status).toBe('pending')
+        save.mockRestore()
+        session.setSessionOwner('other')
+        session.setSessionOwner('account')
+        await queue.replayMutations()
+        expect(sender).toHaveBeenCalledOnce()
+        expect(queue.pendingMutations()[0]).toMatchObject({ id, status: 'failed', error: 'Server rejected' })
+        const next = queue.queueMutation({ ...input, path: '/next' })
+        expect(JSON.parse(values.get(key)!)[0]).toMatchObject({ id, status: 'failed', error: 'Server rejected' })
+        session.setSessionOwner('other')
+        const changed = expect(next).rejects.toThrow('account changed')
+        session.setSessionOwner('account')
+        await changed
+        await queue.replayMutations()
+        expect(sender).toHaveBeenCalledOnce()
+        queue.retryMutation(id)
+        await queue.replayMutations()
+        expect(sender).toHaveBeenCalledTimes(3)
+        expect(queue.pendingMutations()).toEqual([])
+    })
+
 
     it('reloads another tab’s completed action on account switch without restoring it', async () => {
         const firstSession = await import('@/lib/session-cache-registry')
