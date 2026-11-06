@@ -27,6 +27,35 @@ afterEach(() => {
 })
 
 describe('settled mutation persistence across reload', () => {
+    it('preserves another tab’s action through the next local completion', async () => {
+        const session = await import('@/lib/session-cache-registry')
+        session.setSessionOwner('account')
+        const firstTab = await import('@/lib/cache/mutation-queue')
+        const input = { accountId: 'account', leagueId: null, rowIds: [], path: '/first', body: '{}' }
+        const first = firstTab.queueMutation(input)
+        const second = firstTab.queueMutation({ ...input, path: '/second' })
+        vi.resetModules()
+        const secondSession = await import('@/lib/session-cache-registry')
+        secondSession.setSessionOwner('account')
+        const secondTab = await import('@/lib/cache/mutation-queue')
+        void secondTab.queueMutation({ ...input, path: '/unrelated' })
+        const sibling = secondTab.pendingMutations()[2]
+        vi.spyOn(storage, 'setItem').mockImplementationOnce(() => { throw new Error('Disk full') })
+        const sender = vi.fn(async () => 'saved')
+        online = true
+        firstTab.configureMutationReplay(sender)
+        await firstTab.replayMutations()
+        await expect(first).resolves.toBe('saved')
+        await expect(second).resolves.toBe('saved')
+        expect(sender).toHaveBeenCalledTimes(2)
+        expect(JSON.parse(values.get(key)!)).toEqual([sibling])
+        vi.resetModules()
+        const restoredSession = await import('@/lib/session-cache-registry')
+        restoredSession.setSessionOwner('account')
+        const restored = await import('@/lib/cache/mutation-queue')
+        expect(restored.pendingMutations()).toEqual([sibling])
+    })
+
     it.each(['once', 'always'] as const)('preserves a newly saved action from another tab when completion writes fail %s', async failure => {
         const session = await import('@/lib/session-cache-registry')
         session.setSessionOwner('account')

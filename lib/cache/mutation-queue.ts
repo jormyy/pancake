@@ -22,19 +22,24 @@ function read(): QueuedMutation[] {
     return jobs
 }
 
+function settledSnapshot(settledJob: QueuedMutation): QueuedMutation[] {
+    const identity = (job: QueuedMutation) => `${job.accountId}:${job.id}`
+    const saved = new Map(readSaved().map(job => [identity(job), job]))
+    const current = read().find(job => identity(job) === identity(settledJob))
+    if (current) saved.set(identity(current), current)
+    else saved.delete(identity(settledJob))
+    return [...saved.values()]
+}
+
 function publish(settledJob?: QueuedMutation): void {
     if (typeof window !== 'undefined') {
-        try { window.localStorage.setItem(key, JSON.stringify(read())) } catch (error) {
+        try { window.localStorage.setItem(key, JSON.stringify(settledJob ? settledSnapshot(settledJob) : read())) } catch (error) {
             if (!settledJob) throw new Error('Could not save your pending action. Keep this screen open and retry.')
             console.error('Could not save the result of this action.', error)
             try {
-                const identity = (job: QueuedMutation) => `${job.accountId}:${job.id}`
-                const saved = new Map(readSaved().map(job => [identity(job), job]))
-                const current = read().find(job => identity(job) === identity(settledJob))
-                if (current) saved.set(identity(current), current)
-                else saved.delete(identity(settledJob))
-                try { window.localStorage.setItem(key, JSON.stringify([...saved.values()])) } catch {
-                    if (saved.size === 0) window.localStorage.removeItem(key)
+                const saved = settledSnapshot(settledJob)
+                try { window.localStorage.setItem(key, JSON.stringify(saved)) } catch {
+                    if (saved.length === 0) window.localStorage.removeItem(key)
                 }
             } catch {}
         }
