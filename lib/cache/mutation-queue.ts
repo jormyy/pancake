@@ -20,7 +20,7 @@ function isCompleted(id: string): boolean {
     try {
         const timestamp = typeof window !== 'undefined' ? Number(window.localStorage.getItem(completionPrefix + id)) : 0
         const now = Date.now()
-        return Number.isFinite(timestamp) && timestamp > 0 && timestamp <= now && timestamp >= now - completionMaxAge
+        return Number.isFinite(timestamp) && timestamp > 0 && timestamp >= now - completionMaxAge
     } catch { return false }
 }
 
@@ -37,9 +37,9 @@ function read(): QueuedMutation[] {
         jobs = [...new Map([...stored.map(job => [jobKey(job), job] as const), ...unsaved]).values()].filter((job): job is QueuedMutation => job !== null)
     }
     const completed = new Set([...new Set([...jobs.map(jobKey), ...unsaved.keys()])].filter(isCompleted))
-    for (const id of completed) if (unsaved.get(id)) unsaved.delete(id)
-    const active = jobs.filter(job => !completed.has(jobKey(job)))
-    for (const job of jobs) if (completed.has(jobKey(job)) && !sending.has(job.id) && job.accountId === sessionOwner()) rejectCompleted(job)
+    for (const id of completed) unsaved.set(id, null)
+    const active = jobs.filter(job => !completed.has(jobKey(job)) && unsaved.get(jobKey(job)) !== null)
+    for (const job of jobs) if (completed.has(jobKey(job)) && job.accountId === sessionOwner()) rejectCompleted(job)
     if (active.length !== jobs.length) jobs = active
     return jobs
 }
@@ -47,20 +47,11 @@ function read(): QueuedMutation[] {
 function complete(job: QueuedMutation): void {
     unsaved.set(jobKey(job), null)
     jobs = read().filter(item => jobKey(item) !== jobKey(job))
+    if (typeof window !== 'undefined') {
+        try { window.localStorage.setItem(completionPrefix + jobKey(job), String(Date.now())) }
+        catch (error) { console.error('Could not record action completion.', error) }
+    }
     publish()
-    if (typeof window === 'undefined') return
-    const now = Date.now()
-    try { window.localStorage.setItem(completionPrefix + jobKey(job), String(now)) }
-    catch (error) { console.error('Could not record action completion.', error) }
-    try {
-        const storage = window.localStorage
-        for (let index = storage.length - 1; index >= 0; index--) {
-            const key = storage.key(index)
-            if (!key?.startsWith(completionPrefix)) continue
-            const timestamp = Number(storage.getItem(key))
-            if (!Number.isFinite(timestamp) || timestamp < now - completionMaxAge || timestamp > now) storage.removeItem(key)
-        }
-    } catch {}
 }
 
 function publish(required = false): void {
@@ -105,11 +96,17 @@ export function queueMutation<T>(input: MutationInput, id?: string): Promise<T> 
     const job: QueuedMutation = previous.find(item => item.id === selectedId && item.accountId === input.accountId)
         ?? { ...input, id: selectedId, status: 'pending', error: null, createdAt: Date.now() }
     if (!previous.includes(job)) jobs = [...previous, job]
-    try { publish(true) } catch (error) { jobs = previous; return Promise.reject(error) }
     let resolve!: (value: unknown) => void
     let reject!: (error: Error) => void
     const promise = new Promise<unknown>((done, fail) => { resolve = done; reject = fail })
     waiters.set(selectedId, { promise, resolve, reject })
+    try { publish(true) } catch (error) {
+        jobs = previous
+        waiters.delete(selectedId)
+        reject(error as Error)
+        return promise as Promise<T>
+    }
+    read()
     void replayMutations()
     return promise as Promise<T>
 }
@@ -137,6 +134,12 @@ export function replayMutations(): Promise<void> {
             if (active) { await active; continue }
             const sender = senders.get(job.transport ?? 'api')
             if (!sender) return
+            if (isCompleted(jobKey(job))) {
+                unsaved.set(jobKey(job), null)
+                jobs = jobs?.filter(item => jobKey(item) !== jobKey(job))
+                rejectCompleted(job)
+                continue
+            }
             const current = () => generation === sessionGeneration() && job.accountId === sessionOwner()
             let finish!: () => void
             sending.set(job.id, new Promise<void>(resolve => { finish = resolve }))

@@ -30,7 +30,7 @@ afterEach(() => {
 })
 
 describe('settled mutation persistence across reload', () => {
-    it.each(['offline', 'success', 'online rejection'] as const)('settles the caller when an externally completed send exits %s', async outcome => {
+    it.each(['offline', 'offline storage unavailable', 'success', 'online rejection'] as const)('settles the caller when an externally completed send exits %s', async outcome => {
         const session = await import('@/lib/session-cache-registry')
         session.setSessionOwner('account')
         const first = await import('@/lib/cache/mutation-queue')
@@ -53,7 +53,8 @@ describe('settled mutation persistence across reload', () => {
         await first.replayMutations()
         await expect(firstResult).resolves.toBe('saved')
         expect(second.pendingMutations()).toEqual([])
-        if (outcome === 'offline') online = false
+        if (outcome.startsWith('offline')) online = false
+        if (outcome === 'offline storage unavailable') vi.spyOn(storage, 'getItem').mockImplementation(() => { throw new Error('Storage unavailable') })
         if (outcome === 'success') save('saved')
         else fail(new Error('Failed to fetch'))
         await inflight
@@ -78,7 +79,7 @@ describe('settled mutation persistence across reload', () => {
         expect(Number(values.get(completionPrefix + `account:${id}`))).toBeGreaterThan(0)
     })
 
-    it('prunes completion keys older than seven days while preserving recent and unrelated keys', async () => {
+    it('leaves completion records untouched because cleanup cannot atomically delete an old value', async () => {
         const now = 2_000_000_000_000
         const age = 7 * 24 * 60 * 60 * 1000
         vi.spyOn(Date, 'now').mockReturnValue(now)
@@ -96,30 +97,33 @@ describe('settled mutation persistence across reload', () => {
         online = true
         await queue.replayMutations()
         await expect(result).resolves.toBe('saved')
-        expect(values.has(completionPrefix + 'expired')).toBe(false)
-        expect(values.has(completionPrefix + 'corrupt')).toBe(false)
+        expect(values.has(completionPrefix + 'expired')).toBe(true)
+        expect(values.has(completionPrefix + 'corrupt')).toBe(true)
         expect(values.get(completionPrefix + 'boundary')).toBe(String(now - age))
         expect(values.get(completionPrefix + 'recent')).toBe(String(now - 1))
         expect(values.get(completionPrefix + `account:${id}`)).toBe(String(now))
         expect(values.has('other-cache')).toBe(true)
     })
 
-    it.each(['length', 'key', 'prune'] as const)('keeps sender settlement when completion cleanup fails at %s', async fault => {
-        values.set(completionPrefix + 'expired', '1')
+    it.each([
+        ['expired', -7 * 24 * 60 * 60 * 1000 - 1, true],
+        ['boundary', -7 * 24 * 60 * 60 * 1000, false],
+        ['future', 60_000, false],
+    ] as const)('applies completion age policy to a %s record', async (_label, offset, sends) => {
+        const now = 2_000_000_000_000
+        vi.spyOn(Date, 'now').mockReturnValue(now)
+        const id = '10000000-0000-4000-8000-000000000001'
+        values.set(completionPrefix + `account:${id}`, String(now + offset))
         const session = await import('@/lib/session-cache-registry')
         session.setSessionOwner('account')
         const queue = await import('@/lib/cache/mutation-queue')
-        queue.configureMutationReplay(async () => 'saved')
-        const result = queue.queueMutation({ accountId: 'account', leagueId: null, rowIds: [], path: '/action', body: '{}' })
-        const id = queue.pendingMutations()[0].id
-        if (fault === 'length') vi.spyOn(storage, 'length', 'get').mockImplementation(() => { throw new Error('Enumeration unavailable') })
-        else if (fault === 'key') vi.spyOn(storage, 'key').mockImplementation(() => { throw new Error('Enumeration unavailable') })
-        else vi.spyOn(storage, 'removeItem').mockImplementation(() => { throw new Error('Pruning unavailable') })
+        const sender = vi.fn(async () => 'saved')
+        queue.configureMutationReplay(sender)
+        const result = queue.queueMutation({ accountId: 'account', leagueId: null, rowIds: [], path: '/action', body: '{}' }, id).catch(error => error.message)
         online = true
         await queue.replayMutations()
-        await expect(result).resolves.toBe('saved')
-        expect(Number(values.get(completionPrefix + `account:${id}`))).toBeGreaterThan(0)
-        expect(queue.pendingMutations()).toEqual([])
+        await expect(result).resolves.toBe(sends ? 'saved' : 'This action belongs to an earlier session. Refresh before retrying.')
+        expect(sender).toHaveBeenCalledTimes(sends ? 1 : 0)
     })
 
     it('checks only known job completion keys during reads without enumerating storage', async () => {

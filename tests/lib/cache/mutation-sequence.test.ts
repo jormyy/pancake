@@ -1,4 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest'
+import { cleanupRace, enqueueRace } from '../../helpers/mutation-storage-race'
 import { runCompletionRace } from '../../helpers/mutation-completion-race'
 import type { QueuedMutation } from '@/lib/cache/mutation-queue'
 
@@ -273,6 +274,15 @@ it.each(seeds)('preserves queue invariants through seeded sequence %i', async se
         start()
     }
     await load()
+    await step('storageCleanupRace', () => { expect(cleanupRace()).toEqual({ retained: ['A', 'B'], sends: ['A', 'B'] }) })
+    for (const boundary of ['initial check', 'persist read', 'persist write'] as const) {
+        await step('storageEnqueueRace', () => {
+            expect(enqueueRace(boundary)).toEqual({
+                first: 'saved', second: 'This action completed in another tab. Refresh to see the result.', pending: 0,
+                sends: ['A'], retry: 'This action belongs to an earlier session. Refresh before retrying.',
+            })
+        })
+    }
     await step('malformedStart', () => { expect(saved).toBe('{invalid'); expect(queue.mutationSnapshot()).toEqual([]) })
     let exiting = ''
     await step('enqueue', () => { exiting = enqueue() })
