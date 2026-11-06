@@ -1,6 +1,7 @@
 import { afterEach, expect, it, vi } from 'vitest'
 import type { QueuedMutation } from '@/lib/cache/mutation-queue'
 
+const completionKey = 'pancake:offline-mutation-completions:v1'
 const seeds = [1, 7, 42, 2026, 65537, 104729, 3735928559, 4277009102]
 type Action = { id: string; accountId: string; phase: 'pending' | 'sending' | 'failed' | 'settled'; sends: number; allowance: number; outcomeAt: number; error?: string }
 type Held = { resolve: () => void; reject: () => void }
@@ -19,6 +20,8 @@ it.each(seeds)('preserves queue invariants through seeded sequence %i', async se
     const trace: string[] = []
     const coverage: Record<string, number> = {}
     let saved: string | undefined = '{invalid'
+    let completedSaved: string | undefined
+    const overwritten = new Set<string>()
     let online = false
     let failures = 0
     let serial = 0
@@ -28,15 +31,19 @@ it.each(seeds)('preserves queue invariants through seeded sequence %i', async se
     let stepCount = 0
     const disk = (): QueuedMutation[] => { try { return JSON.parse(saved ?? '[]') } catch { return [] } }
     const storage = {
-        getItem: () => saved ?? null,
-        setItem: (_key: string, value: string) => {
+        getItem: (name: string) => name === completionKey ? completedSaved ?? null : saved ?? null,
+        setItem: (name: string, value: string) => {
+            if (name === completionKey) { completedSaved = value; return }
             if (failures > 0) { failures--; coverage.writeFailure = (coverage.writeFailure ?? 0) + 1; throw new Error('Injected storage failure') }
             saved = value
+            overwritten.clear()
             savedAt = ++clock
         },
-        removeItem: () => {
+        removeItem: (name: string) => {
+            if (name === completionKey) { completedSaved = undefined; return }
             if (failures > 0) { failures--; coverage.writeFailure = (coverage.writeFailure ?? 0) + 1; throw new Error('Injected removal failure') }
             saved = undefined
+            overwritten.clear()
             savedAt = ++clock
         },
     }
@@ -74,7 +81,7 @@ it.each(seeds)('preserves queue invariants through seeded sequence %i', async se
                 if (savedAt >= action.outcomeAt) expect(persisted.has(action.id), context).toBe(false)
             } else {
                 expect(memory.has(action.id), context).toBe(true)
-                expect(persisted.has(action.id), context).toBe(true)
+                expect(persisted.has(action.id), context).toBe(!overwritten.has(action.id))
                 if (action.phase === 'failed') {
                     expect(memory.get(action.id)?.status, context).toBe('failed')
                     expect(memory.get(action.id)?.error, context).toBe(action.error)
@@ -146,7 +153,7 @@ it.each(seeds)('preserves queue invariants through seeded sequence %i', async se
             actions.set(action.id, action)
             const job: QueuedMutation = { id: action.id, accountId: action.accountId, leagueId: null, rowIds: [action.id], path: `/external/${action.id}`, body: '{}', status: 'pending', error: null, createdAt: Date.now() }
             saved = JSON.stringify([...records, job])
-            coverage.tabEnqueue = (coverage.tabEnqueue ?? 0) + 1
+            coverage.externalEnqueueApplied = (coverage.externalEnqueueApplied ?? 0) + 1
         } else {
             expect(records.some(job => job.id === action.id)).toBe(true)
             if (operation === 'reject') {
@@ -156,6 +163,8 @@ it.each(seeds)('preserves queue invariants through seeded sequence %i', async se
                 action.outcomeAt = savedAt
                 coverage.tabStatusWrite = (coverage.tabStatusWrite ?? 0) + 1
             } else {
+                const completed: string[] = JSON.parse(completedSaved ?? '[]')
+                completedSaved = JSON.stringify([...completed.filter(id => id !== `${action.accountId}:${action.id}`), `${action.accountId}:${action.id}`].slice(-200))
                 const remaining = records.filter(job => job.id !== action.id)
                 saved = operation === 'remove' && !remaining.length ? undefined : JSON.stringify(remaining)
                 action.phase = 'settled'
@@ -164,6 +173,23 @@ it.each(seeds)('preserves queue invariants through seeded sequence %i', async se
                 coverage[label] = (coverage[label] ?? 0) + 1
             }
         }
+        switchAccount()
+        switchAccount()
+        online = wasOnline
+        start()
+    }
+    const staleOverwrite = (selectedId?: string) => {
+        const action = selectedId ? actions.get(selectedId) : pick([...actions.values()].filter(item => item.phase === 'failed' && item.outcomeAt > savedAt && !overwritten.has(item.id)))
+        if (!action || action.phase !== 'failed' || overwritten.has(action.id)) return
+        const wasOnline = online
+        online = false
+        const id = nextId()
+        const accountId = account === 'A' ? 'B' : 'A'
+        actions.set(id, { id, accountId, phase: 'pending', sends: 0, allowance: 1, outcomeAt: 0 })
+        const job: QueuedMutation = { id, accountId, leagueId: null, rowIds: [id], path: `/stale/${id}`, body: '{}', status: 'pending', error: null, createdAt: Date.now() }
+        saved = JSON.stringify([...disk().filter(item => item.id !== action.id), job])
+        overwritten.add(action.id)
+        coverage.staleWriteApplied = (coverage.staleWriteApplied ?? 0) + 1
         switchAccount()
         switchAccount()
         online = wasOnline
@@ -218,6 +244,7 @@ it.each(seeds)('preserves queue invariants through seeded sequence %i', async se
     await step('failure', () => release(first, false))
     await step('switch', switchAccount)
     await step('switch', switchAccount)
+    await step('staleOverwrite', () => staleOverwrite(first))
     await step('enqueue', () => { enqueue() })
     await step('switch', switchAccount)
     await step('enqueue', () => { enqueue() })
@@ -233,7 +260,7 @@ it.each(seeds)('preserves queue invariants through seeded sequence %i', async se
     await step('hold', () => { online = true; start() })
     await step('reload', reload)
     for (let turn = 0; turn < 80; turn++) {
-        const operation = random(14)
+        const operation = random(15)
         if (operation < 2) await step('enqueue', () => { enqueue() })
         else if (operation === 2) await step('success', () => release(pick([...held.keys()]), true))
         else if (operation === 3) await step('failure', () => release(pick([...held.keys()]), false))
@@ -246,7 +273,8 @@ it.each(seeds)('preserves queue invariants through seeded sequence %i', async se
         else if (operation === 10) await step('tabWrite', () => otherTab('reject'))
         else if (operation === 11) await step('tabComplete', () => otherTab('complete'))
         else if (operation === 12) await step('tabRemove', () => otherTab('remove'))
-        else await step('tabEnqueue', () => otherTab('enqueue'))
+        else if (operation === 13) await step('tabEnqueue', () => otherTab('enqueue'))
+        else await step('staleOverwrite', () => staleOverwrite())
     }
     failures = 0
     online = true
@@ -257,6 +285,6 @@ it.each(seeds)('preserves queue invariants through seeded sequence %i', async se
     online = false
     session.setSessionOwner(null)
     for (const operation of ['enqueue', 'success', 'failure', 'hold', 'retry', 'writeFault', 'switch', 'reload']) expect(coverage[operation], String(seed)).toBeGreaterThan(0)
-    for (const outcome of ['writeFailure', 'sendStarted', 'sendSuccess', 'sendFailure', 'retryAccepted', 'offlineFailure', 'tabStatusWrite', 'tabCompletion', 'malformedStart', 'unsavedRejectionSwitch', 'tabEnqueue', 'tabRemoval']) expect(coverage[outcome], String(seed)).toBeGreaterThan(0)
+    for (const outcome of ['writeFailure', 'sendStarted', 'sendSuccess', 'sendFailure', 'retryAccepted', 'offlineFailure', 'tabStatusWrite', 'tabCompletion', 'malformedStart', 'unsavedRejectionSwitch', 'externalEnqueueApplied', 'tabRemoval', 'staleWriteApplied']) expect(coverage[outcome], String(seed)).toBeGreaterThan(0)
     console.log(JSON.stringify({ seed, steps: stepCount, actions: actions.size, sends: [...actions.values()].reduce((sum, action) => sum + action.sends, 0), coverage }))
 })
