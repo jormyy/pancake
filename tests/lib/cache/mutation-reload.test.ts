@@ -27,6 +27,84 @@ afterEach(() => {
 })
 
 describe('settled mutation persistence across reload', () => {
+    async function reviewSetup() {
+        const session = await import('@/lib/session-cache-registry')
+        session.setSessionOwner('account')
+        const rooms = await import('@/lib/mockDraftRooms')
+        const queue = await import('@/lib/cache/mutation-queue')
+        return { session, queue, create: () => rooms.createMockDraftRoom({ leagueId: 'league', memberId: 'member', draftType: 'snake' }) }
+    }
+
+    it('does not replay completed rooms after two failed writes and storage recovery', async () => {
+        let created = 0
+        vi.stubGlobal('fetch', vi.fn(async () => Response.json({ ok: true, draft: { id: ++created } })))
+        const { queue, create } = await reviewSetup()
+        const results = [create(), create()]
+        vi.spyOn(storage, 'setItem')
+            .mockImplementationOnce(() => { throw Error('Disk full') })
+            .mockImplementationOnce(() => { throw Error('Disk full') })
+        online = true
+        await queue.replayMutations()
+        await Promise.all(results)
+        console.log('memory pending:', queue.pendingMutations().length)
+        console.log('persisted pending:', JSON.parse(values.get(key) ?? '[]').length)
+        vi.resetModules()
+        const restored = await reviewSetup()
+        await restored.queue.replayMutations()
+        console.log('rooms created after reload:', created)
+        expect(created).toBe(2)
+        expect(JSON.parse(values.get(key) ?? '[]')).toEqual([])
+    })
+
+    it('does not duplicate an unfinished room when returning to its account', async () => {
+        let finish!: () => void
+        let sends = 0
+        vi.stubGlobal('fetch', vi.fn(async () => {
+            const id = ++sends
+            if (id === 1) await new Promise<void>(resolve => { finish = resolve })
+            return Response.json({ ok: true, draft: { id } })
+        }))
+        const { session, queue, create } = await reviewSetup()
+        const result = create()
+        const rejected = expect(result).rejects.toThrow('account changed')
+        online = true
+        const original = queue.replayMutations()
+        for (let index = 0; index < 8; index++) await Promise.resolve()
+        session.setSessionOwner('other')
+        session.setSessionOwner('account')
+        const next = queue.replayMutations()
+        for (let index = 0; index < 8; index++) await Promise.resolve()
+        console.log('sends before original completes:', sends)
+        finish()
+        await Promise.all([original, next, rejected])
+        console.log('sends after original completes:', sends)
+        expect(sends).toBe(1)
+    })
+
+
+    it('removes every completed room when a later write succeeds without losing another tab job', async () => {
+        let created = 0
+        vi.stubGlobal('fetch', vi.fn(async () => Response.json({ ok: true, draft: { id: ++created } })))
+        const { queue, create } = await reviewSetup()
+        const results = [create(), create(), create()]
+        vi.resetModules()
+        const other = await reviewSetup()
+        void other.queue.queueMutation({ accountId: 'account', leagueId: null, rowIds: [], path: '/unrelated', body: '{}' })
+        const sibling = other.queue.pendingMutations()[3]
+        vi.spyOn(storage, 'setItem')
+            .mockImplementationOnce(() => { throw Error('Disk full') })
+            .mockImplementationOnce(() => { throw Error('Disk full') })
+        online = true
+        await queue.replayMutations()
+        await Promise.all(results)
+        expect(created).toBe(3)
+        expect(JSON.parse(values.get(key)!)).toEqual([sibling])
+        online = false
+        vi.resetModules()
+        const restored = await reviewSetup()
+        expect(restored.queue.pendingMutations()).toEqual([sibling])
+    })
+
     it('preserves another tab’s action through the next local completion', async () => {
         const session = await import('@/lib/session-cache-registry')
         session.setSessionOwner('account')
