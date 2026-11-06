@@ -3,7 +3,7 @@ const identity = vi.hoisted(() => ({ owner: 'account', generation: 0, clears: []
 vi.mock('@/lib/session-cache-registry', () => ({ sessionOwner: () => identity.owner, sessionGeneration: () => identity.generation, onSessionCachesCleared: (callback: () => void) => identity.clears.push(callback) }))
 const values = new Map<string, string>()
 let online = false
-const storage = { getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => values.set(key, value), removeItem: (key: string) => values.delete(key) }
+const storage = { get length() { return values.size }, key: (index: number) => [...values.keys()][index] ?? null, getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => values.set(key, value), removeItem: (key: string) => values.delete(key) }
 const input = { accountId: 'account', leagueId: 'league', rowIds: ['player'], path: '/waivers/claims', body: JSON.stringify({ playerId: 'player', bidAmount: 12 }) }
 beforeEach(() => {
     vi.resetModules(); values.clear(); identity.owner = 'account'; identity.generation = 0; identity.clears = []; online = false
@@ -26,7 +26,7 @@ describe('durable ordered mutation replay', () => {
         await queue.replayMutations()
         expect(sender).toHaveBeenCalledOnce()
         expect(queue.pendingMutations()[0]).toMatchObject({ status: 'failed', error: 'Send failed' })
-        expect(JSON.parse([...values.values()][0])[0]).toMatchObject({ status: 'failed' })
+        expect(JSON.parse(values.get('pancake:offline-mutations:v1')!)[0]).toMatchObject({ status: 'failed' })
         queue.retryMutation(id)
         await queue.replayMutations()
         expect(sender).toHaveBeenCalledTimes(2)
@@ -88,7 +88,7 @@ describe('durable ordered mutation replay', () => {
         expect(queue.pendingMutations()).toEqual([])
         if (outcome === 'resolve') expect(queue.pendingMutations('account')).toEqual([])
         else expect(queue.pendingMutations('account')).toEqual([expect.objectContaining({ accountId: 'account', status: 'failed', error: 'Old send failed' })])
-        expect(JSON.parse([...values.values()][0])).toEqual(queue.pendingMutations('account'))
+        expect(JSON.parse(values.get('pancake:offline-mutations:v1')!)).toEqual(queue.pendingMutations('account'))
     })
 
     it('ignores retry while a pending action is already being sent', async () => {

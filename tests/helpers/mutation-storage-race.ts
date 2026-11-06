@@ -24,13 +24,14 @@ export function storageRace(initial: QueuedMutation[] = []) {
         values, sends, now: 2_000_000_000_000,
         onGet: undefined as ((key: string, value: string | null) => void) | undefined,
         onSet: undefined as ((key: string, value: string) => void) | undefined,
+        onBeforeSet: undefined as ((key: string, value: string) => void) | undefined,
         onRemove: undefined as ((key: string) => void) | undefined,
     }
     const storage = {
         get length() { return values.size },
         key: (index: number) => [...values.keys()][index] ?? null,
         getItem: (key: string) => { const value = values.get(key) ?? null; state.onGet?.(key, value); return value },
-        setItem: (key: string, value: string) => { values.set(key, value); state.onSet?.(key, value) },
+        setItem: (key: string, value: string) => { state.onBeforeSet?.(key, value); values.set(key, value); state.onSet?.(key, value) },
         removeItem: (key: string) => { state.onRemove?.(key); values.delete(key) },
     }
     const run = (tab: Context, code: string) => runInContext(code, tab)

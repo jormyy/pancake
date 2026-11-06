@@ -126,7 +126,7 @@ describe('settled mutation persistence across reload', () => {
         expect(sender).toHaveBeenCalledTimes(sends ? 1 : 0)
     })
 
-    it('checks only known job completion keys during reads without enumerating storage', async () => {
+    it('enumerates pending entries and checks only known completion keys', async () => {
         const session = await import('@/lib/session-cache-registry')
         session.setSessionOwner('account')
         const queue = await import('@/lib/cache/mutation-queue')
@@ -135,10 +135,10 @@ describe('settled mutation persistence across reload', () => {
         void queue.queueMutation(input).catch(() => {})
         const keys = queue.pendingMutations().map(job => completionPrefix + `account:${job.id}`)
         const get = vi.spyOn(storage, 'getItem')
-        const enumerate = vi.spyOn(storage, 'key').mockImplementation(() => { throw new Error('Reads must not enumerate') })
+        const enumerate = vi.spyOn(storage, 'key')
         queue.mutationSnapshot()
-        expect(get.mock.calls.map(([key]) => key).sort()).toEqual(keys.sort())
-        expect(enumerate).not.toHaveBeenCalled()
+        expect(get.mock.calls.map(([key]) => key).filter(key => key.startsWith(completionPrefix)).sort()).toEqual(keys.sort())
+        expect(enumerate).toHaveBeenCalled()
     })
 
     it('keeps the uncertain failed job when the external completion record cannot be saved', async () => {
@@ -226,6 +226,7 @@ describe('settled mutation persistence across reload', () => {
         const id = '10000000-0000-4000-8000-000000000001'
         const result = queue.queueMutation(input, id).catch(error => error.message)
         void secondTab.queueMutation({ ...input, path: '/b' }, '10000000-0000-4000-8000-000000000002')
+        values.set(key, JSON.stringify(JSON.parse(values.get(key)!).filter((job: { path: string }) => job.path !== '/a')))
         expect(JSON.parse(values.get(key)!).map((job: { path: string }) => job.path)).toEqual(['/b'])
         vi.spyOn(storage, 'setItem').mockImplementationOnce(() => { throw new Error('Disk full') })
         online = true

@@ -168,3 +168,46 @@ it('keeps observed completion after saving unrelated work while marker reads fai
     race.run(second, 'queue.queueMutation(input,input.id).then(v=>retry=v,e=>retry=e.message)')
     expect(second.retry).toBe('This action belongs to an earlier session. Refresh before retrying.')
 })
+
+it('preserves another tab’s saved action when completion publishes an older queue', async () => {
+    const { storageRace, records, completionPrefix, enqueue, start } = await import('../../helpers/mutation-storage-race')
+    const race = storageRace([records[0]])
+    const first = race.tab('A'), second = race.tab('A')
+    race.run(first, 'queue.configureMutationReplay(async()=>{record();navigator.onLine=false})')
+    second.input = { ...records[1], accountId: 'A', path: '/second' }
+    race.run(second, enqueue)
+    race.run(first, start)
+    const restored = race.tab('A')
+    expect(race.run(restored, 'queue.pendingMutations().map(job=>job.path)')).toEqual(['/second'])
+    expect(race.values.has(completionPrefix + 'A:' + records[1].id)).toBe(false)
+    expect(race.sends).toEqual(['A'])
+})
+
+it('restores an action enqueued between a snapshot read and its stale write', async () => {
+    const { storageRace, records, enqueue, start } = await import('../../helpers/mutation-storage-race')
+    const race = storageRace([records[0]])
+    const first = race.tab('A'), second = race.tab('A')
+    race.run(first, 'queue.configureMutationReplay(async()=>{record();navigator.onLine=false})')
+    second.input = { ...records[1], accountId: 'A', path: '/second' }
+    race.onBeforeSet = key => {
+        if (key !== 'pancake:offline-mutations:v1') return
+        race.onBeforeSet = undefined
+        race.run(second, enqueue)
+    }
+    race.run(first, start)
+    expect(race.values.get('pancake:offline-mutations:v1')).toBe('[]')
+    const restored = race.tab('A')
+    expect(race.run(restored, 'queue.pendingMutations().map(job=>job.path)')).toEqual(['/second'])
+    expect(race.sends).toEqual(['A'])
+})
+
+it('keeps a durably saved action when only the shared snapshot write fails', async () => {
+    const { storageRace, enqueue } = await import('../../helpers/mutation-storage-race')
+    const race = storageRace()
+    const first = race.tab('A')
+    race.onBeforeSet = key => { if (key === 'pancake:offline-mutations:v1') throw new Error('Snapshot write failed') }
+    race.run(first, enqueue)
+    expect(first.result).toBe('pending')
+    const restored = race.tab('A')
+    expect(race.run(restored, 'queue.pendingMutations().length')).toBe(1)
+})

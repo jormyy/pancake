@@ -6,6 +6,7 @@ import type { QueuedMutation } from '@/lib/cache/mutation-queue'
 const completionKey = 'pancake:offline-mutation-completions:v1'
 const completionPrefix = 'pancake:offline-mutation-done:v1:'
 const queueKey = 'pancake:offline-mutations:v1'
+const entryPrefix = 'pancake:offline-mutation:v1:'
 const seeds = [1, 7, 42, 2026, 65537, 104729, 3735928559, 4277009102]
 type Action = { id: string; accountId: string; phase: 'pending' | 'sending' | 'failed' | 'settled'; sends: number; allowance: number; outcomeAt: number; error?: string }
 type Held = { resolve: () => void; reject: () => void }
@@ -26,6 +27,7 @@ it.each(seeds)('preserves queue invariants through seeded sequence %i', async se
     let saved: string | undefined = '{invalid'
     let completedSaved: string | undefined
     const completionValues = new Map<string, string>()
+    const entryValues = new Map<string, string>()
     const callers = new Map<string, unknown>()
     const waiting = new Set<string>()
     const overwritten = new Set<string>()
@@ -36,15 +38,21 @@ it.each(seeds)('preserves queue invariants through seeded sequence %i', async se
     let savedAt = 0
     let account = 'A'
     let stepCount = 0
-    const disk = (): QueuedMutation[] => { try { return JSON.parse(saved ?? '[]') } catch { return [] } }
+    const disk = (): QueuedMutation[] => {
+        let legacy: QueuedMutation[] = []
+        try { const value: unknown = JSON.parse(saved ?? '[]'); if (Array.isArray(value)) legacy = value } catch {}
+        const entries = [...entryValues.values()].map(value => JSON.parse(value) as QueuedMutation)
+        return [...new Map([...legacy, ...entries].map(job => [job.id, job])).values()].filter(job => !completionValues.has(completionPrefix + `${job.accountId}:${job.id}`))
+    }
     const storage = {
-        get length() { return (saved === undefined ? 0 : 1) + completionValues.size },
-        key: (index: number) => [...(saved === undefined ? [] : [queueKey]), ...completionValues.keys()][index] ?? null,
-        getItem: (name: string) => name === completionKey ? completedSaved ?? null : name === queueKey ? saved ?? null : completionValues.get(name) ?? null,
+        get length() { return (saved === undefined ? 0 : 1) + completionValues.size + entryValues.size },
+        key: (index: number) => [...(saved === undefined ? [] : [queueKey]), ...completionValues.keys(), ...entryValues.keys()][index] ?? null,
+        getItem: (name: string) => name === completionKey ? completedSaved ?? null : name === queueKey ? saved ?? null : completionValues.get(name) ?? entryValues.get(name) ?? null,
         setItem: (name: string, value: string) => {
             if (name === completionKey) { completedSaved = value; return }
             if (name.startsWith(completionPrefix)) { completionValues.set(name, value); return }
             if (failures > 0) { failures--; coverage.writeFailure = (coverage.writeFailure ?? 0) + 1; throw new Error('Injected storage failure') }
+            if (name.startsWith(entryPrefix)) { entryValues.set(name, value); savedAt = ++clock; return }
             saved = value
             overwritten.clear()
             savedAt = ++clock
@@ -53,6 +61,7 @@ it.each(seeds)('preserves queue invariants through seeded sequence %i', async se
             if (name === completionKey) { completedSaved = undefined; return }
             if (name.startsWith(completionPrefix)) { completionValues.delete(name); return }
             if (failures > 0) { failures--; coverage.writeFailure = (coverage.writeFailure ?? 0) + 1; throw new Error('Injected removal failure') }
+            if (name.startsWith(entryPrefix)) { entryValues.delete(name); savedAt = ++clock; return }
             saved = undefined
             overwritten.clear()
             savedAt = ++clock
@@ -211,6 +220,7 @@ it.each(seeds)('preserves queue invariants through seeded sequence %i', async se
         if (operation === 'enqueue') {
             actions.set(action.id, action)
             const job: QueuedMutation = { id: action.id, accountId: action.accountId, leagueId: null, rowIds: [action.id], path: `/external/${action.id}`, body: '{}', status: 'pending', error: null, createdAt: Date.now() }
+            entryValues.set(entryPrefix + `${job.accountId}:${job.id}`, JSON.stringify(job))
             saved = JSON.stringify([...records, job])
             coverage.externalEnqueueApplied = (coverage.externalEnqueueApplied ?? 0) + 1
         } else {
@@ -218,7 +228,9 @@ it.each(seeds)('preserves queue invariants through seeded sequence %i', async se
             if (operation === 'reject') {
                 action.phase = 'failed'
                 action.error = `Other tab rejected ${action.id}`
-                saved = JSON.stringify(records.map(job => job.id === action.id ? { ...job, status: 'failed', error: action.error } : job))
+                const failed = { ...records.find(job => job.id === action.id)!, status: 'failed', error: action.error }
+                entryValues.set(entryPrefix + `${action.accountId}:${action.id}`, JSON.stringify(failed))
+                saved = JSON.stringify(records.map(job => job.id === action.id ? failed : job))
                 action.outcomeAt = savedAt
                 coverage.tabStatusWrite = (coverage.tabStatusWrite ?? 0) + 1
             } else {
@@ -244,7 +256,7 @@ it.each(seeds)('preserves queue invariants through seeded sequence %i', async se
         actions.set(id, { id, accountId, phase: 'pending', sends: 0, allowance: 1, outcomeAt: 0 })
         const job: QueuedMutation = { id, accountId, leagueId: null, rowIds: [id], path: `/stale/${id}`, body: '{}', status: 'pending', error: null, createdAt: Date.now() }
         saved = JSON.stringify([...disk().filter(item => item.id !== action.id), job])
-        overwritten.add(action.id)
+        if (!entryValues.has(entryPrefix + `${action.accountId}:${action.id}`)) overwritten.add(action.id)
         coverage.staleWriteApplied = (coverage.staleWriteApplied ?? 0) + 1
         switchAccount()
         switchAccount()

@@ -6,6 +6,7 @@ export type MutationInput = Pick<QueuedMutation, 'accountId' | 'leagueId' | 'row
 type Sender = (mutation: QueuedMutation) => Promise<unknown>
 const key = 'pancake:offline-mutations:v1'
 const completionPrefix = 'pancake:offline-mutation-done:v1:'
+const entryPrefix = 'pancake:offline-mutation:v1:'
 const completedJobs = new Set<string>()
 const completionMaxAge = 7 * 24 * 60 * 60 * 1000
 let jobs: QueuedMutation[] | undefined
@@ -33,12 +34,35 @@ function rejectCompleted(job: QueuedMutation): void {
     waiters.delete(job.id)
 }
 
+function isQueuedMutation(job: unknown): job is QueuedMutation {
+    if (!job || typeof job !== 'object') return false
+    const value = job as QueuedMutation
+    return typeof value.id === 'string' && typeof value.accountId === 'string' && typeof value.path === 'string' && typeof value.body === 'string' && Array.isArray(value.rowIds) && ['pending', 'failed'].includes(value.status)
+}
+
 function read(): QueuedMutation[] {
+    const entries = new Map<string, QueuedMutation>()
+    if (typeof window !== 'undefined') try {
+        const storage = window.localStorage
+        for (let index = 0; index < storage.length; index++) {
+            const name = storage.key(index)
+            if (!name?.startsWith(entryPrefix)) continue
+            try {
+                const value: unknown = JSON.parse(storage.getItem(name) ?? 'null')
+                if (isQueuedMutation(value) && name === entryPrefix + jobKey(value)) entries.set(jobKey(value), value)
+            } catch {}
+        }
+    } catch {}
     if (!jobs) {
         let saved: unknown
         try { saved = typeof window !== 'undefined' ? JSON.parse(window.localStorage.getItem(key) ?? '[]') : [] } catch { saved = undefined }
-        const stored = Array.isArray(saved) ? saved.filter((job): job is QueuedMutation => job && typeof job.id === 'string' && typeof job.accountId === 'string' && typeof job.path === 'string' && typeof job.body === 'string' && Array.isArray(job.rowIds) && ['pending', 'failed'].includes(job.status)) : []
-        jobs = [...new Map([...stored.map(job => [jobKey(job), job] as const), ...unsaved]).values()].filter((job): job is QueuedMutation => job !== null)
+        const stored = Array.isArray(saved) ? saved.filter(isQueuedMutation) : []
+        for (const job of stored) if (!entries.has(jobKey(job)) && !unsaved.has(jobKey(job))) unsaved.set(jobKey(job), job)
+        jobs = [...new Map([...stored.map(job => [jobKey(job), job] as const), ...entries, ...unsaved]).values()].filter((job): job is QueuedMutation => job !== null)
+    } else {
+        const known = new Set(jobs.map(jobKey))
+        const added = [...entries.values()].filter(job => !known.has(jobKey(job)) && !unsaved.has(jobKey(job)))
+        if (added.length) jobs = [...jobs, ...added]
     }
     const completed = new Set([...new Set([...jobs.map(jobKey), ...unsaved.keys()])].filter(isCompleted))
     for (const id of completed) unsaved.set(id, null)
@@ -62,12 +86,19 @@ function complete(job: QueuedMutation): void {
 function publish(required = false): void {
     if (typeof window !== 'undefined') {
         try {
-            window.localStorage.setItem(key, JSON.stringify(read()))
+            for (const [id, job] of unsaved) {
+                if (job === null) window.localStorage.removeItem(entryPrefix + id)
+                else window.localStorage.setItem(entryPrefix + id, JSON.stringify(job))
+            }
             unsaved.clear()
+            try { window.localStorage.setItem(key, JSON.stringify(read())) }
+            catch (error) {
+                console.error('Could not save the pending action list.', error)
+                if (!read().length) try { window.localStorage.removeItem(key) } catch {}
+            }
         } catch (error) {
             if (required) throw new Error('Could not save your pending action. Keep this screen open and retry.')
             console.error('Could not save the result of this action.', error)
-            if (!read().length) try { window.localStorage.removeItem(key); unsaved.clear() } catch {}
         }
     }
     for (const listener of listeners) {
@@ -105,8 +136,12 @@ export function queueMutation<T>(input: MutationInput, id?: string): Promise<T> 
     const job: QueuedMutation = previous.find(item => item.id === selectedId && item.accountId === input.accountId)
         ?? { ...input, id: selectedId, status: 'pending', error: null, createdAt: Date.now() }
     if (!previous.includes(job)) jobs = [...previous, job]
+    const previousUnsaved = unsaved.get(jobKey(job))
+    unsaved.set(jobKey(job), job)
     try { publish(true) } catch (error) {
         jobs = previous
+        if (previousUnsaved === undefined) unsaved.delete(jobKey(job))
+        else unsaved.set(jobKey(job), previousUnsaved)
         waiters.delete(selectedId)
         reject(error as Error)
         return promise as Promise<T>
@@ -122,7 +157,14 @@ export function retryMutation(id: string): void {
     const previous = read()
     const retry: QueuedMutation = { ...job, status: 'pending', error: null }
     jobs = previous.map(item => item === job ? retry : item)
-    try { publish(true) } catch (error) { jobs = previous; throw error }
+    const previousUnsaved = unsaved.get(jobKey(job))
+    unsaved.set(jobKey(job), retry)
+    try { publish(true) } catch (error) {
+        jobs = previous
+        if (previousUnsaved === undefined) unsaved.delete(jobKey(job))
+        else unsaved.set(jobKey(job), previousUnsaved)
+        throw error
+    }
     void replayMutations()
 }
 

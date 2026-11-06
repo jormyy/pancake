@@ -5,7 +5,8 @@ import { ModuleKind, ScriptTarget, transpileModule } from 'typescript'
 import type { QueuedMutation } from '@/lib/cache/mutation-queue'
 
 const tabSource = `
-const legacy = 'pancake:offline-mutation-completions:v1', prefix = 'pancake:offline-mutation-done:v1:';
+const legacy = 'pancake:offline-mutation-completions:v1', prefix = 'pancake:offline-mutation-done:v1:', entry = 'pancake:offline-mutation:v1:';
+const storageKeys = () => ['pancake:offline-mutations:v1', ...keys.filter((_, index) => Atomics.load(state, 1) & (1 << index)).map(key => prefix + key), ...keys.filter((_, index) => Atomics.load(state, 3) & (1 << index)).map(key => entry + key)];
 const keys = records.map(job => job.accountId + ':' + job.id);
 let published = false;
 const barrier = () => {
@@ -13,7 +14,13 @@ const barrier = () => {
     while (Atomics.load(state, 2) < 2) Atomics.wait(state, 2, 1);
 };
 const storage = {
+    get length() { return storageKeys().length; },
+    key(index) { return storageKeys()[index] ?? null; },
     getItem(key) {
+        if (key.startsWith(entry)) {
+            const index = keys.indexOf(key.slice(entry.length));
+            return index >= 0 && (Atomics.load(state, 3) & (1 << index)) ? JSON.stringify(records[index]) : null;
+        }
         if (key.startsWith(prefix)) {
             const index = keys.indexOf(key.slice(prefix.length));
             return index >= 0 && (Atomics.load(state, 1) & (1 << index)) ? String(Date.now()) : null;
@@ -26,6 +33,10 @@ const storage = {
         return value;
     },
     setItem(key, value) {
+        if (key.startsWith(entry)) {
+            Atomics.or(state, 3, 1 << keys.indexOf(key.slice(entry.length)));
+            return;
+        }
         if (key.startsWith(prefix)) {
             if (race) barrier();
             Atomics.or(state, 1, 1 << keys.indexOf(key.slice(prefix.length)));
@@ -36,7 +47,11 @@ const storage = {
         Atomics.store(state, completion ? 1 : 0, mask);
         if (!completion) published = true;
     },
-    removeItem(key) { Atomics.store(state, key === legacy ? 1 : 0, 0); }
+    removeItem(key) {
+        if (key.startsWith(entry)) { Atomics.and(state, 3, ~(1 << keys.indexOf(key.slice(entry.length)))); return; }
+        if (key.startsWith(prefix)) { Atomics.and(state, 1, ~(1 << keys.indexOf(key.slice(prefix.length)))); return; }
+        Atomics.store(state, key === legacy ? 1 : 0, 0);
+    }
 };
 const context = vm.createContext({ console, navigator: { onLine: false }, window: { localStorage: storage, addEventListener() {} } });
 const cache = {};
@@ -56,7 +71,7 @@ export async function runCompletionRace(records: QueuedMutation[]) {
             compilerOptions: { module: ModuleKind.CommonJS, target: ScriptTarget.ES2022 },
         }).outputText,
     ]))
-    const state = new Int32Array(new SharedArrayBuffer(12))
+    const state = new Int32Array(new SharedArrayBuffer(16))
     state[0] = 3
     const tab = new Function('sources', 'records', 'state', 'owner', 'race', 'vm', tabSource)
     const stale = records.map(job => tab(sources, records, state, job.accountId, false, vm))
