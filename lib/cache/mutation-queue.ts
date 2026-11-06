@@ -7,6 +7,10 @@ type Sender = (mutation: QueuedMutation) => Promise<unknown>
 const key = 'pancake:offline-mutations:v1'
 const completionPrefix = 'pancake:offline-mutation-done:v1:'
 const entryPrefix = 'pancake:offline-mutation:v1:'
+const failurePrefix = 'pancake:offline-mutation-failure:v1:'
+const retryPrefix = 'pancake:offline-mutation-retry:v1:'
+const failures = new Map<string, Map<string, string>>()
+const acknowledged = new Map<string, Set<string>>()
 const completedJobs = new Set<string>()
 const completionMaxAge = 7 * 24 * 60 * 60 * 1000
 let jobs: QueuedMutation[] | undefined
@@ -40,37 +44,50 @@ function isQueuedMutation(job: unknown): job is QueuedMutation {
     return typeof value.id === 'string' && typeof value.accountId === 'string' && typeof value.path === 'string' && typeof value.body === 'string' && Array.isArray(value.rowIds) && ['pending', 'failed'].includes(value.status)
 }
 
+function observeFailure(id: string, failureId: string, error: string): void {
+    if (!failures.has(id)) failures.set(id, new Map())
+    failures.get(id)!.set(failureId, error)
+}
+
+function acknowledge(id: string, ids: string[]): void {
+    if (!acknowledged.has(id)) acknowledged.set(id, new Set())
+    for (const failureId of ids) acknowledged.get(id)!.add(failureId)
+}
+
 function read(): QueuedMutation[] {
     const entries = new Map<string, QueuedMutation>()
     if (typeof window !== 'undefined') try {
         const storage = window.localStorage
         for (let index = 0; index < storage.length; index++) {
             const name = storage.key(index)
-            if (!name?.startsWith(entryPrefix)) continue
+            if (!name || ![entryPrefix, failurePrefix, retryPrefix].some(prefix => name.startsWith(prefix))) continue
             try {
-                const value: unknown = JSON.parse(storage.getItem(name) ?? 'null')
-                if (isQueuedMutation(value) && name === entryPrefix + jobKey(value)) entries.set(jobKey(value), value)
+                const value = JSON.parse(storage.getItem(name) ?? 'null')
+                if (name.startsWith(entryPrefix) && isQueuedMutation(value) && name === entryPrefix + jobKey(value)) entries.set(jobKey(value), value)
+                else if (name.startsWith(failurePrefix) && value && typeof value.id === 'string' && typeof value.failureId === 'string' && typeof value.error === 'string' && name === failurePrefix + value.id + ':' + value.failureId) observeFailure(value.id, value.failureId, value.error)
+                else if (name.startsWith(retryPrefix) && value && typeof value.id === 'string' && Array.isArray(value.failures) && value.failures.every((id: unknown) => typeof id === 'string') && name.startsWith(retryPrefix + value.id + ':')) acknowledge(value.id, value.failures)
             } catch {}
         }
     } catch {}
-    if (!jobs) {
-        let saved: unknown
-        try { saved = typeof window !== 'undefined' ? JSON.parse(window.localStorage.getItem(key) ?? '[]') : [] } catch { saved = undefined }
-        const stored = Array.isArray(saved) ? saved.filter(isQueuedMutation) : []
-        for (const job of stored) if (!entries.has(jobKey(job)) && !unsaved.has(jobKey(job))) unsaved.set(jobKey(job), job)
-        jobs = [...new Map([...stored.map(job => [jobKey(job), job] as const), ...entries, ...unsaved]).values()].filter((job): job is QueuedMutation => job !== null)
-    } else {
-        const updated = jobs.map(job => {
-            const saved = entries.get(jobKey(job))
-            if (job.status !== 'pending' || saved?.status !== 'failed' || sending.has(job.id) || unsaved.get(jobKey(job)) === null) return job
-            if (unsaved.has(jobKey(job))) unsaved.set(jobKey(job), saved)
-            return saved
-        })
-        if (updated.some((job, index) => job !== jobs![index])) jobs = updated
-        const known = new Set(jobs.map(jobKey))
-        const added = [...entries.values()].filter(job => !known.has(jobKey(job)) && !unsaved.has(jobKey(job)))
-        if (added.length) jobs = [...jobs, ...added]
+    let saved: unknown
+    try { saved = typeof window !== 'undefined' ? JSON.parse(window.localStorage.getItem(key) ?? '[]') : [] } catch { saved = undefined }
+    const stored: QueuedMutation[] = Array.isArray(saved) ? saved.filter(isQueuedMutation) : []
+    for (const job of [...stored.filter(job => !entries.has(jobKey(job))), ...entries.values()]) {
+        if (job.status === 'failed') observeFailure(jobKey(job), 'legacy', job.error ?? 'Could not send this action.')
     }
+    for (const job of stored) if (!entries.has(jobKey(job)) && !unsaved.has(jobKey(job)) && !completedJobs.has(jobKey(job))) unsaved.set(jobKey(job), jobs?.find(item => jobKey(item) === jobKey(job)) ?? job)
+    const candidate = [...new Map([...(jobs ?? []).map(job => [jobKey(job), job] as const), ...stored.filter(job => !completedJobs.has(jobKey(job))).map(job => [jobKey(job), job] as const), ...[...entries].filter(([id]) => !completedJobs.has(id)), ...(jobs ?? []).map(job => [jobKey(job), job] as const), ...unsaved]).values()].filter((job): job is QueuedMutation => job !== null)
+    const updated = candidate.map(job => {
+        if (sending.has(job.id)) return job
+        const open = [...failures.get(jobKey(job)) ?? []].filter(([id]) => !acknowledged.get(jobKey(job))?.has(id))
+        const error = open.at(-1)?.[1] ?? null
+        const status = open.length ? 'failed' : 'pending'
+        if (job.status === status && job.error === error) return job
+        const changed: QueuedMutation = { ...job, status, error }
+        if (unsaved.get(jobKey(job))) unsaved.set(jobKey(job), changed)
+        return changed
+    })
+    if (!jobs || updated.length !== jobs.length || updated.some((job, index) => job !== jobs![index])) jobs = updated
     const completed = new Set([...new Set([...jobs.map(jobKey), ...unsaved.keys()])].filter(isCompleted))
     for (const id of completed) unsaved.set(id, null)
     const active = jobs.filter(job => !completed.has(jobKey(job)) && unsaved.get(jobKey(job)) !== null)
@@ -94,12 +111,17 @@ function complete(job: QueuedMutation): void {
     publish()
 }
 
-function publish(required = false): void {
+function publish(required = false, last?: string): void {
     if (typeof window !== 'undefined') {
         try {
-            for (const [id, job] of unsaved) {
+            read()
+            const changes = [...unsaved].sort(([left], [right]) => Number(left === last) - Number(right === last))
+            for (const [id, job] of changes) {
                 if (job === null) window.localStorage.removeItem(entryPrefix + id)
-                else window.localStorage.setItem(entryPrefix + id, JSON.stringify(job))
+                else {
+                    for (const [failureId, error] of failures.get(id) ?? []) window.localStorage.setItem(failurePrefix + id + ':' + failureId, JSON.stringify({ id, failureId, error }))
+                    window.localStorage.setItem(entryPrefix + id, JSON.stringify({ ...job, status: 'pending', error: null }))
+                }
             }
             unsaved.clear()
             try { window.localStorage.setItem(key, JSON.stringify(read())) }
@@ -149,7 +171,7 @@ export function queueMutation<T>(input: MutationInput, id?: string): Promise<T> 
     if (!previous.includes(job)) jobs = [...previous, job]
     const previousUnsaved = unsaved.get(jobKey(job))
     unsaved.set(jobKey(job), job)
-    try { publish(true) } catch (error) {
+    try { publish(true, jobKey(job)) } catch (error) {
         jobs = previous
         if (previousUnsaved === undefined) unsaved.delete(jobKey(job))
         else unsaved.set(jobKey(job), previousUnsaved)
@@ -165,17 +187,14 @@ export function queueMutation<T>(input: MutationInput, id?: string): Promise<T> 
 export function retryMutation(id: string): void {
     const job = read().find(item => item.id === id && item.accountId === sessionOwner())
     if (!job || job.status !== 'failed') return
-    const previous = read()
-    const retry: QueuedMutation = { ...job, status: 'pending', error: null }
-    jobs = previous.map(item => item === job ? retry : item)
-    const previousUnsaved = unsaved.get(jobKey(job))
-    unsaved.set(jobKey(job), retry)
-    try { publish(true) } catch (error) {
-        jobs = previous
-        if (previousUnsaved === undefined) unsaved.delete(jobKey(job))
-        else unsaved.set(jobKey(job), previousUnsaved)
-        throw error
-    }
+    if ([...unsaved.values()].some(value => value !== null)) publish(true)
+    const ids = [...failures.get(jobKey(job))?.keys() ?? []]
+    if (typeof window !== 'undefined') try {
+        window.localStorage.setItem(retryPrefix + jobKey(job) + ':' + requestId(), JSON.stringify({ id: jobKey(job), failures: ids }))
+    } catch { throw new Error('Could not save your pending action. Keep this screen open and retry.') }
+    acknowledge(jobKey(job), ids)
+    read()
+    publish()
     void replayMutations()
 }
 
@@ -188,6 +207,10 @@ export function replayMutations(): Promise<void> {
             if (generation !== sessionGeneration()) return
             const job = pendingMutations()[0]
             if (!job || job.status === 'failed') { if ([...unsaved.values()].includes(null)) publish(); return }
+            if ([...unsaved.values()].some(value => value !== null)) {
+                try { publish(true) } catch { return }
+                continue
+            }
             const active = sending.get(job.id)
             if (active) { await active; continue }
             const sender = senders.get(job.transport ?? 'api')
@@ -210,6 +233,7 @@ export function replayMutations(): Promise<void> {
                 if (current() && isCompleted(jobKey(job))) rejectCompleted(job)
                 if (typeof navigator !== 'undefined' && navigator.onLine === false) return
                 const error = cause instanceof Error ? cause.message : 'Could not send this action.'
+                observeFailure(jobKey(job), requestId(), error)
                 const failed: QueuedMutation = { ...job, status: 'failed', error }
                 unsaved.set(jobKey(job), failed)
                 jobs = read().map(item => jobKey(item) === jobKey(job) ? failed : item)

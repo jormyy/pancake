@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs'
+import { webcrypto } from 'node:crypto'
 import { createContext, runInContext, type Context } from 'node:vm'
 import { ModuleKind, ScriptTarget, transpileModule } from 'typescript'
 import type { QueuedMutation } from '@/lib/cache/mutation-queue'
@@ -37,7 +38,7 @@ export function storageRace(initial: QueuedMutation[] = []) {
     const run = (tab: Context, code: string) => runInContext(code, tab)
     const tab = (owner: string) => {
         const context = createContext({
-            console, window: { localStorage: storage, addEventListener() {} }, navigator: { onLine: false },
+            console, crypto: webcrypto, window: { localStorage: storage, addEventListener() {} }, navigator: { onLine: false },
             input: records.find(job => job.accountId === owner), record: () => sends.push(owner), now: () => state.now,
         }, { microtaskMode: 'afterEvaluate' })
         run(context, 'Date.now=now')

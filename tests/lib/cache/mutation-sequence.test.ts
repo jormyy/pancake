@@ -7,6 +7,8 @@ const completionKey = 'pancake:offline-mutation-completions:v1'
 const completionPrefix = 'pancake:offline-mutation-done:v1:'
 const queueKey = 'pancake:offline-mutations:v1'
 const entryPrefix = 'pancake:offline-mutation:v1:'
+const failurePrefix = 'pancake:offline-mutation-failure:v1:'
+const retryPrefix = 'pancake:offline-mutation-retry:v1:'
 const seeds = [1, 7, 42, 2026, 65537, 104729, 3735928559, 4277009102]
 type Action = { id: string; accountId: string; phase: 'pending' | 'sending' | 'failed' | 'settled'; sends: number; allowance: number; outcomeAt: number; error?: string }
 type Held = { resolve: () => void; reject: () => void }
@@ -28,6 +30,7 @@ it.each(seeds)('preserves queue invariants through seeded sequence %i', async se
     let completedSaved: string | undefined
     const completionValues = new Map<string, string>()
     const entryValues = new Map<string, string>()
+    const eventValues = new Map<string, string>()
     const callers = new Map<string, unknown>()
     const waiting = new Set<string>()
     const overwritten = new Set<string>()
@@ -42,16 +45,30 @@ it.each(seeds)('preserves queue invariants through seeded sequence %i', async se
         let legacy: QueuedMutation[] = []
         try { const value: unknown = JSON.parse(saved ?? '[]'); if (Array.isArray(value)) legacy = value } catch {}
         const entries = [...entryValues.values()].map(value => JSON.parse(value) as QueuedMutation)
-        return [...new Map([...legacy, ...entries].map(job => [job.id, job])).values()].filter(job => !completionValues.has(completionPrefix + `${job.accountId}:${job.id}`))
+        return [...new Map([...legacy, ...entries].map(job => [job.id, job])).values()].filter(job => !completionValues.has(completionPrefix + `${job.accountId}:${job.id}`)).map(job => {
+            const id = `${job.accountId}:${job.id}`
+            const rejected = new Map<string, string>()
+            if (job.status === 'failed') rejected.set('legacy', job.error ?? 'Could not send this action.')
+            const retried = new Set<string>()
+            for (const [name, raw] of eventValues) {
+                const event = JSON.parse(raw)
+                if (event.id !== id) continue
+                if (name.startsWith(failurePrefix)) rejected.set(event.failureId, event.error)
+                if (name.startsWith(retryPrefix)) for (const failureId of event.failures) retried.add(failureId)
+            }
+            const open = [...rejected].filter(([failureId]) => !retried.has(failureId))
+            return { ...job, status: open.length ? 'failed' : 'pending', error: open.at(-1)?.[1] ?? null } as QueuedMutation
+        })
     }
     const storage = {
-        get length() { return (saved === undefined ? 0 : 1) + completionValues.size + entryValues.size },
-        key: (index: number) => [...(saved === undefined ? [] : [queueKey]), ...completionValues.keys(), ...entryValues.keys()][index] ?? null,
-        getItem: (name: string) => name === completionKey ? completedSaved ?? null : name === queueKey ? saved ?? null : completionValues.get(name) ?? entryValues.get(name) ?? null,
+        get length() { return (saved === undefined ? 0 : 1) + completionValues.size + entryValues.size + eventValues.size },
+        key: (index: number) => [...(saved === undefined ? [] : [queueKey]), ...completionValues.keys(), ...entryValues.keys(), ...eventValues.keys()][index] ?? null,
+        getItem: (name: string) => name === completionKey ? completedSaved ?? null : name === queueKey ? saved ?? null : completionValues.get(name) ?? entryValues.get(name) ?? eventValues.get(name) ?? null,
         setItem: (name: string, value: string) => {
             if (name === completionKey) { completedSaved = value; return }
             if (name.startsWith(completionPrefix)) { completionValues.set(name, value); return }
             if (failures > 0) { failures--; coverage.writeFailure = (coverage.writeFailure ?? 0) + 1; throw new Error('Injected storage failure') }
+            if (name.startsWith(failurePrefix) || name.startsWith(retryPrefix)) { eventValues.set(name, value); savedAt = ++clock; return }
             if (name.startsWith(entryPrefix)) { entryValues.set(name, value); savedAt = ++clock; return }
             saved = value
             overwritten.clear()
@@ -61,6 +78,7 @@ it.each(seeds)('preserves queue invariants through seeded sequence %i', async se
             if (name === completionKey) { completedSaved = undefined; return }
             if (name.startsWith(completionPrefix)) { completionValues.delete(name); return }
             if (failures > 0) { failures--; coverage.writeFailure = (coverage.writeFailure ?? 0) + 1; throw new Error('Injected removal failure') }
+            if (name.startsWith(failurePrefix) || name.startsWith(retryPrefix)) { eventValues.delete(name); savedAt = ++clock; return }
             if (name.startsWith(entryPrefix)) { entryValues.delete(name); savedAt = ++clock; return }
             saved = undefined
             overwritten.clear()
@@ -229,7 +247,10 @@ it.each(seeds)('preserves queue invariants through seeded sequence %i', async se
                 action.phase = 'failed'
                 action.error = `Other tab rejected ${action.id}`
                 const failed = { ...records.find(job => job.id === action.id)!, status: 'failed', error: action.error }
-                entryValues.set(entryPrefix + `${action.accountId}:${action.id}`, JSON.stringify(failed))
+                const failureId = `external-${++clock}`
+                const id = `${action.accountId}:${action.id}`
+                eventValues.set(failurePrefix + id + ':' + failureId, JSON.stringify({ id, failureId, error: action.error }))
+                entryValues.set(entryPrefix + id, JSON.stringify({ ...failed, status: 'pending', error: null }))
                 saved = JSON.stringify(records.map(job => job.id === action.id ? failed : job))
                 action.outcomeAt = savedAt
                 coverage.tabStatusWrite = (coverage.tabStatusWrite ?? 0) + 1
