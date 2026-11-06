@@ -87,7 +87,7 @@ async function releaseBroadcast(topic: string, connection: BroadcastConnection, 
     if (connection.listeners.size) return
     if (broadcasts.get(topic) === connection) broadcasts.delete(topic)
     if (!connection.started) return
-    const retiring = { channel: connection.channel, pending: supabase.removeChannel(connection.channel) }
+    const retiring = { channel: connection.channel, pending: supabase.removeChannel(connection.channel).catch(() => supabase.removeChannel(connection.channel)) }
     retiringBroadcasts.set(topic, retiring)
     try { await retiring.pending }
     finally { if (retiringBroadcasts.get(topic) === retiring) retiringBroadcasts.delete(topic) }

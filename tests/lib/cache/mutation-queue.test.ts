@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const identity = vi.hoisted(() => ({ owner: 'account', generation: 0, clears: [] as (() => void)[] }))
 vi.mock('@/lib/session-cache-registry', () => ({ sessionOwner: () => identity.owner, sessionGeneration: () => identity.generation, onSessionCachesCleared: (callback: () => void) => identity.clears.push(callback) }))
 const values = new Map<string, string>()
@@ -9,7 +9,36 @@ beforeEach(() => {
     vi.resetModules(); values.clear(); identity.owner = 'account'; identity.generation = 0; identity.clears = []; online = false
     vi.stubGlobal('navigator', { get onLine() { return online } }); vi.stubGlobal('window', { localStorage: storage, addEventListener: vi.fn() })
 })
+afterEach(() => { vi.restoreAllMocks() })
 describe('durable ordered mutation replay', () => {
+    it.each([
+        ['storage', 'sent'], ['storage', 'failed'], ['subscriber', 'sent'], ['subscriber', 'failed'],
+    ] as const)('settles a %s fault after the sender is %s without losing its result', async (fault, outcome) => {
+        const report = vi.spyOn(console, 'error').mockImplementation(() => {})
+        const queue = await import('@/lib/cache/mutation-queue')
+        const failure = new Error('Server rejected the action')
+        const sender = vi.fn().mockImplementation(async () => {
+            if (outcome === 'failed') throw failure
+            return 'saved'
+        })
+        queue.configureMutationReplay(sender)
+        let settled: unknown = 'pending'
+        void queue.queueMutation(input).then(value => { settled = value }, error => { settled = error.message })
+        if (fault === 'storage') vi.spyOn(storage, 'setItem').mockImplementationOnce(() => { throw new Error('Disk full') })
+        const changed = vi.fn()
+        if (fault === 'subscriber') queue.subscribeMutations(() => { throw new Error('Broken subscriber') })
+        queue.subscribeMutations(changed)
+        online = true
+        await queue.replayMutations().catch(() => {})
+        await Promise.resolve()
+        expect(settled).toBe(outcome === 'sent' ? 'saved' : failure.message)
+        expect(sender).toHaveBeenCalledOnce()
+        expect(changed).toHaveBeenCalledOnce()
+        expect(report).toHaveBeenCalledOnce()
+        if (outcome === 'sent') expect(queue.pendingMutations()).toEqual([])
+        else expect(queue.pendingMutations()[0]).toMatchObject({ status: 'failed', error: failure.message })
+    })
+
     it.each(['resolve', 'reject'] as const)('starts the next account replay before the old send can %s', async outcome => {
         const queue = await import('@/lib/cache/mutation-queue')
         let finishOld!: (value: string) => void

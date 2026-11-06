@@ -20,11 +20,16 @@ function read(): QueuedMutation[] {
     return jobs
 }
 
-function publish(): void {
+function publish(persistence: 'required' | 'settled' = 'required'): void {
     if (typeof window !== 'undefined') {
-        try { window.localStorage.setItem(key, JSON.stringify(read())) } catch { throw new Error('Could not save your pending action. Keep this screen open and retry.') }
+        try { window.localStorage.setItem(key, JSON.stringify(read())) } catch (error) {
+            if (persistence === 'required') throw new Error('Could not save your pending action. Keep this screen open and retry.')
+            console.error('Could not save the result of this action.', error)
+        }
     }
-    for (const listener of listeners) listener()
+    for (const listener of listeners) {
+        try { listener() } catch (error) { console.error('Could not update pending actions.', error) }
+    }
 }
 
 export function mutationSnapshot(): readonly QueuedMutation[] {
@@ -83,7 +88,7 @@ export function replayMutations(): Promise<void> {
                 const value = await sender(job)
                 if (generation !== sessionGeneration() || job.accountId !== sessionOwner()) return
                 jobs = read().filter(item => item !== job)
-                publish()
+                publish('settled')
                 waiters.get(job.id)?.resolve(value)
                 waiters.delete(job.id)
             } catch (cause) {
@@ -91,7 +96,7 @@ export function replayMutations(): Promise<void> {
                 if (typeof navigator !== 'undefined' && navigator.onLine === false) return
                 const error = cause instanceof Error ? cause.message : 'Could not send this action.'
                 jobs = read().map(item => item === job ? { ...item, status: 'failed', error } : item)
-                publish()
+                publish('settled')
                 waiters.get(job.id)?.reject(new Error(error))
                 waiters.delete(job.id)
                 return

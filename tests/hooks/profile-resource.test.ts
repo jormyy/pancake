@@ -30,6 +30,25 @@ beforeEach(() => {
 afterEach(async () => { if (renderer) await act(async () => renderer?.unmount()); renderer = undefined; vi.unstubAllGlobals() })
 
 describe('profile view ownership and readiness', () => {
+    it.each(['profile', 'preferences'] as const)('does not restore a stale sibling patch when updating %s after refresh', async field => {
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+        await act(async () => {
+            if (field === 'profile') latest.setPreferences(previous => ({ ...previous, tradeEnabled: true }))
+            else latest.setProfile(previous => previous ? { ...previous, display_name: 'old local name' } : previous)
+        })
+        const fresh = { profile: { ...profile('a'), display_name: 'fresh server name' }, preferences: { ...preferences, tradeEnabled: false } }
+        state.read.mockResolvedValueOnce(fresh)
+        await act(async () => { await latest.retryProfile() })
+        expect(latest.profile?.display_name).toBe('fresh server name')
+        expect(latest.preferences.tradeEnabled).toBe(false)
+        await act(async () => {
+            if (field === 'profile') latest.setProfile(previous => previous ? { ...previous, display_name: 'new local name' } : previous)
+            else latest.setPreferences(previous => ({ ...previous, tradeEnabled: true }))
+        })
+        if (field === 'profile') expect(latest.preferences).toEqual(fresh.preferences)
+        else expect(latest.profile).toEqual(fresh.profile)
+    })
+
     it('hides the previous user immediately and ignores its late completion', async () => {
         let resolve!: (value: ReturnType<typeof payload>) => void
         const held = new Promise<ReturnType<typeof payload>>(done => { resolve = done })

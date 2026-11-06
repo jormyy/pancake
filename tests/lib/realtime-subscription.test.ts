@@ -58,6 +58,24 @@ afterEach(async () => {
 })
 
 describe('database broadcast subscriptions', () => {
+    it('retries rejected removal before starting a waiting replacement', async () => {
+        const changed = vi.fn()
+        const options = { mode: 'fallback' as const, watches: [{ table: 'trades', filter: 'league_id=eq.retirement-failure' }], onChange: changed }
+        const first = subscribeToTableChanges('first', options)
+        let reject!: (error: Error) => void
+        realtime.removeChannel.mockReturnValueOnce(new Promise((_resolve, fail) => { reject = fail }))
+        const removal = unsubscribeFromTableChanges(first).catch(error => error)
+        subscribeToTableChanges('replacement', options)
+        expect(realtime.channelFactory).toHaveBeenCalledOnce()
+        reject(new Error('Transient removal failure'))
+        await removal
+        await Promise.resolve()
+        expect(realtime.channelFactory).toHaveBeenCalledTimes(2)
+        const payload = { schema: 'public', table: 'trades', eventType: 'UPDATE', new: {}, old: {} }
+        for (const callback of realtime.callbacks) callback.callback({ payload })
+        expect(changed).toHaveBeenCalledExactlyOnceWith()
+    })
+
     it('delivers batched roster and trade changes together with version hints', () => {
         const roster = vi.fn(), trades = vi.fn(), hints = vi.fn()
         subscribeToTableChanges('batch', { mode: 'per-watch', watches: [
