@@ -25,6 +25,11 @@ function publish(persistence: 'required' | 'settled' = 'required'): void {
         try { window.localStorage.setItem(key, JSON.stringify(read())) } catch (error) {
             if (persistence === 'required') throw new Error('Could not save your pending action. Keep this screen open and retry.')
             console.error('Could not save the result of this action.', error)
+            try { window.localStorage.setItem(key, JSON.stringify(read())) } catch {
+                if (read().length === 0) {
+                    try { window.localStorage.removeItem(key) } catch {}
+                }
+            }
         }
     }
     for (const listener of listeners) {
