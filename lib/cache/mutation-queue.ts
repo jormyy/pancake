@@ -25,15 +25,19 @@ let replay: { generation: number; promise: Promise<void> } | undefined
 const listeners = new Set<() => void>()
 const waiters = new Map<string, { promise: Promise<unknown>; resolve: (value: unknown) => void; reject: (error: Error) => void }>()
 
-function isCompleted(id: string): boolean {
-    if (completedJobs.has(id)) return true
+function completionState(id: string): 'completed' | 'unproven' | 'unavailable' {
+    if (completedJobs.has(id)) return 'completed'
     try {
         const timestamp = typeof window !== 'undefined' ? Number(window.localStorage.getItem(completionPrefix + id)) : 0
         const now = Date.now()
         const completed = Number.isFinite(timestamp) && timestamp > 0 && timestamp >= now - completionMaxAge
         if (completed) completedJobs.add(id)
-        return completed
-    } catch { return false }
+        return completed ? 'completed' : 'unproven'
+    } catch { return 'unavailable' }
+}
+
+function isCompleted(id: string): boolean {
+    return completionState(id) === 'completed'
 }
 
 function rejectCompleted(job: QueuedMutation): void {
@@ -106,6 +110,7 @@ function diskSnapshot(): DiskSnapshot {
     for (const id of new Set(known.map(jobKey))) if (!snapshot.entries.has(id)) {
         try { loadEntry(entryPrefix + id) } catch { snapshot.kind = 'unavailable' }
     }
+    for (const id of new Set([...known.map(jobKey), ...snapshot.entries.keys(), ...unsaved.keys()])) if (completionState(id) === 'unavailable') snapshot.kind = 'unavailable'
     return snapshot
 }
 
@@ -128,7 +133,7 @@ function read(snapshot = diskSnapshot()): QueuedMutation[] {
         return changed
     })
     if (!jobs || updated.length !== jobs.length || updated.some((job, index) => job !== jobs![index])) jobs = updated
-    const completed = new Set([...new Set([...jobs.map(jobKey), ...unsaved.keys()])].filter(isCompleted))
+    const completed = new Set([...new Set([...jobs.map(jobKey), ...unsaved.keys()])].filter(id => completedJobs.has(id)))
     for (const id of completed) unsaved.set(id, null)
     const active = jobs.filter(job => !completed.has(jobKey(job)) && unsaved.get(jobKey(job)) !== null)
     for (const job of jobs) if (completed.has(jobKey(job)) && job.accountId === sessionOwner()) rejectCompleted(job)
@@ -282,7 +287,17 @@ export function replayMutations(): Promise<void> {
             if (active) { await active; continue }
             const sender = senders.get(job.transport ?? 'api')
             if (!sender) return
-            if (isCompleted(jobKey(job))) {
+            let completion = completionState(jobKey(job))
+            if (completion === 'unavailable') {
+                await Promise.resolve()
+                if (generation !== sessionGeneration() || typeof navigator !== 'undefined' && navigator.onLine === false) return
+                completion = completionState(jobKey(job))
+            }
+            if (completion === 'unavailable') {
+                failMutation(job, 'Could not read your pending actions. Refresh and retry.', generation)
+                return
+            }
+            if (completion === 'completed') {
                 unsaved.set(jobKey(job), null)
                 jobs = jobs?.filter(item => jobKey(item) !== jobKey(job))
                 rejectCompleted(job)

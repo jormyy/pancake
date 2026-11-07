@@ -85,8 +85,8 @@ it('does not forget a pre-send completion when the next storage read fails', asy
         if (key !== completionPrefix + 'B:' + records[1].id) return
         race.onGet = undefined
         race.run(first, start)
-        race.onGet = name => {
-            if (name.startsWith(completionPrefix)) race.onGet = () => { throw new Error('Storage unavailable') }
+        race.onGet = (name, value) => {
+            if (name === completionPrefix + 'A:' + records[0].id && value) race.onGet = () => { throw new Error('Storage unavailable') }
         }
     }
     race.run(second, start)
@@ -95,25 +95,23 @@ it('does not forget a pre-send completion when the next storage read fails', asy
     expect(race.run(second, 'queue.pendingMutations().length')).toBe(0)
 })
 
-it('keeps completion proof when a failed retry write restores an older snapshot', async () => {
-    const { storageRace, records, completionPrefix, start } = await import('../../helpers/mutation-storage-race')
+it('keeps completion proof when a failed retry write races with completion', async () => {
+    const { storageRace, records, start } = await import('../../helpers/mutation-storage-race')
     const race = storageRace(records.map(job => ({ ...job, status: 'failed', error: 'Rejected' })))
     const first = race.tab('A'), second = race.tab('A')
-    let reads = 0
-    race.onGet = key => {
-        if (key !== completionPrefix + 'A:' + records[0].id || ++reads !== 2) return
-        race.onGet = undefined
+    let interleaved = false
+    race.onBeforeSet = key => {
+        if (!key.startsWith('pancake:offline-mutation-retry:v1:')) return
+        race.onBeforeSet = undefined
         race.run(first, 'queue.retryMutation(input.id);' + start)
-        race.onSet = name => {
-            if (name !== 'pancake:offline-mutations:v1') return
-            race.onGet = () => { throw new Error('Storage unavailable') }
-            race.onSet = undefined
-            throw new Error('Disk full')
-        }
+        race.run(second, 'queue.pendingMutations()')
+        interleaved = true
+        race.onGet = () => { throw new Error('Storage unavailable') }
+        throw new Error('Disk full')
     }
     race.run(second, 'try {queue.retryMutation(input.id)} catch {}')
     race.run(second, start)
-    race.run(second, 'queue.retryMutation(input.id)')
+    expect(interleaved).toBe(true)
     expect(race.sends).toEqual(['A'])
     expect(race.run(second, 'queue.pendingMutations().length')).toBe(0)
 })
@@ -455,4 +453,44 @@ it('starts an accepted retry queued while a completed replay guard is clearing',
     race.run(first, 'navigator.onLine=true;queue.configureMutationReplay(async()=>{record();return "saved"});queue.retryMutation(input.id)')
     expect(race.sends).toEqual(['A'])
     expect(race.run(first, 'queue.pendingMutations().length')).toBe(0)
+})
+
+it.each(['transient', 'persistent'] as const)('does not resend completed work when its marker read is %s', async fault => {
+    const { storageRace, records, completionPrefix, enqueue, start } = await import('../../helpers/mutation-storage-race')
+    const race = storageRace([records[0]])
+    const first = race.tab('A'), stale = race.tab('A')
+    race.run(stale, enqueue)
+    race.run(first, start)
+    const marker = completionPrefix + 'A:' + records[0].id
+    expect(race.values.has(marker)).toBe(true)
+    let reads = 0
+    race.onGet = key => { if (key === marker && (fault === 'persistent' || ++reads === 1)) throw new Error('Read unavailable') }
+    race.run(stale, start)
+    expect(race.sends).toEqual(['A'])
+    expect(stale.result).toBe(fault === 'transient' ? 'This action completed in another tab. Refresh to see the result.' : 'Could not read your pending actions. Refresh and retry.')
+    race.onGet = undefined
+    race.run(stale, 'queue.retryMutation(input.id);' + start)
+    expect(race.sends).toEqual(['A'])
+    expect(race.run(stale, 'queue.pendingMutations().length')).toBe(0)
+})
+
+it('blocks sending when completion becomes unreadable after the storage snapshot', async () => {
+    const { storageRace, records, completionPrefix, enqueue, start } = await import('../../helpers/mutation-storage-race')
+    const race = storageRace([records[0]])
+    const first = race.tab('A'), stale = race.tab('A')
+    race.run(stale, enqueue)
+    const marker = completionPrefix + 'A:' + records[0].id
+    race.onGet = key => {
+        if (key !== marker) return
+        race.onGet = undefined
+        race.run(first, start)
+        race.onGet = name => { if (name === marker) throw new Error('Read unavailable') }
+    }
+    race.run(stale, start)
+    expect(race.sends).toEqual(['A'])
+    expect(stale.result).toBe('Could not read your pending actions. Refresh and retry.')
+    race.onGet = undefined
+    race.run(stale, start)
+    expect(race.sends).toEqual(['A'])
+    expect(race.run(stale, 'queue.pendingMutations().length')).toBe(0)
 })
