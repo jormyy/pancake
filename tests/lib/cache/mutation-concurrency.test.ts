@@ -1022,3 +1022,28 @@ it('refuses a retry acknowledgement corrupted during the final record scan', asy
     expect(race.sends).toEqual([])
     expect(race.run(tab, 'queue.pendingMutations()[0].status')).toBe('failed')
 })
+
+it('repairs an invalid input from a valid pending legacy copy before the send gate', async () => {
+    const { storageRace, records, start } = await import('../../helpers/mutation-storage-race')
+    const race = storageRace([records[0]])
+    race.values.set('pancake:offline-mutation:v1:A:' + records[0].id, '{invalid')
+    const tab = race.tab('A')
+    tab.console = { ...console, error() {} }
+    race.run(tab, start)
+    expect(race.sends).toEqual(['A'])
+    expect(race.run(tab, 'queue.pendingMutations().length')).toBe(0)
+})
+
+it('does not reject a new enqueue after its sole required input write succeeds', async () => {
+    const { storageRace, records, enqueue } = await import('../../helpers/mutation-storage-race')
+    const race = storageRace(), tab = race.tab('A')
+    tab.console = { ...console, error() {} }
+    let writes = 0
+    race.onBeforeSet = name => {
+        if (name === 'pancake:offline-mutation:v1:A:' + records[0].id && ++writes > 1) throw new Error('Storage became read-only')
+    }
+    race.run(tab, enqueue)
+    expect(tab.result).toBe('pending')
+    expect(race.run(tab, 'queue.pendingMutations().length')).toBe(1)
+    expect(writes).toBe(1)
+})

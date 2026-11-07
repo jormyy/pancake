@@ -124,30 +124,28 @@ function diskSnapshot(): DiskSnapshot {
     const loadEntry = (name: string) => {
         const raw = storage.getItem(name)
         const id = name.slice(entryPrefix.length)
-        if (raw === null) {
-            snapshot.missing.add(id)
-            const imported = unsaved.get(id) ?? (legacy.kind === 'available' ? legacy.jobs.find(job => jobKey(job) === id) : undefined)
-            if (imported && completionState(id) === 'unproven') {
-                for (const [pendingId, pending] of unsaved) if (pending) saveInput(storage, pendingId, pending, false)
-                if (imported.status === 'failed' && !failures.has(id)) observeFailure(id, 'legacy', imported.error ?? 'Could not send this action.')
-                saveInput(storage, id, imported, false)
-                snapshot.entries.set(id, imported)
-                snapshot.missing.delete(id)
-            }
+        let value: unknown
+        try { value = JSON.parse(raw ?? 'null') } catch {}
+        if (isQueuedMutation(value) && name === entryPrefix + jobKey(value)) {
+            const legacyOrder = legacy.kind === 'available' ? legacy.jobs.find(job => jobKey(job) === id)?.order : undefined
+            savedInputs.add(id)
+            snapshot.entries.set(id, withOrder(value, legacyOrder ?? value.createdAt))
+            snapshot.missing.delete(id)
+            corruptEntries.delete(id)
             return
         }
         snapshot.missing.add(id)
-        corruptEntries.add(id)
-        try {
-            const value: unknown = JSON.parse(raw)
-            if (isQueuedMutation(value) && name === entryPrefix + jobKey(value)) {
-                const legacyOrder = legacy.kind === 'available' ? legacy.jobs.find(job => jobKey(job) === id)?.order : undefined
-                savedInputs.add(id)
-                snapshot.entries.set(id, withOrder(value, legacyOrder ?? value.createdAt))
-                snapshot.missing.delete(id)
-                corruptEntries.delete(id)
-            }
-        } catch {}
+        if (raw !== null) corruptEntries.add(id)
+        const legacyJob = legacy.kind === 'available' ? legacy.jobs.find(job => jobKey(job) === id) : undefined
+        const imported = legacyJob && (unsaved.get(id) ?? legacyJob)
+        if (imported && completionState(id) === 'unproven') {
+            for (const [pendingId, pending] of unsaved) if (pending?.status === 'failed' && savedInputs.has(pendingId) && completionState(pendingId) === 'unproven') saveInput(storage, pendingId, pending, false)
+            if (imported.status === 'failed' && !failures.has(id)) observeFailure(id, 'legacy', imported.error ?? 'Could not send this action.')
+            saveInput(storage, id, imported, false)
+            snapshot.entries.set(id, imported)
+            snapshot.missing.delete(id)
+            corruptEntries.delete(id)
+        }
     }
     try {
         for (const name of Object.keys(storage)) {
