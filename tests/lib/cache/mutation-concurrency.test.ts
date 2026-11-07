@@ -246,8 +246,8 @@ it('keeps a rejection that arrives just before stale enqueue writes its copy', a
 it('keeps a failed retry blocked after a later import write fails', async () => {
     const { storageRace, records, start } = await import('../../helpers/mutation-storage-race')
     const race = storageRace([{ ...records[0], status: 'failed', error: 'Rejected' }, records[1]])
-    const first = race.tab('A')
     race.onBeforeSet = key => { if (key === 'pancake:offline-mutation:v1:B:' + records[1].id) throw new Error('QuotaExceededError') }
+    const first = race.tab('A')
     race.run(first, 'try{queue.retryMutation(input.id)}catch(error){result=error.message}')
     expect(first.result).toBe('Could not save your pending action. Keep this screen open and retry.')
     expect(race.run(first, 'queue.pendingMutations()[0].status')).toBe('failed')
@@ -278,8 +278,8 @@ it('saves every imported legacy action before sending or overwriting its old lis
 it('waits for all legacy imports to save before starting a send', async () => {
     const { storageRace, records, start } = await import('../../helpers/mutation-storage-race')
     const race = storageRace(records.map(job => ({ ...job, accountId: 'A' })))
-    const first = race.tab('A')
     race.onBeforeSet = key => { if (key === 'pancake:offline-mutation:v1:A:' + records[1].id) throw new Error('QuotaExceededError') }
+    const first = race.tab('A')
     race.run(first, start)
     expect(race.sends).toEqual([])
     const restored = race.tab('A')
@@ -988,4 +988,37 @@ it('keeps the rejection when both retry fact writes exceed quota', async () => {
     expect(race.run(restored, 'queue.pendingMutations()[0].status')).toBe('failed')
     race.run(restored, start)
     expect(race.sends).toEqual([])
+})
+
+it('does not replay a legacy-only snapshot after another tab imports and completes it', async () => {
+    const { expiredLegacyCompletion } = await import('../../helpers/mutation-storage-race')
+    expect(expiredLegacyCompletion()).toEqual({ case: 'expired legacy completion', paths: ['/action', '/next'] })
+})
+
+it('blocks a rejection written during the snapshot scan before sending', async () => {
+    const { rejectionDuringScan } = await import('../../helpers/mutation-storage-race')
+    expect(rejectionDuringScan()).toEqual({ case: 'rejection during scan', statusBeforeSend: 'failed', sends: ['A'], caller: 'Rejected', pending: 1 })
+})
+
+it.each([1, 2, 4])('revalidates a rejection arriving at completion read %i before dispatch', async readNumber => {
+    const { rejectionDuringScan } = await import('../../helpers/mutation-storage-race')
+    expect(rejectionDuringScan(readNumber)).toEqual({ case: 'rejection during scan', statusBeforeSend: 'failed', sends: ['A'], caller: 'Rejected', pending: 1 })
+})
+
+it('refuses a retry acknowledgement corrupted during the final record scan', async () => {
+    const { storageRace, records, completionPrefix, start } = await import('../../helpers/mutation-storage-race')
+    const race = storageRace([{ ...records[0], status: 'failed', error: 'Rejected' }]), tab = race.tab('A')
+    tab.console = { ...console, error() {} }
+    race.run(tab, 'queue.retryMutation(input.id)')
+    const retry = [...race.values.keys()].find(name => name.startsWith('pancake:offline-mutation-retry:v1:'))!
+    let reads = 0
+    race.onGet = name => {
+        if (name !== completionPrefix + 'A:' + records[0].id || ++reads !== 3) return
+        race.onGet = undefined
+        race.values.set(retry, '{invalid')
+    }
+    race.run(tab, start)
+    expect(reads).toBe(3)
+    expect(race.sends).toEqual([])
+    expect(race.run(tab, 'queue.pendingMutations()[0].status')).toBe('failed')
 })

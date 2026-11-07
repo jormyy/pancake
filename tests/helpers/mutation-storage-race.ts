@@ -239,3 +239,29 @@ export function liveRetryStorageGrowth() {
     race.run(tab, start)
     return { retries, pending: race.run(tab, 'queue.pendingMutations().length') as number, retryError: tab.retryError as string | null }
 }
+
+export function expiredLegacyCompletion() {
+    const race = storageRace([records[0]]), stale = race.tab('A'), writer = race.tab('A')
+    for (const tab of [stale, writer]) race.run(tab, 'paths=[];queue.configureMutationReplay(async job=>{paths.push(job.path);return "saved"})')
+    race.run(writer, start)
+    race.now += 8 * 86400000
+    writer.input = { ...records[1], accountId: 'A', path: '/next' }
+    race.run(writer, 'navigator.onLine=false;' + enqueue)
+    race.run(stale, start)
+    return { case: 'expired legacy completion', paths: [...writer.paths, ...stale.paths] as string[] }
+}
+
+export function rejectionDuringScan(readNumber = 3) {
+    const race = storageRace([records[0]]), first = race.tab('A'), second = race.tab('A')
+    race.run(first, 'queue.configureMutationReplay(async()=>{record();throw new Error("Rejected")})')
+    race.run(second, enqueue)
+    let reads = 0, statusBeforeSend: unknown
+    race.onGet = name => {
+        if (name !== completionPrefix + 'A:' + records[0].id || ++reads !== readNumber) return
+        race.onGet = undefined
+        race.run(first, start)
+        statusBeforeSend = race.run(first, 'queue.pendingMutations()[0].status')
+    }
+    race.run(second, start)
+    return { case: 'rejection during scan', statusBeforeSend, sends: race.sends, caller: second.result as string, pending: race.run(second, 'queue.pendingMutations().length') as number }
+}

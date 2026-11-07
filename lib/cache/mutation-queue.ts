@@ -124,7 +124,18 @@ function diskSnapshot(): DiskSnapshot {
     const loadEntry = (name: string) => {
         const raw = storage.getItem(name)
         const id = name.slice(entryPrefix.length)
-        if (raw === null) { snapshot.missing.add(id); return }
+        if (raw === null) {
+            snapshot.missing.add(id)
+            const imported = unsaved.get(id) ?? (legacy.kind === 'available' ? legacy.jobs.find(job => jobKey(job) === id) : undefined)
+            if (imported && completionState(id) === 'unproven') {
+                for (const [pendingId, pending] of unsaved) if (pending) saveInput(storage, pendingId, pending, false)
+                if (imported.status === 'failed' && !failures.has(id)) observeFailure(id, 'legacy', imported.error ?? 'Could not send this action.')
+                saveInput(storage, id, imported, false)
+                snapshot.entries.set(id, imported)
+                snapshot.missing.delete(id)
+            }
+            return
+        }
         snapshot.missing.add(id)
         corruptEntries.add(id)
         try {
@@ -175,6 +186,32 @@ function diskSnapshot(): DiskSnapshot {
         for (const [id, ids] of diskAcknowledged) acknowledge(id, [...ids])
     }
     return snapshot
+}
+
+function beforeSend(job: QueuedMutation): QueuedMutation | 'completed' | 'unavailable' | 'restart' {
+    const id = jobKey(job)
+    try {
+        const storage = typeof window === 'undefined' ? undefined : window.localStorage
+        const revision = () => {
+            const proof = storage?.getItem(completionPrefix + id)
+            if (Number.isFinite(Number(proof)) && Number(proof) > 0) rememberCompleted(id)
+            const facts = storage && Object.keys(storage).filter(name => [failurePrefix, retryPrefix].some(prefix => name.startsWith(prefix + id + ':'))).sort().map(name => [name, storage.getItem(name)])
+            return storage && JSON.stringify([storage.getItem(key), storage.getItem(entryPrefix + id), proof, facts, Object.keys(storage).filter(name => name === entryPrefix + id || name === completionPrefix + id || [failurePrefix, retryPrefix].some(prefix => name.startsWith(prefix + id + ':'))).sort()])
+        }
+        for (let attempt = 0; attempt < 3; attempt++) {
+            const before = revision()
+            const snapshot = diskSnapshot()
+            if (before !== revision()) continue
+            const selected = read(snapshot).find(item => item.accountId === sessionOwner())
+            if (completedJobs.has(id) || unsaved.get(id) === null) return 'completed'
+            if (selected?.id === job.id && selected.status === 'failed') return selected
+            if (snapshot.kind === 'unavailable') return 'unavailable'
+            if (selected?.id !== job.id) return 'restart'
+            if (selected.status === 'pending' && storage && !snapshot.entries.has(id)) return 'unavailable'
+            return selected
+        }
+    } catch {}
+    return completedJobs.has(id) || unsaved.get(id) === null ? 'completed' : job.status === 'failed' ? job : 'unavailable'
 }
 
 function hasLiveJob(id: string): boolean {
@@ -328,6 +365,17 @@ function complete(job: QueuedMutation): void {
 
 }
 
+function saveInput(storage: Storage, id: string, job: QueuedMutation, recoverQuota = true): void {
+    for (const [failureId, error] of failures.get(id) ?? []) if (!acknowledged.get(id)?.has(failureId)) {
+        const name = failurePrefix + id + ':' + failureId
+        const value = JSON.stringify({ id, failureId, error, createdAt: Date.now() })
+        if (recoverQuota) { saveFact(id, name, value); compactFacts(id, { kind: 'failure', failureId }) }
+        else storage.setItem(name, value)
+    }
+    storage.setItem(entryPrefix + id, JSON.stringify({ ...job, status: 'pending', error: null }))
+    savedInputs.add(id)
+}
+
 function publish(required = false, last?: string): void {
     if (typeof window !== 'undefined') {
         try {
@@ -337,14 +385,7 @@ function publish(required = false, last?: string): void {
             const changes = [...unsaved].sort(([left], [right]) => Number(left === last) - Number(right === last))
             for (const [id, job] of changes) {
                 if (job === null) { window.localStorage.removeItem(entryPrefix + id); removeFacts(window.localStorage, id) }
-                else {
-                    for (const [failureId, error] of failures.get(id) ?? []) if (!acknowledged.get(id)?.has(failureId)) {
-                        saveFact(id, failurePrefix + id + ':' + failureId, JSON.stringify({ id, failureId, error, createdAt: Date.now() }))
-                        compactFacts(id, { kind: 'failure', failureId })
-                    }
-                    window.localStorage.setItem(entryPrefix + id, JSON.stringify({ ...job, status: 'pending', error: null }))
-                    savedInputs.add(id)
-                }
+                else saveInput(window.localStorage, id, job)
             }
             unsaved.clear()
             if (snapshot.kind === 'available') try { window.localStorage.setItem(key, JSON.stringify(read(snapshot))) }
@@ -403,6 +444,7 @@ export function queueMutation<T>(input: MutationInput, id?: string): Promise<T> 
     if (waiting) { void replayMutations(); return waiting.promise as Promise<T> }
     const completion = completionState(jobKey({ accountId: input.accountId, id: selectedId }))
     if (completion === 'unavailable') return Promise.reject(new Error('Could not read your pending actions. Refresh and retry.'))
+    if (completion === 'completed' && jobs?.some(job => job.id === selectedId && job.accountId === input.accountId)) return Promise.reject(new Error('This action completed in another tab. Refresh to see the result.'))
     if (sending.has(selectedId) || unsaved.get(jobKey({ accountId: input.accountId, id: selectedId })) === null || completion === 'completed') return Promise.reject(new Error('This action belongs to an earlier session. Refresh before retrying.'))
     let resolve!: (value: unknown) => void
     let reject!: (error: Error) => void
@@ -457,19 +499,30 @@ export function replayMutations(): Promise<void> {
         while (typeof navigator === 'undefined' || navigator.onLine !== false) {
             if (!valid()) return
             if (!saveCompletions()) return
-            let snapshot = diskSnapshot()
-            if (snapshot.kind === 'unavailable') {
+            const candidate = pendingMutations()[0]
+            if (!candidate) { if ([...unsaved.values()].includes(null)) publish(); return }
+            const active = sending.get(candidate.id)
+            if (active) { await active; continue }
+            let state = beforeSend(candidate)
+            if (state === 'unavailable') {
                 await Promise.resolve()
                 if (!valid() || typeof navigator !== 'undefined' && navigator.onLine === false) return
-                snapshot = diskSnapshot()
-                if (snapshot.kind === 'unavailable') {
-                    const blocked = read(snapshot).find(item => item.accountId === sessionOwner())
-                    if (blocked?.status === 'pending' && !sending.has(blocked.id)) failMutation(blocked, 'Could not read your pending actions. Refresh and retry.', generation)
-                    return
-                }
+                state = beforeSend(candidate)
             }
-            const job = read(snapshot).find(item => item.accountId === sessionOwner())
-            if (!job || job.status === 'failed') { if ([...unsaved.values()].includes(null)) publish(); return }
+            if (!valid()) return
+            if (state === 'unavailable') {
+                failMutation(candidate, 'Could not read your pending actions. Refresh and retry.', generation)
+                return
+            }
+            if (state === 'restart') continue
+            if (state === 'completed') {
+                unsaved.set(jobKey(candidate), null)
+                jobs = jobs?.filter(item => jobKey(item) !== jobKey(candidate))
+                rejectCompleted(candidate)
+                continue
+            }
+            const job = state
+            if (job.status === 'failed') return
             if (typeof window !== 'undefined' && [...unsaved.values()].some(value => value !== null)) {
                 try { publish(true) } catch (cause) {
                     failMutation(job, cause instanceof Error ? cause.message : 'Could not save your pending actions. Refresh and retry.', generation)
@@ -477,26 +530,8 @@ export function replayMutations(): Promise<void> {
                 }
                 continue
             }
-            const active = sending.get(job.id)
-            if (active) { await active; continue }
             const sender = senders.get(job.transport ?? 'api')
             if (!sender) return
-            let completion = completionState(jobKey(job))
-            if (completion === 'unavailable') {
-                await Promise.resolve()
-                if (!valid() || typeof navigator !== 'undefined' && navigator.onLine === false) return
-                completion = completionState(jobKey(job))
-            }
-            if (completion === 'unavailable') {
-                failMutation(job, 'Could not read your pending actions. Refresh and retry.', generation)
-                return
-            }
-            if (completion === 'completed') {
-                unsaved.set(jobKey(job), null)
-                jobs = jobs?.filter(item => jobKey(item) !== jobKey(job))
-                rejectCompleted(job)
-                continue
-            }
             const current = () => valid() && job.accountId === sessionOwner()
             let finish!: () => void
             sending.set(job.id, new Promise<void>(resolve => { finish = resolve }))
