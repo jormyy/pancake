@@ -200,3 +200,42 @@ export function retryStorageGrowth() {
     const retainedFacts = [...race.values.keys()].filter(key => key.includes('-failure:') || key.includes('-retry:')).length
     return { completed, pending: race.run(tab, 'queue.pendingMutations().length') as number, retainedFacts, blocked }
 }
+
+export function rejectedQuotaReload() {
+    const race = storageRace(), tab = race.tab('A')
+    tab.console = { error() {} }
+    race.run(tab, enqueue)
+    const limit = [...race.values].reduce((bytes, [key, value]) => bytes + 2 * (key.length + value.length), 0) + 200
+    race.onBeforeSet = (key, value) => {
+        let bytes = 2 * (key.length + value.length)
+        for (const [name, saved] of race.values) if (name !== key) bytes += 2 * (name.length + saved.length)
+        if (bytes > limit) throw new Error('QuotaExceededError')
+    }
+    race.run(tab, 'queue.configureMutationReplay(async()=>{record();throw Error("Rejected")});' + start)
+    const before = race.run(tab, 'queue.pendingMutations()[0].status') as string
+    const restored = race.tab('A')
+    restored.console = tab.console
+    const reloaded = race.run(restored, 'queue.pendingMutations()[0].status') as string
+    race.run(restored, start)
+    return { caller: tab.result as string, before, reloaded, sends: race.sends.length }
+}
+
+export function liveRetryStorageGrowth() {
+    const race = storageRace(), tab = race.tab('A')
+    tab.console = { error() {} }
+    race.run(tab, enqueue)
+    race.onBeforeSet = (key, value) => {
+        let bytes = 2 * (key.length + value.length)
+        for (const [name, saved] of race.values) if (name !== key) bytes += 2 * (name.length + saved.length)
+        if (bytes > 8192) throw new Error('QuotaExceededError')
+    }
+    race.run(tab, 'queue.configureMutationReplay(async()=>{record();throw Error("Rejected")});' + start)
+    let retries = 0
+    for (; retries < 30; retries++) {
+        race.run(tab, 'retryError=null;try{queue.retryMutation(input.id)}catch(error){retryError=error.message}')
+        if (tab.retryError) break
+    }
+    race.run(tab, 'queue.configureMutationReplay(async()=>{record();return "saved"});retryError=null;try{queue.retryMutation(input.id)}catch(error){retryError=error.message}')
+    race.run(tab, start)
+    return { retries, pending: race.run(tab, 'queue.pendingMutations().length') as number, retryError: tab.retryError as string | null }
+}

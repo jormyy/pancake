@@ -929,3 +929,63 @@ it.each(['failure', 'retry'] as const)('restores an aged orphan %s fact if its i
     expect(race.values.get(name)).toBe(value)
     expect(race.values.has(entry)).toBe(true)
 })
+
+it('preserves a rejection after reload under a tight quota', async () => {
+    const { rejectedQuotaReload } = await import('../../helpers/mutation-storage-race')
+    expect(rejectedQuotaReload()).toEqual({ caller: 'Rejected', before: 'failed', reloaded: 'failed', sends: 1 })
+})
+
+it('bounds one live action through 30 retries under an 8 KiB quota', async () => {
+    const { liveRetryStorageGrowth } = await import('../../helpers/mutation-storage-race')
+    expect(liveRetryStorageGrowth()).toEqual({ retries: 30, pending: 0, retryError: null })
+})
+
+it('keeps one current fact and makes stale tabs observe compacted retries', async () => {
+    const { storageRace, enqueue, start } = await import('../../helpers/mutation-storage-race')
+    const race = storageRace(), writer = race.tab('A'), stale = race.tab('A')
+    race.run(writer, enqueue + ';queue.configureMutationReplay(async()=>{throw Error("Rejected")});' + start)
+    race.run(stale, 'queue.pendingMutations()')
+    const facts = () => [...race.values.keys()].filter(name => name.includes('-failure:') || name.includes('-retry:'))
+    for (let index = 0; index < 30; index++) {
+        race.run(writer, 'navigator.onLine=false;queue.retryMutation(input.id)')
+        expect(facts()).toHaveLength(1)
+        expect(facts()[0]).toContain('-retry:')
+        expect(race.run(stale, 'queue.pendingMutations()[0].status')).toBe('pending')
+        expect(race.run(race.tab('A'), 'queue.pendingMutations()[0].status')).toBe('pending')
+        race.run(writer, start)
+        expect(facts()).toHaveLength(1)
+        expect(facts()[0]).toContain('-failure:')
+        expect(race.run(stale, 'queue.pendingMutations()[0].status')).toBe('failed')
+        expect(race.run(race.tab('A'), 'queue.pendingMutations()[0].status')).toBe('failed')
+    }
+})
+
+it('retries a quota-blocked retry fact once after compaction', async () => {
+    const { storageRace, enqueue, start } = await import('../../helpers/mutation-storage-race')
+    const race = storageRace(), tab = race.tab('A')
+    race.run(tab, enqueue + ';queue.configureMutationReplay(async()=>{throw Error("Rejected")});' + start)
+    race.run(tab, 'navigator.onLine=false')
+    let writes = 0
+    race.onBeforeSet = name => {
+        if (name.startsWith('pancake:offline-mutation-retry:v1:') && ++writes === 1) throw new Error('QuotaExceededError')
+    }
+    expect(() => race.run(tab, 'queue.retryMutation(input.id)')).not.toThrow()
+    expect(writes).toBe(2)
+    expect(race.run(race.tab('A'), 'queue.pendingMutations()[0].status')).toBe('pending')
+})
+
+it('keeps the rejection when both retry fact writes exceed quota', async () => {
+    const { storageRace, enqueue, start } = await import('../../helpers/mutation-storage-race')
+    const race = storageRace(), tab = race.tab('A')
+    race.run(tab, enqueue + ';queue.configureMutationReplay(async()=>{throw Error("Rejected")});' + start)
+    let writes = 0
+    race.onBeforeSet = name => {
+        if (name.startsWith('pancake:offline-mutation-retry:v1:')) { writes++; throw new Error('QuotaExceededError') }
+    }
+    expect(() => race.run(tab, 'queue.retryMutation(input.id)')).toThrow('Could not save your pending action.')
+    expect(writes).toBe(2)
+    const restored = race.tab('A')
+    expect(race.run(restored, 'queue.pendingMutations()[0].status')).toBe('failed')
+    race.run(restored, start)
+    expect(race.sends).toEqual([])
+})

@@ -119,6 +119,8 @@ function diskSnapshot(): DiskSnapshot {
     let storage: typeof window.localStorage
     try { storage = window.localStorage } catch { snapshot.kind = 'unavailable'; return snapshot }
     const corruptEntries = new Set<string>()
+    const diskFailures = new Map<string, Map<string, string>>()
+    const diskAcknowledged = new Map<string, Set<string>>()
     const loadEntry = (name: string) => {
         const raw = storage.getItem(name)
         const id = name.slice(entryPrefix.length)
@@ -145,8 +147,16 @@ function diskSnapshot(): DiskSnapshot {
                 if (raw === null) continue
                 try {
                     const value = JSON.parse(raw ?? 'null')
-                    if (name.startsWith(failurePrefix) && value && typeof value.id === 'string' && typeof value.failureId === 'string' && typeof value.error === 'string' && name === failurePrefix + value.id + ':' + value.failureId) observeFailure(value.id, value.failureId, value.error)
-                    else if (name.startsWith(retryPrefix) && value && typeof value.id === 'string' && Array.isArray(value.failures) && value.failures.every((id: unknown) => typeof id === 'string') && name.startsWith(retryPrefix + value.id + ':')) acknowledge(value.id, value.failures)
+                    if (name.startsWith(failurePrefix) && value && typeof value.id === 'string' && typeof value.failureId === 'string' && typeof value.error === 'string' && name === failurePrefix + value.id + ':' + value.failureId) {
+                        if (!diskFailures.has(value.id)) diskFailures.set(value.id, new Map())
+                        diskFailures.get(value.id)!.set(value.failureId, value.error)
+                        observeFailure(value.id, value.failureId, value.error)
+                    }
+                    else if (name.startsWith(retryPrefix) && value && typeof value.id === 'string' && Array.isArray(value.failures) && value.failures.every((id: unknown) => typeof id === 'string') && name.startsWith(retryPrefix + value.id + ':')) {
+                        if (!diskAcknowledged.has(value.id)) diskAcknowledged.set(value.id, new Set())
+                        for (const failureId of value.failures) diskAcknowledged.get(value.id)!.add(failureId)
+                        acknowledge(value.id, value.failures)
+                    }
                     else snapshot.kind = 'unavailable'
                 } catch { snapshot.kind = 'unavailable' }
             } catch { snapshot.kind = 'unavailable' }
@@ -158,6 +168,12 @@ function diskSnapshot(): DiskSnapshot {
     }
     for (const id of corruptEntries) if (legacy.kind !== 'available' || !legacy.jobs.some(job => jobKey(job) === id)) snapshot.kind = 'unavailable'
     for (const id of new Set([...known.map(jobKey), ...snapshot.entries.keys(), ...unsaved.keys()])) if (completionState(id) === 'unavailable') snapshot.kind = 'unavailable'
+    if (snapshot.kind === 'available') {
+        for (const id of failures.keys()) if (!unsaved.get(id)) failures.delete(id)
+        for (const [id, observed] of diskFailures) for (const [failureId, error] of observed) observeFailure(id, failureId, error)
+        acknowledged.clear()
+        for (const [id, ids] of diskAcknowledged) acknowledge(id, [...ids])
+    }
     return snapshot
 }
 
@@ -174,6 +190,46 @@ function removeFacts(storage: Storage, id: string): void {
     } catch {}
     failures.delete(id)
     acknowledged.delete(id)
+}
+
+function compactFacts(id: string, replacement?: { kind: 'retry'; name: string; failures: string[] } | { kind: 'failure'; failureId: string }): void {
+    if (typeof window === 'undefined') return
+    try {
+        const storage = window.localStorage
+        const records = Object.keys(storage).filter(name => [failurePrefix, retryPrefix].some(prefix => name.startsWith(prefix + id + ':'))).flatMap(name => {
+            const raw = storage.getItem(name)
+            try {
+                const value = JSON.parse(raw ?? 'null')
+                if (value?.id === id) return [{ name, raw, value }]
+            } catch {}
+            return []
+        })
+        const retries = records.filter(record => record.name.startsWith(retryPrefix) && Array.isArray(record.value.failures) && record.value.failures.every((id: unknown) => typeof id === 'string'))
+        const covered = new Set<string>(retries.flatMap(record => record.value.failures))
+        const retry = replacement?.kind === 'retry' ? replacement : undefined
+        const rejected = replacement?.kind === 'failure' && !covered.has(replacement.failureId) && storage.getItem(failurePrefix + id + ':' + replacement.failureId) !== null
+        for (const record of records) if (record.name === failurePrefix + id + ':' + record.value.failureId && typeof record.value.failureId === 'string' && typeof record.value.error === 'string' && covered.has(record.value.failureId) && storage.getItem(record.name) === record.raw) storage.removeItem(record.name)
+        for (const record of retries) {
+            const superseded = record.name !== retry?.name && (retry ? record.value.failures.every((id: string) => retry.failures.includes(id)) : rejected && record.value.failures.every((failureId: string) => storage.getItem(failurePrefix + id + ':' + failureId) === null))
+            if (superseded && storage.getItem(record.name) === record.raw) storage.removeItem(record.name)
+        }
+    } catch {}
+}
+
+function saveFact(id: string, name: string, value: string): void {
+    const storage = window.localStorage
+    try { storage.setItem(name, value) }
+    catch (error) {
+        if (!(error && typeof error === 'object' && ('name' in error && error.name === 'QuotaExceededError' || 'message' in error && error.message === 'QuotaExceededError'))) throw error
+        compactFacts(id)
+        cleanStorage()
+        try {
+            const legacy = storage.getItem(key)
+            const snapshot = diskSnapshot()
+            if (snapshot.kind === 'available' && snapshot.legacy.kind === 'available' && snapshot.legacy.jobs.every(job => snapshot.entries.has(jobKey(job)) || completedJobs.has(jobKey(job))) && storage.getItem(key) === legacy) storage.removeItem(key)
+        } catch {}
+        storage.setItem(name, value)
+    }
 }
 
 function cleanStorage(): void {
@@ -282,7 +338,10 @@ function publish(required = false, last?: string): void {
             for (const [id, job] of changes) {
                 if (job === null) { window.localStorage.removeItem(entryPrefix + id); removeFacts(window.localStorage, id) }
                 else {
-                    for (const [failureId, error] of failures.get(id) ?? []) window.localStorage.setItem(failurePrefix + id + ':' + failureId, JSON.stringify({ id, failureId, error, createdAt: Date.now() }))
+                    for (const [failureId, error] of failures.get(id) ?? []) if (!acknowledged.get(id)?.has(failureId)) {
+                        saveFact(id, failurePrefix + id + ':' + failureId, JSON.stringify({ id, failureId, error, createdAt: Date.now() }))
+                        compactFacts(id, { kind: 'failure', failureId })
+                    }
                     window.localStorage.setItem(entryPrefix + id, JSON.stringify({ ...job, status: 'pending', error: null }))
                     savedInputs.add(id)
                 }
@@ -374,9 +433,11 @@ export function retryMutation(id: string): void {
     const job = read().find(item => item.id === id && item.accountId === sessionOwner())
     if (!job || job.status !== 'failed') return
     if (unsavedCompletions.size || [...unsaved.values()].some(value => value !== null)) publish(true)
-    const ids = [...failures.get(jobKey(job))?.keys() ?? []]
+    const ids = [...new Set(['legacy', ...failures.get(jobKey(job))?.keys() ?? []])]
+    const name = retryPrefix + jobKey(job) + ':' + factId()
     if (typeof window !== 'undefined') try {
-        window.localStorage.setItem(retryPrefix + jobKey(job) + ':' + factId(), JSON.stringify({ id: jobKey(job), failures: ids, createdAt: Date.now() }))
+        saveFact(jobKey(job), name, JSON.stringify({ id: jobKey(job), failures: ids, createdAt: Date.now() }))
+        compactFacts(jobKey(job), { kind: 'retry', name, failures: ids })
     } catch { throw new Error('Could not save your pending action. Keep this screen open and retry.') }
     acknowledge(jobKey(job), ids)
     read()

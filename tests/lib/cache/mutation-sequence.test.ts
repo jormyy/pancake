@@ -1,6 +1,6 @@
 import { enumerableStorage } from '../../helpers/enumerable-storage'
 import { afterEach, expect, it, vi } from 'vitest'
-import { agedCompletion, cachePressure, cleanupRace, enqueueRace, legacyClear, quotaReload, retryStorageGrowth } from '../../helpers/mutation-storage-race'
+import { agedCompletion, cachePressure, cleanupRace, enqueueRace, legacyClear, quotaReload, retryStorageGrowth, liveRetryStorageGrowth } from '../../helpers/mutation-storage-race'
 import { runCompletionRace } from '../../helpers/mutation-completion-race'
 import type { QueuedMutation } from '@/lib/cache/mutation-queue'
 
@@ -356,6 +356,7 @@ it.each(seeds)('preserves queue invariants through seeded sequence %i', async se
             })
         })
     }
+    await step('liveRetryStorageGrowth', () => { expect(liveRetryStorageGrowth()).toEqual({ retries: 30, pending: 0, retryError: null }) })
     await step('retryStorageGrowth', () => { expect(retryStorageGrowth()).toEqual({ completed: 30, pending: 0, retainedFacts: 0, blocked: null }) })
     await step('forcedLegacyClear', () => { expect(legacyClear()).toEqual({ case: 'clear', pending: 0, sends: 0 }) })
     await step('fullQuotaReload', () => { expect(quotaReload()).toEqual({ case: 'quota', caller: 'saved', sends: 1 }) })
