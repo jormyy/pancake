@@ -10,9 +10,11 @@ const contract = JSON.parse(readFileSync(new URL('../schemas/v2.json', import.me
 
 const supported = JSON.parse(readFileSync(new URL('../schemas/options-v2.json', import.meta.url), 'utf8'))
 const maximumBytes = 2 * 1024 * 1024
+const defaultApiUrl = 'https://ceeytbfmwsnzalxlkalc.supabase.co/functions/v1/api'
 const exitCodes = { success: 0, usage: 2, missing: 4, limited: 5, network: 6, server: 7 }
 const resources = Object.keys(contract.resources)
 const filters = ['league', 'limit', 'cursor', 'season', 'week', 'team', 'player', 'draft', 'trade', 'query', 'position', 'sort', 'direction']
+const idLookups = { league: 'leagues', team: 'teams', player: 'players', draft: 'drafts', trade: 'trades' }
 const values = new Set([...filters, 'api-url', 'fixture', 'cache-dir'])
 const flags = new Set(['json', 'text', 'no-cache', 'help', 'version'])
 class CliError extends Error {
@@ -31,7 +33,7 @@ function parse(args) {
       options[key] = true
     } else {
       const value = rest.length ? rest.join('=') : args[++index]
-      if (!value || value.startsWith('--')) throw new CliError(`--${key} needs a value`, 2)
+      if (!value || value.startsWith('--')) throw new CliError(Object.hasOwn(idLookups,key) ? `--${key} needs a UUID; run \`pancake ${idLookups[key]}${key==='league'?'':' --league ID'}\` to find IDs` : `--${key} needs a value`, 2)
       options[key] = value
     }
   }
@@ -42,7 +44,7 @@ function description(name) {
   const selected = name ? { [name]: contract.resources[name] } : contract.resources
   if (name && !contract.resources[name]) throw new CliError('Unknown resource', 2)
   return { $schema: 'urn:pancake:cli:v2:description', version: 2,
-    commands: [...resources, 'describe', 'explain'], filters,
+    commands: [...resources, 'describe', 'explain'], filters, defaultApiUrl,
     options: [...values, ...flags], exitCodes, schemas: selected }
 }
 function explain(target) {
@@ -86,11 +88,14 @@ function queryOptions(options, name) {
   numberOption(options.limit, 25, 50)
   numberOption(options.week, 1, 60)
   numberOption(options.season, 1, 2200)
-  for (const key of ['league', 'team', 'player', 'draft', 'trade']) {
-    if ((key === 'league' && name !== 'leagues' && !options[key]) || (options[key] && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(options[key]))) throw new CliError('Public resource not found', 4)
+  if (name !== 'leagues' && !options.league) throw new CliError('--league is required; run `pancake leagues` to find league IDs', 2)
+  if (name === 'rosters' && !options.team) throw new CliError('--team is required; run `pancake teams --league ID` to find team IDs', 2)
+  for (const key of Object.keys(idLookups)) {
+    if (options[key] && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(options[key])) {
+      throw new CliError(`--${key} must be a UUID; run \`pancake ${idLookups[key]}${key === 'league' ? '' : ' --league ID'}\` to find IDs`, 2)
+    }
   }
   if (name === 'leagues' && options.league) throw new CliError('leagues does not accept --league', 2)
-  if (name === 'rosters' && !options.team) throw new CliError('Public resource not found', 4)
   for (const key of filters) {
     if (options[key] === undefined) continue
     if (!['league','limit','cursor','sort','direction'].includes(key) && !supported[name].filters.includes(key)) throw new CliError(`--${key} is not supported for ${name}`, 2)
@@ -144,7 +149,7 @@ async function trimCache(directory) {
 }
 async function remoteRead(name, options, params, environment, fetcher) {
   let base
-  try { base = new URL(options['api-url'] ?? environment.PANCAKE_API_URL) } catch { throw new CliError('Set PANCAKE_API_URL or --api-url', 2) }
+  try { base = new URL(options['api-url'] ?? environment.PANCAKE_API_URL ?? defaultApiUrl) } catch { throw new CliError('Invalid API URL; use --api-url with an HTTPS URL', 2) }
   if (!['http:', 'https:'].includes(base.protocol) || base.username || base.password || base.search || base.hash ||
     (base.protocol === 'http:' && !['127.0.0.1', 'localhost', '[::1]'].includes(base.hostname))) throw new CliError('Use HTTPS or a loopback HTTP API URL', 2)
   const url = `${base.href.replace(/\/+$/, '')}/public/v2/${name}?${params}`

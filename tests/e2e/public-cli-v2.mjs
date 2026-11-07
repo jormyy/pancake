@@ -44,7 +44,9 @@ export async function verifyInstalled() {
     assert.equal(JSON.parse((await execute(bin,['describe'])).stdout).version,2)
     assert.equal(JSON.parse((await execute(bin,['explain','trades.completedAt'])).stdout).version,2)
     await assert.rejects(execute(bin,['db-health']),{code:2,stdout:''})
-    await assert.rejects(execute(bin,['teams','--league','bad']),{code:4,stdout:''})
+    await assert.rejects(execute(bin,['teams','--league','bad']),{code:2,stdout:''})
+    await assert.rejects(execute(bin,['standings','--json']),error=>typeof error==='object'&&error!==null&&'code' in error&&error.code===2&&'stderr' in error&&String(error.stderr).includes('pancake leagues'))
+    await assert.rejects(execute(bin,['rosters','--league',league]),error=>typeof error==='object'&&error!==null&&'code' in error&&error.code===2&&'stderr' in error&&String(error.stderr).includes('pancake teams'))
     await assert.rejects(execute(bin,['teams','--league','00000000-0000-4000-8000-000000000000','--api-url',base]),{code:4,stdout:''})
     assert.equal(observed.length,Object.keys(fixture.resources).length+1)
   } finally { await new Promise(resolve=>server.close(resolve));await rm(temporary,{recursive:true,force:true}) }

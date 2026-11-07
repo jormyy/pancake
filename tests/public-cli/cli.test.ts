@@ -52,12 +52,42 @@ describe('public CLI v2',()=>{
     expect(result.stdout).toBe('')
     expect(result.stderr).not.toContain('SECRET')
   })
-  it('uses identical missing-resource errors for missing and malformed IDs',async()=>{
-    const missing=await invoke(['teams'])
-    const malformed=await invoke(['teams','--league','bad'])
-    const absent=await invoke(args,{fetch:async()=>new Response('',{status:404})})
-    expect(missing).toEqual(malformed)
-    expect(missing).toEqual(absent)
+  it.each([{}, {PANCAKE_API_URL:'http://localhost:58921'}])('rejects missing scope locally with instructions',async env=>{
+    let calls=0
+    const fetch=async()=>{calls++;throw new Error('network must not run')}
+    const missing=await invoke(['standings','--json'],{env,fetch})
+    expect(missing.code).toBe(2)
+    expect(missing.stdout).toBe('')
+    expect(JSON.parse(missing.stderr).error.message).toBe('--league is required; run `pancake leagues` to find league IDs')
+    const roster=await invoke(['rosters','--league',league,'--json'],{env,fetch})
+    expect(roster.code).toBe(2)
+    expect(JSON.parse(roster.stderr).error.message).toContain('pancake teams --league ID')
+    expect(calls).toBe(0)
+  })
+  it.each(['league','team','player','draft','trade'])('rejects malformed --%s locally',async key=>{
+    let calls=0
+    const result=await invoke(['teams',...(key==='league'?[]:['--league',league]),`--${key}`,'bad'],{fetch:async()=>{calls++;throw new Error('network must not run')}})
+    expect(result.code).toBe(2)
+    expect(result.stdout).toBe('')
+    expect(JSON.parse(result.stderr).error.message).toContain(`--${key} must be a UUID`)
+    expect(calls).toBe(0)
+  })
+  it.each(['league','team','player','draft','trade'])('explains a bare --%s option',async key=>{
+    const result=await invoke(['teams',`--${key}`],{fetch:async()=>{throw new Error('network must not run')}})
+    expect(result.code).toBe(2)
+    expect(JSON.parse(result.stderr).error.message).toContain('run `pancake')
+  })
+  it('distinguishes a valid but absent public ID',async()=>{
+    expect((await invoke(args,{fetch:async()=>new Response('',{status:404})})).code).toBe(4)
+  })
+  it('uses the documented production default and explicit URL overrides',async()=>{
+    const urls:string[]=[]
+    const fetch=async(url:string)=>{urls.push(url);return Response.json(fixture.resources.leagues)}
+    expect((await invoke(['leagues','--json','--no-cache'],{fetch})).code).toBe(0)
+    expect((await invoke(['leagues','--no-cache'],{env:{PANCAKE_API_URL:'http://localhost:58921'},fetch})).code).toBe(0)
+    expect((await invoke(['leagues','--api-url','http://127.0.0.1:58922','--no-cache'],{env:{PANCAKE_API_URL:'http://localhost:58921'},fetch})).code).toBe(0)
+    expect(urls.map(url=>new URL(url).origin)).toEqual(['https://ceeytbfmwsnzalxlkalc.supabase.co','http://localhost:58921','http://127.0.0.1:58922'])
+    expect(urls[0]).toContain('/functions/v1/api/public/v2/leagues')
   })
   it('enforces output bounds and schema versions',async()=>{
     expect((await invoke(args,{fetch:async()=>new Response('x'.repeat(2097153))})).code).toBe(7)
