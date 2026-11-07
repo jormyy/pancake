@@ -16,6 +16,7 @@ const acknowledged = new Map<string, Set<string>>()
 let fallbackFactSequence = 0
 let highestOrder = 0
 const completedJobs = new Set<string>()
+const unsavedCompletions = new Map<string, string>()
 const completionMaxAge = 7 * 24 * 60 * 60 * 1000
 let jobs: QueuedMutation[] | undefined
 let notifiedJobs: QueuedMutation[] | undefined
@@ -27,7 +28,18 @@ let replay: { generation: number; promise: Promise<void> } | undefined
 const listeners = new Set<() => void>()
 const waiters = new Map<string, { promise: Promise<unknown>; resolve: (value: unknown) => void; reject: (error: Error) => void }>()
 
+function saveCompletions(): boolean {
+    if (typeof window === 'undefined') return true
+    for (const [id, timestamp] of unsavedCompletions) {
+        try { window.localStorage.setItem(completionPrefix + id, timestamp) }
+        catch (error) { console.error('Could not record action completion.', error); return false }
+        unsavedCompletions.delete(id)
+    }
+    return true
+}
+
 function completionState(id: string): 'completed' | 'unproven' | 'unavailable' {
+    saveCompletions()
     if (completedJobs.has(id)) return 'completed'
     try {
         const raw = typeof window !== 'undefined' ? window.localStorage.getItem(completionPrefix + id) : null
@@ -94,6 +106,7 @@ function legacySnapshot(): LegacySnapshot {
 }
 
 function diskSnapshot(): DiskSnapshot {
+    saveCompletions()
     const legacy = legacySnapshot()
     const snapshot: DiskSnapshot = { kind: legacy.kind, legacy, entries: new Map(), missing: new Set() }
     if (typeof window === 'undefined') return snapshot
@@ -173,19 +186,17 @@ function read(snapshot = diskSnapshot()): QueuedMutation[] {
 }
 
 function complete(job: QueuedMutation): void {
+    completedJobs.add(jobKey(job))
+    unsavedCompletions.set(jobKey(job), String(Date.now()))
     unsaved.set(jobKey(job), null)
     jobs = read().filter(item => jobKey(item) !== jobKey(job))
-    completedJobs.add(jobKey(job))
-    if (typeof window !== 'undefined') {
-        try { window.localStorage.setItem(completionPrefix + jobKey(job), String(Date.now())) }
-        catch (error) { console.error('Could not record action completion.', error) }
-    }
     publish()
 }
 
 function publish(required = false, last?: string): void {
     if (typeof window !== 'undefined') {
         try {
+            if (!saveCompletions()) throw new Error('Could not record action completion.')
             const snapshot = diskSnapshot()
             read(snapshot)
             const changes = [...unsaved].sort(([left], [right]) => Number(left === last) - Number(right === last))
@@ -278,7 +289,7 @@ export function queueMutation<T>(input: MutationInput, id?: string): Promise<T> 
 export function retryMutation(id: string): void {
     const job = read().find(item => item.id === id && item.accountId === sessionOwner())
     if (!job || job.status !== 'failed') return
-    if ([...unsaved.values()].some(value => value !== null)) publish(true)
+    if (unsavedCompletions.size || [...unsaved.values()].some(value => value !== null)) publish(true)
     const ids = [...failures.get(jobKey(job))?.keys() ?? []]
     if (typeof window !== 'undefined') try {
         window.localStorage.setItem(retryPrefix + jobKey(job) + ':' + factId(), JSON.stringify({ id: jobKey(job), failures: ids }))
@@ -290,12 +301,14 @@ export function retryMutation(id: string): void {
 }
 
 export function replayMutations(): Promise<void> {
+    if (!saveCompletions()) return Promise.resolve()
     const generation = sessionGeneration()
     if (replay?.generation === generation) return replay.promise
     if (!senders.size || typeof navigator !== 'undefined' && navigator.onLine === false) return Promise.resolve()
     const task = (async () => {
         while (typeof navigator === 'undefined' || navigator.onLine !== false) {
             if (generation !== sessionGeneration()) return
+            if (!saveCompletions()) return
             let snapshot = diskSnapshot()
             if (snapshot.kind === 'unavailable') {
                 await Promise.resolve()
@@ -353,6 +366,7 @@ export function replayMutations(): Promise<void> {
                 sending.delete(job.id)
                 if (current() && isCompleted(jobKey(job))) rejectCompleted(job)
                 finish()
+                void replayMutations()
             }
         }
     })()

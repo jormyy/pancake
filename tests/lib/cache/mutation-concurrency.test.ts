@@ -603,3 +603,93 @@ it('does not acknowledge a rejection through a corrupt retry record', async () =
     expect(race.sends).toEqual([])
     expect(race.run(first, 'queue.pendingMutations()[0].error')).toBe('Rejected')
 })
+
+it('resumes later actions when an old account send settles after a read fault', async () => {
+    const { storageRace, records, start, enqueue } = await import('../../helpers/mutation-storage-race')
+    const race = storageRace()
+    const tab = race.tab('A')
+    race.run(tab, enqueue)
+    race.run(tab, 'queue.configureMutationReplay(job=>{record();if(job.path==="/action")return new Promise(resolve=>finish=resolve);return Promise.resolve("saved")});' + start)
+    race.run(tab, 'session.setSessionOwner("B");session.setSessionOwner("A");navigator.onLine=false')
+    tab.input = { ...records[1], accountId: 'A', path: '/second' }
+    race.run(tab, 'result="pending";' + enqueue)
+    race.onGet = key => { if (key === 'pancake:offline-mutations:v1') throw new Error('Temporary read failure') }
+    race.run(tab, start)
+    race.onGet = undefined
+    race.run(tab, 'finish("saved")')
+    expect(race.sends).toEqual(['A', 'A'])
+    expect(tab.result).toBe('saved')
+    expect(race.run(tab, 'queue.pendingMutations().map(job=>job.path)')).toEqual([])
+})
+
+it('retries a transient completion write before a stale tab replays', async () => {
+    const { storageRace, records, start, enqueue, completionPrefix } = await import('../../helpers/mutation-storage-race')
+    const race = storageRace()
+    const writer = race.tab('A')
+    writer.console = { ...console, error: () => {} }
+    race.run(writer, enqueue)
+    const stale = race.tab('A')
+    race.onBeforeSet = key => {
+        if (!key.startsWith(completionPrefix)) return
+        race.onBeforeSet = undefined
+        throw new Error('Transient write failure')
+    }
+    race.run(writer, start)
+    race.run(writer, 'queue.replayMutations()')
+    expect(race.values.has(completionPrefix + 'A:' + records[0].id)).toBe(true)
+    race.run(stale, start)
+    expect(race.sends).toEqual(['A'])
+    expect(race.run(stale, 'queue.pendingMutations().length')).toBe(0)
+})
+
+it.each(['read', 'replay', 'enqueue', 'retry'] as const)('saves retained completions before %s after storage recovers', async recovery => {
+    const { storageRace, records, start, enqueue, completionPrefix } = await import('../../helpers/mutation-storage-race')
+    const race = storageRace()
+    const writer = race.tab('A')
+    writer.console = { ...console, error: () => {} }
+    race.run(writer, enqueue)
+    const stale = race.tab('A')
+    const id = 'A:' + records[0].id
+    race.onBeforeSet = key => { if (key.startsWith(completionPrefix)) throw new Error('Storage unavailable') }
+    race.run(writer, start)
+    expect(writer.result).toBe('saved')
+    expect(race.values.has('pancake:offline-mutation:v1:' + id)).toBe(true)
+    expect(JSON.parse(race.values.get('pancake:offline-mutations:v1')!)).toHaveLength(1)
+    expect(race.values.has(completionPrefix + id)).toBe(false)
+    writer.input = { ...records[1], accountId: 'A', path: '/second' }
+    if (recovery === 'retry') {
+        const second = { ...writer.input, status: 'failed', error: 'Rejected' }
+        race.values.set('pancake:offline-mutation:v1:A:' + second.id, JSON.stringify(second))
+    }
+    const earlyOperations: string[] = []
+    const checkSaved = (operation: string) => { if (!race.values.has(completionPrefix + id)) earlyOperations.push(operation) }
+    race.onGet = () => checkSaved('read')
+    race.onRemove = () => checkSaved('remove')
+    race.onBeforeSet = key => { if (!key.startsWith(completionPrefix)) checkSaved('write') }
+    race.run(writer, recovery === 'read' ? 'queue.pendingMutations()' : recovery === 'replay' ? start : recovery === 'retry' ? 'queue.retryMutation(input.id)' : enqueue)
+    expect(race.values.has(completionPrefix + id)).toBe(true)
+    race.run(stale, start)
+    expect(earlyOperations).toEqual([])
+    expect(race.sends).toEqual(recovery === 'enqueue' || recovery === 'retry' ? ['A', 'A'] : ['A'])
+})
+
+it('cannot share completion with a stale tab while every storage write stays unavailable', async () => {
+    const { storageRace, start, enqueue, completionPrefix } = await import('../../helpers/mutation-storage-race')
+    const race = storageRace()
+    const writer = race.tab('A')
+    writer.console = { ...console, error: () => {} }
+    race.run(writer, enqueue)
+    const stale = race.tab('A')
+    stale.console = writer.console
+    let removals = 0
+    race.onBeforeSet = () => { throw new Error('Storage unavailable') }
+    race.onRemove = () => { removals++ }
+    race.run(writer, start)
+    expect(writer.result).toBe('saved')
+    race.run(writer, 'queue.replayMutations()')
+    expect(race.sends).toEqual(['A'])
+    expect(removals).toBe(0)
+    expect([...race.values.keys()].some(key => key.startsWith(completionPrefix))).toBe(false)
+    race.run(stale, start)
+    expect(race.sends).toEqual(['A', 'A'])
+})

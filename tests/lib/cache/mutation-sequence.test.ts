@@ -40,6 +40,8 @@ it.each(seeds)('preserves queue invariants through seeded sequence %i', async se
     vi.spyOn(Date, 'now').mockImplementation(() => wallNow)
     let online = false
     let failures = 0
+    let readFault = false
+    let completionWriteFailures = 0
     let serial = 0
     let clock = 0
     let savedAt = 0
@@ -68,10 +70,16 @@ it.each(seeds)('preserves queue invariants through seeded sequence %i', async se
     const storage = enumerableStorage({
         get length() { return (saved === undefined ? 0 : 1) + completionValues.size + entryValues.size + eventValues.size },
         key: (index: number) => [...(saved === undefined ? [] : [queueKey]), ...completionValues.keys(), ...entryValues.keys(), ...eventValues.keys()][index] ?? null,
-        getItem: (name: string) => name === completionKey ? completedSaved ?? null : name === queueKey ? saved ?? null : completionValues.get(name) ?? entryValues.get(name) ?? eventValues.get(name) ?? null,
+        getItem: (name: string) => {
+            if (readFault && name === queueKey) { coverage.readFailure = (coverage.readFailure ?? 0) + 1; throw new Error('Injected read failure') }
+            return name === completionKey ? completedSaved ?? null : name === queueKey ? saved ?? null : completionValues.get(name) ?? entryValues.get(name) ?? eventValues.get(name) ?? null
+        },
         setItem: (name: string, value: string) => {
             if (name === completionKey) { completedSaved = value; return }
-            if (name.startsWith(completionPrefix)) { completionValues.set(name, value); return }
+            if (name.startsWith(completionPrefix)) {
+                if (completionWriteFailures > 0) { completionWriteFailures--; coverage.completionWriteFailure = (coverage.completionWriteFailure ?? 0) + 1; throw new Error('Injected completion write failure') }
+                completionValues.set(name, value); return
+            }
             if (failures > 0) { failures--; coverage.writeFailure = (coverage.writeFailure ?? 0) + 1; throw new Error('Injected storage failure') }
             if (name.startsWith(failurePrefix) || name.startsWith(retryPrefix)) { eventValues.set(name, value); savedAt = ++clock; return }
             if (name.startsWith(entryPrefix)) { entryValues.set(name, value); savedAt = ++clock; return }
@@ -354,9 +362,21 @@ it.each(seeds)('preserves queue invariants through seeded sequence %i', async se
     await step('clockRollback', clockRollback)
     await step('enqueue', () => { orderedSecond = enqueue() })
     await step('hold', () => { online = true; start(); expect(held.has(orderedFirst), String(seed)).toBe(true) })
+    await step('accountReturnReadFault', async () => {
+        online = false
+        switchAccount()
+        switchAccount()
+        readFault = true
+        online = true
+        start()
+        await flush()
+        expect(held.has(orderedFirst), String(seed)).toBe(true)
+        readFault = false
+    })
     await step('success', () => release(orderedFirst, true))
     expect(held.has(orderedSecond), String(seed)).toBe(true)
-    await step('success', () => release(orderedSecond, true))
+    await step('transientCompletionWriteFault', () => { completionWriteFailures = 1; release(orderedSecond, true) })
+    expect(completionValues.has(completionPrefix + `${account}:${orderedSecond}`), String(seed)).toBe(true)
     await step('offline', () => { online = false })
     let exiting = ''
     await step('enqueue', () => { exiting = enqueue() })
@@ -437,6 +457,6 @@ it.each(seeds)('preserves queue invariants through seeded sequence %i', async se
     online = false
     session.setSessionOwner(null)
     for (const operation of ['enqueue', 'success', 'failure', 'hold', 'retry', 'writeFault', 'switch', 'reload']) expect(coverage[operation], String(seed)).toBeGreaterThan(0)
-    for (const outcome of ['writeFailure', 'sendStarted', 'sendSuccess', 'sendFailure', 'retryAccepted', 'offlineFailure', 'tabStatusWrite', 'tabCompletion', 'malformedStart', 'unsavedRejectionSwitch', 'externalEnqueueApplied', 'staleWriteApplied', 'completionRaceApplied', 'offlineCompletedExitApplied', 'clockRollbackApplied', 'corruptinputApplied', 'corruptfailureApplied', 'corruptretryApplied', 'corruptcompletionApplied']) expect(coverage[outcome], String(seed)).toBeGreaterThan(0)
+    for (const outcome of ['writeFailure', 'sendStarted', 'sendSuccess', 'sendFailure', 'retryAccepted', 'offlineFailure', 'tabStatusWrite', 'tabCompletion', 'malformedStart', 'unsavedRejectionSwitch', 'externalEnqueueApplied', 'staleWriteApplied', 'completionRaceApplied', 'offlineCompletedExitApplied', 'clockRollbackApplied', 'accountReturnReadFault', 'readFailure', 'transientCompletionWriteFault', 'completionWriteFailure', 'corruptinputApplied', 'corruptfailureApplied', 'corruptretryApplied', 'corruptcompletionApplied']) expect(coverage[outcome], String(seed)).toBeGreaterThan(0)
     console.log(JSON.stringify({ seed, steps: stepCount, actions: actions.size, sends: [...actions.values()].reduce((sum, action) => sum + action.sends, 0), coverage }))
 })

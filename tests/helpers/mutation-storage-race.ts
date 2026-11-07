@@ -57,6 +57,7 @@ export function storageRace(initial: QueuedMutation[] = []) {
             return module.exports
         }
         load('@/lib/session-cache-registry').setSessionOwner(owner)
+        context.session = load('@/lib/session-cache-registry')
         context.queue = load('@/lib/cache/mutation-queue')
         run(context, 'queue.mutationSnapshot();queue.configureMutationReplay(async()=>{record();return "saved"});result="pending"')
         return context
