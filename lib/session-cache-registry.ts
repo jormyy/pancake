@@ -5,7 +5,7 @@
 // changes and whenever the persistent caches are cleared.
 let owner: string | null | undefined
 let generation = 0
-const clearListeners = new Set<() => void>()
+const clearListeners = new Set<(discardPending: boolean) => void>()
 
 export function sessionGeneration(): number {
     return generation
@@ -24,10 +24,10 @@ export function setSessionOwner(next: string | null): void {
     owner = next
 }
 
-export function onSessionCachesCleared(listener: () => void): void {
+export function onSessionCachesCleared(listener: (discardPending: boolean) => void): void {
     clearListeners.add(listener)
 }
 
-export function clearSessionCaches(): void {
-    for (const listener of clearListeners) listener()
+export function clearSessionCaches(discardPending = false): void {
+    for (const listener of clearListeners) listener(discardPending)
 }
