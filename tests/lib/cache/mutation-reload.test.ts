@@ -77,8 +77,8 @@ describe('settled mutation persistence across reload', () => {
         online = true
         await queue.replayMutations()
         await expect(result).resolves.toBe('Could not read your pending actions. Refresh and retry.')
-        expect(values.get(completionPrefix + `account:${id}`)).toBe(corrupt)
-        expect(queue.pendingMutations()[0].status).toBe('failed')
+        expect(JSON.parse(values.get(completionPrefix + `account:${id}`)!).orphanedValue).toBe(corrupt)
+        expect(queue.pendingMutations()).toEqual([])
     })
 
     it('prunes only old completion records whose input and legacy backup are gone', async () => {

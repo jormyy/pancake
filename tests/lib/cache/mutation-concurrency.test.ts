@@ -385,7 +385,7 @@ it('rejects an unsaved caller safely when access to storage itself is denied', a
     Object.defineProperty(first.window, 'localStorage', { get() { throw new Error('Access denied') } })
     expect(() => race.run(first, 'queue.mutationSnapshot()')).not.toThrow()
     expect(() => race.run(first, enqueue)).not.toThrow()
-    expect(first.result).toBe('Could not save your pending action. Keep this screen open and retry.')
+    expect(first.result).toBe('Could not read your pending actions. Refresh and retry.')
 })
 
 it('replays in memory without a browser instead of waiting for nonexistent storage', async () => {
@@ -860,4 +860,72 @@ it('does not carry a discarded legacy rejection into a new action with the same 
     persistentCache(tab).clearPersistentCaches()
     race.run(tab, enqueue)
     expect(race.run(tab, 'queue.pendingMutations().map(job=>({status:job.status,error:job.error}))')).toEqual([{ status: 'pending', error: null }])
+})
+
+it.each([false, true])('keeps completion proof safe when cleanup races with restored input %s', async restoreInput => {
+    const { cleanupReplayRace } = await import('../../helpers/mutation-storage-race')
+    expect(cleanupReplayRace(restoreInput)).toEqual({ interleaved: true, entryWithoutCompletion: false, replayedPaths: [] })
+})
+
+it('bounds retry history through 30 completed actions under an 8 KiB quota', async () => {
+    const { retryStorageGrowth } = await import('../../helpers/mutation-storage-race')
+    expect(retryStorageGrowth()).toEqual({ completed: 30, pending: 0, retainedFacts: 0, blocked: null })
+})
+
+it.each(['failure', 'retry'] as const)('ages orphaned %s facts without deleting recent or live facts', async kind => {
+    const { storageRace, records, enqueue } = await import('../../helpers/mutation-storage-race')
+    const race = storageRace(), tab = race.tab('A')
+    const id = 'B:' + records[1].id, prefix = `pancake:offline-mutation-${kind}:v1:`
+    const value = kind === 'failure' ? { id, failureId: 'orphan', error: 'Rejected' } : { id, failures: ['orphan'] }
+    const old = prefix + id + ':orphan', recent = prefix + id + ':recent'
+    race.values.set(old, JSON.stringify({ ...value, createdAt: race.now - 8 * 86400000 }))
+    race.values.set(recent, JSON.stringify({ ...value, ...(kind === 'failure' ? { failureId: 'recent' } : {}), createdAt: race.now }))
+    race.run(tab, enqueue)
+    expect(race.values.has(old)).toBe(false)
+    expect(race.values.has(recent)).toBe(true)
+    const live = { ...records[1], status: 'pending', error: null }
+    race.values.set('pancake:offline-mutation:v1:' + id, JSON.stringify(live))
+    race.now += 8 * 86400000
+    race.run(tab, 'queue.retryMutation("absent")')
+    expect(race.values.has(recent)).toBe(true)
+})
+
+it.each(['failure', 'retry', 'done'] as const)('retains old or malformed orphan %s metadata for a full observation window', async kind => {
+    const { storageRace, records, enqueue } = await import('../../helpers/mutation-storage-race')
+    const race = storageRace(), tab = race.tab('A')
+    const id = 'B:' + records[1].id, prefix = `pancake:offline-mutation-${kind}:v1:`
+    const old = prefix + id + (kind === 'done' ? '' : ':old')
+    const malformed = prefix + 'B:10000000-0000-4000-8000-000000000003' + (kind === 'done' ? '' : ':corrupt')
+    race.values.set(old, kind === 'failure' ? JSON.stringify({ id, failureId: 'old', error: 'Rejected' }) : kind === 'retry' ? JSON.stringify({ id, failures: ['old'] }) : 'invalid')
+    race.values.set(malformed, '{invalid')
+    race.run(tab, enqueue)
+    const stamped = JSON.parse(race.values.get(old)!)
+    expect(stamped.createdAt).toBe(race.now)
+    if (kind === 'failure') expect(stamped.error).toBe('Rejected')
+    if (kind === 'retry') expect(stamped.failures).toEqual(['old'])
+    expect(JSON.parse(race.values.get(malformed)!).orphanedValue).toBe('{invalid')
+    race.now += 7 * 86400000
+    race.run(tab, 'queue.retryMutation("absent")')
+    expect(race.values.has(old)).toBe(true)
+    race.now++
+    race.run(tab, 'queue.retryMutation("absent")')
+    expect(race.values.has(old)).toBe(false)
+    expect(race.values.has(malformed)).toBe(false)
+})
+
+it.each(['failure', 'retry'] as const)('restores an aged orphan %s fact if its input reappears during deletion', async kind => {
+    const { storageRace, records, enqueue } = await import('../../helpers/mutation-storage-race')
+    const race = storageRace(), tab = race.tab('A')
+    const id = 'B:' + records[1].id, entry = 'pancake:offline-mutation:v1:' + id
+    const name = `pancake:offline-mutation-${kind}:v1:` + id + ':orphan'
+    const value = JSON.stringify({ id, ...(kind === 'failure' ? { failureId: 'orphan', error: 'Rejected' } : { failures: ['orphan'] }), createdAt: race.now - 8 * 86400000 })
+    race.values.set(name, value)
+    race.onRemove = key => {
+        if (key !== name) return
+        race.onRemove = undefined
+        race.values.set(entry, JSON.stringify(records[1]))
+    }
+    race.run(tab, enqueue)
+    expect(race.values.get(name)).toBe(value)
+    expect(race.values.has(entry)).toBe(true)
 })

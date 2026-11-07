@@ -152,3 +152,51 @@ export function quotaReload(blockRemoval = false) {
     race.run(restored, start)
     return { case: 'quota', caller: writer.result as string, sends: race.sends.length }
 }
+
+export function cleanupReplayRace(restoreInput = false) {
+    const race = storageRace(), writer = race.tab('A'), id = 'A:' + records[0].id
+    const marker = completionPrefix + id, entry = 'pancake:offline-mutation:v1:' + id
+    race.run(writer, enqueue + ';' + start)
+    race.now += 8 * 86400000
+    const stale = race.tab('A')
+    writer.input = { ...records[1], accountId: 'A', path: '/second' }
+    let interleaved = false
+    race.onGet = (name, value) => {
+        if (name !== entry || value !== null) return
+        race.onGet = key => { if (key === marker) throw new Error('Transient completion read failure') }
+        if (restoreInput) race.values.set(entry, JSON.stringify(records[0]))
+        else race.run(stale, enqueue)
+        race.onGet = undefined
+        interleaved = true
+    }
+    race.run(writer, 'navigator.onLine=false;' + enqueue)
+    race.run(writer, start)
+    const entryWithoutCompletion = race.values.has(entry) && !race.values.has(marker)
+    const restored = race.tab('A')
+    race.run(restored, 'paths=[];queue.configureMutationReplay(async job=>{paths.push(job.path);return "saved"});' + start)
+    return { interleaved, entryWithoutCompletion, replayedPaths: Array.from(restored.paths) as string[] }
+}
+
+export function retryStorageGrowth() {
+    const race = storageRace(), tab = race.tab('A')
+    tab.console = { error() {} }
+    race.onBeforeSet = (key, value) => {
+        let bytes = 2 * (key.length + value.length)
+        for (const [name, saved] of race.values) if (name !== key) bytes += 2 * (name.length + saved.length)
+        if (bytes > 8192) throw new Error('QuotaExceededError')
+    }
+    let completed = 0, blocked: unknown = null
+    for (let index = 1; index <= 30; index++) {
+        race.now += 8 * 86400000
+        tab.input = { ...records[0], id: `10000000-0000-4000-8000-${String(index).padStart(12, '0')}` }
+        race.run(tab, 'navigator.onLine=false;result="pending";queue.configureMutationReplay(async()=>{throw new Error("Rejected")});' + enqueue + ';' + start)
+        if (tab.result !== 'Rejected') { blocked = tab.result; break }
+        race.run(tab, 'queue.configureMutationReplay(async()=>"saved")')
+        race.run(tab, 'try{queue.retryMutation(input.id)}catch(error){result=error.message}')
+        race.run(tab, start)
+        if (race.run(tab, 'queue.pendingMutations().length')) { blocked = tab.result; break }
+        completed++
+    }
+    const retainedFacts = [...race.values.keys()].filter(key => key.includes('-failure:') || key.includes('-retry:')).length
+    return { completed, pending: race.run(tab, 'queue.pendingMutations().length') as number, retainedFacts, blocked }
+}

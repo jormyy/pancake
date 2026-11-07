@@ -16,7 +16,8 @@ const acknowledged = new Map<string, Set<string>>()
 let fallbackFactSequence = 0
 let highestOrder = 0
 let discardVersion = 0
-const completedJobs = new Set<string>()
+let cleaning = false
+const completedJobs = new Map<string, number>()
 const savedInputs = new Set<string>()
 const unsavedCompletions = new Map<string, string>()
 const completionMaxAge = 7 * 24 * 60 * 60 * 1000
@@ -26,6 +27,7 @@ const senders = new Map<string, Sender>()
 const sending = new Map<string, Promise<void>>()
 const unsaved = new Map<string, QueuedMutation | null>()
 const jobKey = (job: Pick<QueuedMutation, 'id' | 'accountId'>) => `${job.accountId}:${job.id}`
+const rememberCompleted = (id: string) => { if (!completedJobs.has(id)) completedJobs.set(id, Date.now()) }
 let replay: { generation: number; promise: Promise<void> } | undefined
 const listeners = new Set<() => void>()
 const waiters = new Map<string, { promise: Promise<unknown>; resolve: (value: unknown) => void; reject: (error: Error) => void }>()
@@ -47,12 +49,12 @@ function completionState(id: string): 'completed' | 'unproven' | 'unavailable' {
         const raw = typeof window !== 'undefined' ? window.localStorage.getItem(completionPrefix + id) : null
         if (raw === null) {
             if (typeof window === 'undefined' || !savedInputs.has(id) || window.localStorage.getItem(entryPrefix + id) !== null) return 'unproven'
-            completedJobs.add(id)
+            rememberCompleted(id)
             return 'completed'
         }
         const timestamp = Number(raw)
         if (!Number.isFinite(timestamp) || timestamp <= 0) return 'unavailable'
-        completedJobs.add(id)
+        rememberCompleted(id)
         return 'completed'
     } catch { return 'unavailable' }
 }
@@ -159,6 +161,67 @@ function diskSnapshot(): DiskSnapshot {
     return snapshot
 }
 
+function hasLiveJob(id: string): boolean {
+    const legacy = legacySnapshot()
+    return legacy.kind === 'unavailable' || [...jobs ?? [], ...legacy.jobs, ...[...unsaved.values()].filter((job): job is QueuedMutation => job !== null)].some(job => jobKey(job) === id)
+}
+
+function removeFacts(storage: Storage, id: string): void {
+    try {
+        for (const name of Object.keys(storage)) if ([failurePrefix, retryPrefix].some(prefix => name.startsWith(prefix + id + ':'))) {
+            try { storage.removeItem(name) } catch {}
+        }
+    } catch {}
+    failures.delete(id)
+    acknowledged.delete(id)
+}
+
+function cleanStorage(): void {
+    if (cleaning || typeof window === 'undefined') return
+    cleaning = true
+    try {
+        const storage = window.localStorage
+        for (const name of Object.keys(storage)) {
+            const prefix = [completionPrefix, failurePrefix, retryPrefix].find(prefix => name.startsWith(prefix))
+            if (!prefix) continue
+            const raw = storage.getItem(name)
+            if (raw === null) continue
+            const completion = prefix === completionPrefix
+            const proven = completion && Number.isFinite(Number(raw)) && Number(raw) > 0
+            if (proven) rememberCompleted(name.slice(prefix.length))
+            let value
+            try { value = JSON.parse(raw) } catch {}
+            const id = completion ? name.slice(prefix.length) : typeof value?.id === 'string' && name.startsWith(prefix + value.id + ':') ? value.id : name.slice(prefix.length).split(':').slice(0, 2).join(':')
+            if (hasLiveJob(id) || storage.getItem(entryPrefix + id) !== null) continue
+            const createdAt = proven ? Number(raw) : value?.createdAt
+            if (!Number.isFinite(createdAt) || createdAt <= 0) {
+                if (storage.getItem(name) === raw) storage.setItem(name, JSON.stringify({ ...(value && typeof value === 'object' && !Array.isArray(value) ? value : { orphanedValue: raw }), createdAt: Date.now() }))
+                continue
+            }
+            if (createdAt >= Date.now() - completionMaxAge || storage.getItem(name) !== raw) continue
+            storage.removeItem(name)
+            let restore = true
+            try { restore = hasLiveJob(id) || storage.getItem(entryPrefix + id) !== null } catch {}
+            if (!restore) {
+                if (!completion) { failures.delete(id); acknowledged.delete(id) }
+                continue
+            }
+            if (proven) {
+                rememberCompleted(id)
+                unsavedCompletions.set(id, raw)
+                saveCompletions()
+            } else storage.setItem(name, raw)
+        }
+        for (const [id, observedAt] of completedJobs) if (observedAt < Date.now() - completionMaxAge && !unsavedCompletions.has(id) && !hasLiveJob(id) && storage.getItem(entryPrefix + id) === null) {
+            completedJobs.delete(id)
+            savedInputs.delete(id)
+            failures.delete(id)
+            acknowledged.delete(id)
+        }
+    } catch {}
+    finally { cleaning = false }
+}
+
 function read(snapshot = diskSnapshot()): QueuedMutation[] {
     const { legacy, entries, missing } = snapshot
     const stored = legacy.kind === 'available' ? legacy.jobs : []
@@ -191,7 +254,7 @@ function read(snapshot = diskSnapshot()): QueuedMutation[] {
 }
 
 function complete(job: QueuedMutation): void {
-    completedJobs.add(jobKey(job))
+    rememberCompleted(jobKey(job))
     unsavedCompletions.set(jobKey(job), String(Date.now()))
     unsaved.set(jobKey(job), null)
     jobs = read().filter(item => jobKey(item) !== jobKey(job))
@@ -199,20 +262,14 @@ function complete(job: QueuedMutation): void {
     try {
         if (typeof window === 'undefined') return
         window.localStorage.removeItem(entryPrefix + jobKey(job))
+        removeFacts(window.localStorage, jobKey(job))
         if (unsavedCompletions.has(jobKey(job))) {
             const snapshot = diskSnapshot()
             if (unsavedCompletions.has(jobKey(job)) && snapshot.legacy.kind === 'available' && snapshot.legacy.jobs.every(item => completedJobs.has(jobKey(item)) || snapshot.entries.has(jobKey(item)))) window.localStorage.removeItem(key)
         }
-        const legacy = legacySnapshot()
-        if (legacy.kind === 'unavailable') return
-        const retained = new Set(legacy.jobs.map(jobKey))
-        for (const name of Object.keys(window.localStorage)) {
-            if (!name.startsWith(completionPrefix)) continue
-            const id = name.slice(completionPrefix.length)
-            const timestamp = Number(window.localStorage.getItem(name))
-            if (timestamp > 0 && timestamp < Date.now() - completionMaxAge && !retained.has(id) && window.localStorage.getItem(entryPrefix + id) === null && Number(window.localStorage.getItem(name)) === timestamp) window.localStorage.removeItem(name)
-        }
     } catch {}
+    cleanStorage()
+
 }
 
 function publish(required = false, last?: string): void {
@@ -223,9 +280,9 @@ function publish(required = false, last?: string): void {
             read(snapshot)
             const changes = [...unsaved].sort(([left], [right]) => Number(left === last) - Number(right === last))
             for (const [id, job] of changes) {
-                if (job === null) window.localStorage.removeItem(entryPrefix + id)
+                if (job === null) { window.localStorage.removeItem(entryPrefix + id); removeFacts(window.localStorage, id) }
                 else {
-                    for (const [failureId, error] of failures.get(id) ?? []) window.localStorage.setItem(failurePrefix + id + ':' + failureId, JSON.stringify({ id, failureId, error }))
+                    for (const [failureId, error] of failures.get(id) ?? []) window.localStorage.setItem(failurePrefix + id + ':' + failureId, JSON.stringify({ id, failureId, error, createdAt: Date.now() }))
                     window.localStorage.setItem(entryPrefix + id, JSON.stringify({ ...job, status: 'pending', error: null }))
                     savedInputs.add(id)
                 }
@@ -285,11 +342,14 @@ export function queueMutation<T>(input: MutationInput, id?: string): Promise<T> 
     if (input.accountId !== sessionOwner()) return Promise.reject(new Error('Your account changed. Please retry.'))
     const waiting = waiters.get(selectedId)
     if (waiting) { void replayMutations(); return waiting.promise as Promise<T> }
-    if (sending.has(selectedId) || unsaved.get(jobKey({ accountId: input.accountId, id: selectedId })) === null || isCompleted(jobKey({ accountId: input.accountId, id: selectedId }))) return Promise.reject(new Error('This action belongs to an earlier session. Refresh before retrying.'))
+    const completion = completionState(jobKey({ accountId: input.accountId, id: selectedId }))
+    if (completion === 'unavailable') return Promise.reject(new Error('Could not read your pending actions. Refresh and retry.'))
+    if (sending.has(selectedId) || unsaved.get(jobKey({ accountId: input.accountId, id: selectedId })) === null || completion === 'completed') return Promise.reject(new Error('This action belongs to an earlier session. Refresh before retrying.'))
     let resolve!: (value: unknown) => void
     let reject!: (error: Error) => void
     const promise = new Promise<unknown>((done, fail) => { resolve = done; reject = fail })
     waiters.set(selectedId, { promise, resolve, reject })
+    cleanStorage()
     const previous = read()
     const job: QueuedMutation = previous.find(item => item.id === selectedId && item.accountId === input.accountId)
         ?? withOrder({ ...input, id: selectedId, status: 'pending', error: null, createdAt: Date.now(), order: Math.max(Date.now(), highestOrder + 1) }, 0)
@@ -310,12 +370,13 @@ export function queueMutation<T>(input: MutationInput, id?: string): Promise<T> 
 }
 
 export function retryMutation(id: string): void {
+    cleanStorage()
     const job = read().find(item => item.id === id && item.accountId === sessionOwner())
     if (!job || job.status !== 'failed') return
     if (unsavedCompletions.size || [...unsaved.values()].some(value => value !== null)) publish(true)
     const ids = [...failures.get(jobKey(job))?.keys() ?? []]
     if (typeof window !== 'undefined') try {
-        window.localStorage.setItem(retryPrefix + jobKey(job) + ':' + factId(), JSON.stringify({ id: jobKey(job), failures: ids }))
+        window.localStorage.setItem(retryPrefix + jobKey(job) + ':' + factId(), JSON.stringify({ id: jobKey(job), failures: ids, createdAt: Date.now() }))
     } catch { throw new Error('Could not save your pending action. Keep this screen open and retry.') }
     acknowledge(jobKey(job), ids)
     read()
@@ -330,6 +391,7 @@ export function replayMutations(): Promise<void> {
     const valid = () => generation === sessionGeneration() && version === discardVersion
     if (replay?.generation === generation) return replay.promise
     if (!senders.size || typeof navigator !== 'undefined' && navigator.onLine === false) return Promise.resolve()
+    cleanStorage()
     const task = (async () => {
         while (typeof navigator === 'undefined' || navigator.onLine !== false) {
             if (!valid()) return
