@@ -15,7 +15,7 @@ function sample(shape) {
 export function checkModel() {
   let checks = 0
   for (const resource of Object.values(policy.resources)) {
-    assert.doesNotMatch(resource.source+' '+resource.where,/\b(?:profiles|waiver_claims|bids|weekly_lineups|notifications)\b|auth\.users|auth\.uid/)
+    assert.doesNotMatch(resource.source+' '+resource.where+' '+Object.values(resource.fields).map(field=>field.sql).join(' '),/\b(?:profiles|waiver_claims|bids|weekly_lineups|notifications)\b|auth\.users|auth\.uid/)
     for (const key of Object.keys(resource.fields)) assert.doesNotMatch(key,/^(?:email|userId|user_id|invite_code|bid_amount|notes|claims|messages|notificationSettings)$/)
   }
   const states = ['pending','accepted','rejected','withdrawn','countered','edited','expired','vetoed','completed']
@@ -24,6 +24,16 @@ export function checkModel() {
     const publicRow = { ...sample(shape), id:'public', leagueId:league, deletedAt:null, isMock:false, isVoided:false,
       status:resource==='trades'||resource==='trade-assets'?'completed':sample(shape).status,
       completedAt:'2026-01-01', draftStatus:'completed', relatedTradeStatus:'completed', relatedTradeCompletedAt:'2026-01-01' }
+    if (resource==='free-agents') {
+      for (const availability of ['free-agent','waivers']) for (const bidAmount of [0,1,1000000]) for (const count of [0,1,8]) {
+        const row={...publicRow,availability,waiverEligible:true,waiverClearsAt:availability==='waivers'?'2026-01-02':null}
+        const claims=Array.from({length:count},(_,claimOrder)=>({playerId:row.id,status:'pending',bidAmount,claimOrder}))
+        for (const request of [{league,limit:1},{league,query:'public'},{league,sort:'name',direction:'desc'},{league,offset:1,limit:1}]) {
+          assert.deepEqual(modelObservation(resource,[{...row,pendingClaims:claims,claimCount:count,claimed:count>0,bidAmount}],request),modelObservation(resource,[row],request))
+          checks++
+        }
+      }
+    }
     const privateRows = []
     for (const state of states) for (const completedAt of [null,'2026-01-01']) {
       if (state==='completed' && completedAt!==null) continue

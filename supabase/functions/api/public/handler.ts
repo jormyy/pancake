@@ -22,14 +22,29 @@ async function digest(value: string) {
   const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))
   return Array.from(new Uint8Array(hash), byte => byte.toString(16).padStart(2, '0')).join('')
 }
+function clientAddress(request: Request): string {
+  const value = request.headers.get('cf-connecting-ip')?.trim()
+  if (!value) return 'unattributed'
+  if (/^[0-9.]+$/.test(value)) {
+    const octets = value.split('.')
+    if (octets.length === 4 && octets.every(part => /^\d{1,3}$/.test(part) && Number(part) <= 255)) return octets.map(Number).join('.')
+    return 'unattributed'
+  }
+  if (!/^[a-f0-9:.]+$/i.test(value)) return 'unattributed'
+  try { return new URL(`http://[${value}]/`).hostname } catch { return 'unattributed' }
+}
 export function createLimiter(now = Date.now) {
-  let minute = -1, global = 0
+  let minute = -1
   const clients = new Map<string, number>()
   return (key: string) => {
     const current = Math.floor(now()/60000)
-    if (current !== minute) { clients.clear(); global = 0; minute = current }
+    if (current !== minute) { clients.clear(); minute = current }
     const count = (clients.get(key) ?? 0)+1
-    if (++global > 600 || count > 60) return false
+    if (count > 60) return false
+    if (!clients.has(key) && clients.size >= 4096) {
+      const oldest = clients.keys().next().value
+      if (oldest !== undefined) clients.delete(oldest)
+    }
     clients.set(key,count)
     return true
   }
@@ -40,8 +55,7 @@ export function createPublicHandler(read: PublicRead, admit = createLimiter()) {
     if (path !== '/public/v2' && !path.startsWith('/public/v2/')) return null
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers })
     if (request.method !== 'GET') return failure(405, { Allow: 'GET, OPTIONS' })
-    const address = request.headers.get('x-forwarded-for')?.split(',').at(-1)?.trim() ?? 'shared'
-    const clientKey = await digest(/^[a-f0-9.:]{1,64}$/i.test(address) ? address : 'shared')
+    const clientKey = await digest(clientAddress(request))
     if (!admit(clientKey)) return failure(429, { 'Retry-After': '60' })
     const name = path.slice('/public/v2/'.length)
     if (!resourceNames.includes(name as Resource)) return failure(404)
@@ -51,7 +65,7 @@ export function createPublicHandler(read: PublicRead, admit = createLimiter()) {
       const allowed = ['league','limit','cursor','sort','direction',...Object.keys(spec.filters)]
       for (const key of url.searchParams.keys()) if (!allowed.includes(key) || url.searchParams.getAll(key).length !== 1) return failure(400)
       const league = url.searchParams.get('league')?.toLowerCase() ?? null
-      if (resource !== 'leagues' && (!league || !uuid.test(league))) return failure(404)
+      if (resource !== 'leagues' && (!league || !uuid.test(league))) return failure(400)
       if (resource === 'leagues' && league !== null) return failure(400)
       const params: Record<string, unknown> = {}
       const limitText = url.searchParams.get('limit') ?? String(policy.defaultLimit)
@@ -62,7 +76,7 @@ export function createPublicHandler(read: PublicRead, admit = createLimiter()) {
       for (const [key,value] of url.searchParams) {
         if (['league','limit','cursor'].includes(key)) continue
         if (['team','player','draft','trade'].includes(key)) {
-          if (!uuid.test(value)) return failure(404)
+          if (!uuid.test(value)) return failure(400)
           params[key] = value.toLowerCase()
         } else if (key === 'season' || key === 'week') {
           if (!/^\d+$/.test(value) || Number(value)<1 || Number(value)>(key==='week'?60:2200)) return failure(400)
@@ -79,7 +93,7 @@ export function createPublicHandler(read: PublicRead, admit = createLimiter()) {
           params[key] = value
         }
       }
-      if (resource === 'rosters' && !params.team) return failure(404)
+      if (resource === 'rosters' && !params.team) return failure(400)
       const scope = (await digest(JSON.stringify([league,resource,Object.entries(params).sort()]))).slice(0,24)
       let offset = 0
       const cursor = url.searchParams.get('cursor')

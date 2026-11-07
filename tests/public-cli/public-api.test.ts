@@ -44,3 +44,23 @@ describe('public v2 projection',()=>{
     expect((await call('22222222-2222-4222-8222-222222222222',`&cursor=${encodeURIComponent(cursor)}`))?.status).toBe(400)
   })
 })
+it('free-agent pages and cursors are independent of private pending claims and bids',async()=>{
+  const shape=publicContract.resources['free-agents'].properties.items.items
+  const base={...sample(shape) as Record<string,unknown>,leagueId:league,id:league,name:'Ada',availability:'free-agent',waiverClearsAt:null,waiverEligible:true}
+  const second={...base,id:'22222222-2222-4222-8222-222222222222',name:'Zed',availability:'waivers',waiverClearsAt:'2026-12-01'}
+  let secret:Record<string,unknown>={}
+  const handler=createPublicHandler(async(_league,resource,params)=>modelObservation(resource,[{...base,...secret},{...second,...secret}],{league,...params}),()=>true)
+  const url=`http://localhost/public/v2/free-agents?league=${league}&limit=1&sort=name`
+  const first=await (await handler(new Request(url),'/public/v2/free-agents'))!.text()
+  const cursor=JSON.parse(first).nextCursor
+  const next=`${url}&cursor=${encodeURIComponent(cursor)}`
+  const secondPage=await (await handler(new Request(next),'/public/v2/free-agents'))!.text()
+  for(let count=0;count<20;count++){
+    secret={claimed:true,pendingClaims:Array.from({length:count},(_,claimOrder)=>({playerId:league,bidAmount:count*239,claimOrder,status:'pending'})),claimCount:count,bidAmount:count*999}
+    expect(await (await handler(new Request(url),'/public/v2/free-agents'))!.text()).toBe(first)
+    expect(await (await handler(new Request(next),'/public/v2/free-agents'))!.text()).toBe(secondPage)
+  }
+  expect(first).toContain('free-agent')
+  expect(secondPage).toContain('waivers')
+  expect(first+secondPage).not.toContain('pending')
+})

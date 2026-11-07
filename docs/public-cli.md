@@ -10,15 +10,20 @@ Use Node 22 or later.
 
 ```sh
 npm install -g ./packages/pancake-cli
-export PANCAKE_API_URL=https://your-project.supabase.co/functions/v1/api
 pancake leagues --query dynasty --json
 pancake teams --league "$LEAGUE_ID" --json
 pancake rosters --league "$LEAGUE_ID" --team "$TEAM_ID" --json
 ```
 
-The API URL identifies the deployed Edge API. The package ships no Supabase key or database credentials.
-The CLI has no default hosted endpoint. Use HTTPS except for loopback development URLs.
+The default is `https://ceeytbfmwsnzalxlkalc.supabase.co/functions/v1/api`.
+The [production project record](production-migration-history.md) names this project.
+The [app URL resolver](../lib/shared/api-url.ts) defines the `/functions/v1/api` path.
+The default points to the production location for this release. API v2 is not deployed by this work.
+No configuration is needed after release. The package ships no Supabase key or database credentials.
+Set `PANCAKE_API_URL` or pass `--api-url` to override the default. The flag takes precedence.
+Use HTTPS except for loopback development URLs.
 Get stable league IDs from `leagues` and team IDs from `teams`.
+Missing required options and malformed UUID options exit 2 locally, with the lookup command in stderr. They make no network request.
 Team IDs identify league memberships. They are not account IDs.
 
 ## Commands and public fields
@@ -144,7 +149,7 @@ Stop on errors. Do not infer private claims or pending trades from public data.
 ## Privacy boundary
 
 [The policy file](../supabase/functions/api/public/policy.json) declares the public fields, source queries, record rules, filters, and default order.
-[The generator](../tools/verify/public-policy.mjs) builds both response schemas and the [SQL migration](../supabase/migrations/20261214010300_public_league_reads.sql).
+[The generator](../tools/verify/public-policy.mjs) builds both response schemas and the [current SQL migration](../supabase/migrations/20261214010400_public_read_admission.sql).
 The generator applies record predicates and an explicit field projection before public filters, ordering, page bounds, and `hasMore`.
 The Edge handler repeats the field projection before serialization and rejects invalid shapes.
 The database function is security definer with an empty search path. Only the Edge service role can execute it.
@@ -168,13 +173,24 @@ The public package no longer includes `db-health`. The separate operator tooling
 
 ## Limits, errors, and caching
 
-The server enforces at most 60 reads per client bucket and 600 reads globally per minute.
-A database counter enforces the global limit across Edge instances.
-The Edge handler also rejects bursts before the database call.
-Client buckets use a hash of the forwarded address and a database minute bucket. Missing addresses share one bucket.
-Forwarded addresses are best-effort client identity; the global ceiling does not depend on their trustworthiness.
-The database stores no raw IP address. Expired buckets are deleted in bounded batches.
-These operational counters never appear in public responses.
+The server admits at most 60 reads per client-IP bucket per minute across Edge instances.
+Admission is a separate `public_admit_read` RPC. Its short transaction commits before `public_read_v2` begins.
+The read transaction never updates rate counters or holds their row locks.
+There is no application-wide quota that one client can exhaust for every user.
+The local limiter retains at most 4,096 client buckets. Database admission remains authoritative after local eviction.
+Expired database buckets are removed in indexed, bounded batches.
+
+Only `CF-Connecting-IP` supplies the client identity. `X-Forwarded-For` and `X-Real-IP` are ignored.
+[Supabase documents that its platform sets this header on every request](https://supabase.com/docs/guides/api/query-plans#production-use-with-pre-request-protection).
+[Its Edge log reference also lists the header](https://supabase.com/docs/guides/observability/log-field-reference).
+This trust applies to Supabase's managed ingress, not an arbitrary self-hosted proxy.
+[Cloudflare documents Worker and proxy limitations](https://developers.cloudflare.com/fundamentals/reference/http-headers/#cf-connecting-ip).
+A self-hosted deployment must overwrite this header at its trusted ingress before using this policy.
+Missing, duplicate, or malformed header values share one `unattributed` bucket. No alternate client header is trusted.
+IPv4 and IPv6 representations are normalized before hashing. No raw IP address is stored by this counter.
+
+Per-IP limits do not stop distributed attacks, prevent shared-NAT contention, or impose a total database-cost ceiling.
+Platform capacity controls still apply. No claim of complete denial-of-service protection is made.
 
 HTTP 429 includes `Retry-After`. The CLI does not retry 429 or invalid requests.
 It retries network failures and HTTP 502, 503, or 504 at most twice with short exponential backoff.
@@ -184,15 +200,17 @@ Response bodies and stdout are capped at two MiB. Individual fields and lists ha
 Responses have ETags and require revalidation. Conditional requests still enforce resource access and rate limits.
 The CLI caches at most 128 files keyed by URL, without tokens. It never returns stale cache data after an error.
 Use `--no-cache` or `--cache-dir` when needed.
-Missing, malformed, unknown, and cross-league object IDs use the same 404 response shape.
+The Edge API rejects missing or malformed required IDs with a fixed 400 response before any database call.
+The SQL reader also returns a fixed 400 for malformed parameter values instead of exception text.
+Valid unknown and cross-league object IDs use the same 404 response shape.
 A private trade ID and a nonexistent trade ID also share the same 404 response.
 Invalid options use 400; unexpected database failures use a fixed 503 response without database details.
 
 | Exit | Meaning |
 | --- | --- |
 | 0 | Success |
-| 2 | Invalid command, option, or request |
-| 4 | Missing, malformed, or unavailable public resource |
+| 2 | Missing or invalid option, malformed UUID, or invalid request |
+| 4 | Syntactically valid but unavailable public resource |
 | 5 | Rate limit |
 | 6 | Network failure or timeout |
 | 7 | Server failure, invalid schema, or output limit |
@@ -205,7 +223,7 @@ node tools/verify/public-model.mjs
 npx vitest run tests/public-cli
 node --test tests/e2e/public-cli-v2.mjs
 node --test tools/perf/public-cli.test.mjs
-deno test supabase/functions/api/public/handler.test.ts
+deno test supabase/functions/api/public/handler.test.ts supabase/functions/api/public/reader.test.ts
 ```
 
 The model exhaustively checks the bounded trade-state and completion-state combinations, filter/page cases, and 128 private-field subsets per case.
@@ -216,20 +234,25 @@ The packed-package test installs the actual executable under a temporary prefix 
 The model assumes source tables and joins match the generated policy, fixed public snapshots, and a fixed request history.
 It does not prove timing independence, database execution, source-data correctness, concurrency, or availability under attack.
 A database failure can still reflect shared resource pressure. No stronger side-channel guarantee is claimed.
+Free-agent property cases vary pending claims, bids, counts, and claim order while comparing availability, search, sorting, and cursors.
+The projection reads only public roster ownership and active waiver holds; it never reads claim or bid tables.
 The real database noninterference test is [public-cli-v2.sql](../tests/db/public-cli-v2.sql).
 It and the [catalog verification](../tests/db/public-cli-v2-verify.sql) remain unexecuted until the isolated stack is available.
 
 ## Database release and recovery
 
 Follow [RELEASE-DB.md](../supabase/RELEASE-DB.md). This change does not apply migrations or deploy to production.
-Apply the new migration in a transaction on the isolated stack first.
+Apply `20261214010300_public_league_reads.sql`, then `20261214010400_public_read_admission.sql`, on the isolated stack first.
+The second migration separates admission, removes the global quota, and validates values before SQL casts.
 Run the catalog query and database tests. Regenerate database types and the database function catalog from that tested stack.
 The canonical SQL source check must also pass before release.
 After approval, apply the database migration before deploying the Edge API and installing version two of the CLI.
 Old version-one clients receive an explicit version-retired response.
 
-If verification fails, restore the previous Edge artifact and run [the matching rollback](../supabase/rollbacks/20261214010300_public_league_reads.sql).
-The rollback removes only the new reader and counters. It retains existing sharing functions and data.
+If verification fails, restore the matching previous Edge artifact.
+[Rollback 104](../supabase/rollbacks/20261214010400_public_read_admission.sql) restores the earlier reader and removes separate admission.
+[Rollback 103](../supabase/rollbacks/20261214010300_public_league_reads.sql) then removes the feature reader and counters if required.
+Both preserve the existing sharing functions and league data.
 Confirm the previous version-one routes with a local fixture capability after recovery.
 Do not claim a rollout until a real stack passes the catalog, privacy, and installed-CLI checks.
 

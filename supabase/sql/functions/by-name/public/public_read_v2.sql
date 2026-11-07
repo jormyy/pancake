@@ -1,5 +1,5 @@
 CREATE OR REPLACE FUNCTION public.public_read_v2(p_league_id uuid,p_resource text,p_params jsonb DEFAULT '{}',p_client_key text DEFAULT '')
-RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path='' SET lock_timeout='1s' SET statement_timeout='5s' AS $$
+RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path='' SET lock_timeout='1s' SET statement_timeout='5s' AS $$
 DECLARE
   params jsonb:=coalesce(p_params,'{}');
   page_limit integer;
@@ -8,25 +8,27 @@ DECLARE
   selected_year integer;
   result_rows jsonb;
   more boolean;
-  used integer;
-  current_minute timestamptz:=date_trunc('minute',clock_timestamp());
+  field_name text;
+  field_value jsonb;
   filter_spec jsonb:='{"leagues":["query"],"league":["season"],"seasons":[],"teams":["team","query"],"players":["player","query","position"],"free-agents":["player","query","position","season"],"rosters":["team","season"],"standings":["team"],"matchups":["team","week","season"],"scores":["team","week","season"],"schedule":["team","week","season"],"player-stats":["player","query","position","season"],"projections":["player","query","position"],"drafts":["draft","season"],"draft-results":["draft","team","season"],"picks":["team","season"],"trades":["trade","season","team"],"trade-assets":["trade","team"],"transactions":["team","season"]}'::jsonb;
   sort_spec jsonb:='{"leagues":["id","name","status"],"league":["id","name","status","leagueId","seasonId","seasonYear","timezone","rosterSize","irSlots","taxiSlots","taxiRule","taxiMaxSeasons","teamLimit","auctionBudget","waiverMode","faabStartingBudget","weeklyAddLimit","tradeDeadline","tradeVetoMode","tradeVetoWindowHours","tradeVetoThresholdPercent","allowInactiveTrades","playoffStartWeek","playoffEntrants","rookieDraftOrder","futurePickYears","playoffTotalWeeks"],"seasons":["id","leagueId","seasonYear","isCurrent","regularSeasonStart","regularSeasonEnd"],"teams":["id","leagueId","name"],"players":["id","leagueId","name","nbaId","nbaTeam","position","injuryStatus","yearsExperience","status","birthdate","injuryReason","injuryExpectedReturn","nbaDraftNumber","careerGames","headshotUrl"],"free-agents":["id","leagueId","name","nbaId","nbaTeam","position","injuryStatus","yearsExperience","status","availability","waiverClearsAt","waiverEligible","birthdate","injuryReason","injuryExpectedReturn","nbaDraftNumber","careerGames","headshotUrl"],"rosters":["id","leagueId","seasonYear","teamId","isOnIR","isOnTaxi"],"standings":["id","leagueId","name","wins","losses","ties","pointsFor","pointsAgainst","maxPointsFor","rank"],"matchups":["id","leagueId","seasonYear","weekNumber","endWeekNumber","homeTeamId","awayTeamId","homeTeamName","awayTeamName","homePoints","awayPoints","finalized","winnerTeamId"],"scores":["id","leagueId","seasonYear","weekNumber","endWeekNumber","homeTeamId","awayTeamId","homeTeamName","awayTeamName","homePoints","awayPoints","finalized","winnerTeamId"],"schedule":["id","leagueId","seasonYear","weekNumber","endWeekNumber","homeTeamId","awayTeamId","homeTeamName","awayTeamName","homePoints","awayPoints","finalized","winnerTeamId"],"player-stats":["id","leagueId","name","nbaId","nbaTeam","position","injuryStatus","yearsExperience","status","seasonYear","fantasyPoints","gamesPlayed","points","rebounds","assists","steals","blocks","turnovers","threePointersMade","minutes","birthdate","injuryReason","injuryExpectedReturn","nbaDraftNumber","careerGames","headshotUrl","fieldGoalsMade","fieldGoalsAttempted","freeThrowsMade","freeThrowsAttempted","doubleDoubles","tripleDoubles"],"projections":["id","leagueId","name","nbaId","nbaTeam","position","injuryStatus","yearsExperience","status","date","source","fetchedAt","projectionStatus","fantasyPoints","points","rebounds","assists","steals","blocks","turnovers","minutes","birthdate","injuryReason","injuryExpectedReturn","nbaDraftNumber","careerGames","headshotUrl"],"drafts":["id","leagueId","seasonYear","draftType","status","scheduledAt","startedAt","completedAt"],"draft-results":["id","leagueId","seasonYear","draftId","draftType","overallPick","round","teamId","teamName","playerId","playerName","pickedAt","price"],"picks":["id","leagueId","seasonYear","round","teamId","originalTeamId","isUsed"],"trades":["id","leagueId","seasonYear","status","completedAt","proposerTeamId","recipientTeamId"],"trade-assets":["id","leagueId","tradeId","status","completedAt","fromTeamId","toTeamId","kind","playerId","playerName","pickId","pickSeasonYear","pickRound"],"transactions":["id","leagueId","teamId","teamName","playerId","playerName","type","occurredAt","tradeId"]}'::jsonb;
 BEGIN
   IF p_client_key IS NULL OR p_client_key !~ '^[a-f0-9]{64}$' THEN RETURN jsonb_build_object('status',400); END IF;
-  INSERT INTO private.public_api_buckets(bucket_key,minute,reads) VALUES('global',current_minute,1)
-    ON CONFLICT(bucket_key,minute) DO UPDATE SET reads=private.public_api_buckets.reads+1
-    WHERE private.public_api_buckets.reads<600 RETURNING reads INTO used;
-  IF used IS NULL THEN RETURN jsonb_build_object('status',429,'retryAfter',60); END IF;
-  INSERT INTO private.public_api_buckets(bucket_key,minute,reads) VALUES(p_client_key,current_minute,1)
-    ON CONFLICT(bucket_key,minute) DO UPDATE SET reads=private.public_api_buckets.reads+1
-    WHERE private.public_api_buckets.reads<60 RETURNING reads INTO used;
-  IF used IS NULL THEN RETURN jsonb_build_object('status',429,'retryAfter',60); END IF;
-  DELETE FROM private.public_api_buckets WHERE (bucket_key,minute) IN (
-    SELECT bucket_key,minute FROM private.public_api_buckets WHERE minute<current_minute-interval '2 minutes' ORDER BY minute LIMIT 128
-  );
   IF p_resource IS NULL OR NOT (filter_spec ? p_resource) THEN RETURN jsonb_build_object('status',404); END IF;
-  IF jsonb_typeof(params)<>'object' OR EXISTS(SELECT 1 FROM jsonb_object_keys(params) k
+  IF jsonb_typeof(params)<>'object' THEN RETURN jsonb_build_object('status',400); END IF;
+  FOR field_name,field_value IN SELECT key,value FROM jsonb_each(params) LOOP
+    IF field_name IN ('team','player','draft','trade') THEN
+      IF jsonb_typeof(field_value)<>'string' OR (params->>field_name) !~* '^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$' THEN RETURN jsonb_build_object('status',400); END IF;
+      params:=jsonb_set(params,ARRAY[field_name],to_jsonb(lower(params->>field_name)));
+    ELSIF field_name IN ('limit','offset','season','week') THEN
+      IF jsonb_typeof(field_value) NOT IN ('string','number') OR (params->>field_name) !~ '^[0-9]+$' OR length(params->>field_name)>9 THEN RETURN jsonb_build_object('status',400); END IF;
+    ELSE
+      IF jsonb_typeof(field_value)<>'string' OR length(params->>field_name)>100 OR (params->>field_name) ~ '[[:cntrl:]]' THEN RETURN jsonb_build_object('status',400); END IF;
+    END IF;
+  END LOOP;
+  IF params ? 'season' AND (params->>'season')::integer NOT BETWEEN 1 AND 2200 THEN RETURN jsonb_build_object('status',400); END IF;
+  IF params ? 'week' AND (params->>'week')::integer NOT BETWEEN 1 AND 60 THEN RETURN jsonb_build_object('status',400); END IF;
+  IF EXISTS(SELECT 1 FROM jsonb_object_keys(params) k
     WHERE k NOT IN ('limit','offset','sort','direction') AND NOT ((filter_spec->p_resource) ? k)) THEN RETURN jsonb_build_object('status',400); END IF;
   IF params ? 'sort' AND NOT ((sort_spec->p_resource) ? (params->>'sort')) THEN RETURN jsonb_build_object('status',400); END IF;
   IF params ? 'direction' AND params->>'direction' NOT IN ('asc','desc') THEN RETURN jsonb_build_object('status',400); END IF;
@@ -819,7 +821,6 @@ BEGIN
         count(*)>page_limit INTO result_rows, more FROM page;
   END CASE;
   RETURN jsonb_build_object('status',200,'items',result_rows,'hasMore',more);
-EXCEPTION WHEN invalid_text_representation THEN RETURN jsonb_build_object('status',404);
-  WHEN numeric_value_out_of_range OR invalid_parameter_value THEN RETURN jsonb_build_object('status',400);
+EXCEPTION WHEN invalid_text_representation OR numeric_value_out_of_range OR invalid_parameter_value THEN RETURN jsonb_build_object('status',400);
 END;
 $$;

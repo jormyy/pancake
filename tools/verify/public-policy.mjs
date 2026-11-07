@@ -4,7 +4,7 @@ import path from 'node:path'
 
 const root = path.resolve(import.meta.dirname, '../..')
 const policyPath = 'supabase/functions/api/public/policy.json'
-const migrationPath = 'supabase/migrations/20261214010300_public_league_reads.sql'
+const migrationPath = 'supabase/migrations/20261214010400_public_read_admission.sql'
 const quote = value => `'${value.replaceAll("'", "''")}'`
 
 function contractFor(policy) {
@@ -59,17 +59,31 @@ function sqlFor(policy) {
 SET LOCAL lock_timeout='3s';
 SET LOCAL statement_timeout='30s';
 
-CREATE TABLE private.public_api_buckets (
-  bucket_key text NOT NULL,
-  minute timestamptz NOT NULL,
-  reads integer NOT NULL CHECK(reads>0),
-  PRIMARY KEY(bucket_key,minute)
-);
-ALTER TABLE private.public_api_buckets ENABLE ROW LEVEL SECURITY;
-REVOKE ALL ON private.public_api_buckets FROM PUBLIC,anon,authenticated,service_role;
+CREATE INDEX IF NOT EXISTS public_api_buckets_minute ON private.public_api_buckets(minute);
+
+CREATE OR REPLACE FUNCTION public.public_admit_read(p_client_key text)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path='' SET lock_timeout='1s' SET statement_timeout='2s' AS $$
+DECLARE
+  used integer;
+  current_minute timestamptz:=date_trunc('minute',clock_timestamp());
+BEGIN
+  IF p_client_key IS NULL OR p_client_key !~ '^[a-f0-9]{64}$' THEN RETURN jsonb_build_object('status',400); END IF;
+  INSERT INTO private.public_api_buckets(bucket_key,minute,reads) VALUES(p_client_key,current_minute,1)
+    ON CONFLICT(bucket_key,minute) DO UPDATE SET reads=private.public_api_buckets.reads+1
+    WHERE private.public_api_buckets.reads<60 RETURNING reads INTO used;
+  IF used IS NULL THEN RETURN jsonb_build_object('status',429,'retryAfter',60); END IF;
+  DELETE FROM private.public_api_buckets WHERE (bucket_key,minute) IN (
+    SELECT bucket_key,minute FROM private.public_api_buckets WHERE minute<current_minute-interval '2 minutes'
+    ORDER BY minute LIMIT 128 FOR UPDATE SKIP LOCKED
+  );
+  RETURN jsonb_build_object('status',200);
+END;
+$$;
+REVOKE ALL ON FUNCTION public.public_admit_read(text) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.public_admit_read(text) TO service_role;
 
 CREATE OR REPLACE FUNCTION public.public_read_v2(p_league_id uuid,p_resource text,p_params jsonb DEFAULT '{}',p_client_key text DEFAULT '')
-RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path='' SET lock_timeout='1s' SET statement_timeout='5s' AS $$
+RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path='' SET lock_timeout='1s' SET statement_timeout='5s' AS $$
 DECLARE
   params jsonb:=coalesce(p_params,'{}');
   page_limit integer;
@@ -78,25 +92,27 @@ DECLARE
   selected_year integer;
   result_rows jsonb;
   more boolean;
-  used integer;
-  current_minute timestamptz:=date_trunc('minute',clock_timestamp());
+  field_name text;
+  field_value jsonb;
   filter_spec jsonb:=${quote(JSON.stringify(filterSpec))}::jsonb;
   sort_spec jsonb:=${quote(JSON.stringify(sortSpec))}::jsonb;
 BEGIN
   IF p_client_key IS NULL OR p_client_key !~ '^[a-f0-9]{64}$' THEN RETURN jsonb_build_object('status',400); END IF;
-  INSERT INTO private.public_api_buckets(bucket_key,minute,reads) VALUES('global',current_minute,1)
-    ON CONFLICT(bucket_key,minute) DO UPDATE SET reads=private.public_api_buckets.reads+1
-    WHERE private.public_api_buckets.reads<600 RETURNING reads INTO used;
-  IF used IS NULL THEN RETURN jsonb_build_object('status',429,'retryAfter',60); END IF;
-  INSERT INTO private.public_api_buckets(bucket_key,minute,reads) VALUES(p_client_key,current_minute,1)
-    ON CONFLICT(bucket_key,minute) DO UPDATE SET reads=private.public_api_buckets.reads+1
-    WHERE private.public_api_buckets.reads<60 RETURNING reads INTO used;
-  IF used IS NULL THEN RETURN jsonb_build_object('status',429,'retryAfter',60); END IF;
-  DELETE FROM private.public_api_buckets WHERE (bucket_key,minute) IN (
-    SELECT bucket_key,minute FROM private.public_api_buckets WHERE minute<current_minute-interval '2 minutes' ORDER BY minute LIMIT 128
-  );
   IF p_resource IS NULL OR NOT (filter_spec ? p_resource) THEN RETURN jsonb_build_object('status',404); END IF;
-  IF jsonb_typeof(params)<>'object' OR EXISTS(SELECT 1 FROM jsonb_object_keys(params) k
+  IF jsonb_typeof(params)<>'object' THEN RETURN jsonb_build_object('status',400); END IF;
+  FOR field_name,field_value IN SELECT key,value FROM jsonb_each(params) LOOP
+    IF field_name IN ('team','player','draft','trade') THEN
+      IF jsonb_typeof(field_value)<>'string' OR (params->>field_name) !~* '^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$' THEN RETURN jsonb_build_object('status',400); END IF;
+      params:=jsonb_set(params,ARRAY[field_name],to_jsonb(lower(params->>field_name)));
+    ELSIF field_name IN ('limit','offset','season','week') THEN
+      IF jsonb_typeof(field_value) NOT IN ('string','number') OR (params->>field_name) !~ '^[0-9]+$' OR length(params->>field_name)>9 THEN RETURN jsonb_build_object('status',400); END IF;
+    ELSE
+      IF jsonb_typeof(field_value)<>'string' OR length(params->>field_name)>100 OR (params->>field_name) ~ '[[:cntrl:]]' THEN RETURN jsonb_build_object('status',400); END IF;
+    END IF;
+  END LOOP;
+  IF params ? 'season' AND (params->>'season')::integer NOT BETWEEN 1 AND 2200 THEN RETURN jsonb_build_object('status',400); END IF;
+  IF params ? 'week' AND (params->>'week')::integer NOT BETWEEN 1 AND 60 THEN RETURN jsonb_build_object('status',400); END IF;
+  IF EXISTS(SELECT 1 FROM jsonb_object_keys(params) k
     WHERE k NOT IN ('limit','offset','sort','direction') AND NOT ((filter_spec->p_resource) ? k)) THEN RETURN jsonb_build_object('status',400); END IF;
   IF params ? 'sort' AND NOT ((sort_spec->p_resource) ? (params->>'sort')) THEN RETURN jsonb_build_object('status',400); END IF;
   IF params ? 'direction' AND params->>'direction' NOT IN ('asc','desc') THEN RETURN jsonb_build_object('status',400); END IF;
@@ -116,8 +132,7 @@ BEGIN
     ${cases}
   END CASE;
   RETURN jsonb_build_object('status',200,'items',result_rows,'hasMore',more);
-EXCEPTION WHEN invalid_text_representation THEN RETURN jsonb_build_object('status',404);
-  WHEN numeric_value_out_of_range OR invalid_parameter_value THEN RETURN jsonb_build_object('status',400);
+EXCEPTION WHEN invalid_text_representation OR numeric_value_out_of_range OR invalid_parameter_value THEN RETURN jsonb_build_object('status',400);
 END;
 $$;
 REVOKE ALL ON FUNCTION public.public_read_v2(uuid,text,jsonb,text) FROM PUBLIC,anon,authenticated;
@@ -130,7 +145,21 @@ COMMIT;
 export async function generate(check = false) {
   const policy = JSON.parse(await readFile(path.join(root, policyPath), 'utf8'))
   const contract = JSON.stringify(contractFor(policy), null, 2)+'\n'
-  const outputs = { [migrationPath]: sqlFor(policy), 'supabase/functions/api/public/schema-v2.json': contract, 'packages/pancake-cli/schemas/v2.json': contract, 'packages/pancake-cli/schemas/options-v2.json': JSON.stringify(Object.fromEntries(Object.entries(policy.resources).map(([name, item]) => [name, { filters: Object.keys(item.filters), filterFields: item.filters, order: item.order, direction: item.direction ?? 'asc', sorts: Object.entries(item.fields).filter(([, field]) => !(Array.isArray(field.schema.type)?field.schema.type:[field.schema.type]).some(type=>['object','array'].includes(type))).map(([key]) => key) }])), null, 2)+'\n' }
+  const sql = sqlFor(policy)
+  const baseline = await readFile(path.join(root,'supabase/migrations/20261214010300_public_league_reads.sql'),'utf8')
+  const oldRead = baseline.slice(baseline.indexOf('CREATE OR REPLACE FUNCTION public.public_read_v2'),baseline.indexOf('\nREVOKE ALL ON FUNCTION public.public_read_v2'))
+  const rollback = `BEGIN;\nSET LOCAL lock_timeout='3s';\nSET LOCAL statement_timeout='30s';\nDROP FUNCTION IF EXISTS public.public_admit_read(text);\nDROP INDEX IF EXISTS private.public_api_buckets_minute;\n${oldRead}\nREVOKE ALL ON FUNCTION public.public_read_v2(uuid,text,jsonb,text) FROM PUBLIC,anon,authenticated;\nGRANT EXECUTE ON FUNCTION public.public_read_v2(uuid,text,jsonb,text) TO service_role;\nNOTIFY pgrst,'reload schema';\nCOMMIT;\n`
+  const outputs = {
+    [migrationPath]: sql,
+    'supabase/rollbacks/20261214010400_public_read_admission.sql': rollback,
+    'supabase/functions/api/public/schema-v2.json': contract,
+    'packages/pancake-cli/schemas/v2.json': contract,
+    'packages/pancake-cli/schemas/options-v2.json': JSON.stringify(Object.fromEntries(Object.entries(policy.resources).map(([name, item]) => [name, { filters: Object.keys(item.filters), filterFields: item.filters, order: item.order, direction: item.direction ?? 'asc', sorts: Object.entries(item.fields).filter(([, field]) => !(Array.isArray(field.schema.type)?field.schema.type:[field.schema.type]).some(type=>['object','array'].includes(type))).map(([key]) => key) }])), null, 2)+'\n',
+  }
+  for (const name of ['public_read_v2','public_admit_read']) {
+    const start = sql.indexOf(`CREATE OR REPLACE FUNCTION public.${name}(`)
+    outputs[`supabase/sql/functions/by-name/public/${name}.sql`] = sql.slice(start,sql.indexOf('\n$$;',start)+4)+'\n'
+  }
   for (const [file, text] of Object.entries(outputs)) {
     if (check) { if (await readFile(path.join(root,file),'utf8') !== text) throw new Error(`Stale public artifact: ${file}`) }
     else { await mkdir(path.dirname(path.join(root,file)),{recursive:true}); await writeFile(path.join(root,file),text) }

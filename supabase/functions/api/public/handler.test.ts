@@ -22,15 +22,22 @@ for (const resource of resourceNames) Deno.test(`public v2 ${resource} omits pri
   const text = await response.text()
   assert(!text.includes('SECRET')&&!text.includes('bid_amount'))
 })
-Deno.test('public v2 malformed and missing league IDs share the same error',async () => {
-  const handler = createPublicHandler(async () => ({status:404}))
-  const replies = []
-  for (const query of ['', '?league=bad',`?league=${league}`]) {
-    const response = (await handler(new Request(`http://localhost/public/v2/league${query}`),'/public/v2/league'))!
-    assert(response.status===404)
-    replies.push(await response.text())
+Deno.test('public v2 rejects missing or malformed IDs before calling SQL',async () => {
+  let calls=0
+  const handler=createPublicHandler(async()=>{calls++;throw new Error('SQL must not run')})
+  const queries=['','?league=bad',`?league=${league}&team=bad`]
+  const responses=[]
+  for(const query of queries){
+    const response=(await handler(new Request(`http://localhost/public/v2/teams${query}`),'/public/v2/teams'))!
+    assert(response.status===400)
+    responses.push(await response.text())
   }
-  assert(new Set(replies).size===1)
+  for(const [resource,key] of [['players','player'],['drafts','draft'],['trades','trade']]) {
+    const response=(await handler(new Request(`http://localhost/public/v2/${resource}?league=${league}&${key}=bad`),`/public/v2/${resource}`))!
+    assert(response.status===400)
+    responses.push(await response.text())
+  }
+  assert(new Set(responses).size===1&&calls===0)
 })
 Deno.test('public v2 verifies database errors and revokes old API',async () => {
   const handler = createPublicHandler(async () => { throw new Error('SECRET') })
@@ -45,9 +52,8 @@ Deno.test('public v2 limiter is bounded and resets each minute',() => {
   assert(!limiter('same'))
   now=60000
   assert(limiter('same'))
-  const global=createLimiter()
-  for(let i=0;i<600;i++) assert(global(String(i)))
-  assert(!global('new'))
+  for(let i=0;i<1000;i++) assert(limiter(`client-${i}`))
+  assert(limiter('another-client'))
 })
 Deno.test('public v2 validates fields and preserves conditional reads',async () => {
   const item=sample(publicContract.resources.league.properties.items.items)
