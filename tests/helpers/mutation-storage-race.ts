@@ -29,13 +29,18 @@ export function storageRace(initial: QueuedMutation[] = []) {
         onBeforeSet: undefined as ((key: string, value: string) => void) | undefined,
         onRemove: undefined as ((key: string) => void) | undefined,
     }
-    const storage = {
-        get length() { state.onEnumerate?.(); return values.size },
+    const storage = new Proxy({
+        get length() { return values.size },
         key: (index: number) => [...values.keys()][index] ?? null,
         getItem: (key: string) => { const value = values.get(key) ?? null; state.onGet?.(key, value); return value },
         setItem: (key: string, value: string) => { state.onBeforeSet?.(key, value); values.set(key, value); state.onSet?.(key, value) },
         removeItem: (key: string) => { state.onRemove?.(key); values.delete(key) },
-    }
+    }, {
+        ownKeys: () => { state.onEnumerate?.(); return [...values.keys()] },
+        getOwnPropertyDescriptor: (target, name) => typeof name === 'string' && values.has(name)
+            ? { configurable: true, enumerable: true, writable: true, value: undefined }
+            : Reflect.getOwnPropertyDescriptor(target, name),
+    })
     const run = (tab: Context, code: string) => runInContext(code, tab)
     const tab = (owner: string) => {
         const context = createContext({

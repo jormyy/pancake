@@ -286,8 +286,9 @@ it('waits for all legacy imports to save before starting a send', async () => {
     expect(race.sends).toEqual([])
     const restored = race.tab('A')
     expect(race.run(restored, 'queue.pendingMutations().length')).toBe(2)
+    expect(race.run(first, 'queue.pendingMutations()[0].status')).toBe('failed')
     race.onBeforeSet = undefined
-    race.run(first, start)
+    race.run(first, 'queue.retryMutation(input.id);' + start)
     expect(race.sends).toEqual(['A', 'A'])
     expect(race.run(first, 'queue.pendingMutations().length')).toBe(0)
 })
@@ -316,10 +317,12 @@ it('preserves unreadable legacy input and restores its order before newer input'
     first.input = { ...records[1], accountId: 'A', path: '/new' }
     race.run(first, enqueue + ';' + start)
     expect(race.sends).toEqual([])
+    expect(first.result).toBe('Could not read your pending actions. Refresh and retry.')
     race.onGet = undefined
     const restored = race.tab('A')
     expect(race.run(restored, 'queue.pendingMutations().map(job=>job.path)')).toEqual(['/action', '/new'])
     race.run(first, 'paths=[];queue.configureMutationReplay(async job=>{paths.push(job.path);return "saved"});' + start)
+    race.run(first, 'queue.retryMutation(input.id)')
     expect(Array.from(first.paths)).toEqual(['/action', '/new'])
 })
 
@@ -353,7 +356,8 @@ it('makes progress when an imported input record cannot be read back', async () 
     expect(writes).toBeLessThan(20)
     expect(race.sends).toEqual([])
     race.onGet = undefined
-    race.run(first, start)
+    expect(race.run(first, 'queue.pendingMutations()[0].error')).toBe('Could not read your pending actions. Refresh and retry.')
+    race.run(first, 'queue.retryMutation(input.id);' + start)
     expect(race.sends).toEqual(['A'])
 })
 
@@ -370,8 +374,9 @@ it('keeps saved retry intent when enumeration is unavailable', async () => {
     expect(race.run(first, 'queue.pendingMutations()[0].status')).toBe('pending')
     race.run(first, start)
     expect(race.sends).toEqual(['A'])
+    expect(race.run(first, 'queue.pendingMutations()[0].error')).toBe('Could not read your pending actions. Refresh and retry.')
     race.onEnumerate = undefined
-    race.run(first, start)
+    race.run(first, 'queue.retryMutation(input.id);' + start)
     expect(race.sends).toEqual(['A', 'A'])
 })
 
@@ -394,4 +399,60 @@ it('replays in memory without a browser instead of waiting for nonexistent stora
     expect(() => runInContext(enqueue + ';' + start, first, { timeout: 200 })).not.toThrow()
     expect(first.result).toBe('saved')
     expect(race.sends).toEqual(['A'])
+})
+
+it('retains a saved rejection when another completion removes an earlier storage key', async () => {
+    const { storageRace, records, enqueue, start } = await import('../../helpers/mutation-storage-race')
+    const race = storageRace([records[1], records[0]])
+    const first = race.tab('A')
+    race.run(first, enqueue)
+    const other = race.tab('B'), stale = race.tab('A')
+    race.run(stale, enqueue)
+    race.run(first, 'queue.configureMutationReplay(async()=>{record();throw new Error("Rejected")});' + start)
+    race.onGet = key => {
+        if (key !== 'pancake:offline-mutation:v1:A:' + records[0].id) return
+        race.onGet = undefined
+        race.run(other, start)
+    }
+    race.run(stale, start)
+    expect(race.sends).toEqual(['A', 'B'])
+    expect(stale.result).toBe('Rejected')
+    expect([...race.values.keys()].filter(key => key.startsWith('pancake:offline-mutation-retry:v1:'))).toEqual([])
+})
+
+it('resumes an online caller after a transient read failure without another replay event', async () => {
+    const { storageRace, records, enqueue } = await import('../../helpers/mutation-storage-race')
+    const race = storageRace()
+    const first = race.tab('A')
+    race.run(first, 'navigator.onLine=true')
+    let reads = 0
+    race.onGet = key => { if (key === 'pancake:offline-mutation:v1:A:' + records[0].id && ++reads === 3) throw new Error('Transient read failure') }
+    race.run(first, enqueue)
+    race.onGet = undefined
+    race.run(first, 'void 0')
+    expect(first.result).toBe('saved')
+    expect(race.sends).toEqual(['A'])
+    expect(race.run(first, 'queue.pendingMutations().length')).toBe(0)
+})
+
+it.each(['browser', 'memory'] as const)('settles rejection and explicit retry without crypto in %s mode', async mode => {
+    const { storageRace, enqueue, start } = await import('../../helpers/mutation-storage-race')
+    const race = storageRace()
+    const first = race.tab('A')
+    race.run(first, 'delete globalThis.crypto' + (mode === 'memory' ? ';delete globalThis.window' : ''))
+    race.run(first, enqueue + ';queue.configureMutationReplay(async()=>{record();throw new Error("Rejected")});' + start)
+    expect(first.result).toBe('Rejected')
+    expect(race.run(first, 'queue.pendingMutations()[0].status')).toBe('failed')
+    race.run(first, 'queue.configureMutationReplay(async()=>{record();return "saved"});queue.retryMutation(input.id)')
+    expect(race.sends).toEqual(['A', 'A'])
+    expect(race.run(first, 'queue.pendingMutations().length')).toBe(0)
+})
+
+it('starts an accepted retry queued while a completed replay guard is clearing', async () => {
+    const { storageRace, records } = await import('../../helpers/mutation-storage-race')
+    const race = storageRace([{ ...records[0], status: 'failed', error: 'Rejected' }])
+    const first = race.tab('A')
+    race.run(first, 'navigator.onLine=true;queue.configureMutationReplay(async()=>{record();return "saved"});queue.retryMutation(input.id)')
+    expect(race.sends).toEqual(['A'])
+    expect(race.run(first, 'queue.pendingMutations().length')).toBe(0)
 })

@@ -1,3 +1,4 @@
+import { enumerableStorage } from '../../helpers/enumerable-storage'
 import { afterEach, expect, it, vi } from 'vitest'
 import { cleanupRace, enqueueRace } from '../../helpers/mutation-storage-race'
 import { runCompletionRace } from '../../helpers/mutation-completion-race'
@@ -60,7 +61,7 @@ it.each(seeds)('preserves queue invariants through seeded sequence %i', async se
             return { ...job, status: open.length ? 'failed' : 'pending', error: open.at(-1)?.[1] ?? null } as QueuedMutation
         })
     }
-    const storage = {
+    const storage = enumerableStorage({
         get length() { return (saved === undefined ? 0 : 1) + completionValues.size + entryValues.size + eventValues.size },
         key: (index: number) => [...(saved === undefined ? [] : [queueKey]), ...completionValues.keys(), ...entryValues.keys(), ...eventValues.keys()][index] ?? null,
         getItem: (name: string) => name === completionKey ? completedSaved ?? null : name === queueKey ? saved ?? null : completionValues.get(name) ?? entryValues.get(name) ?? eventValues.get(name) ?? null,
@@ -84,7 +85,7 @@ it.each(seeds)('preserves queue invariants through seeded sequence %i', async se
             overwritten.clear()
             savedAt = ++clock
         },
-    }
+    }, () => [...(saved === undefined ? [] : [queueKey]), ...completionValues.keys(), ...entryValues.keys(), ...eventValues.keys()])
     vi.stubGlobal('window', Object.assign(new EventTarget(), { localStorage: storage }))
     vi.stubGlobal('navigator', { get onLine() { return online } })
     let session!: typeof import('@/lib/session-cache-registry')

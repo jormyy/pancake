@@ -13,6 +13,7 @@ const failurePrefix = 'pancake:offline-mutation-failure:v1:'
 const retryPrefix = 'pancake:offline-mutation-retry:v1:'
 const failures = new Map<string, Map<string, string>>()
 const acknowledged = new Map<string, Set<string>>()
+let fallbackFactSequence = 0
 const completedJobs = new Set<string>()
 const completionMaxAge = 7 * 24 * 60 * 60 * 1000
 let jobs: QueuedMutation[] | undefined
@@ -44,6 +45,11 @@ function isQueuedMutation(job: unknown): job is QueuedMutation {
     if (!job || typeof job !== 'object') return false
     const value = job as QueuedMutation
     return typeof value.id === 'string' && typeof value.accountId === 'string' && typeof value.path === 'string' && typeof value.body === 'string' && Array.isArray(value.rowIds) && ['pending', 'failed'].includes(value.status)
+}
+
+function factId(): string {
+    try { return requestId() }
+    catch { return `${Date.now()}:${++fallbackFactSequence}:${Math.random()}` }
 }
 
 function observeFailure(id: string, failureId: string, error: string): void {
@@ -83,8 +89,7 @@ function diskSnapshot(): DiskSnapshot {
         } catch {}
     }
     try {
-        for (let index = 0; index < storage.length; index++) {
-            const name = storage.key(index)
+        for (const name of Object.keys(storage)) {
             if (!name || ![entryPrefix, failurePrefix, retryPrefix].some(prefix => name.startsWith(prefix))) continue
             try {
                 if (name.startsWith(entryPrefix)) { loadEntry(name); continue }
@@ -175,6 +180,18 @@ function publish(required = false, last?: string): void {
     }
 }
 
+function failMutation(job: QueuedMutation, error: string, generation: number): void {
+    observeFailure(jobKey(job), factId(), error)
+    const failed: QueuedMutation = { ...job, status: 'failed', error }
+    unsaved.set(jobKey(job), failed)
+    jobs = read().map(item => jobKey(item) === jobKey(job) ? failed : item)
+    publish()
+    if (generation === sessionGeneration() && job.accountId === sessionOwner()) {
+        waiters.get(job.id)?.reject(new Error(error))
+        waiters.delete(job.id)
+    }
+}
+
 export const mutationSnapshot: () => readonly QueuedMutation[] = read
 
 export function pendingMutations(accountId = sessionOwner()): QueuedMutation[] {
@@ -226,7 +243,7 @@ export function retryMutation(id: string): void {
     if ([...unsaved.values()].some(value => value !== null)) publish(true)
     const ids = [...failures.get(jobKey(job))?.keys() ?? []]
     if (typeof window !== 'undefined') try {
-        window.localStorage.setItem(retryPrefix + jobKey(job) + ':' + requestId(), JSON.stringify({ id: jobKey(job), failures: ids }))
+        window.localStorage.setItem(retryPrefix + jobKey(job) + ':' + factId(), JSON.stringify({ id: jobKey(job), failures: ids }))
     } catch { throw new Error('Could not save your pending action. Keep this screen open and retry.') }
     acknowledge(jobKey(job), ids)
     read()
@@ -241,12 +258,24 @@ export function replayMutations(): Promise<void> {
     const task = (async () => {
         while (typeof navigator === 'undefined' || navigator.onLine !== false) {
             if (generation !== sessionGeneration()) return
-            const snapshot = diskSnapshot()
-            if (snapshot.kind === 'unavailable') return
+            let snapshot = diskSnapshot()
+            if (snapshot.kind === 'unavailable') {
+                await Promise.resolve()
+                if (generation !== sessionGeneration() || typeof navigator !== 'undefined' && navigator.onLine === false) return
+                snapshot = diskSnapshot()
+                if (snapshot.kind === 'unavailable') {
+                    const blocked = read(snapshot).find(item => item.accountId === sessionOwner())
+                    if (blocked?.status === 'pending' && !sending.has(blocked.id)) failMutation(blocked, 'Could not read your pending actions. Refresh and retry.', generation)
+                    return
+                }
+            }
             const job = read(snapshot).find(item => item.accountId === sessionOwner())
             if (!job || job.status === 'failed') { if ([...unsaved.values()].includes(null)) publish(); return }
             if (typeof window !== 'undefined' && [...unsaved.values()].some(value => value !== null)) {
-                try { publish(true) } catch { return }
+                try { publish(true) } catch (cause) {
+                    failMutation(job, cause instanceof Error ? cause.message : 'Could not save your pending actions. Refresh and retry.', generation)
+                    return
+                }
                 continue
             }
             const active = sending.get(job.id)
@@ -271,12 +300,7 @@ export function replayMutations(): Promise<void> {
                 if (current() && isCompleted(jobKey(job))) rejectCompleted(job)
                 if (typeof navigator !== 'undefined' && navigator.onLine === false) return
                 const error = cause instanceof Error ? cause.message : 'Could not send this action.'
-                observeFailure(jobKey(job), requestId(), error)
-                const failed: QueuedMutation = { ...job, status: 'failed', error }
-                unsaved.set(jobKey(job), failed)
-                jobs = read().map(item => jobKey(item) === jobKey(job) ? failed : item)
-                publish()
-                if (current()) { waiters.get(job.id)?.reject(new Error(error)); waiters.delete(job.id) }
+                failMutation(job, error, generation)
             } finally {
                 sending.delete(job.id)
                 if (current() && isCompleted(jobKey(job))) rejectCompleted(job)
@@ -285,7 +309,13 @@ export function replayMutations(): Promise<void> {
         }
     })()
     replay = { generation, promise: task }
-    void task.finally(() => { if (replay?.promise === task) replay = undefined })
+    void task.finally(() => {
+        if (replay?.promise !== task) return
+        replay = undefined
+        if (generation !== sessionGeneration() || typeof navigator !== 'undefined' && navigator.onLine === false) return
+        const next = pendingMutations()[0]
+        if (next?.status === 'pending' && !sending.has(next.id) && senders.has(next.transport ?? 'api')) void replayMutations()
+    })
     return task
 }
 

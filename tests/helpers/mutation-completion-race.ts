@@ -53,7 +53,8 @@ const storage = {
         Atomics.store(state, key === legacy ? 1 : 0, 0);
     }
 };
-const context = vm.createContext({ console, navigator: { onLine: false }, window: { localStorage: storage, addEventListener() {} } });
+const view = new Proxy(storage, { ownKeys: storageKeys, getOwnPropertyDescriptor: (target, name) => storageKeys().includes(name) ? { configurable: true, enumerable: true, value: undefined } : Reflect.getOwnPropertyDescriptor(target, name) });
+const context = vm.createContext({ console, navigator: { onLine: false }, window: { localStorage: view, addEventListener() {} } });
 const cache = {};
 function load(name) {
     if (cache[name]) return cache[name].exports;

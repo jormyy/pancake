@@ -1,9 +1,10 @@
+import { enumerableStorage } from '../../helpers/enumerable-storage'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const identity = vi.hoisted(() => ({ owner: 'account', generation: 0, clears: [] as (() => void)[] }))
 vi.mock('@/lib/session-cache-registry', () => ({ sessionOwner: () => identity.owner, sessionGeneration: () => identity.generation, onSessionCachesCleared: (callback: () => void) => identity.clears.push(callback) }))
 const values = new Map<string, string>()
 let online = false
-const storage = { get length() { return values.size }, key: (index: number) => [...values.keys()][index] ?? null, getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => values.set(key, value), removeItem: (key: string) => values.delete(key) }
+const storage = enumerableStorage({ get length() { return values.size }, key: (index: number) => [...values.keys()][index] ?? null, getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => values.set(key, value), removeItem: (key: string) => values.delete(key) }, () => [...values.keys()])
 const input = { accountId: 'account', leagueId: 'league', rowIds: ['player'], path: '/waivers/claims', body: JSON.stringify({ playerId: 'player', bidAmount: 12 }) }
 beforeEach(() => {
     vi.resetModules(); values.clear(); identity.owner = 'account'; identity.generation = 0; identity.clears = []; online = false

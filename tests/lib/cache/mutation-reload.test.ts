@@ -1,3 +1,4 @@
+import { enumerableStorage } from '../../helpers/enumerable-storage'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/supabase', () => ({ supabase: { auth: { getSession: async () => ({ data: { session: { user: { id: 'account' }, access_token: 'fixture' } } }) } } }))
@@ -7,13 +8,13 @@ const key = 'pancake:offline-mutations:v1'
 const completionPrefix = 'pancake:offline-mutation-done:v1:'
 const values = new Map<string, string>()
 let online = false
-const storage = {
+const storage = enumerableStorage({
     get length() { return values.size },
     key: (index: number) => [...values.keys()][index] ?? null,
     getItem: (name: string) => values.get(name) ?? null,
     setItem: (name: string, value: string) => { values.set(name, value) },
     removeItem: (name: string) => { values.delete(name) },
-}
+}, () => [...values.keys()])
 
 beforeEach(() => {
     vi.resetModules()
@@ -135,10 +136,10 @@ describe('settled mutation persistence across reload', () => {
         void queue.queueMutation(input).catch(() => {})
         const keys = queue.pendingMutations().map(job => completionPrefix + `account:${job.id}`)
         const get = vi.spyOn(storage, 'getItem')
-        const enumerate = vi.spyOn(storage, 'key')
+        const enumerate = vi.spyOn(storage, 'key').mockImplementation(() => { throw new Error('Indexed scans are unsafe') })
         queue.mutationSnapshot()
         expect(get.mock.calls.map(([key]) => key).filter(key => key.startsWith(completionPrefix)).sort()).toEqual(keys.sort())
-        expect(enumerate).toHaveBeenCalled()
+        expect(enumerate).not.toHaveBeenCalled()
     })
 
     it('keeps the uncertain failed job when the external completion record cannot be saved', async () => {
