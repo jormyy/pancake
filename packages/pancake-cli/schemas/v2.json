@@ -1,0 +1,2306 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "version": 2,
+  "resources": {
+    "leagues": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "urn:pancake:public:v2:leagues",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "$schema",
+        "version",
+        "resource",
+        "items",
+        "nextCursor"
+      ],
+      "properties": {
+        "$schema": {
+          "const": "urn:pancake:public:v2:leagues"
+        },
+        "version": {
+          "const": 2
+        },
+        "resource": {
+          "const": "leagues"
+        },
+        "items": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "name": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "status": {
+                "type": "string",
+                "maxLength": 1024
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "status"
+            ]
+          }
+        },
+        "nextCursor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 256
+        }
+      }
+    },
+    "league": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "urn:pancake:public:v2:league",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "$schema",
+        "version",
+        "resource",
+        "items",
+        "nextCursor"
+      ],
+      "properties": {
+        "$schema": {
+          "const": "urn:pancake:public:v2:league"
+        },
+        "version": {
+          "const": 2
+        },
+        "resource": {
+          "const": "league"
+        },
+        "items": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "name": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "status": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "leagueId": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "seasonId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              },
+              "seasonYear": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "timezone": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "rosterSize": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "irSlots": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "taxiSlots": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "taxiRule": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              },
+              "taxiMaxSeasons": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "teamLimit": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "auctionBudget": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "waiverMode": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              },
+              "faabStartingBudget": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "weeklyAddLimit": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "tradeDeadline": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              },
+              "tradeVetoMode": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              },
+              "tradeVetoWindowHours": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "tradeVetoThresholdPercent": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "allowInactiveTrades": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "playoffStartWeek": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "playoffEntrants": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "rookieDraftOrder": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              },
+              "futurePickYears": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "scoringSettings": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "points": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "rebounds": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "assists": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "steals": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "blocks": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "turnovers": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "three_pointers_made": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "field_goals_made": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "field_goals_attempted": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "free_throws_made": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "free_throws_attempted": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "double_double": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "triple_double": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "points",
+                  "rebounds",
+                  "assists",
+                  "steals",
+                  "blocks",
+                  "turnovers",
+                  "three_pointers_made",
+                  "field_goals_made",
+                  "field_goals_attempted",
+                  "free_throws_made",
+                  "free_throws_attempted",
+                  "double_double",
+                  "triple_double"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "status",
+              "leagueId",
+              "seasonId",
+              "seasonYear",
+              "timezone",
+              "rosterSize",
+              "irSlots",
+              "taxiSlots",
+              "taxiRule",
+              "taxiMaxSeasons",
+              "teamLimit",
+              "auctionBudget",
+              "waiverMode",
+              "faabStartingBudget",
+              "weeklyAddLimit",
+              "tradeDeadline",
+              "tradeVetoMode",
+              "tradeVetoWindowHours",
+              "tradeVetoThresholdPercent",
+              "allowInactiveTrades",
+              "playoffStartWeek",
+              "playoffEntrants",
+              "rookieDraftOrder",
+              "futurePickYears",
+              "scoringSettings"
+            ]
+          }
+        },
+        "nextCursor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 256
+        }
+      }
+    },
+    "seasons": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "urn:pancake:public:v2:seasons",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "$schema",
+        "version",
+        "resource",
+        "items",
+        "nextCursor"
+      ],
+      "properties": {
+        "$schema": {
+          "const": "urn:pancake:public:v2:seasons"
+        },
+        "version": {
+          "const": 2
+        },
+        "resource": {
+          "const": "seasons"
+        },
+        "items": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "leagueId": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "seasonYear": {
+                "type": "integer"
+              },
+              "isCurrent": {
+                "type": "boolean"
+              },
+              "regularSeasonStart": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              },
+              "regularSeasonEnd": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              }
+            },
+            "required": [
+              "id",
+              "leagueId",
+              "seasonYear",
+              "isCurrent",
+              "regularSeasonStart",
+              "regularSeasonEnd"
+            ]
+          }
+        },
+        "nextCursor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 256
+        }
+      }
+    },
+    "teams": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "urn:pancake:public:v2:teams",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "$schema",
+        "version",
+        "resource",
+        "items",
+        "nextCursor"
+      ],
+      "properties": {
+        "$schema": {
+          "const": "urn:pancake:public:v2:teams"
+        },
+        "version": {
+          "const": 2
+        },
+        "resource": {
+          "const": "teams"
+        },
+        "items": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "leagueId": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "name": {
+                "type": "string",
+                "maxLength": 1024
+              }
+            },
+            "required": [
+              "id",
+              "leagueId",
+              "name"
+            ]
+          }
+        },
+        "nextCursor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 256
+        }
+      }
+    },
+    "players": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "urn:pancake:public:v2:players",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "$schema",
+        "version",
+        "resource",
+        "items",
+        "nextCursor"
+      ],
+      "properties": {
+        "$schema": {
+          "const": "urn:pancake:public:v2:players"
+        },
+        "version": {
+          "const": 2
+        },
+        "resource": {
+          "const": "players"
+        },
+        "items": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "leagueId": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "name": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "nbaId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              },
+              "nbaTeam": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              },
+              "position": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              },
+              "injuryStatus": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              },
+              "yearsExperience": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "status": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              }
+            },
+            "required": [
+              "id",
+              "leagueId",
+              "name",
+              "nbaId",
+              "nbaTeam",
+              "position",
+              "injuryStatus",
+              "yearsExperience",
+              "status"
+            ]
+          }
+        },
+        "nextCursor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 256
+        }
+      }
+    },
+    "free-agents": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "urn:pancake:public:v2:free-agents",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "$schema",
+        "version",
+        "resource",
+        "items",
+        "nextCursor"
+      ],
+      "properties": {
+        "$schema": {
+          "const": "urn:pancake:public:v2:free-agents"
+        },
+        "version": {
+          "const": 2
+        },
+        "resource": {
+          "const": "free-agents"
+        },
+        "items": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "leagueId": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "name": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "nbaId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              },
+              "nbaTeam": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              },
+              "position": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              },
+              "injuryStatus": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              },
+              "yearsExperience": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "status": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              },
+              "availability": {
+                "type": "string",
+                "enum": [
+                  "free-agent",
+                  "waivers"
+                ],
+                "maxLength": 1024
+              },
+              "waiverClearsAt": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              },
+              "waiverEligible": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "id",
+              "leagueId",
+              "name",
+              "nbaId",
+              "nbaTeam",
+              "position",
+              "injuryStatus",
+              "yearsExperience",
+              "status",
+              "availability",
+              "waiverClearsAt",
+              "waiverEligible"
+            ]
+          }
+        },
+        "nextCursor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 256
+        }
+      }
+    },
+    "rosters": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "urn:pancake:public:v2:rosters",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "$schema",
+        "version",
+        "resource",
+        "items",
+        "nextCursor"
+      ],
+      "properties": {
+        "$schema": {
+          "const": "urn:pancake:public:v2:rosters"
+        },
+        "version": {
+          "const": 2
+        },
+        "resource": {
+          "const": "rosters"
+        },
+        "items": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "leagueId": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "seasonYear": {
+                "type": "integer"
+              },
+              "teamId": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "isOnIR": {
+                "type": "boolean"
+              },
+              "isOnTaxi": {
+                "type": "boolean"
+              },
+              "player": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "maxLength": 1024
+                  },
+                  "name": {
+                    "type": "string",
+                    "maxLength": 1024
+                  },
+                  "nbaId": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 1024
+                  },
+                  "nbaTeam": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 1024
+                  },
+                  "position": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 1024
+                  },
+                  "injuryStatus": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 1024
+                  },
+                  "yearsExperience": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "status": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 1024
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "nbaId",
+                  "nbaTeam",
+                  "position",
+                  "injuryStatus",
+                  "yearsExperience",
+                  "status"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "leagueId",
+              "seasonYear",
+              "teamId",
+              "isOnIR",
+              "isOnTaxi",
+              "player"
+            ]
+          }
+        },
+        "nextCursor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 256
+        }
+      }
+    },
+    "standings": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "urn:pancake:public:v2:standings",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "$schema",
+        "version",
+        "resource",
+        "items",
+        "nextCursor"
+      ],
+      "properties": {
+        "$schema": {
+          "const": "urn:pancake:public:v2:standings"
+        },
+        "version": {
+          "const": 2
+        },
+        "resource": {
+          "const": "standings"
+        },
+        "items": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "leagueId": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "name": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "wins": {
+                "type": "integer"
+              },
+              "losses": {
+                "type": "integer"
+              },
+              "ties": {
+                "type": "integer"
+              },
+              "pointsFor": {
+                "type": "number"
+              },
+              "pointsAgainst": {
+                "type": "number"
+              },
+              "maxPointsFor": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "id",
+              "leagueId",
+              "name",
+              "wins",
+              "losses",
+              "ties",
+              "pointsFor",
+              "pointsAgainst",
+              "maxPointsFor"
+            ]
+          }
+        },
+        "nextCursor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 256
+        }
+      }
+    },
+    "matchups": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "urn:pancake:public:v2:matchups",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "$schema",
+        "version",
+        "resource",
+        "items",
+        "nextCursor"
+      ],
+      "properties": {
+        "$schema": {
+          "const": "urn:pancake:public:v2:matchups"
+        },
+        "version": {
+          "const": 2
+        },
+        "resource": {
+          "const": "matchups"
+        },
+        "items": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "leagueId": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "seasonYear": {
+                "type": "integer"
+              },
+              "weekNumber": {
+                "type": "integer"
+              },
+              "endWeekNumber": {
+                "type": "integer"
+              },
+              "homeTeamId": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "awayTeamId": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "homeTeamName": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              },
+              "awayTeamName": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              },
+              "homePoints": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "awayPoints": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "finalized": {
+                "type": "boolean"
+              },
+              "winnerTeamId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              }
+            },
+            "required": [
+              "id",
+              "leagueId",
+              "seasonYear",
+              "weekNumber",
+              "endWeekNumber",
+              "homeTeamId",
+              "awayTeamId",
+              "homeTeamName",
+              "awayTeamName",
+              "homePoints",
+              "awayPoints",
+              "finalized",
+              "winnerTeamId"
+            ]
+          }
+        },
+        "nextCursor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 256
+        }
+      }
+    },
+    "scores": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "urn:pancake:public:v2:scores",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "$schema",
+        "version",
+        "resource",
+        "items",
+        "nextCursor"
+      ],
+      "properties": {
+        "$schema": {
+          "const": "urn:pancake:public:v2:scores"
+        },
+        "version": {
+          "const": 2
+        },
+        "resource": {
+          "const": "scores"
+        },
+        "items": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "leagueId": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "seasonYear": {
+                "type": "integer"
+              },
+              "weekNumber": {
+                "type": "integer"
+              },
+              "endWeekNumber": {
+                "type": "integer"
+              },
+              "homeTeamId": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "awayTeamId": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "homeTeamName": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              },
+              "awayTeamName": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              },
+              "homePoints": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "awayPoints": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "finalized": {
+                "type": "boolean"
+              },
+              "winnerTeamId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              }
+            },
+            "required": [
+              "id",
+              "leagueId",
+              "seasonYear",
+              "weekNumber",
+              "endWeekNumber",
+              "homeTeamId",
+              "awayTeamId",
+              "homeTeamName",
+              "awayTeamName",
+              "homePoints",
+              "awayPoints",
+              "finalized",
+              "winnerTeamId"
+            ]
+          }
+        },
+        "nextCursor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 256
+        }
+      }
+    },
+    "schedule": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "urn:pancake:public:v2:schedule",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "$schema",
+        "version",
+        "resource",
+        "items",
+        "nextCursor"
+      ],
+      "properties": {
+        "$schema": {
+          "const": "urn:pancake:public:v2:schedule"
+        },
+        "version": {
+          "const": 2
+        },
+        "resource": {
+          "const": "schedule"
+        },
+        "items": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "leagueId": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "seasonYear": {
+                "type": "integer"
+              },
+              "weekNumber": {
+                "type": "integer"
+              },
+              "endWeekNumber": {
+                "type": "integer"
+              },
+              "homeTeamId": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "awayTeamId": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "homeTeamName": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              },
+              "awayTeamName": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              },
+              "homePoints": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "awayPoints": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "finalized": {
+                "type": "boolean"
+              },
+              "winnerTeamId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              }
+            },
+            "required": [
+              "id",
+              "leagueId",
+              "seasonYear",
+              "weekNumber",
+              "endWeekNumber",
+              "homeTeamId",
+              "awayTeamId",
+              "homeTeamName",
+              "awayTeamName",
+              "homePoints",
+              "awayPoints",
+              "finalized",
+              "winnerTeamId"
+            ]
+          }
+        },
+        "nextCursor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 256
+        }
+      }
+    },
+    "player-stats": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "urn:pancake:public:v2:player-stats",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "$schema",
+        "version",
+        "resource",
+        "items",
+        "nextCursor"
+      ],
+      "properties": {
+        "$schema": {
+          "const": "urn:pancake:public:v2:player-stats"
+        },
+        "version": {
+          "const": 2
+        },
+        "resource": {
+          "const": "player-stats"
+        },
+        "items": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "leagueId": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "name": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "nbaId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              },
+              "nbaTeam": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              },
+              "position": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              },
+              "injuryStatus": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              },
+              "yearsExperience": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "status": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              },
+              "seasonYear": {
+                "type": "integer"
+              },
+              "fantasyPoints": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "gamesPlayed": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "points": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "rebounds": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "assists": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "steals": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "blocks": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "turnovers": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "threePointersMade": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "minutes": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "leagueId",
+              "name",
+              "nbaId",
+              "nbaTeam",
+              "position",
+              "injuryStatus",
+              "yearsExperience",
+              "status",
+              "seasonYear",
+              "fantasyPoints",
+              "gamesPlayed",
+              "points",
+              "rebounds",
+              "assists",
+              "steals",
+              "blocks",
+              "turnovers",
+              "threePointersMade",
+              "minutes"
+            ]
+          }
+        },
+        "nextCursor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 256
+        }
+      }
+    },
+    "projections": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "urn:pancake:public:v2:projections",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "$schema",
+        "version",
+        "resource",
+        "items",
+        "nextCursor"
+      ],
+      "properties": {
+        "$schema": {
+          "const": "urn:pancake:public:v2:projections"
+        },
+        "version": {
+          "const": 2
+        },
+        "resource": {
+          "const": "projections"
+        },
+        "items": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "leagueId": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "name": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "nbaId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              },
+              "nbaTeam": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              },
+              "position": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              },
+              "injuryStatus": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              },
+              "yearsExperience": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "status": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              },
+              "date": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              },
+              "source": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              },
+              "fetchedAt": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              },
+              "projectionStatus": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              },
+              "fantasyPoints": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "points": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "rebounds": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "assists": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "steals": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "blocks": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "turnovers": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "minutes": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "leagueId",
+              "name",
+              "nbaId",
+              "nbaTeam",
+              "position",
+              "injuryStatus",
+              "yearsExperience",
+              "status",
+              "date",
+              "source",
+              "fetchedAt",
+              "projectionStatus",
+              "fantasyPoints",
+              "points",
+              "rebounds",
+              "assists",
+              "steals",
+              "blocks",
+              "turnovers",
+              "minutes"
+            ]
+          }
+        },
+        "nextCursor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 256
+        }
+      }
+    },
+    "drafts": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "urn:pancake:public:v2:drafts",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "$schema",
+        "version",
+        "resource",
+        "items",
+        "nextCursor"
+      ],
+      "properties": {
+        "$schema": {
+          "const": "urn:pancake:public:v2:drafts"
+        },
+        "version": {
+          "const": 2
+        },
+        "resource": {
+          "const": "drafts"
+        },
+        "items": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "leagueId": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "seasonYear": {
+                "type": "integer"
+              },
+              "draftType": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "status": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "scheduledAt": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              },
+              "startedAt": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              },
+              "completedAt": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              }
+            },
+            "required": [
+              "id",
+              "leagueId",
+              "seasonYear",
+              "draftType",
+              "status",
+              "scheduledAt",
+              "startedAt",
+              "completedAt"
+            ]
+          }
+        },
+        "nextCursor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 256
+        }
+      }
+    },
+    "draft-results": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "urn:pancake:public:v2:draft-results",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "$schema",
+        "version",
+        "resource",
+        "items",
+        "nextCursor"
+      ],
+      "properties": {
+        "$schema": {
+          "const": "urn:pancake:public:v2:draft-results"
+        },
+        "version": {
+          "const": 2
+        },
+        "resource": {
+          "const": "draft-results"
+        },
+        "items": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "leagueId": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "seasonYear": {
+                "type": "integer"
+              },
+              "draftId": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "draftType": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "overallPick": {
+                "type": "integer"
+              },
+              "round": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "teamId": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "teamName": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              },
+              "playerId": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "playerName": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "pickedAt": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              },
+              "price": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "leagueId",
+              "seasonYear",
+              "draftId",
+              "draftType",
+              "overallPick",
+              "round",
+              "teamId",
+              "teamName",
+              "playerId",
+              "playerName",
+              "pickedAt",
+              "price"
+            ]
+          }
+        },
+        "nextCursor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 256
+        }
+      }
+    },
+    "picks": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "urn:pancake:public:v2:picks",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "$schema",
+        "version",
+        "resource",
+        "items",
+        "nextCursor"
+      ],
+      "properties": {
+        "$schema": {
+          "const": "urn:pancake:public:v2:picks"
+        },
+        "version": {
+          "const": 2
+        },
+        "resource": {
+          "const": "picks"
+        },
+        "items": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "leagueId": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "seasonYear": {
+                "type": "integer"
+              },
+              "round": {
+                "type": "integer"
+              },
+              "teamId": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "originalTeamId": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "isUsed": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "id",
+              "leagueId",
+              "seasonYear",
+              "round",
+              "teamId",
+              "originalTeamId",
+              "isUsed"
+            ]
+          }
+        },
+        "nextCursor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 256
+        }
+      }
+    },
+    "trades": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "urn:pancake:public:v2:trades",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "$schema",
+        "version",
+        "resource",
+        "items",
+        "nextCursor"
+      ],
+      "properties": {
+        "$schema": {
+          "const": "urn:pancake:public:v2:trades"
+        },
+        "version": {
+          "const": 2
+        },
+        "resource": {
+          "const": "trades"
+        },
+        "items": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "leagueId": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "seasonYear": {
+                "type": "integer"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "completed"
+                ],
+                "maxLength": 1024
+              },
+              "completedAt": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "proposerTeamId": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "recipientTeamId": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "teamIds": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 36
+                },
+                "maxItems": 12
+              }
+            },
+            "required": [
+              "id",
+              "leagueId",
+              "seasonYear",
+              "status",
+              "completedAt",
+              "proposerTeamId",
+              "recipientTeamId",
+              "teamIds"
+            ]
+          }
+        },
+        "nextCursor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 256
+        }
+      }
+    },
+    "trade-assets": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "urn:pancake:public:v2:trade-assets",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "$schema",
+        "version",
+        "resource",
+        "items",
+        "nextCursor"
+      ],
+      "properties": {
+        "$schema": {
+          "const": "urn:pancake:public:v2:trade-assets"
+        },
+        "version": {
+          "const": 2
+        },
+        "resource": {
+          "const": "trade-assets"
+        },
+        "items": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "leagueId": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "tradeId": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "completed"
+                ],
+                "maxLength": 1024
+              },
+              "completedAt": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "fromTeamId": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "toTeamId": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "player",
+                  "pick",
+                  "budget"
+                ],
+                "maxLength": 1024
+              },
+              "playerId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              },
+              "playerName": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              },
+              "pickId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              },
+              "pickSeasonYear": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "pickRound": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "leagueId",
+              "tradeId",
+              "status",
+              "completedAt",
+              "fromTeamId",
+              "toTeamId",
+              "kind",
+              "playerId",
+              "playerName",
+              "pickId",
+              "pickSeasonYear",
+              "pickRound"
+            ]
+          }
+        },
+        "nextCursor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 256
+        }
+      }
+    },
+    "transactions": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "urn:pancake:public:v2:transactions",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "$schema",
+        "version",
+        "resource",
+        "items",
+        "nextCursor"
+      ],
+      "properties": {
+        "$schema": {
+          "const": "urn:pancake:public:v2:transactions"
+        },
+        "version": {
+          "const": 2
+        },
+        "resource": {
+          "const": "transactions"
+        },
+        "items": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "leagueId": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "teamId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              },
+              "teamName": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              },
+              "playerId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              },
+              "playerName": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "fa_add",
+                  "fa_drop",
+                  "waiver_add",
+                  "waiver_drop",
+                  "trade_in",
+                  "trade_out",
+                  "draft_won",
+                  "carry_over",
+                  "trade_completed"
+                ],
+                "maxLength": 1024
+              },
+              "occurredAt": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "tradeId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              }
+            },
+            "required": [
+              "id",
+              "leagueId",
+              "teamId",
+              "teamName",
+              "playerId",
+              "playerName",
+              "type",
+              "occurredAt",
+              "tradeId"
+            ]
+          }
+        },
+        "nextCursor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 256
+        }
+      }
+    }
+  }
+}

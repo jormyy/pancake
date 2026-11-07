@@ -1,0 +1,623 @@
+{
+  "leagues": {
+    "filters": [
+      "query"
+    ],
+    "filterFields": {
+      "query": [
+        "name"
+      ]
+    },
+    "order": [
+      "name",
+      "id"
+    ],
+    "direction": "asc",
+    "sorts": [
+      "id",
+      "name",
+      "status"
+    ]
+  },
+  "league": {
+    "filters": [
+      "season"
+    ],
+    "filterFields": {
+      "season": []
+    },
+    "order": [
+      "id"
+    ],
+    "direction": "asc",
+    "sorts": [
+      "id",
+      "name",
+      "status",
+      "leagueId",
+      "seasonId",
+      "seasonYear",
+      "timezone",
+      "rosterSize",
+      "irSlots",
+      "taxiSlots",
+      "taxiRule",
+      "taxiMaxSeasons",
+      "teamLimit",
+      "auctionBudget",
+      "waiverMode",
+      "faabStartingBudget",
+      "weeklyAddLimit",
+      "tradeDeadline",
+      "tradeVetoMode",
+      "tradeVetoWindowHours",
+      "tradeVetoThresholdPercent",
+      "allowInactiveTrades",
+      "playoffStartWeek",
+      "playoffEntrants",
+      "rookieDraftOrder",
+      "futurePickYears"
+    ]
+  },
+  "seasons": {
+    "filters": [],
+    "filterFields": {},
+    "order": [
+      "seasonYear",
+      "id"
+    ],
+    "direction": "asc",
+    "sorts": [
+      "id",
+      "leagueId",
+      "seasonYear",
+      "isCurrent",
+      "regularSeasonStart",
+      "regularSeasonEnd"
+    ]
+  },
+  "teams": {
+    "filters": [
+      "team",
+      "query"
+    ],
+    "filterFields": {
+      "team": [
+        "id"
+      ],
+      "query": [
+        "name"
+      ]
+    },
+    "order": [
+      "name",
+      "id"
+    ],
+    "direction": "asc",
+    "sorts": [
+      "id",
+      "leagueId",
+      "name"
+    ]
+  },
+  "players": {
+    "filters": [
+      "player",
+      "query",
+      "position"
+    ],
+    "filterFields": {
+      "player": [
+        "id"
+      ],
+      "query": [
+        "name"
+      ],
+      "position": [
+        "position"
+      ]
+    },
+    "order": [
+      "name",
+      "id"
+    ],
+    "direction": "asc",
+    "sorts": [
+      "id",
+      "leagueId",
+      "name",
+      "nbaId",
+      "nbaTeam",
+      "position",
+      "injuryStatus",
+      "yearsExperience",
+      "status"
+    ]
+  },
+  "free-agents": {
+    "filters": [
+      "player",
+      "query",
+      "position",
+      "season"
+    ],
+    "filterFields": {
+      "player": [
+        "id"
+      ],
+      "query": [
+        "name"
+      ],
+      "position": [
+        "position"
+      ],
+      "season": []
+    },
+    "order": [
+      "name",
+      "id"
+    ],
+    "direction": "asc",
+    "sorts": [
+      "id",
+      "leagueId",
+      "name",
+      "nbaId",
+      "nbaTeam",
+      "position",
+      "injuryStatus",
+      "yearsExperience",
+      "status",
+      "availability",
+      "waiverClearsAt",
+      "waiverEligible"
+    ]
+  },
+  "rosters": {
+    "filters": [
+      "team",
+      "season"
+    ],
+    "filterFields": {
+      "team": [
+        "teamId"
+      ],
+      "season": []
+    },
+    "order": [
+      "id"
+    ],
+    "direction": "asc",
+    "sorts": [
+      "id",
+      "leagueId",
+      "seasonYear",
+      "teamId",
+      "isOnIR",
+      "isOnTaxi"
+    ]
+  },
+  "standings": {
+    "filters": [
+      "team"
+    ],
+    "filterFields": {
+      "team": [
+        "id"
+      ]
+    },
+    "order": [
+      "wins",
+      "pointsFor",
+      "id"
+    ],
+    "direction": "asc",
+    "sorts": [
+      "id",
+      "leagueId",
+      "name",
+      "wins",
+      "losses",
+      "ties",
+      "pointsFor",
+      "pointsAgainst",
+      "maxPointsFor"
+    ]
+  },
+  "matchups": {
+    "filters": [
+      "team",
+      "week",
+      "season"
+    ],
+    "filterFields": {
+      "team": [
+        "homeTeamId",
+        "awayTeamId"
+      ],
+      "week": [
+        "weekNumber",
+        "endWeekNumber"
+      ],
+      "season": []
+    },
+    "order": [
+      "weekNumber",
+      "id"
+    ],
+    "direction": "asc",
+    "sorts": [
+      "id",
+      "leagueId",
+      "seasonYear",
+      "weekNumber",
+      "endWeekNumber",
+      "homeTeamId",
+      "awayTeamId",
+      "homeTeamName",
+      "awayTeamName",
+      "homePoints",
+      "awayPoints",
+      "finalized",
+      "winnerTeamId"
+    ]
+  },
+  "scores": {
+    "filters": [
+      "team",
+      "week",
+      "season"
+    ],
+    "filterFields": {
+      "team": [
+        "homeTeamId",
+        "awayTeamId"
+      ],
+      "week": [
+        "weekNumber",
+        "endWeekNumber"
+      ],
+      "season": []
+    },
+    "order": [
+      "weekNumber",
+      "id"
+    ],
+    "direction": "asc",
+    "sorts": [
+      "id",
+      "leagueId",
+      "seasonYear",
+      "weekNumber",
+      "endWeekNumber",
+      "homeTeamId",
+      "awayTeamId",
+      "homeTeamName",
+      "awayTeamName",
+      "homePoints",
+      "awayPoints",
+      "finalized",
+      "winnerTeamId"
+    ]
+  },
+  "schedule": {
+    "filters": [
+      "team",
+      "week",
+      "season"
+    ],
+    "filterFields": {
+      "team": [
+        "homeTeamId",
+        "awayTeamId"
+      ],
+      "week": [
+        "weekNumber",
+        "endWeekNumber"
+      ],
+      "season": []
+    },
+    "order": [
+      "weekNumber",
+      "id"
+    ],
+    "direction": "asc",
+    "sorts": [
+      "id",
+      "leagueId",
+      "seasonYear",
+      "weekNumber",
+      "endWeekNumber",
+      "homeTeamId",
+      "awayTeamId",
+      "homeTeamName",
+      "awayTeamName",
+      "homePoints",
+      "awayPoints",
+      "finalized",
+      "winnerTeamId"
+    ]
+  },
+  "player-stats": {
+    "filters": [
+      "player",
+      "query",
+      "position",
+      "season"
+    ],
+    "filterFields": {
+      "player": [
+        "id"
+      ],
+      "query": [
+        "name"
+      ],
+      "position": [
+        "position"
+      ],
+      "season": []
+    },
+    "order": [
+      "name",
+      "id"
+    ],
+    "direction": "asc",
+    "sorts": [
+      "id",
+      "leagueId",
+      "name",
+      "nbaId",
+      "nbaTeam",
+      "position",
+      "injuryStatus",
+      "yearsExperience",
+      "status",
+      "seasonYear",
+      "fantasyPoints",
+      "gamesPlayed",
+      "points",
+      "rebounds",
+      "assists",
+      "steals",
+      "blocks",
+      "turnovers",
+      "threePointersMade",
+      "minutes"
+    ]
+  },
+  "projections": {
+    "filters": [
+      "player",
+      "query",
+      "position"
+    ],
+    "filterFields": {
+      "player": [
+        "id"
+      ],
+      "query": [
+        "name"
+      ],
+      "position": [
+        "position"
+      ]
+    },
+    "order": [
+      "name",
+      "id"
+    ],
+    "direction": "asc",
+    "sorts": [
+      "id",
+      "leagueId",
+      "name",
+      "nbaId",
+      "nbaTeam",
+      "position",
+      "injuryStatus",
+      "yearsExperience",
+      "status",
+      "date",
+      "source",
+      "fetchedAt",
+      "projectionStatus",
+      "fantasyPoints",
+      "points",
+      "rebounds",
+      "assists",
+      "steals",
+      "blocks",
+      "turnovers",
+      "minutes"
+    ]
+  },
+  "drafts": {
+    "filters": [
+      "draft",
+      "season"
+    ],
+    "filterFields": {
+      "draft": [
+        "id"
+      ],
+      "season": []
+    },
+    "order": [
+      "id"
+    ],
+    "direction": "asc",
+    "sorts": [
+      "id",
+      "leagueId",
+      "seasonYear",
+      "draftType",
+      "status",
+      "scheduledAt",
+      "startedAt",
+      "completedAt"
+    ]
+  },
+  "draft-results": {
+    "filters": [
+      "draft",
+      "team",
+      "season"
+    ],
+    "filterFields": {
+      "draft": [
+        "draftId"
+      ],
+      "team": [
+        "teamId"
+      ],
+      "season": []
+    },
+    "order": [
+      "draftId",
+      "overallPick",
+      "id"
+    ],
+    "direction": "asc",
+    "sorts": [
+      "id",
+      "leagueId",
+      "seasonYear",
+      "draftId",
+      "draftType",
+      "overallPick",
+      "round",
+      "teamId",
+      "teamName",
+      "playerId",
+      "playerName",
+      "pickedAt",
+      "price"
+    ]
+  },
+  "picks": {
+    "filters": [
+      "team",
+      "season"
+    ],
+    "filterFields": {
+      "team": [
+        "teamId"
+      ],
+      "season": [
+        "seasonYear"
+      ]
+    },
+    "order": [
+      "seasonYear",
+      "round",
+      "id"
+    ],
+    "direction": "asc",
+    "sorts": [
+      "id",
+      "leagueId",
+      "seasonYear",
+      "round",
+      "teamId",
+      "originalTeamId",
+      "isUsed"
+    ]
+  },
+  "trades": {
+    "filters": [
+      "trade",
+      "season",
+      "team"
+    ],
+    "filterFields": {
+      "trade": [
+        "id"
+      ],
+      "season": [
+        "seasonYear"
+      ],
+      "team": [
+        "proposerTeamId",
+        "recipientTeamId",
+        "teamIds"
+      ]
+    },
+    "order": [
+      "completedAt",
+      "id"
+    ],
+    "direction": "desc",
+    "sorts": [
+      "id",
+      "leagueId",
+      "seasonYear",
+      "status",
+      "completedAt",
+      "proposerTeamId",
+      "recipientTeamId"
+    ]
+  },
+  "trade-assets": {
+    "filters": [
+      "trade",
+      "team"
+    ],
+    "filterFields": {
+      "trade": [
+        "tradeId"
+      ],
+      "team": [
+        "fromTeamId",
+        "toTeamId"
+      ]
+    },
+    "order": [
+      "tradeId",
+      "id"
+    ],
+    "direction": "asc",
+    "sorts": [
+      "id",
+      "leagueId",
+      "tradeId",
+      "status",
+      "completedAt",
+      "fromTeamId",
+      "toTeamId",
+      "kind",
+      "playerId",
+      "playerName",
+      "pickId",
+      "pickSeasonYear",
+      "pickRound"
+    ]
+  },
+  "transactions": {
+    "filters": [
+      "team",
+      "season"
+    ],
+    "filterFields": {
+      "team": [
+        "teamId"
+      ],
+      "season": []
+    },
+    "order": [
+      "occurredAt",
+      "id"
+    ],
+    "direction": "desc",
+    "sorts": [
+      "id",
+      "leagueId",
+      "teamId",
+      "teamName",
+      "playerId",
+      "playerName",
+      "type",
+      "occurredAt",
+      "tradeId"
+    ]
+  }
+}
