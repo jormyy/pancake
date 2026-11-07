@@ -41,7 +41,7 @@ export function createPublicHandler(read: PublicRead, admit = createLimiter()) {
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers })
     if (request.method !== 'GET') return failure(405, { Allow: 'GET, OPTIONS' })
     const address = request.headers.get('x-forwarded-for')?.split(',').at(-1)?.trim() ?? 'shared'
-    const clientKey = await digest(`${Math.floor(Date.now()/60000)}:${/^[a-f0-9.:]{1,64}$/i.test(address) ? address : 'shared'}`)
+    const clientKey = await digest(/^[a-f0-9.:]{1,64}$/i.test(address) ? address : 'shared')
     if (!admit(clientKey)) return failure(429, { 'Retry-After': '60' })
     const name = path.slice('/public/v2/'.length)
     if (!resourceNames.includes(name as Resource)) return failure(404)
@@ -69,7 +69,7 @@ export function createPublicHandler(read: PublicRead, admit = createLimiter()) {
           params[key] = Number(value)
         } else if (key === 'sort') {
           const field = spec.fields[value]
-          if (!field || ['object','array'].includes(String(field.schema.type))) return failure(400)
+          if (!field || (Array.isArray(field.schema.type)?field.schema.type:[field.schema.type]).some(type=>['object','array'].includes(String(type)))) return failure(400)
           params.sort = value
         } else if (key === 'direction') {
           if (!['asc','desc'].includes(value)) return failure(400)

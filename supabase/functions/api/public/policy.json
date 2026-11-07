@@ -383,6 +383,89 @@
               "triple_double"
             ]
           }
+        },
+        "playoffRoundLengths": {
+          "sql": "l.playoff_round_lengths",
+          "schema": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "maxItems": 20,
+            "items": {
+              "type": "integer"
+            }
+          }
+        },
+        "playoffRoundWeeks": {
+          "sql": "l.playoff_round_weeks",
+          "schema": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "maxItems": 20,
+            "items": {
+              "type": "integer"
+            }
+          }
+        },
+        "playoffTotalWeeks": {
+          "sql": "l.playoff_total_weeks",
+          "schema": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "lineupSlots": {
+          "sql": "coalesce((SELECT jsonb_agg(jsonb_build_object('slotType',slot.slot_type,'slotCount',slot.slot_count) ORDER BY slot.slot_type) FROM public.lineup_slot_templates slot WHERE slot.league_id=l.id),'[]'::jsonb)",
+          "schema": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "slotType",
+                "slotCount"
+              ],
+              "properties": {
+                "slotType": {
+                  "type": "string",
+                  "maxLength": 32
+                },
+                "slotCount": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "waiverOrder": {
+          "sql": "coalesce((SELECT jsonb_agg(jsonb_build_object('teamId',w.member_id,'priority',w.priority) ORDER BY w.priority,w.member_id) FROM public.waiver_priorities w JOIN public.league_members member ON member.id=w.member_id AND member.league_id=w.league_id WHERE w.league_id=l.id AND w.league_season_id=selected_season),'[]'::jsonb)",
+          "schema": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "teamId",
+                "priority"
+              ],
+              "properties": {
+                "teamId": {
+                  "type": "string",
+                  "maxLength": 36
+                },
+                "priority": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
         }
       },
       "filters": {
@@ -574,6 +657,78 @@
             ],
             "maxLength": 1024
           }
+        },
+        "birthdate": {
+          "sql": "p.birthdate",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1024
+          }
+        },
+        "injuryReason": {
+          "sql": "p.injury_reason",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1024
+          }
+        },
+        "injuryExpectedReturn": {
+          "sql": "p.injury_expected_return",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1024
+          }
+        },
+        "nbaDraftNumber": {
+          "sql": "p.nba_draft_number",
+          "schema": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "careerGames": {
+          "sql": "p.career_regular_season_games",
+          "schema": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "headshotUrl": {
+          "sql": "p.headshot_url",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1024
+          }
+        },
+        "eligiblePositions": {
+          "sql": "p.eligible_positions",
+          "schema": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "maxItems": 10,
+            "items": {
+              "type": "string",
+              "maxLength": 32
+            }
+          }
         }
       },
       "filters": {
@@ -703,6 +858,78 @@
           "schema": {
             "type": "boolean"
           }
+        },
+        "birthdate": {
+          "sql": "p.birthdate",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1024
+          }
+        },
+        "injuryReason": {
+          "sql": "p.injury_reason",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1024
+          }
+        },
+        "injuryExpectedReturn": {
+          "sql": "p.injury_expected_return",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1024
+          }
+        },
+        "nbaDraftNumber": {
+          "sql": "p.nba_draft_number",
+          "schema": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "careerGames": {
+          "sql": "p.career_regular_season_games",
+          "schema": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "headshotUrl": {
+          "sql": "p.headshot_url",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1024
+          }
+        },
+        "eligiblePositions": {
+          "sql": "p.eligible_positions",
+          "schema": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "maxItems": 10,
+            "items": {
+              "type": "string",
+              "maxLength": 32
+            }
+          }
         }
       },
       "filters": {
@@ -767,7 +994,7 @@
           }
         },
         "player": {
-          "sql": "jsonb_build_object('id',p.id,'name',p.display_name,'nbaId',p.nba_id,'nbaTeam',p.nba_team,'position',p.position::text,'injuryStatus',p.injury_status,'yearsExperience',p.years_exp,'status',p.status)",
+          "sql": "jsonb_build_object('id',p.id,'name',p.display_name,'nbaId',p.nba_id,'nbaTeam',p.nba_team,'position',p.position::text,'injuryStatus',p.injury_status,'yearsExperience',p.years_exp,'status',p.status,'birthdate',p.birthdate,'injuryReason',p.injury_reason,'injuryExpectedReturn',p.injury_expected_return,'nbaDraftNumber',p.nba_draft_number,'careerGames',p.career_regular_season_games,'headshotUrl',p.headshot_url,'eligiblePositions',p.eligible_positions)",
           "schema": {
             "type": "object",
             "additionalProperties": false,
@@ -820,6 +1047,57 @@
                   "null"
                 ],
                 "maxLength": 1024
+              },
+              "birthdate": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              },
+              "injuryReason": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              },
+              "injuryExpectedReturn": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              },
+              "nbaDraftNumber": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "careerGames": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "headshotUrl": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              },
+              "eligiblePositions": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "maxItems": 10,
+                "items": {
+                  "type": "string",
+                  "maxLength": 32
+                }
               }
             },
             "required": [
@@ -830,7 +1108,14 @@
               "position",
               "injuryStatus",
               "yearsExperience",
-              "status"
+              "status",
+              "birthdate",
+              "injuryReason",
+              "injuryExpectedReturn",
+              "nbaDraftNumber",
+              "careerGames",
+              "headshotUrl",
+              "eligiblePositions"
             ]
           }
         }
@@ -906,6 +1191,12 @@
           "schema": {
             "type": "number"
           }
+        },
+        "rank": {
+          "sql": "row_number() OVER (ORDER BY (coalesce(c.wins,0)+0.5*coalesce(c.ties,0))/greatest(coalesce(c.wins+c.losses+c.ties,0),1) DESC,coalesce(c.points_for,0)/greatest(coalesce(c.wins+c.losses+c.ties,0),1) DESC,coalesce(c.max_points_for,0) DESC,coalesce(c.points_against,0),m.team_name,m.id)",
+          "schema": {
+            "type": "integer"
+          }
         }
       },
       "filters": {
@@ -914,8 +1205,7 @@
         ]
       },
       "order": [
-        "wins",
-        "pointsFor",
+        "rank",
         "id"
       ],
       "visibility": []
@@ -1486,6 +1776,132 @@
               "null"
             ]
           }
+        },
+        "birthdate": {
+          "sql": "p.birthdate",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1024
+          }
+        },
+        "injuryReason": {
+          "sql": "p.injury_reason",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1024
+          }
+        },
+        "injuryExpectedReturn": {
+          "sql": "p.injury_expected_return",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1024
+          }
+        },
+        "nbaDraftNumber": {
+          "sql": "p.nba_draft_number",
+          "schema": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "careerGames": {
+          "sql": "p.career_regular_season_games",
+          "schema": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "headshotUrl": {
+          "sql": "p.headshot_url",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1024
+          }
+        },
+        "eligiblePositions": {
+          "sql": "p.eligible_positions",
+          "schema": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "maxItems": 10,
+            "items": {
+              "type": "string",
+              "maxLength": 32
+            }
+          }
+        },
+        "fieldGoalsMade": {
+          "sql": "coalesce((c.averages->>'avg_field_goals_made')::numeric,a.avg_field_goals_made)",
+          "schema": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "fieldGoalsAttempted": {
+          "sql": "coalesce((c.averages->>'avg_field_goals_attempted')::numeric,a.avg_field_goals_attempted)",
+          "schema": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "freeThrowsMade": {
+          "sql": "coalesce((c.averages->>'avg_free_throws_made')::numeric,a.avg_free_throws_made)",
+          "schema": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "freeThrowsAttempted": {
+          "sql": "coalesce((c.averages->>'avg_free_throws_attempted')::numeric,a.avg_free_throws_attempted)",
+          "schema": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "doubleDoubles": {
+          "sql": "coalesce((c.averages->>'double_doubles')::numeric,a.double_doubles)",
+          "schema": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "tripleDoubles": {
+          "sql": "coalesce((c.averages->>'triple_doubles')::numeric,a.triple_doubles)",
+          "schema": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
         }
       },
       "filters": {
@@ -1700,6 +2116,78 @@
               "number",
               "null"
             ]
+          }
+        },
+        "birthdate": {
+          "sql": "p.birthdate",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1024
+          }
+        },
+        "injuryReason": {
+          "sql": "p.injury_reason",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1024
+          }
+        },
+        "injuryExpectedReturn": {
+          "sql": "p.injury_expected_return",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1024
+          }
+        },
+        "nbaDraftNumber": {
+          "sql": "p.nba_draft_number",
+          "schema": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "careerGames": {
+          "sql": "p.career_regular_season_games",
+          "schema": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "headshotUrl": {
+          "sql": "p.headshot_url",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1024
+          }
+        },
+        "eligiblePositions": {
+          "sql": "p.eligible_positions",
+          "schema": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "maxItems": 10,
+            "items": {
+              "type": "string",
+              "maxLength": 32
+            }
           }
         }
       },

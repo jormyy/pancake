@@ -31,7 +31,7 @@ BEGIN
   END LOOP;
   INSERT INTO public.waiver_claims(league_id,league_season_id,member_id,player_id,status,priority_at_submission,process_date)
     VALUES(league,season,members[1],player,'pending',1,current_date);
-  FOREACH resource IN ARRAY ARRAY['leagues','league','seasons','teams','rosters','players','free-agents','standings','matchups','scores','schedule','drafts','draft-results','picks','trades','trade-assets','transactions'] LOOP
+  FOREACH resource IN ARRAY ARRAY['leagues','league','seasons','teams','rosters','players','player-stats','projections','free-agents','standings','matchups','scores','schedule','drafts','draft-results','picks','trades','trade-assets','transactions'] LOOP
     IF resource<>'leagues' THEN
       after_rows:=public.public_read_v2(league,resource,CASE WHEN resource='rosters' THEN jsonb_build_object('team',members[1]) ELSE '{}' END,encode(extensions.digest(resource,'sha256'),'hex'));
     ELSE

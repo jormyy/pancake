@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { pathToFileURL } from 'node:url'
 import path from 'node:path'
-import { modelObservation, publicContract, resourceNames } from '../../supabase/functions/api/public/policy.ts'
+import { modelObservation, publicContract, resourceNames, policy } from '../../supabase/functions/api/public/policy.ts'
 
 const league = '11111111-1111-4111-8111-111111111111'
 function sample(shape) {
@@ -14,6 +14,10 @@ function sample(shape) {
 }
 export function checkModel() {
   let checks = 0
+  for (const resource of Object.values(policy.resources)) {
+    assert.doesNotMatch(resource.source+' '+resource.where,/\b(?:profiles|waiver_claims|bids|weekly_lineups|notifications)\b|auth\.users|auth\.uid/)
+    for (const key of Object.keys(resource.fields)) assert.doesNotMatch(key,/^(?:email|userId|user_id|invite_code|bid_amount|notes|claims|messages|notificationSettings)$/)
+  }
   const states = ['pending','accepted','rejected','withdrawn','countered','edited','expired','vetoed','completed']
   for (const resource of resourceNames) {
     const shape = publicContract.resources[resource].properties.items.items

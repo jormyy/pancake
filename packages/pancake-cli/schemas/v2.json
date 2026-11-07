@@ -339,6 +339,74 @@
                   "double_double",
                   "triple_double"
                 ]
+              },
+              "playoffRoundLengths": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "maxItems": 20,
+                "items": {
+                  "type": "integer"
+                }
+              },
+              "playoffRoundWeeks": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "maxItems": 20,
+                "items": {
+                  "type": "integer"
+                }
+              },
+              "playoffTotalWeeks": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "lineupSlots": {
+                "type": "array",
+                "maxItems": 20,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "slotType",
+                    "slotCount"
+                  ],
+                  "properties": {
+                    "slotType": {
+                      "type": "string",
+                      "maxLength": 32
+                    },
+                    "slotCount": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              },
+              "waiverOrder": {
+                "type": "array",
+                "maxItems": 100,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "teamId",
+                    "priority"
+                  ],
+                  "properties": {
+                    "teamId": {
+                      "type": "string",
+                      "maxLength": 36
+                    },
+                    "priority": {
+                      "type": "integer"
+                    }
+                  }
+                }
               }
             },
             "required": [
@@ -368,7 +436,12 @@
               "playoffEntrants",
               "rookieDraftOrder",
               "futurePickYears",
-              "scoringSettings"
+              "scoringSettings",
+              "playoffRoundLengths",
+              "playoffRoundWeeks",
+              "playoffTotalWeeks",
+              "lineupSlots",
+              "waiverOrder"
             ]
           }
         },
@@ -597,6 +670,57 @@
                   "null"
                 ],
                 "maxLength": 1024
+              },
+              "birthdate": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              },
+              "injuryReason": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              },
+              "injuryExpectedReturn": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              },
+              "nbaDraftNumber": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "careerGames": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "headshotUrl": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              },
+              "eligiblePositions": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "maxItems": 10,
+                "items": {
+                  "type": "string",
+                  "maxLength": 32
+                }
               }
             },
             "required": [
@@ -608,7 +732,14 @@
               "position",
               "injuryStatus",
               "yearsExperience",
-              "status"
+              "status",
+              "birthdate",
+              "injuryReason",
+              "injuryExpectedReturn",
+              "nbaDraftNumber",
+              "careerGames",
+              "headshotUrl",
+              "eligiblePositions"
             ]
           }
         },
@@ -720,6 +851,57 @@
               },
               "waiverEligible": {
                 "type": "boolean"
+              },
+              "birthdate": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              },
+              "injuryReason": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              },
+              "injuryExpectedReturn": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              },
+              "nbaDraftNumber": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "careerGames": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "headshotUrl": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              },
+              "eligiblePositions": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "maxItems": 10,
+                "items": {
+                  "type": "string",
+                  "maxLength": 32
+                }
               }
             },
             "required": [
@@ -734,7 +916,14 @@
               "status",
               "availability",
               "waiverClearsAt",
-              "waiverEligible"
+              "waiverEligible",
+              "birthdate",
+              "injuryReason",
+              "injuryExpectedReturn",
+              "nbaDraftNumber",
+              "careerGames",
+              "headshotUrl",
+              "eligiblePositions"
             ]
           }
         },
@@ -849,6 +1038,57 @@
                       "null"
                     ],
                     "maxLength": 1024
+                  },
+                  "birthdate": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 1024
+                  },
+                  "injuryReason": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 1024
+                  },
+                  "injuryExpectedReturn": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 1024
+                  },
+                  "nbaDraftNumber": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "careerGames": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "headshotUrl": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 1024
+                  },
+                  "eligiblePositions": {
+                    "type": [
+                      "array",
+                      "null"
+                    ],
+                    "maxItems": 10,
+                    "items": {
+                      "type": "string",
+                      "maxLength": 32
+                    }
                   }
                 },
                 "required": [
@@ -859,7 +1099,14 @@
                   "position",
                   "injuryStatus",
                   "yearsExperience",
-                  "status"
+                  "status",
+                  "birthdate",
+                  "injuryReason",
+                  "injuryExpectedReturn",
+                  "nbaDraftNumber",
+                  "careerGames",
+                  "headshotUrl",
+                  "eligiblePositions"
                 ]
               }
             },
@@ -941,6 +1188,9 @@
               },
               "maxPointsFor": {
                 "type": "number"
+              },
+              "rank": {
+                "type": "integer"
               }
             },
             "required": [
@@ -952,7 +1202,8 @@
               "ties",
               "pointsFor",
               "pointsAgainst",
-              "maxPointsFor"
+              "maxPointsFor",
+              "rank"
             ]
           }
         },
@@ -1460,6 +1711,93 @@
                   "number",
                   "null"
                 ]
+              },
+              "birthdate": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              },
+              "injuryReason": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              },
+              "injuryExpectedReturn": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              },
+              "nbaDraftNumber": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "careerGames": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "headshotUrl": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              },
+              "eligiblePositions": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "maxItems": 10,
+                "items": {
+                  "type": "string",
+                  "maxLength": 32
+                }
+              },
+              "fieldGoalsMade": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "fieldGoalsAttempted": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "freeThrowsMade": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "freeThrowsAttempted": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "doubleDoubles": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "tripleDoubles": {
+                "type": [
+                  "number",
+                  "null"
+                ]
               }
             },
             "required": [
@@ -1482,7 +1820,20 @@
               "blocks",
               "turnovers",
               "threePointersMade",
-              "minutes"
+              "minutes",
+              "birthdate",
+              "injuryReason",
+              "injuryExpectedReturn",
+              "nbaDraftNumber",
+              "careerGames",
+              "headshotUrl",
+              "eligiblePositions",
+              "fieldGoalsMade",
+              "fieldGoalsAttempted",
+              "freeThrowsMade",
+              "freeThrowsAttempted",
+              "doubleDoubles",
+              "tripleDoubles"
             ]
           }
         },
@@ -1652,6 +2003,57 @@
                   "number",
                   "null"
                 ]
+              },
+              "birthdate": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              },
+              "injuryReason": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              },
+              "injuryExpectedReturn": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              },
+              "nbaDraftNumber": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "careerGames": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "headshotUrl": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024
+              },
+              "eligiblePositions": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "maxItems": 10,
+                "items": {
+                  "type": "string",
+                  "maxLength": 32
+                }
               }
             },
             "required": [
@@ -1675,7 +2077,14 @@
               "steals",
               "blocks",
               "turnovers",
-              "minutes"
+              "minutes",
+              "birthdate",
+              "injuryReason",
+              "injuryExpectedReturn",
+              "nbaDraftNumber",
+              "careerGames",
+              "headshotUrl",
+              "eligiblePositions"
             ]
           }
         },

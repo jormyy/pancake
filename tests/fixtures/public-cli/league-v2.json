@@ -1,0 +1,478 @@
+{
+  "resources": {
+    "leagues": {
+      "$schema": "urn:pancake:public:v2:leagues",
+      "version": 2,
+      "resource": "leagues",
+      "items": [
+        {
+          "id": "11111111-1111-4111-8111-111111111111",
+          "name": "11111111-1111-4111-8111-111111111111",
+          "status": "11111111-1111-4111-8111-111111111111"
+        }
+      ],
+      "nextCursor": null
+    },
+    "league": {
+      "$schema": "urn:pancake:public:v2:league",
+      "version": 2,
+      "resource": "league",
+      "items": [
+        {
+          "id": "11111111-1111-4111-8111-111111111111",
+          "name": "11111111-1111-4111-8111-111111111111",
+          "status": "11111111-1111-4111-8111-111111111111",
+          "leagueId": "11111111-1111-4111-8111-111111111111",
+          "seasonId": "11111111-1111-4111-8111-111111111111",
+          "seasonYear": 1,
+          "timezone": "11111111-1111-4111-8111-111111111111",
+          "rosterSize": 1,
+          "irSlots": 1,
+          "taxiSlots": 1,
+          "taxiRule": "11111111-1111-4111-8111-111111111111",
+          "taxiMaxSeasons": 1,
+          "teamLimit": 1,
+          "auctionBudget": 1,
+          "waiverMode": "11111111-1111-4111-8111-111111111111",
+          "faabStartingBudget": 1,
+          "weeklyAddLimit": 1,
+          "tradeDeadline": "11111111-1111-4111-8111-111111111111",
+          "tradeVetoMode": "11111111-1111-4111-8111-111111111111",
+          "tradeVetoWindowHours": 1,
+          "tradeVetoThresholdPercent": 1,
+          "allowInactiveTrades": false,
+          "playoffStartWeek": 1,
+          "playoffEntrants": 1,
+          "rookieDraftOrder": "11111111-1111-4111-8111-111111111111",
+          "futurePickYears": 1,
+          "scoringSettings": {
+            "points": 1,
+            "rebounds": 1,
+            "assists": 1,
+            "steals": 1,
+            "blocks": 1,
+            "turnovers": 1,
+            "three_pointers_made": 1,
+            "field_goals_made": 1,
+            "field_goals_attempted": 1,
+            "free_throws_made": 1,
+            "free_throws_attempted": 1,
+            "double_double": 1,
+            "triple_double": 1
+          },
+          "playoffRoundLengths": [],
+          "playoffRoundWeeks": [],
+          "playoffTotalWeeks": 1,
+          "lineupSlots": [],
+          "waiverOrder": []
+        }
+      ],
+      "nextCursor": null
+    },
+    "seasons": {
+      "$schema": "urn:pancake:public:v2:seasons",
+      "version": 2,
+      "resource": "seasons",
+      "items": [
+        {
+          "id": "11111111-1111-4111-8111-111111111111",
+          "leagueId": "11111111-1111-4111-8111-111111111111",
+          "seasonYear": 1,
+          "isCurrent": false,
+          "regularSeasonStart": "11111111-1111-4111-8111-111111111111",
+          "regularSeasonEnd": "11111111-1111-4111-8111-111111111111"
+        }
+      ],
+      "nextCursor": null
+    },
+    "teams": {
+      "$schema": "urn:pancake:public:v2:teams",
+      "version": 2,
+      "resource": "teams",
+      "items": [
+        {
+          "id": "11111111-1111-4111-8111-111111111111",
+          "leagueId": "11111111-1111-4111-8111-111111111111",
+          "name": "11111111-1111-4111-8111-111111111111"
+        }
+      ],
+      "nextCursor": null
+    },
+    "players": {
+      "$schema": "urn:pancake:public:v2:players",
+      "version": 2,
+      "resource": "players",
+      "items": [
+        {
+          "id": "11111111-1111-4111-8111-111111111111",
+          "leagueId": "11111111-1111-4111-8111-111111111111",
+          "name": "11111111-1111-4111-8111-111111111111",
+          "nbaId": "11111111-1111-4111-8111-111111111111",
+          "nbaTeam": "11111111-1111-4111-8111-111111111111",
+          "position": "11111111-1111-4111-8111-111111111111",
+          "injuryStatus": "11111111-1111-4111-8111-111111111111",
+          "yearsExperience": 1,
+          "status": "11111111-1111-4111-8111-111111111111",
+          "birthdate": "11111111-1111-4111-8111-111111111111",
+          "injuryReason": "11111111-1111-4111-8111-111111111111",
+          "injuryExpectedReturn": "11111111-1111-4111-8111-111111111111",
+          "nbaDraftNumber": 1,
+          "careerGames": 1,
+          "headshotUrl": "11111111-1111-4111-8111-111111111111",
+          "eligiblePositions": []
+        }
+      ],
+      "nextCursor": null
+    },
+    "free-agents": {
+      "$schema": "urn:pancake:public:v2:free-agents",
+      "version": 2,
+      "resource": "free-agents",
+      "items": [
+        {
+          "id": "11111111-1111-4111-8111-111111111111",
+          "leagueId": "11111111-1111-4111-8111-111111111111",
+          "name": "11111111-1111-4111-8111-111111111111",
+          "nbaId": "11111111-1111-4111-8111-111111111111",
+          "nbaTeam": "11111111-1111-4111-8111-111111111111",
+          "position": "11111111-1111-4111-8111-111111111111",
+          "injuryStatus": "11111111-1111-4111-8111-111111111111",
+          "yearsExperience": 1,
+          "status": "11111111-1111-4111-8111-111111111111",
+          "availability": "free-agent",
+          "waiverClearsAt": "11111111-1111-4111-8111-111111111111",
+          "waiverEligible": false,
+          "birthdate": "11111111-1111-4111-8111-111111111111",
+          "injuryReason": "11111111-1111-4111-8111-111111111111",
+          "injuryExpectedReturn": "11111111-1111-4111-8111-111111111111",
+          "nbaDraftNumber": 1,
+          "careerGames": 1,
+          "headshotUrl": "11111111-1111-4111-8111-111111111111",
+          "eligiblePositions": []
+        }
+      ],
+      "nextCursor": null
+    },
+    "rosters": {
+      "$schema": "urn:pancake:public:v2:rosters",
+      "version": 2,
+      "resource": "rosters",
+      "items": [
+        {
+          "id": "11111111-1111-4111-8111-111111111111",
+          "leagueId": "11111111-1111-4111-8111-111111111111",
+          "seasonYear": 1,
+          "teamId": "11111111-1111-4111-8111-111111111111",
+          "isOnIR": false,
+          "isOnTaxi": false,
+          "player": {
+            "id": "11111111-1111-4111-8111-111111111111",
+            "name": "11111111-1111-4111-8111-111111111111",
+            "nbaId": "11111111-1111-4111-8111-111111111111",
+            "nbaTeam": "11111111-1111-4111-8111-111111111111",
+            "position": "11111111-1111-4111-8111-111111111111",
+            "injuryStatus": "11111111-1111-4111-8111-111111111111",
+            "yearsExperience": 1,
+            "status": "11111111-1111-4111-8111-111111111111",
+            "birthdate": "11111111-1111-4111-8111-111111111111",
+            "injuryReason": "11111111-1111-4111-8111-111111111111",
+            "injuryExpectedReturn": "11111111-1111-4111-8111-111111111111",
+            "nbaDraftNumber": 1,
+            "careerGames": 1,
+            "headshotUrl": "11111111-1111-4111-8111-111111111111",
+            "eligiblePositions": []
+          }
+        }
+      ],
+      "nextCursor": null
+    },
+    "standings": {
+      "$schema": "urn:pancake:public:v2:standings",
+      "version": 2,
+      "resource": "standings",
+      "items": [
+        {
+          "id": "11111111-1111-4111-8111-111111111111",
+          "leagueId": "11111111-1111-4111-8111-111111111111",
+          "name": "11111111-1111-4111-8111-111111111111",
+          "wins": 1,
+          "losses": 1,
+          "ties": 1,
+          "pointsFor": 1,
+          "pointsAgainst": 1,
+          "maxPointsFor": 1,
+          "rank": 1
+        }
+      ],
+      "nextCursor": null
+    },
+    "matchups": {
+      "$schema": "urn:pancake:public:v2:matchups",
+      "version": 2,
+      "resource": "matchups",
+      "items": [
+        {
+          "id": "11111111-1111-4111-8111-111111111111",
+          "leagueId": "11111111-1111-4111-8111-111111111111",
+          "seasonYear": 1,
+          "weekNumber": 1,
+          "endWeekNumber": 1,
+          "homeTeamId": "11111111-1111-4111-8111-111111111111",
+          "awayTeamId": "11111111-1111-4111-8111-111111111111",
+          "homeTeamName": "11111111-1111-4111-8111-111111111111",
+          "awayTeamName": "11111111-1111-4111-8111-111111111111",
+          "homePoints": 1,
+          "awayPoints": 1,
+          "finalized": false,
+          "winnerTeamId": "11111111-1111-4111-8111-111111111111"
+        }
+      ],
+      "nextCursor": null
+    },
+    "scores": {
+      "$schema": "urn:pancake:public:v2:scores",
+      "version": 2,
+      "resource": "scores",
+      "items": [
+        {
+          "id": "11111111-1111-4111-8111-111111111111",
+          "leagueId": "11111111-1111-4111-8111-111111111111",
+          "seasonYear": 1,
+          "weekNumber": 1,
+          "endWeekNumber": 1,
+          "homeTeamId": "11111111-1111-4111-8111-111111111111",
+          "awayTeamId": "11111111-1111-4111-8111-111111111111",
+          "homeTeamName": "11111111-1111-4111-8111-111111111111",
+          "awayTeamName": "11111111-1111-4111-8111-111111111111",
+          "homePoints": 1,
+          "awayPoints": 1,
+          "finalized": false,
+          "winnerTeamId": "11111111-1111-4111-8111-111111111111"
+        }
+      ],
+      "nextCursor": null
+    },
+    "schedule": {
+      "$schema": "urn:pancake:public:v2:schedule",
+      "version": 2,
+      "resource": "schedule",
+      "items": [
+        {
+          "id": "11111111-1111-4111-8111-111111111111",
+          "leagueId": "11111111-1111-4111-8111-111111111111",
+          "seasonYear": 1,
+          "weekNumber": 1,
+          "endWeekNumber": 1,
+          "homeTeamId": "11111111-1111-4111-8111-111111111111",
+          "awayTeamId": "11111111-1111-4111-8111-111111111111",
+          "homeTeamName": "11111111-1111-4111-8111-111111111111",
+          "awayTeamName": "11111111-1111-4111-8111-111111111111",
+          "homePoints": 1,
+          "awayPoints": 1,
+          "finalized": false,
+          "winnerTeamId": "11111111-1111-4111-8111-111111111111"
+        }
+      ],
+      "nextCursor": null
+    },
+    "player-stats": {
+      "$schema": "urn:pancake:public:v2:player-stats",
+      "version": 2,
+      "resource": "player-stats",
+      "items": [
+        {
+          "id": "11111111-1111-4111-8111-111111111111",
+          "leagueId": "11111111-1111-4111-8111-111111111111",
+          "name": "11111111-1111-4111-8111-111111111111",
+          "nbaId": "11111111-1111-4111-8111-111111111111",
+          "nbaTeam": "11111111-1111-4111-8111-111111111111",
+          "position": "11111111-1111-4111-8111-111111111111",
+          "injuryStatus": "11111111-1111-4111-8111-111111111111",
+          "yearsExperience": 1,
+          "status": "11111111-1111-4111-8111-111111111111",
+          "seasonYear": 1,
+          "fantasyPoints": 1,
+          "gamesPlayed": 1,
+          "points": 1,
+          "rebounds": 1,
+          "assists": 1,
+          "steals": 1,
+          "blocks": 1,
+          "turnovers": 1,
+          "threePointersMade": 1,
+          "minutes": 1,
+          "birthdate": "11111111-1111-4111-8111-111111111111",
+          "injuryReason": "11111111-1111-4111-8111-111111111111",
+          "injuryExpectedReturn": "11111111-1111-4111-8111-111111111111",
+          "nbaDraftNumber": 1,
+          "careerGames": 1,
+          "headshotUrl": "11111111-1111-4111-8111-111111111111",
+          "eligiblePositions": [],
+          "fieldGoalsMade": 1,
+          "fieldGoalsAttempted": 1,
+          "freeThrowsMade": 1,
+          "freeThrowsAttempted": 1,
+          "doubleDoubles": 1,
+          "tripleDoubles": 1
+        }
+      ],
+      "nextCursor": null
+    },
+    "projections": {
+      "$schema": "urn:pancake:public:v2:projections",
+      "version": 2,
+      "resource": "projections",
+      "items": [
+        {
+          "id": "11111111-1111-4111-8111-111111111111",
+          "leagueId": "11111111-1111-4111-8111-111111111111",
+          "name": "11111111-1111-4111-8111-111111111111",
+          "nbaId": "11111111-1111-4111-8111-111111111111",
+          "nbaTeam": "11111111-1111-4111-8111-111111111111",
+          "position": "11111111-1111-4111-8111-111111111111",
+          "injuryStatus": "11111111-1111-4111-8111-111111111111",
+          "yearsExperience": 1,
+          "status": "11111111-1111-4111-8111-111111111111",
+          "date": "11111111-1111-4111-8111-111111111111",
+          "source": "11111111-1111-4111-8111-111111111111",
+          "fetchedAt": "11111111-1111-4111-8111-111111111111",
+          "projectionStatus": "11111111-1111-4111-8111-111111111111",
+          "fantasyPoints": 1,
+          "points": 1,
+          "rebounds": 1,
+          "assists": 1,
+          "steals": 1,
+          "blocks": 1,
+          "turnovers": 1,
+          "minutes": 1,
+          "birthdate": "11111111-1111-4111-8111-111111111111",
+          "injuryReason": "11111111-1111-4111-8111-111111111111",
+          "injuryExpectedReturn": "11111111-1111-4111-8111-111111111111",
+          "nbaDraftNumber": 1,
+          "careerGames": 1,
+          "headshotUrl": "11111111-1111-4111-8111-111111111111",
+          "eligiblePositions": []
+        }
+      ],
+      "nextCursor": null
+    },
+    "drafts": {
+      "$schema": "urn:pancake:public:v2:drafts",
+      "version": 2,
+      "resource": "drafts",
+      "items": [
+        {
+          "id": "11111111-1111-4111-8111-111111111111",
+          "leagueId": "11111111-1111-4111-8111-111111111111",
+          "seasonYear": 1,
+          "draftType": "11111111-1111-4111-8111-111111111111",
+          "status": "11111111-1111-4111-8111-111111111111",
+          "scheduledAt": "11111111-1111-4111-8111-111111111111",
+          "startedAt": "11111111-1111-4111-8111-111111111111",
+          "completedAt": "11111111-1111-4111-8111-111111111111"
+        }
+      ],
+      "nextCursor": null
+    },
+    "draft-results": {
+      "$schema": "urn:pancake:public:v2:draft-results",
+      "version": 2,
+      "resource": "draft-results",
+      "items": [
+        {
+          "id": "11111111-1111-4111-8111-111111111111",
+          "leagueId": "11111111-1111-4111-8111-111111111111",
+          "seasonYear": 1,
+          "draftId": "11111111-1111-4111-8111-111111111111",
+          "draftType": "11111111-1111-4111-8111-111111111111",
+          "overallPick": 1,
+          "round": 1,
+          "teamId": "11111111-1111-4111-8111-111111111111",
+          "teamName": "11111111-1111-4111-8111-111111111111",
+          "playerId": "11111111-1111-4111-8111-111111111111",
+          "playerName": "11111111-1111-4111-8111-111111111111",
+          "pickedAt": "11111111-1111-4111-8111-111111111111",
+          "price": 1
+        }
+      ],
+      "nextCursor": null
+    },
+    "picks": {
+      "$schema": "urn:pancake:public:v2:picks",
+      "version": 2,
+      "resource": "picks",
+      "items": [
+        {
+          "id": "11111111-1111-4111-8111-111111111111",
+          "leagueId": "11111111-1111-4111-8111-111111111111",
+          "seasonYear": 1,
+          "round": 1,
+          "teamId": "11111111-1111-4111-8111-111111111111",
+          "originalTeamId": "11111111-1111-4111-8111-111111111111",
+          "isUsed": false
+        }
+      ],
+      "nextCursor": null
+    },
+    "trades": {
+      "$schema": "urn:pancake:public:v2:trades",
+      "version": 2,
+      "resource": "trades",
+      "items": [
+        {
+          "id": "11111111-1111-4111-8111-111111111111",
+          "leagueId": "11111111-1111-4111-8111-111111111111",
+          "seasonYear": 1,
+          "status": "completed",
+          "completedAt": "11111111-1111-4111-8111-111111111111",
+          "proposerTeamId": "11111111-1111-4111-8111-111111111111",
+          "recipientTeamId": "11111111-1111-4111-8111-111111111111",
+          "teamIds": []
+        }
+      ],
+      "nextCursor": null
+    },
+    "trade-assets": {
+      "$schema": "urn:pancake:public:v2:trade-assets",
+      "version": 2,
+      "resource": "trade-assets",
+      "items": [
+        {
+          "id": "11111111-1111-4111-8111-111111111111",
+          "leagueId": "11111111-1111-4111-8111-111111111111",
+          "tradeId": "11111111-1111-4111-8111-111111111111",
+          "status": "completed",
+          "completedAt": "11111111-1111-4111-8111-111111111111",
+          "fromTeamId": "11111111-1111-4111-8111-111111111111",
+          "toTeamId": "11111111-1111-4111-8111-111111111111",
+          "kind": "player",
+          "playerId": "11111111-1111-4111-8111-111111111111",
+          "playerName": "11111111-1111-4111-8111-111111111111",
+          "pickId": "11111111-1111-4111-8111-111111111111",
+          "pickSeasonYear": 1,
+          "pickRound": 1
+        }
+      ],
+      "nextCursor": null
+    },
+    "transactions": {
+      "$schema": "urn:pancake:public:v2:transactions",
+      "version": 2,
+      "resource": "transactions",
+      "items": [
+        {
+          "id": "11111111-1111-4111-8111-111111111111",
+          "leagueId": "11111111-1111-4111-8111-111111111111",
+          "teamId": "11111111-1111-4111-8111-111111111111",
+          "teamName": "11111111-1111-4111-8111-111111111111",
+          "playerId": "11111111-1111-4111-8111-111111111111",
+          "playerName": "11111111-1111-4111-8111-111111111111",
+          "type": "fa_add",
+          "occurredAt": "11111111-1111-4111-8111-111111111111",
+          "tradeId": "11111111-1111-4111-8111-111111111111"
+        }
+      ],
+      "nextCursor": null
+    }
+  }
+}

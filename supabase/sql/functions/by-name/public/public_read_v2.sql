@@ -11,7 +11,7 @@ DECLARE
   used integer;
   current_minute timestamptz:=date_trunc('minute',clock_timestamp());
   filter_spec jsonb:='{"leagues":["query"],"league":["season"],"seasons":[],"teams":["team","query"],"players":["player","query","position"],"free-agents":["player","query","position","season"],"rosters":["team","season"],"standings":["team"],"matchups":["team","week","season"],"scores":["team","week","season"],"schedule":["team","week","season"],"player-stats":["player","query","position","season"],"projections":["player","query","position"],"drafts":["draft","season"],"draft-results":["draft","team","season"],"picks":["team","season"],"trades":["trade","season","team"],"trade-assets":["trade","team"],"transactions":["team","season"]}'::jsonb;
-  sort_spec jsonb:='{"leagues":["id","name","status"],"league":["id","name","status","leagueId","seasonId","seasonYear","timezone","rosterSize","irSlots","taxiSlots","taxiRule","taxiMaxSeasons","teamLimit","auctionBudget","waiverMode","faabStartingBudget","weeklyAddLimit","tradeDeadline","tradeVetoMode","tradeVetoWindowHours","tradeVetoThresholdPercent","allowInactiveTrades","playoffStartWeek","playoffEntrants","rookieDraftOrder","futurePickYears"],"seasons":["id","leagueId","seasonYear","isCurrent","regularSeasonStart","regularSeasonEnd"],"teams":["id","leagueId","name"],"players":["id","leagueId","name","nbaId","nbaTeam","position","injuryStatus","yearsExperience","status"],"free-agents":["id","leagueId","name","nbaId","nbaTeam","position","injuryStatus","yearsExperience","status","availability","waiverClearsAt","waiverEligible"],"rosters":["id","leagueId","seasonYear","teamId","isOnIR","isOnTaxi"],"standings":["id","leagueId","name","wins","losses","ties","pointsFor","pointsAgainst","maxPointsFor"],"matchups":["id","leagueId","seasonYear","weekNumber","endWeekNumber","homeTeamId","awayTeamId","homeTeamName","awayTeamName","homePoints","awayPoints","finalized","winnerTeamId"],"scores":["id","leagueId","seasonYear","weekNumber","endWeekNumber","homeTeamId","awayTeamId","homeTeamName","awayTeamName","homePoints","awayPoints","finalized","winnerTeamId"],"schedule":["id","leagueId","seasonYear","weekNumber","endWeekNumber","homeTeamId","awayTeamId","homeTeamName","awayTeamName","homePoints","awayPoints","finalized","winnerTeamId"],"player-stats":["id","leagueId","name","nbaId","nbaTeam","position","injuryStatus","yearsExperience","status","seasonYear","fantasyPoints","gamesPlayed","points","rebounds","assists","steals","blocks","turnovers","threePointersMade","minutes"],"projections":["id","leagueId","name","nbaId","nbaTeam","position","injuryStatus","yearsExperience","status","date","source","fetchedAt","projectionStatus","fantasyPoints","points","rebounds","assists","steals","blocks","turnovers","minutes"],"drafts":["id","leagueId","seasonYear","draftType","status","scheduledAt","startedAt","completedAt"],"draft-results":["id","leagueId","seasonYear","draftId","draftType","overallPick","round","teamId","teamName","playerId","playerName","pickedAt","price"],"picks":["id","leagueId","seasonYear","round","teamId","originalTeamId","isUsed"],"trades":["id","leagueId","seasonYear","status","completedAt","proposerTeamId","recipientTeamId"],"trade-assets":["id","leagueId","tradeId","status","completedAt","fromTeamId","toTeamId","kind","playerId","playerName","pickId","pickSeasonYear","pickRound"],"transactions":["id","leagueId","teamId","teamName","playerId","playerName","type","occurredAt","tradeId"]}'::jsonb;
+  sort_spec jsonb:='{"leagues":["id","name","status"],"league":["id","name","status","leagueId","seasonId","seasonYear","timezone","rosterSize","irSlots","taxiSlots","taxiRule","taxiMaxSeasons","teamLimit","auctionBudget","waiverMode","faabStartingBudget","weeklyAddLimit","tradeDeadline","tradeVetoMode","tradeVetoWindowHours","tradeVetoThresholdPercent","allowInactiveTrades","playoffStartWeek","playoffEntrants","rookieDraftOrder","futurePickYears","playoffTotalWeeks"],"seasons":["id","leagueId","seasonYear","isCurrent","regularSeasonStart","regularSeasonEnd"],"teams":["id","leagueId","name"],"players":["id","leagueId","name","nbaId","nbaTeam","position","injuryStatus","yearsExperience","status","birthdate","injuryReason","injuryExpectedReturn","nbaDraftNumber","careerGames","headshotUrl"],"free-agents":["id","leagueId","name","nbaId","nbaTeam","position","injuryStatus","yearsExperience","status","availability","waiverClearsAt","waiverEligible","birthdate","injuryReason","injuryExpectedReturn","nbaDraftNumber","careerGames","headshotUrl"],"rosters":["id","leagueId","seasonYear","teamId","isOnIR","isOnTaxi"],"standings":["id","leagueId","name","wins","losses","ties","pointsFor","pointsAgainst","maxPointsFor","rank"],"matchups":["id","leagueId","seasonYear","weekNumber","endWeekNumber","homeTeamId","awayTeamId","homeTeamName","awayTeamName","homePoints","awayPoints","finalized","winnerTeamId"],"scores":["id","leagueId","seasonYear","weekNumber","endWeekNumber","homeTeamId","awayTeamId","homeTeamName","awayTeamName","homePoints","awayPoints","finalized","winnerTeamId"],"schedule":["id","leagueId","seasonYear","weekNumber","endWeekNumber","homeTeamId","awayTeamId","homeTeamName","awayTeamName","homePoints","awayPoints","finalized","winnerTeamId"],"player-stats":["id","leagueId","name","nbaId","nbaTeam","position","injuryStatus","yearsExperience","status","seasonYear","fantasyPoints","gamesPlayed","points","rebounds","assists","steals","blocks","turnovers","threePointersMade","minutes","birthdate","injuryReason","injuryExpectedReturn","nbaDraftNumber","careerGames","headshotUrl","fieldGoalsMade","fieldGoalsAttempted","freeThrowsMade","freeThrowsAttempted","doubleDoubles","tripleDoubles"],"projections":["id","leagueId","name","nbaId","nbaTeam","position","injuryStatus","yearsExperience","status","date","source","fetchedAt","projectionStatus","fantasyPoints","points","rebounds","assists","steals","blocks","turnovers","minutes","birthdate","injuryReason","injuryExpectedReturn","nbaDraftNumber","careerGames","headshotUrl"],"drafts":["id","leagueId","seasonYear","draftType","status","scheduledAt","startedAt","completedAt"],"draft-results":["id","leagueId","seasonYear","draftId","draftType","overallPick","round","teamId","teamName","playerId","playerName","pickedAt","price"],"picks":["id","leagueId","seasonYear","round","teamId","originalTeamId","isUsed"],"trades":["id","leagueId","seasonYear","status","completedAt","proposerTeamId","recipientTeamId"],"trade-assets":["id","leagueId","tradeId","status","completedAt","fromTeamId","toTeamId","kind","playerId","playerName","pickId","pickSeasonYear","pickRound"],"transactions":["id","leagueId","teamId","teamName","playerId","playerName","type","occurredAt","tradeId"]}'::jsonb;
 BEGIN
   IF p_client_key IS NULL OR p_client_key !~ '^[a-f0-9]{64}$' THEN RETURN jsonb_build_object('status',400); END IF;
   INSERT INTO private.public_api_buckets(bucket_key,minute,reads) VALUES('global',current_minute,1)
@@ -118,7 +118,17 @@ BEGIN
           'futurePickYears',
           l.future_pick_years,
           'scoringSettings',
-          jsonb_build_object('points',l.scoring_settings->'points','rebounds',l.scoring_settings->'rebounds','assists',l.scoring_settings->'assists','steals',l.scoring_settings->'steals','blocks',l.scoring_settings->'blocks','turnovers',l.scoring_settings->'turnovers','three_pointers_made',l.scoring_settings->'three_pointers_made','field_goals_made',l.scoring_settings->'field_goals_made','field_goals_attempted',l.scoring_settings->'field_goals_attempted','free_throws_made',l.scoring_settings->'free_throws_made','free_throws_attempted',l.scoring_settings->'free_throws_attempted','double_double',l.scoring_settings->'double_double','triple_double',l.scoring_settings->'triple_double')) AS data
+          jsonb_build_object('points',l.scoring_settings->'points','rebounds',l.scoring_settings->'rebounds','assists',l.scoring_settings->'assists','steals',l.scoring_settings->'steals','blocks',l.scoring_settings->'blocks','turnovers',l.scoring_settings->'turnovers','three_pointers_made',l.scoring_settings->'three_pointers_made','field_goals_made',l.scoring_settings->'field_goals_made','field_goals_attempted',l.scoring_settings->'field_goals_attempted','free_throws_made',l.scoring_settings->'free_throws_made','free_throws_attempted',l.scoring_settings->'free_throws_attempted','double_double',l.scoring_settings->'double_double','triple_double',l.scoring_settings->'triple_double'),
+          'playoffRoundLengths',
+          l.playoff_round_lengths,
+          'playoffRoundWeeks',
+          l.playoff_round_weeks,
+          'playoffTotalWeeks',
+          l.playoff_total_weeks,
+          'lineupSlots',
+          coalesce((SELECT jsonb_agg(jsonb_build_object('slotType',slot.slot_type,'slotCount',slot.slot_count) ORDER BY slot.slot_type) FROM public.lineup_slot_templates slot WHERE slot.league_id=l.id),'[]'::jsonb),
+          'waiverOrder',
+          coalesce((SELECT jsonb_agg(jsonb_build_object('teamId',w.member_id,'priority',w.priority) ORDER BY w.priority,w.member_id) FROM public.waiver_priorities w JOIN public.league_members member ON member.id=w.member_id AND member.league_id=w.league_id WHERE w.league_id=l.id AND w.league_season_id=selected_season),'[]'::jsonb)) AS data
         FROM public.leagues l
         WHERE (l.deleted_at IS NULL AND l.id=p_league_id)
       ), filtered AS (
@@ -196,7 +206,21 @@ BEGIN
           'yearsExperience',
           p.years_exp,
           'status',
-          p.status) AS data
+          p.status,
+          'birthdate',
+          p.birthdate,
+          'injuryReason',
+          p.injury_reason,
+          'injuryExpectedReturn',
+          p.injury_expected_return,
+          'nbaDraftNumber',
+          p.nba_draft_number,
+          'careerGames',
+          p.career_regular_season_games,
+          'headshotUrl',
+          p.headshot_url,
+          'eligiblePositions',
+          p.eligible_positions) AS data
         FROM public.players p
         WHERE (true)
       ), filtered AS (
@@ -234,7 +258,21 @@ BEGIN
           'waiverClearsAt',
           hold.clears_at,
           'waiverEligible',
-          true) AS data
+          true,
+          'birthdate',
+          p.birthdate,
+          'injuryReason',
+          p.injury_reason,
+          'injuryExpectedReturn',
+          p.injury_expected_return,
+          'nbaDraftNumber',
+          p.nba_draft_number,
+          'careerGames',
+          p.career_regular_season_games,
+          'headshotUrl',
+          p.headshot_url,
+          'eligiblePositions',
+          p.eligible_positions) AS data
         FROM public.players p LEFT JOIN public.roster_players r ON r.player_id=p.id AND r.league_id=p_league_id AND r.league_season_id=selected_season LEFT JOIN LATERAL (SELECT max(w.clears_at) AS clears_at FROM public.waiver_wire_log w WHERE w.player_id=p.id AND w.league_id=p_league_id AND w.league_season_id=selected_season AND w.cleared_at IS NULL AND w.clears_at>now()) hold ON true
         WHERE (r.id IS NULL)
       ), filtered AS (
@@ -262,7 +300,7 @@ BEGIN
           'isOnTaxi',
           r.is_on_taxi,
           'player',
-          jsonb_build_object('id',p.id,'name',p.display_name,'nbaId',p.nba_id,'nbaTeam',p.nba_team,'position',p.position::text,'injuryStatus',p.injury_status,'yearsExperience',p.years_exp,'status',p.status)) AS data
+          jsonb_build_object('id',p.id,'name',p.display_name,'nbaId',p.nba_id,'nbaTeam',p.nba_team,'position',p.position::text,'injuryStatus',p.injury_status,'yearsExperience',p.years_exp,'status',p.status,'birthdate',p.birthdate,'injuryReason',p.injury_reason,'injuryExpectedReturn',p.injury_expected_return,'nbaDraftNumber',p.nba_draft_number,'careerGames',p.career_regular_season_games,'headshotUrl',p.headshot_url,'eligiblePositions',p.eligible_positions)) AS data
         FROM public.roster_players r JOIN public.players p ON p.id=r.player_id JOIN public.league_members m ON m.id=r.member_id AND m.league_id=r.league_id
         WHERE (r.league_id=p_league_id AND r.league_season_id=selected_season)
       ), filtered AS (
@@ -294,16 +332,18 @@ BEGIN
           'pointsAgainst',
           coalesce(c.points_against,0),
           'maxPointsFor',
-          coalesce(c.max_points_for,0)) AS data
+          coalesce(c.max_points_for,0),
+          'rank',
+          row_number() OVER (ORDER BY (coalesce(c.wins,0)+0.5*coalesce(c.ties,0))/greatest(coalesce(c.wins+c.losses+c.ties,0),1) DESC,coalesce(c.points_for,0)/greatest(coalesce(c.wins+c.losses+c.ties,0),1) DESC,coalesce(c.max_points_for,0) DESC,coalesce(c.points_against,0),m.team_name,m.id)) AS data
         FROM public.league_members m LEFT JOIN public.standings_current c ON c.member_id=m.id AND c.league_season_id=selected_season
         WHERE (m.league_id=p_league_id)
       ), filtered AS (
         SELECT data FROM visible WHERE (params->>'team' IS NULL OR data->>'id'=params->>'team')
       ), page AS (
-        SELECT data, row_number() OVER (ORDER BY CASE WHEN COALESCE(params->>'direction','asc')='asc' THEN nullif(data->COALESCE(params->>'sort','wins'),'null'::jsonb) END ASC NULLS LAST,
-        CASE WHEN COALESCE(params->>'direction','asc')='desc' THEN nullif(data->COALESCE(params->>'sort','wins'),'null'::jsonb) END DESC NULLS LAST, data->'pointsFor' ASC, data->'id' ASC) AS ordinal
-        FROM filtered ORDER BY CASE WHEN COALESCE(params->>'direction','asc')='asc' THEN nullif(data->COALESCE(params->>'sort','wins'),'null'::jsonb) END ASC NULLS LAST,
-        CASE WHEN COALESCE(params->>'direction','asc')='desc' THEN nullif(data->COALESCE(params->>'sort','wins'),'null'::jsonb) END DESC NULLS LAST, data->'pointsFor' ASC, data->'id' ASC LIMIT page_limit+1 OFFSET page_offset
+        SELECT data, row_number() OVER (ORDER BY CASE WHEN COALESCE(params->>'direction','asc')='asc' THEN nullif(data->COALESCE(params->>'sort','rank'),'null'::jsonb) END ASC NULLS LAST,
+        CASE WHEN COALESCE(params->>'direction','asc')='desc' THEN nullif(data->COALESCE(params->>'sort','rank'),'null'::jsonb) END DESC NULLS LAST, data->'id' ASC) AS ordinal
+        FROM filtered ORDER BY CASE WHEN COALESCE(params->>'direction','asc')='asc' THEN nullif(data->COALESCE(params->>'sort','rank'),'null'::jsonb) END ASC NULLS LAST,
+        CASE WHEN COALESCE(params->>'direction','asc')='desc' THEN nullif(data->COALESCE(params->>'sort','rank'),'null'::jsonb) END DESC NULLS LAST, data->'id' ASC LIMIT page_limit+1 OFFSET page_offset
       )
       SELECT coalesce(jsonb_agg(data ORDER BY ordinal) FILTER (WHERE ordinal<=page_offset+page_limit),'[]'::jsonb),
         count(*)>page_limit INTO result_rows, more FROM page;
@@ -468,7 +508,33 @@ BEGIN
           'threePointersMade',
           coalesce((c.averages->>'avg_three_pointers_made')::numeric,a.avg_three_pointers_made),
           'minutes',
-          coalesce((c.averages->>'avg_minutes_played')::numeric,a.avg_minutes_played)) AS data
+          coalesce((c.averages->>'avg_minutes_played')::numeric,a.avg_minutes_played),
+          'birthdate',
+          p.birthdate,
+          'injuryReason',
+          p.injury_reason,
+          'injuryExpectedReturn',
+          p.injury_expected_return,
+          'nbaDraftNumber',
+          p.nba_draft_number,
+          'careerGames',
+          p.career_regular_season_games,
+          'headshotUrl',
+          p.headshot_url,
+          'eligiblePositions',
+          p.eligible_positions,
+          'fieldGoalsMade',
+          coalesce((c.averages->>'avg_field_goals_made')::numeric,a.avg_field_goals_made),
+          'fieldGoalsAttempted',
+          coalesce((c.averages->>'avg_field_goals_attempted')::numeric,a.avg_field_goals_attempted),
+          'freeThrowsMade',
+          coalesce((c.averages->>'avg_free_throws_made')::numeric,a.avg_free_throws_made),
+          'freeThrowsAttempted',
+          coalesce((c.averages->>'avg_free_throws_attempted')::numeric,a.avg_free_throws_attempted),
+          'doubleDoubles',
+          coalesce((c.averages->>'double_doubles')::numeric,a.double_doubles),
+          'tripleDoubles',
+          coalesce((c.averages->>'triple_doubles')::numeric,a.triple_doubles)) AS data
         FROM public.players p LEFT JOIN public.player_season_averages c ON c.player_id=p.id AND c.league_id=p_league_id AND c.season_year=selected_year LEFT JOIN public.mv_player_season_averages a ON a.player_id=p.id AND a.season_year=selected_year LEFT JOIN public.v_player_avg_fantasy_points fp ON fp.player_id=p.id AND fp.league_id=p_league_id AND fp.season_year=selected_year
         WHERE (true)
       ), filtered AS (
@@ -524,7 +590,21 @@ BEGIN
           'turnovers',
           pr.projection_turnovers,
           'minutes',
-          pr.projection_minutes) AS data
+          pr.projection_minutes,
+          'birthdate',
+          p.birthdate,
+          'injuryReason',
+          p.injury_reason,
+          'injuryExpectedReturn',
+          p.injury_expected_return,
+          'nbaDraftNumber',
+          p.nba_draft_number,
+          'careerGames',
+          p.career_regular_season_games,
+          'headshotUrl',
+          p.headshot_url,
+          'eligiblePositions',
+          p.eligible_positions) AS data
         FROM public.players p LEFT JOIN LATERAL public.get_league_projection_rows(p_league_id,selected_year,(now() AT TIME ZONE 'America/New_York')::date,'today',ARRAY[p.id],1,0) pr ON true
         WHERE (true)
       ), filtered AS (

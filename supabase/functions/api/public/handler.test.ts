@@ -65,3 +65,31 @@ Deno.test('public v2 private trade states fail closed',async()=>{
     assert((await handler(request('trades'),'/public/v2/trades'))?.status===503)
   }
 })
+Deno.test('public v2 bounds response size and relays durable rate limits',async()=>{
+  const item=sample(publicContract.resources.teams.properties.items.items) as Record<string,unknown>
+  const tooLong=createPublicHandler(async()=>({status:200,items:[{...item,name:'x'.repeat(1025)}],hasMore:false}))
+  assert((await tooLong(request('teams'),'/public/v2/teams'))?.status===503)
+  const tooMany=createPublicHandler(async()=>({status:200,items:Array(51).fill(item),hasMore:false}))
+  assert((await tooMany(request('teams'),'/public/v2/teams'))?.status===503)
+  const rate=createPublicHandler(async()=>({status:429,retryAfter:900}))
+  const response=(await rate(request('teams'),'/public/v2/teams'))!
+  assert(response.status===429&&response.headers.get('retry-after')==='60')
+})
+Deno.test('public v2 does not serialize another league',async()=>{
+  const item=sample(publicContract.resources.teams.properties.items.items) as Record<string,unknown>
+  const handler=createPublicHandler(async()=>({status:200,items:[{...item,leagueId:'other'}],hasMore:false}))
+  const response=(await handler(request('teams'),'/public/v2/teams'))!
+  assert(response.status===503&&!((await response.text()).includes('other')))
+})
+Deno.test('public v2 sends the league scope and bounded filters to the reader',async()=>{
+  let seen=false
+  const handler=createPublicHandler(async(scope,resource,params,clientKey)=>{
+    assert(scope===league&&resource==='teams')
+    assert(params.limit===2&&params.team===league&&params.offset===0)
+    assert(/^[a-f0-9]{64}$/.test(clientKey))
+    seen=true
+    return {status:200,items:[],hasMore:false}
+  })
+  assert((await handler(request('teams',`&limit=2&team=${league}`),'/public/v2/teams'))?.status===200)
+  assert(seen)
+})

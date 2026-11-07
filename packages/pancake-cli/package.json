@@ -1,6 +1,6 @@
 {
   "name": "@pancake/cli",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Read public Pancake league data from scripts and agents.",
   "type": "module",
   "bin": {

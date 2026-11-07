@@ -56,7 +56,8 @@
       "playoffStartWeek",
       "playoffEntrants",
       "rookieDraftOrder",
-      "futurePickYears"
+      "futurePickYears",
+      "playoffTotalWeeks"
     ]
   },
   "seasons": {
@@ -131,7 +132,13 @@
       "position",
       "injuryStatus",
       "yearsExperience",
-      "status"
+      "status",
+      "birthdate",
+      "injuryReason",
+      "injuryExpectedReturn",
+      "nbaDraftNumber",
+      "careerGames",
+      "headshotUrl"
     ]
   },
   "free-agents": {
@@ -170,7 +177,13 @@
       "status",
       "availability",
       "waiverClearsAt",
-      "waiverEligible"
+      "waiverEligible",
+      "birthdate",
+      "injuryReason",
+      "injuryExpectedReturn",
+      "nbaDraftNumber",
+      "careerGames",
+      "headshotUrl"
     ]
   },
   "rosters": {
@@ -207,8 +220,7 @@
       ]
     },
     "order": [
-      "wins",
-      "pointsFor",
+      "rank",
       "id"
     ],
     "direction": "asc",
@@ -221,7 +233,8 @@
       "ties",
       "pointsFor",
       "pointsAgainst",
-      "maxPointsFor"
+      "maxPointsFor",
+      "rank"
     ]
   },
   "matchups": {
@@ -382,7 +395,19 @@
       "blocks",
       "turnovers",
       "threePointersMade",
-      "minutes"
+      "minutes",
+      "birthdate",
+      "injuryReason",
+      "injuryExpectedReturn",
+      "nbaDraftNumber",
+      "careerGames",
+      "headshotUrl",
+      "fieldGoalsMade",
+      "fieldGoalsAttempted",
+      "freeThrowsMade",
+      "freeThrowsAttempted",
+      "doubleDoubles",
+      "tripleDoubles"
     ]
   },
   "projections": {
@@ -428,7 +453,13 @@
       "steals",
       "blocks",
       "turnovers",
-      "minutes"
+      "minutes",
+      "birthdate",
+      "injuryReason",
+      "injuryExpectedReturn",
+      "nbaDraftNumber",
+      "careerGames",
+      "headshotUrl"
     ]
   },
   "drafts": {

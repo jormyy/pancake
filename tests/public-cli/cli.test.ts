@@ -2,107 +2,81 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { mkdtemp, rm, readdir, readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { execFileSync } from 'node:child_process'
 import { run } from '../../packages/pancake-cli/bin/pancake.mjs'
-import contract from '../../packages/pancake-cli/schemas/v1.json'
-import fixture from '../fixtures/public-cli/league.json'
-import { backupStatements } from '../e2e/public-cli.mjs'
+import contract from '../../packages/pancake-cli/schemas/v2.json'
+import fixture from '../fixtures/public-cli/league-v2.json'
 
-const fixturePath = path.resolve('tests/fixtures/public-cli/league.json')
-const token = 'a'.repeat(64)
-const temporary: string[] = []
-afterEach(async () => { await Promise.all(temporary.splice(0).map(directory => rm(directory, { recursive: true, force: true }))) })
-async function invoke(args: string[], options: Record<string, unknown> = {}) {
-  let stdout = '', stderr = ''
-  const code = await run(args, { stdout: { isTTY: false, write: (value: string) => { stdout += value } },
-    stderr: { write: (value: string) => { stderr += value } }, env: {}, ...options })
-  return { code, stdout, stderr }
+const league='11111111-1111-4111-8111-111111111111'
+const temporary:string[]=[]
+afterEach(async()=>{await Promise.all(temporary.splice(0).map(dir=>rm(dir,{recursive:true,force:true})))})
+async function invoke(args:string[],extra:Record<string,unknown>={}) {
+  let stdout='',stderr=''
+  const code=await run(args,{stdout:{isTTY:false,write:(value:string)=>{stdout+=value}},stderr:{write:(value:string)=>{stderr+=value}},env:{},...extra})
+  return {code,stdout,stderr}
 }
-const body = { $schema: 'urn:pancake:public:v1:standings', version: 1, resource: 'standings', items: fixture.resources.standings.items, nextCursor: null }
-describe('pancake CLI', () => {
-  it.each(Object.keys(contract.resources))('reads %s from offline fixtures without a network request', async resource => {
-    const result = await invoke([resource, '--fixture', fixturePath, ...(resource === 'rosters' ? ['--team', '11111111-1111-4111-8111-111111111111'] : [])], { fetch: () => { throw new Error('network forbidden') } })
+const args=['teams','--league',league,'--api-url','http://localhost:58921','--no-cache']
+describe('public CLI v2',()=>{
+  it.each(Object.keys(contract.resources))('reads %s without credentials',async name=>{
+    const result=await invoke([name,'--fixture','tests/fixtures/public-cli/league-v2.json',...(name==='leagues'?[]:['--league',league]),...(name==='rosters'?['--team',league]:[])])
     expect(result.code).toBe(0)
-    expect(JSON.parse(result.stdout).resource).toBe(resource)
+    expect(JSON.parse(result.stdout).version).toBe(2)
+    expect(JSON.parse(result.stdout).items).toHaveLength(1)
     expect(result.stderr).toBe('')
   })
-  it('runs the packaged entry without prompts', () => {
-    const output = execFileSync(process.execPath, ['packages/pancake-cli/bin/pancake.mjs', 'standings', '--fixture', fixturePath], { encoding: 'utf8', timeout: 5000 })
-    expect(JSON.parse(output).items).toHaveLength(2)
+  it('describes commands offline and removes the operator command',async()=>{
+    const description=JSON.parse((await invoke(['describe'])).stdout)
+    expect(description.commands).toContain('leagues')
+    expect(description.commands).not.toContain('db-health')
+    expect((await invoke(['db-health'])).code).toBe(2)
+    expect((await invoke(['teams','--token','secret'])).code).toBe(2)
+    expect((await invoke(['explain','trades.completedAt'])).code).toBe(0)
   })
-  it('describes fields and explains nested fields offline', async () => {
-    const described = await invoke(['describe', 'standings'])
-    expect(JSON.parse(described.stdout).schemas.standings).toEqual(contract.resources.standings)
-    const explained = await invoke(['explain', 'rosters.player.name'])
-    expect(JSON.parse(explained.stdout).definition.description).toBe('Player display name.')
-    expect((await invoke(['explain', 'standings.userId'])).code).toBe(2)
-  })
-  it('paginates and filters deterministic fixture output', async () => {
-    const first = JSON.parse((await invoke(['standings', '--fixture', fixturePath, '--limit', '1'])).stdout)
-    const second = JSON.parse((await invoke(['standings', '--fixture', fixturePath, '--limit', '1', '--cursor', first.nextCursor])).stdout)
-    expect(first.items[0].rank).toBe(1)
-    expect(second.items[0].rank).toBe(2)
-    expect(second.nextCursor).toBeNull()
-    const team = JSON.parse((await invoke(['standings', '--fixture', fixturePath, '--team', second.items[0].teamId])).stdout)
-    expect(team.items).toEqual(second.items)
-  })
-  it('revalidates a cached page and keeps credentials out of the cache', async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), 'pancake-cache-'))
-    temporary.push(directory)
-    let calls = 0
-    const fetcher = async (_url: string, init: RequestInit) => {
+  it('sends no authorization and retries only safe transient failures',async()=>{
+    let calls=0
+    const result=await invoke(args,{fetch:async(url:string,init:RequestInit)=>{
+      expect(url).toContain('/public/v2/teams')
+      expect(new Headers(init.headers).has('authorization')).toBe(false)
+      expect(init.redirect).toBe('error')
+      expect(init.signal).toBeInstanceOf(AbortSignal)
       calls++
-      if (calls === 1) return Response.json(body, { headers: { ETag: '"one"' } })
-      expect(new Headers(init.headers).get('if-none-match')).toBe('"one"')
-      if (calls === 3) return new Response(null, { status: 401 })
-      return new Response(null, { status: 304 })
-    }
-    const args = ['standings', '--api-url', 'http://127.0.0.1:58921/functions/v1/api', '--token', token, '--cache-dir', directory]
-    const first = await invoke(args, { fetch: fetcher })
-    const second = await invoke(args, { fetch: fetcher })
-    expect(second).toEqual(first)
-    expect(first.code).toBe(0)
-    const [file] = await readdir(directory)
-    expect(await readFile(path.join(directory, file), 'utf8')).not.toContain(token)
-    expect(calls).toBe(2)
-    const revoked = await invoke(args, { fetch: fetcher })
-    expect(revoked.code).toBe(3)
-    expect(revoked.stdout).toBe('')
+      return calls<3?new Response('',{status:503}):Response.json(fixture.resources.teams)
+    }})
+    expect(result.code).toBe(0)
+    expect(calls).toBe(3)
   })
-  it.each([[400, 2], [401, 3], [403, 3], [404, 4], [429, 5], [500, 7]])('maps HTTP %i to exit %i', async (status, code) => {
-    const result = await invoke(['standings', '--api-url', 'http://localhost:58921', '--token', token, '--no-cache'], { fetch: async () => new Response('private backend error', { status }) })
+  it.each([[400,2],[404,4],[429,5],[500,7]])('maps HTTP %i to exit %i',async(status,code)=>{
+    let calls=0
+    const result=await invoke(args,{fetch:async()=>{calls++;return new Response('SECRET',{status})}})
     expect(result.code).toBe(code)
+    expect(calls).toBe(1)
     expect(result.stdout).toBe('')
-    expect(result.stderr).not.toContain('private backend error')
+    expect(result.stderr).not.toContain('SECRET')
   })
-  it('distinguishes network errors and malformed responses', async () => {
-    const args = ['standings', '--api-url', 'http://localhost:58921', '--token', token, '--no-cache']
-    expect((await invoke(args, { fetch: () => { throw new Error(token) } })).code).toBe(6)
-    expect((await invoke(args, { fetch: async () => Response.json({ ...body, private: token }) })).code).toBe(7)
-    expect((await invoke(args, { fetch: async () => Response.json({ ...body, version: 2 }) })).code).toBe(7)
-    expect((await invoke(args, { fetch: async () => new Response('invalid JSON') })).code).toBe(7)
-    expect((await invoke(args, { fetch: async () => ({ ok: true, json: async () => { throw new DOMException('aborted', 'AbortError') } }) })).code).toBe(6)
+  it('uses identical missing-resource errors for missing and malformed IDs',async()=>{
+    const missing=await invoke(['teams'])
+    const malformed=await invoke(['teams','--league','bad'])
+    const absent=await invoke(args,{fetch:async()=>new Response('',{status:404})})
+    expect(missing).toEqual(malformed)
+    expect(missing).toEqual(absent)
   })
-  it.each([['standings', '--token'], ['standings', '--limit', '0'], ['standings', '--limit', '51'], ['standings', '--week', '1'], ['standings', '--json', '--text'], ['delete'], ['rosters'], ['standings', '--unknown'], ['explain']])('rejects usage %j', async (...args) => {
-    expect((await invoke(args)).code).toBe(2)
+  it('enforces output bounds and schema versions',async()=>{
+    expect((await invoke(args,{fetch:async()=>new Response('x'.repeat(2097153))})).code).toBe(7)
+    expect((await invoke(args,{fetch:async()=>Response.json({...fixture.resources.teams,version:1})})).code).toBe(7)
+    expect((await invoke(args,{fetch:async()=>Response.json({...fixture.resources.teams,private:'SECRET'})})).code).toBe(7)
   })
-  it('keeps operator health private and requires a connection', async () => {
-    const result = await invoke(['db-health'])
-    expect(result.code).toBe(2)
-    expect(result.stderr).toContain('private')
+  it('revalidates public cache entries without token-based keys',async()=>{
+    const directory=await mkdtemp(path.join(tmpdir(),'public-cli-cache-'));temporary.push(directory)
+    let calls=0
+    const fetch=async(_url:string,init:RequestInit)=>{
+      calls++
+      if(calls===1)return Response.json(fixture.resources.teams,{headers:{etag:'"public"'}})
+      expect(new Headers(init.headers).get('if-none-match')).toBe('"public"')
+      return new Response(null,{status:304})
+    }
+    const options=['teams','--league',league,'--api-url','http://localhost:58921','--cache-dir',directory]
+    expect(await invoke(options,{fetch})).toEqual(await invoke(options,{fetch}))
+    const files=await readdir(directory)
+    expect(files).toHaveLength(1)
+    expect(await readFile(path.join(directory,files[0]),'utf8')).not.toContain('token')
   })
-})
-
-it('restores only existing public tables and approved player lookups', () => {
-  const data = ['public.players','private.player_game_memberships','auth.users','private.web_push_controls','public.removed_table','analytics.player_season_totals','analytics.search_cache_refresh_state'].map(name => {
-    const [schema, table] = name.split('.')
-    return `INSERT INTO "${schema}"."${table}" (id) VALUES (1);\n\n`
-  }).join('')
-  const selected = backupStatements(data, ['public.players','private.player_game_memberships','auth.users','private.web_push_controls','analytics.player_season_totals','analytics.search_cache_refresh_state'])
-  expect(selected.map(row => `${row[1]}.${row[2]}`)).toEqual(['public.players','private.player_game_memberships','analytics.player_season_totals'])
-})
-
-it('keeps semicolons and blank lines inside restored text', () => {
-  const statement = `INSERT INTO "public"."players" (name) VALUES ('name;\n\nwith ''quotes''');`
-  expect(backupStatements(statement, ['public.players'])[0][0]).toBe(statement)
 })

@@ -93,14 +93,15 @@ Brand assets and phone display rules: [Interface design](docs/interface-design.m
 
 ## Public CLI
 
-Read shared league results with the Node 22 `pancake` CLI.
-A commissioner creates, rotates, or revokes the league share token.
+Read public data from every league with the Node 22 `pancake` CLI.
+No account, share token, or commissioner action is required.
 
 ```sh
 npm install -g ./packages/pancake-cli
 pancake describe
-pancake standings --json
+pancake leagues --json
+pancake standings --league "$LEAGUE_ID" --json
 ```
 
-Set `PANCAKE_API_URL` and `PANCAKE_TOKEN` before reading a league.
-See [Public CLI](docs/public-cli.md) for schemas, filters, scripts, privacy rules, and private operator reporting.
+Set `PANCAKE_API_URL` to the Edge API URL.
+See [Public CLI](docs/public-cli.md) for schemas, filters, scripts, privacy rules, and verification limits.

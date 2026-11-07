@@ -63,7 +63,7 @@ export async function measure(plan, dependencies) {
         if (counter && (!Number.isSafeInteger(before) || !Number.isSafeInteger(after) || after <= before)) {
           throw new Error('Database counter did not increase; check isolation and statistics tracking')
         }
-        if (body.version !== 1 || body.resource !== entry.resource || !Array.isArray(body.items)
+        if (body.version !== (plan.version ?? 1) || body.resource !== entry.resource || !Array.isArray(body.items)
           || body.items.length > plan.limit || !(body.nextCursor === null || typeof body.nextCursor === 'string')) {
           throw new Error('Invalid public response envelope')
         }
@@ -121,7 +121,7 @@ async function main() {
     if (!match) throw new Error('Use --name=value options')
     return match.slice(1)
   }))
-  for (const key of Object.keys(options)) if (!['api-url', 'output', 'cases', 'samples', 'warmup', 'pages', 'limit', 'interval-ms', 'live'].includes(key)) throw new Error('Unknown measurement option')
+  for (const key of Object.keys(options)) if (!['api-url', 'output', 'cases', 'samples', 'warmup', 'pages', 'limit', 'interval-ms', 'live', 'version'].includes(key)) throw new Error('Unknown measurement option')
   const integer = (key, fallback, minimum, maximum) => {
     const value = options[key] ?? String(fallback)
     if (!/^\d+$/.test(value) || Number(value) < minimum || Number(value) > maximum) throw new Error(`Invalid --${key}`)
@@ -130,17 +130,18 @@ async function main() {
   const url = new URL(options['api-url'] ?? process.env.PANCAKE_API_URL)
   const local = url.protocol === 'http:' && ['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname)
   if ((!local && !(options.live === 'true' && url.protocol === 'https:')) || url.username || url.password || url.search || url.hash) throw new Error('Use a loopback API or explicitly approved --live=true HTTPS URL')
-  const token = process.env.PANCAKE_TOKEN
-  if (!/^[a-f0-9]{64}$/i.test(token ?? '')) throw new Error('Set PANCAKE_TOKEN to an approved league share token')
-  const schema = JSON.parse(await readFile(new URL('../../packages/pancake-cli/schemas/v1.json', import.meta.url), 'utf8'))
+  const version = integer('version', 1, 1, 2)
+  const token = version === 1 ? process.env.PANCAKE_TOKEN : null
+  if (version === 1 && !/^[a-f0-9]{64}$/i.test(token ?? '')) throw new Error('Set PANCAKE_TOKEN to an approved league share token')
+  const schema = JSON.parse(await readFile(new URL(`../../packages/pancake-cli/schemas/v${version}.json`, import.meta.url), 'utf8'))
   const cases = options.cases ? JSON.parse(await readFile(options.cases, 'utf8')) : Object.keys(schema.resources).map(resource => ({ resource,
-    query: resource === 'rosters' ? { team: process.env.PANCAKE_TEAM_ID } : {} }))
+    query: { ...(version === 2 && resource !== 'leagues' ? { league: process.env.PANCAKE_LEAGUE_ID } : {}), ...(resource === 'rosters' ? { team: process.env.PANCAKE_TEAM_ID } : {}) } }))
   if (!Array.isArray(cases) || cases.length < 1 || cases.length > 100 || cases.some(entry => !schema.resources[entry.resource]
     || !entry.query || typeof entry.query !== 'object' || Array.isArray(entry.query)
-    || Object.keys(entry.query).some(key => !['team', 'player', 'season', 'week', 'query', 'position'].includes(key))
+    || Object.keys(entry.query).some(key => !['league', 'team', 'player', 'season', 'week', 'query', 'position', 'draft', 'trade', 'sort', 'direction'].includes(key))
     || Object.values(entry.query).some(value => typeof value !== 'string' || value.length > 100)
     || (entry.resource === 'rosters' && !entry.query.team))) throw new Error('Supply public resource cases and a roster team')
-  const plan = { cases, samples: integer('samples', 30, 1, 1000), warmup: integer('warmup', 2, 0, 20),
+  const plan = { version, cases, samples: integer('samples', 30, 1, 1000), warmup: integer('warmup', 2, 0, 20),
     pages: integer('pages', 3, 1, 100), limit: integer('limit', 25, 1, 50), intervalMs: integer('interval-ms', 1100, 1100, 60000) }
   if (local && !process.env.PANCAKE_PERF_DB_URL) throw new Error('Set PANCAKE_PERF_DB_URL from the disposable stack for query counts')
   if (!local && process.env.PANCAKE_PERF_DB_URL) throw new Error('Live reads cannot use a local database counter')
@@ -158,14 +159,14 @@ async function main() {
     const samples = await measure(plan, { counter,
       request: (entry, cursor) => {
         const query = new URLSearchParams({ ...entry.query, limit: String(plan.limit), ...(cursor ? { cursor } : {}) })
-        return fetch(`${url.href.replace(/\/+$/, '')}/public/v1/${entry.resource}?${query}`, {
-          headers: { Authorization: `Bearer ${token}` }, redirect: 'error', signal: AbortSignal.timeout(15000) })
+        return fetch(`${url.href.replace(/\/+$/, '')}/public/v${version}/${entry.resource}?${query}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {}, redirect: 'error', signal: AbortSignal.timeout(15000) })
       },
       record: async sample => { await writeFile(raw, `${JSON.stringify(sample)}\n`, { flag: 'a' }); report.samples++ },
     })
     report.metrics = summarize(samples)
   } catch (error) {
-    report.error = error instanceof Error && !error.message.includes(token) ? error.message : 'Measurement failed'
+    report.error = error instanceof Error && !(token && error.message.includes(token)) ? error.message : 'Measurement failed'
     process.exitCode = 1
   } finally {
     await writeFile(path.join(output, 'report.json'), `${JSON.stringify({ ...report, finishedAt: new Date().toISOString() }, null, 2)}\n`, { mode: 0o600 })

@@ -54,7 +54,7 @@ function sqlFor(policy) {
         count(*)>page_limit INTO result_rows, more FROM page;`
   }).join('\n    ')
   const filterSpec = Object.fromEntries(Object.entries(policy.resources).map(([name, resource]) => [name, Object.keys(resource.filters)]))
-  const sortSpec = Object.fromEntries(Object.entries(policy.resources).map(([name, resource]) => [name, Object.entries(resource.fields).filter(([,field]) => !['object','array'].includes(field.schema.type)).map(([name]) => name)]))
+  const sortSpec = Object.fromEntries(Object.entries(policy.resources).map(([name, resource]) => [name, Object.entries(resource.fields).filter(([,field]) => !(Array.isArray(field.schema.type)?field.schema.type:[field.schema.type]).some(type=>['object','array'].includes(type))).map(([name]) => name)]))
   return `BEGIN;
 SET LOCAL lock_timeout='3s';
 SET LOCAL statement_timeout='30s';
@@ -130,7 +130,7 @@ COMMIT;
 export async function generate(check = false) {
   const policy = JSON.parse(await readFile(path.join(root, policyPath), 'utf8'))
   const contract = JSON.stringify(contractFor(policy), null, 2)+'\n'
-  const outputs = { [migrationPath]: sqlFor(policy), 'supabase/functions/api/public/schema-v2.json': contract, 'packages/pancake-cli/schemas/v2.json': contract, 'packages/pancake-cli/schemas/options-v2.json': JSON.stringify(Object.fromEntries(Object.entries(policy.resources).map(([name, item]) => [name, { filters: Object.keys(item.filters), filterFields: item.filters, order: item.order, direction: item.direction ?? 'asc', sorts: Object.entries(item.fields).filter(([, field]) => !['object','array'].includes(field.schema.type)).map(([key]) => key) }])), null, 2)+'\n' }
+  const outputs = { [migrationPath]: sqlFor(policy), 'supabase/functions/api/public/schema-v2.json': contract, 'packages/pancake-cli/schemas/v2.json': contract, 'packages/pancake-cli/schemas/options-v2.json': JSON.stringify(Object.fromEntries(Object.entries(policy.resources).map(([name, item]) => [name, { filters: Object.keys(item.filters), filterFields: item.filters, order: item.order, direction: item.direction ?? 'asc', sorts: Object.entries(item.fields).filter(([, field]) => !(Array.isArray(field.schema.type)?field.schema.type:[field.schema.type]).some(type=>['object','array'].includes(type))).map(([key]) => key) }])), null, 2)+'\n' }
   for (const [file, text] of Object.entries(outputs)) {
     if (check) { if (await readFile(path.join(root,file),'utf8') !== text) throw new Error(`Stale public artifact: ${file}`) }
     else { await mkdir(path.dirname(path.join(root,file)),{recursive:true}); await writeFile(path.join(root,file),text) }
