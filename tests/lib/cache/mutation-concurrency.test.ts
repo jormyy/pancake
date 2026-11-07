@@ -494,3 +494,17 @@ it('blocks sending when completion becomes unreadable after the storage snapshot
     expect(race.sends).toEqual(['A'])
     expect(race.run(stale, 'queue.pendingMutations().length')).toBe(0)
 })
+
+it.each(['available', 'unavailable'] as const)('notifies subscribers when replay observes another tab’s rejection with %s storage', async availability => {
+    const { storageRace, records, enqueue, start } = await import('../../helpers/mutation-storage-race')
+    const race = storageRace([records[0]])
+    const first = race.tab('A'), stale = race.tab('A')
+    race.run(stale, enqueue + ';shown=queue.mutationSnapshot()[0].status;notices=0;queue.subscribeMutations(()=>{notices++;shown=queue.mutationSnapshot()[0]?.status})')
+    race.run(first, 'queue.configureMutationReplay(async()=>{record();throw Error("Rejected")});' + start)
+    if (availability === 'unavailable') race.onGet = key => { if (key === 'pancake:offline-mutations:v1') throw Error('Read unavailable') }
+    race.run(stale, start)
+    expect(stale.result).toBe('Rejected')
+    expect(stale.shown).toBe('failed')
+    expect(stale.notices).toBeGreaterThan(0)
+    expect(race.sends).toEqual(['A'])
+})

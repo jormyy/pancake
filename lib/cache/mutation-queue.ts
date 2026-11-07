@@ -17,6 +17,7 @@ let fallbackFactSequence = 0
 const completedJobs = new Set<string>()
 const completionMaxAge = 7 * 24 * 60 * 60 * 1000
 let jobs: QueuedMutation[] | undefined
+let notifiedJobs: QueuedMutation[] | undefined
 const senders = new Map<string, Sender>()
 const sending = new Map<string, Promise<void>>()
 const unsaved = new Map<string, QueuedMutation | null>()
@@ -180,6 +181,12 @@ function publish(required = false, last?: string): void {
             console.error('Could not save the result of this action.', error)
         }
     }
+    notify()
+}
+
+function notify(): void {
+    if (notifiedJobs === jobs) return
+    notifiedJobs = jobs
     for (const listener of listeners) {
         try { listener() } catch (error) { console.error('Could not update pending actions.', error) }
     }
@@ -327,8 +334,10 @@ export function replayMutations(): Promise<void> {
     void task.finally(() => {
         if (replay?.promise !== task) return
         replay = undefined
-        if (generation !== sessionGeneration() || typeof navigator !== 'undefined' && navigator.onLine === false) return
+        if (generation !== sessionGeneration()) return
         const next = pendingMutations()[0]
+        notify()
+        if (typeof navigator !== 'undefined' && navigator.onLine === false) return
         if (next?.status === 'pending' && !sending.has(next.id) && senders.has(next.transport ?? 'api')) void replayMutations()
     })
     return task
