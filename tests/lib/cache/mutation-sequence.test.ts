@@ -35,6 +35,9 @@ it.each(seeds)('preserves queue invariants through seeded sequence %i', async se
     const callers = new Map<string, unknown>()
     const waiting = new Set<string>()
     const overwritten = new Set<string>()
+    let wallNow = Date.now()
+    let observedOrder = 0
+    vi.spyOn(Date, 'now').mockImplementation(() => wallNow)
     let online = false
     let failures = 0
     let serial = 0
@@ -45,17 +48,18 @@ it.each(seeds)('preserves queue invariants through seeded sequence %i', async se
     const disk = (): QueuedMutation[] => {
         let legacy: QueuedMutation[] = []
         try { const value: unknown = JSON.parse(saved ?? '[]'); if (Array.isArray(value)) legacy = value } catch {}
-        const entries = [...entryValues.values()].map(value => JSON.parse(value) as QueuedMutation)
-        return [...new Map([...legacy, ...entries].map(job => [job.id, job])).values()].filter(job => !completionValues.has(completionPrefix + `${job.accountId}:${job.id}`)).map(job => {
+        const entries = [...entryValues.values()].flatMap(value => { try { const job = JSON.parse(value); return job && typeof job.id === 'string' ? [job as QueuedMutation] : [] } catch { return [] } })
+        return [...new Map([...legacy, ...entries].map(job => [job.id, job])).values()].filter(job => { const value = Number(completionValues.get(completionPrefix + `${job.accountId}:${job.id}`)); return !Number.isFinite(value) || value <= 0 || value < Date.now() - 7 * 24 * 60 * 60 * 1000 }).map(job => {
             const id = `${job.accountId}:${job.id}`
             const rejected = new Map<string, string>()
             if (job.status === 'failed') rejected.set('legacy', job.error ?? 'Could not send this action.')
             const retried = new Set<string>()
             for (const [name, raw] of eventValues) {
-                const event = JSON.parse(raw)
-                if (event.id !== id) continue
-                if (name.startsWith(failurePrefix)) rejected.set(event.failureId, event.error)
-                if (name.startsWith(retryPrefix)) for (const failureId of event.failures) retried.add(failureId)
+                let event
+                try { event = JSON.parse(raw) } catch { continue }
+                if (!event || event.id !== id) continue
+                if (name.startsWith(failurePrefix) && typeof event.failureId === 'string' && typeof event.error === 'string') rejected.set(event.failureId, event.error)
+                if (name.startsWith(retryPrefix) && Array.isArray(event.failures) && event.failures.every((id: unknown) => typeof id === 'string')) for (const failureId of event.failures) retried.add(failureId)
             }
             const open = [...rejected].filter(([failureId]) => !retried.has(failureId))
             return { ...job, status: open.length ? 'failed' : 'pending', error: open.at(-1)?.[1] ?? null } as QueuedMutation
@@ -142,12 +146,15 @@ it.each(seeds)('preserves queue invariants through seeded sequence %i', async se
     }
     const nextId = () => `${seed.toString(16).padStart(8, '0')}-0000-4000-8000-${(++serial).toString(16).padStart(12, '0')}`
     const enqueue = () => {
+        const before = Math.max(observedOrder, ...queue.mutationSnapshot().map(job => job.order ?? 0))
         const id = nextId()
         const action: Action = { id, accountId: account, phase: 'pending', sends: 0, allowance: 1, outcomeAt: 0 }
         actions.set(id, action)
         waiting.add(id)
         void queue.queueMutation({ accountId: account, leagueId: null, rowIds: [id], path: `/sequence/${id}`, body: '{}' }, id).then(value => { waiting.delete(id); callers.set(id, value) }, error => { waiting.delete(id); callers.set(id, error.message) })
-        if (!queue.mutationSnapshot().some(job => job.id === id)) actions.delete(id)
+        const queued = queue.mutationSnapshot().find(job => job.id === id)
+        if (!queued) actions.delete(id)
+        else { expect(queued.order, String(seed)).toBeGreaterThan(before); observedOrder = queued.order! }
         return id
     }
     const release = (id: string | undefined, success: boolean) => {
@@ -285,6 +292,29 @@ it.each(seeds)('preserves queue invariants through seeded sequence %i', async se
         online = wasOnline
         start()
     }
+    const clockRollback = () => { wallNow -= 1000 + random(1000); coverage.clockRollbackApplied = (coverage.clockRollbackApplied ?? 0) + 1 }
+    const corruptRecord = async (kind?: 'input' | 'failure' | 'retry' | 'completion', selectedId?: string) => {
+        const id = selectedId ?? queue.pendingMutations()[0]?.id
+        const action = id ? actions.get(id) : undefined
+        if (!action || action.phase !== 'failed' || held.has(action.id) || action.accountId !== account) return
+        const selected = kind ?? (['input', 'failure', 'retry', 'completion'] as const)[random(4)]
+        const key = `${action.accountId}:${action.id}`
+        const values = selected === 'input' ? entryValues : selected === 'completion' ? completionValues : eventValues
+        const name = selected === 'input' ? entryPrefix + key : selected === 'completion' ? completionPrefix + key : (selected === 'failure' ? failurePrefix : retryPrefix) + key + ':corrupt'
+        const previous = values.get(name)
+        const sends = [...actions.values()].reduce((sum, item) => sum + item.sends, 0)
+        values.set(name, '{invalid')
+        const wasOnline = online
+        online = true
+        start()
+        await flush()
+        expect([...actions.values()].reduce((sum, item) => sum + item.sends, 0), String(seed)).toBe(sends)
+        expect(queue.pendingMutations().find(job => job.id === action.id)?.status, String(seed)).toBe('failed')
+        if (previous === undefined) values.delete(name)
+        else values.set(name, previous)
+        online = wasOnline
+        coverage[`corrupt${selected}Applied`] = (coverage[`corrupt${selected}Applied`] ?? 0) + 1
+    }
     const reload = async () => {
         const persisted = new Map(disk().map(job => [job.id, job]))
         const dirtyOutcome = [...actions.values()].some(action => action.phase === 'settled' && persisted.has(action.id)
@@ -302,6 +332,7 @@ it.each(seeds)('preserves queue invariants through seeded sequence %i', async se
         for (const [id] of held) { const action = actions.get(id)!; action.phase = 'pending'; action.allowance++ }
         held.clear()
         vi.resetModules()
+        observedOrder = 0
         vi.stubGlobal('window', Object.assign(new EventTarget(), { localStorage: storage }))
         await load()
         online = wasOnline
@@ -318,6 +349,15 @@ it.each(seeds)('preserves queue invariants through seeded sequence %i', async se
         })
     }
     await step('malformedStart', () => { expect(saved).toBe('{invalid'); expect(queue.mutationSnapshot()).toEqual([]) })
+    let orderedFirst = '', orderedSecond = ''
+    await step('enqueue', () => { orderedFirst = enqueue() })
+    await step('clockRollback', clockRollback)
+    await step('enqueue', () => { orderedSecond = enqueue() })
+    await step('hold', () => { online = true; start(); expect(held.has(orderedFirst), String(seed)).toBe(true) })
+    await step('success', () => release(orderedFirst, true))
+    expect(held.has(orderedSecond), String(seed)).toBe(true)
+    await step('success', () => release(orderedSecond, true))
+    await step('offline', () => { online = false })
     let exiting = ''
     await step('enqueue', () => { exiting = enqueue() })
     await step('hold', () => { online = true; start() })
@@ -349,6 +389,7 @@ it.each(seeds)('preserves queue invariants through seeded sequence %i', async se
     await step('hold', () => { online = true; start() })
     await step('writeFault', () => { failures = 1 })
     await step('failure', () => release(first, false))
+    for (const kind of ['input', 'failure', 'retry', 'completion'] as const) await step('corruptRecord', () => corruptRecord(kind, first))
     await step('switch', switchAccount)
     await step('switch', switchAccount)
     await step('staleOverwrite', () => staleOverwrite(first))
@@ -367,7 +408,7 @@ it.each(seeds)('preserves queue invariants through seeded sequence %i', async se
     await step('hold', () => { online = true; start() })
     await step('reload', reload)
     for (let turn = 0; turn < 80; turn++) {
-        const operation = random(17)
+        const operation = random(19)
         if (operation < 2) await step('enqueue', () => { enqueue() })
         else if (operation === 2) await step('success', () => release(pick([...held.keys()]), true))
         else if (operation === 3) await step('failure', () => release(pick([...held.keys()]), false))
@@ -383,7 +424,9 @@ it.each(seeds)('preserves queue invariants through seeded sequence %i', async se
         else if (operation === 13) await step('staleOverwrite', () => staleOverwrite())
         else if (operation === 14) await step('offlineCompletedExit', () => offlineExit())
         else if (operation === 15) await step('completionRace', completionRace)
-        else await step('reconnect', () => { online = true; window.dispatchEvent(new Event('online')) })
+        else if (operation === 16) await step('reconnect', () => { online = true; window.dispatchEvent(new Event('online')) })
+        else if (operation === 17) await step('clockRollback', clockRollback)
+        else await step('corruptRecord', () => corruptRecord())
     }
     failures = 0
     online = true
@@ -394,6 +437,6 @@ it.each(seeds)('preserves queue invariants through seeded sequence %i', async se
     online = false
     session.setSessionOwner(null)
     for (const operation of ['enqueue', 'success', 'failure', 'hold', 'retry', 'writeFault', 'switch', 'reload']) expect(coverage[operation], String(seed)).toBeGreaterThan(0)
-    for (const outcome of ['writeFailure', 'sendStarted', 'sendSuccess', 'sendFailure', 'retryAccepted', 'offlineFailure', 'tabStatusWrite', 'tabCompletion', 'malformedStart', 'unsavedRejectionSwitch', 'externalEnqueueApplied', 'staleWriteApplied', 'completionRaceApplied', 'offlineCompletedExitApplied']) expect(coverage[outcome], String(seed)).toBeGreaterThan(0)
+    for (const outcome of ['writeFailure', 'sendStarted', 'sendSuccess', 'sendFailure', 'retryAccepted', 'offlineFailure', 'tabStatusWrite', 'tabCompletion', 'malformedStart', 'unsavedRejectionSwitch', 'externalEnqueueApplied', 'staleWriteApplied', 'completionRaceApplied', 'offlineCompletedExitApplied', 'clockRollbackApplied', 'corruptinputApplied', 'corruptfailureApplied', 'corruptretryApplied', 'corruptcompletionApplied']) expect(coverage[outcome], String(seed)).toBeGreaterThan(0)
     console.log(JSON.stringify({ seed, steps: stepCount, actions: actions.size, sends: [...actions.values()].reduce((sum, action) => sum + action.sends, 0), coverage }))
 })

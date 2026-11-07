@@ -508,3 +508,98 @@ it.each(['available', 'unavailable'] as const)('notifies subscribers when replay
     expect(stale.notices).toBeGreaterThan(0)
     expect(race.sends).toEqual(['A'])
 })
+
+
+it.each(['browser', 'memory'] as const)('preserves enqueue order when the wall clock rolls backward in %s mode', async mode => {
+    const { storageRace, records, enqueue, start } = await import('../../helpers/mutation-storage-race')
+    const race = storageRace(), first = race.tab('A')
+    if (mode === 'memory') race.run(first, 'delete globalThis.window')
+    first.input = { ...records[0], path: '/first' }
+    race.run(first, enqueue)
+    race.now -= 1000
+    first.input = { ...records[1], accountId: 'A', path: '/second' }
+    race.run(first, enqueue)
+    race.run(first, 'paths=[];queue.configureMutationReplay(async job=>{paths.push(job.path);return "saved"})')
+    race.run(first, start)
+    expect(Array.from(first.paths)).toEqual(['/first', '/second'])
+})
+
+it('imports legacy jobs in array order despite reversed creation times', async () => {
+    const { storageRace, records, start } = await import('../../helpers/mutation-storage-race')
+    const legacy = records.map((job, index) => ({ ...job, accountId: 'A', path: index ? '/second' : '/first', createdAt: index ? 1 : 1000 }))
+    const race = storageRace(legacy), first = race.tab('A')
+    race.run(first, 'paths=[];queue.configureMutationReplay(async job=>{paths.push(job.path);return "saved"})')
+    race.run(first, start)
+    expect(Array.from(first.paths)).toEqual(['/first', '/second'])
+})
+
+it.each(['{invalid', 'null', '{}'])('preserves a valid saved failure beneath a corrupt input record %s', async corrupt => {
+    const { storageRace, records, start } = await import('../../helpers/mutation-storage-race')
+    const job = { ...records[0], status: 'failed' as const, error: 'Rejected' }
+    const race = storageRace([job])
+    race.values.set('pancake:offline-mutation:v1:A:' + job.id, corrupt)
+    const first = race.tab('A')
+    const before = race.run(first, 'queue.pendingMutations()[0].status')
+    race.run(first, start)
+    expect(before).toBe('failed')
+    expect(race.sends).toEqual([])
+    expect(race.run(first, 'queue.pendingMutations().length')).toBe(1)
+})
+
+
+it('uses a deterministic job-key tie break for equal persisted order values', async () => {
+    const { storageRace, records, start } = await import('../../helpers/mutation-storage-race')
+    const legacy = records.map((job, index) => ({ ...job, accountId: 'A', path: index ? '/second' : '/first', order: 7 })).reverse()
+    const race = storageRace(legacy), first = race.tab('A')
+    race.run(first, 'paths=[];queue.configureMutationReplay(async job=>{paths.push(job.path);return "saved"})')
+    race.run(first, start)
+    expect(Array.from(first.paths)).toEqual(['/first', '/second'])
+})
+
+it('places a legacy record without order after earlier ordered records in the same array', async () => {
+    const { storageRace, records, start } = await import('../../helpers/mutation-storage-race')
+    const legacy = records.map((job, index) => ({ ...job, accountId: 'A', path: index ? '/second' : '/first', ...(index ? {} : { order: 2_000_000_000_000 }) }))
+    const race = storageRace(legacy), first = race.tab('A')
+    race.run(first, 'paths=[];queue.configureMutationReplay(async job=>{paths.push(job.path);return "saved"})')
+    race.run(first, start)
+    expect(Array.from(first.paths)).toEqual(['/first', '/second'])
+})
+
+it('does not send when a corrupt input has no valid fallback', async () => {
+    const { storageRace, records, start } = await import('../../helpers/mutation-storage-race')
+    const race = storageRace([records[0]])
+    const invalid = 'pancake:offline-mutation:v1:B:' + records[1].id
+    race.values.set(invalid, '{invalid')
+    const first = race.tab('A')
+    race.run(first, start)
+    expect(race.sends).toEqual([])
+    expect(race.values.get(invalid)).toBe('{invalid')
+    expect(race.run(first, 'queue.pendingMutations()[0].status')).toBe('failed')
+})
+
+it.each(['failure', 'retry', 'done'] as const)('does not send through a corrupt %s record', async kind => {
+    const { storageRace, records, start } = await import('../../helpers/mutation-storage-race')
+    const job = { ...records[0], status: 'failed' as const, error: 'Rejected' }
+    const race = storageRace([job])
+    const id = `A:${job.id}`
+    race.values.set('pancake:offline-mutation:v1:' + id, JSON.stringify({ ...job, status: 'pending', error: null }))
+    const name = kind === 'done' ? 'pancake:offline-mutation-done:v1:' + id : `pancake:offline-mutation-${kind}:v1:${id}:corrupt`
+    race.values.set(name, '{invalid')
+    const first = race.tab('A')
+    expect(race.run(first, 'queue.pendingMutations()[0].status')).toBe('failed')
+    race.run(first, start)
+    expect(race.sends).toEqual([])
+    expect(race.run(first, 'queue.pendingMutations()[0].status')).toBe('failed')
+})
+
+it('does not acknowledge a rejection through a corrupt retry record', async () => {
+    const { storageRace, records, start } = await import('../../helpers/mutation-storage-race')
+    const race = storageRace([records[0]])
+    const id = `A:${records[0].id}`
+    race.values.set(`pancake:offline-mutation-failure:v1:${id}:rejection`, JSON.stringify({ id, failureId: 'rejection', error: 'Rejected' }))
+    race.values.set(`pancake:offline-mutation-retry:v1:${id}:corrupt`, JSON.stringify({ id, failures: ['rejection', 123] }))
+    const first = race.tab('A')
+    race.run(first, start)
+    expect(race.sends).toEqual([])
+    expect(race.run(first, 'queue.pendingMutations()[0].error')).toBe('Rejected')
+})

@@ -66,18 +66,19 @@ describe('settled mutation persistence across reload', () => {
         expect(send).toHaveBeenCalledOnce()
     })
 
-    it.each(['{invalid', 'null', '[null,42,"old"]'])('tolerates corrupt per-job completion %s', async corrupt => {
+    it.each(['{invalid', 'null', '[null,42,"old"]'])('blocks sending through corrupt per-job completion %s', async corrupt => {
         const id = '10000000-0000-4000-8000-000000000001'
         values.set(completionPrefix + `account:${id}`, corrupt)
         const session = await import('@/lib/session-cache-registry')
         session.setSessionOwner('account')
         const queue = await import('@/lib/cache/mutation-queue')
         queue.configureMutationReplay(async () => 'saved')
-        const result = queue.queueMutation({ accountId: 'account', leagueId: null, rowIds: [], path: '/action', body: '{}' }, id)
+        const result = queue.queueMutation({ accountId: 'account', leagueId: null, rowIds: [], path: '/action', body: '{}' }, id).catch(error => error.message)
         online = true
         await queue.replayMutations()
-        await expect(result).resolves.toBe('saved')
-        expect(Number(values.get(completionPrefix + `account:${id}`))).toBeGreaterThan(0)
+        await expect(result).resolves.toBe('Could not read your pending actions. Refresh and retry.')
+        expect(values.get(completionPrefix + `account:${id}`)).toBe(corrupt)
+        expect(queue.pendingMutations()[0].status).toBe('failed')
     })
 
     it('leaves completion records untouched because cleanup cannot atomically delete an old value', async () => {

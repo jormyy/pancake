@@ -1,7 +1,7 @@
 import { requestId } from '@/lib/api-client'
 import { sessionOwner, onSessionCachesCleared, sessionGeneration } from '@/lib/session-cache-registry'
 
-export type QueuedMutation = { transport?: 'api' | 'rpc'; id: string; accountId: string; leagueId: string | null; rowIds: string[]; path: string; body: string; status: 'pending' | 'failed'; error: string | null; createdAt: number }
+export type QueuedMutation = { transport?: 'api' | 'rpc'; id: string; accountId: string; leagueId: string | null; rowIds: string[]; path: string; body: string; status: 'pending' | 'failed'; error: string | null; createdAt: number; order?: number }
 export type MutationInput = Pick<QueuedMutation, 'accountId' | 'leagueId' | 'rowIds' | 'path' | 'body' | 'transport'>
 type LegacySnapshot = { kind: 'available'; jobs: QueuedMutation[] } | { kind: 'unavailable' }
 type DiskSnapshot = { kind: 'available' | 'unavailable'; legacy: LegacySnapshot; entries: Map<string, QueuedMutation>; missing: Set<string> }
@@ -14,6 +14,7 @@ const retryPrefix = 'pancake:offline-mutation-retry:v1:'
 const failures = new Map<string, Map<string, string>>()
 const acknowledged = new Map<string, Set<string>>()
 let fallbackFactSequence = 0
+let highestOrder = 0
 const completedJobs = new Set<string>()
 const completionMaxAge = 7 * 24 * 60 * 60 * 1000
 let jobs: QueuedMutation[] | undefined
@@ -29,7 +30,10 @@ const waiters = new Map<string, { promise: Promise<unknown>; resolve: (value: un
 function completionState(id: string): 'completed' | 'unproven' | 'unavailable' {
     if (completedJobs.has(id)) return 'completed'
     try {
-        const timestamp = typeof window !== 'undefined' ? Number(window.localStorage.getItem(completionPrefix + id)) : 0
+        const raw = typeof window !== 'undefined' ? window.localStorage.getItem(completionPrefix + id) : null
+        if (raw === null) return 'unproven'
+        const timestamp = Number(raw)
+        if (!Number.isFinite(timestamp) || timestamp <= 0) return 'unavailable'
         const now = Date.now()
         const completed = Number.isFinite(timestamp) && timestamp > 0 && timestamp >= now - completionMaxAge
         if (completed) completedJobs.add(id)
@@ -49,7 +53,13 @@ function rejectCompleted(job: QueuedMutation): void {
 function isQueuedMutation(job: unknown): job is QueuedMutation {
     if (!job || typeof job !== 'object') return false
     const value = job as QueuedMutation
-    return typeof value.id === 'string' && typeof value.accountId === 'string' && typeof value.path === 'string' && typeof value.body === 'string' && Array.isArray(value.rowIds) && ['pending', 'failed'].includes(value.status)
+    return typeof value.id === 'string' && typeof value.accountId === 'string' && typeof value.path === 'string' && typeof value.body === 'string' && Array.isArray(value.rowIds) && ['pending', 'failed'].includes(value.status) && (value.order === undefined || Number.isSafeInteger(value.order) && value.order >= 0)
+}
+
+function withOrder(job: QueuedMutation, fallback: number): QueuedMutation {
+    const order = job.order ?? (Number.isFinite(fallback) ? Math.max(0, fallback) : 0)
+    highestOrder = Math.max(highestOrder, order)
+    return job.order === order ? job : { ...job, order }
 }
 
 function factId(): string {
@@ -73,7 +83,13 @@ function legacySnapshot(): LegacySnapshot {
     catch { return { kind: 'unavailable' } }
     try {
         const saved: unknown = JSON.parse(raw ?? '[]')
-        return { kind: 'available', jobs: Array.isArray(saved) ? saved.filter(isQueuedMutation) : [] }
+        let order = 0
+        const legacy = Array.isArray(saved) ? saved.filter(isQueuedMutation).map(job => {
+            const ordered = withOrder(job, order + 1)
+            order = Math.max(order, ordered.order!)
+            return ordered
+        }) : []
+        return { kind: 'available', jobs: legacy }
     } catch { return { kind: 'available', jobs: [] } }
 }
 
@@ -83,14 +99,21 @@ function diskSnapshot(): DiskSnapshot {
     if (typeof window === 'undefined') return snapshot
     let storage: typeof window.localStorage
     try { storage = window.localStorage } catch { snapshot.kind = 'unavailable'; return snapshot }
+    const corruptEntries = new Set<string>()
     const loadEntry = (name: string) => {
         const raw = storage.getItem(name)
         const id = name.slice(entryPrefix.length)
         if (raw === null) { snapshot.missing.add(id); return }
-        snapshot.missing.delete(id)
+        snapshot.missing.add(id)
+        corruptEntries.add(id)
         try {
             const value: unknown = JSON.parse(raw)
-            if (isQueuedMutation(value) && name === entryPrefix + jobKey(value)) snapshot.entries.set(jobKey(value), value)
+            if (isQueuedMutation(value) && name === entryPrefix + jobKey(value)) {
+                const legacyOrder = legacy.kind === 'available' ? legacy.jobs.find(job => jobKey(job) === id)?.order : undefined
+                snapshot.entries.set(id, withOrder(value, legacyOrder ?? value.createdAt))
+                snapshot.missing.delete(id)
+                corruptEntries.delete(id)
+            }
         } catch {}
     }
     try {
@@ -99,11 +122,13 @@ function diskSnapshot(): DiskSnapshot {
             try {
                 if (name.startsWith(entryPrefix)) { loadEntry(name); continue }
                 const raw = storage.getItem(name)
+                if (raw === null) continue
                 try {
                     const value = JSON.parse(raw ?? 'null')
                     if (name.startsWith(failurePrefix) && value && typeof value.id === 'string' && typeof value.failureId === 'string' && typeof value.error === 'string' && name === failurePrefix + value.id + ':' + value.failureId) observeFailure(value.id, value.failureId, value.error)
                     else if (name.startsWith(retryPrefix) && value && typeof value.id === 'string' && Array.isArray(value.failures) && value.failures.every((id: unknown) => typeof id === 'string') && name.startsWith(retryPrefix + value.id + ':')) acknowledge(value.id, value.failures)
-                } catch {}
+                    else snapshot.kind = 'unavailable'
+                } catch { snapshot.kind = 'unavailable' }
             } catch { snapshot.kind = 'unavailable' }
         }
     } catch { snapshot.kind = 'unavailable' }
@@ -111,6 +136,7 @@ function diskSnapshot(): DiskSnapshot {
     for (const id of new Set(known.map(jobKey))) if (!snapshot.entries.has(id)) {
         try { loadEntry(entryPrefix + id) } catch { snapshot.kind = 'unavailable' }
     }
+    for (const id of corruptEntries) if (legacy.kind !== 'available' || !legacy.jobs.some(job => jobKey(job) === id)) snapshot.kind = 'unavailable'
     for (const id of new Set([...known.map(jobKey), ...snapshot.entries.keys(), ...unsaved.keys()])) if (completionState(id) === 'unavailable') snapshot.kind = 'unavailable'
     return snapshot
 }
@@ -118,11 +144,11 @@ function diskSnapshot(): DiskSnapshot {
 function read(snapshot = diskSnapshot()): QueuedMutation[] {
     const { legacy, entries, missing } = snapshot
     const stored = legacy.kind === 'available' ? legacy.jobs : []
-    for (const job of [...stored.filter(job => missing.has(jobKey(job)) && !entries.has(jobKey(job))), ...entries.values()]) {
+    for (const job of [...stored.filter(job => missing.has(jobKey(job)) && !entries.has(jobKey(job)) || !failures.has(jobKey(job))), ...entries.values()]) {
         if (job.status === 'failed') observeFailure(jobKey(job), 'legacy', job.error ?? 'Could not send this action.')
     }
     for (const job of stored) if (missing.has(jobKey(job)) && !entries.has(jobKey(job)) && !unsaved.has(jobKey(job)) && !completedJobs.has(jobKey(job))) unsaved.set(jobKey(job), jobs?.find(item => jobKey(item) === jobKey(job)) ?? job)
-    const candidate = [...new Map([...(jobs ?? []).map(job => [jobKey(job), job] as const), ...stored.filter(job => !completedJobs.has(jobKey(job))).map(job => [jobKey(job), job] as const), ...[...entries].filter(([id]) => !completedJobs.has(id)), ...(jobs ?? []).map(job => [jobKey(job), job] as const), ...unsaved]).values()].filter((job): job is QueuedMutation => job !== null).sort((left, right) => left.createdAt - right.createdAt)
+    const candidate = [...new Map([...(jobs ?? []).map(job => [jobKey(job), job] as const), ...stored.filter(job => !completedJobs.has(jobKey(job))).map(job => [jobKey(job), job] as const), ...[...entries].filter(([id]) => !completedJobs.has(id)), ...(jobs ?? []).map(job => [jobKey(job), job] as const), ...unsaved]).values()].filter((job): job is QueuedMutation => job !== null).sort((left, right) => (left.order ?? left.createdAt) - (right.order ?? right.createdAt) || (jobKey(left) < jobKey(right) ? -1 : jobKey(left) > jobKey(right) ? 1 : 0))
     const updated = candidate.map(job => {
         if (sending.has(job.id) || snapshot.kind === 'unavailable' && !failures.has(jobKey(job))) return job
         const open = [...failures.get(jobKey(job)) ?? []].filter(([id]) => !acknowledged.get(jobKey(job))?.has(id))
@@ -232,7 +258,7 @@ export function queueMutation<T>(input: MutationInput, id?: string): Promise<T> 
     waiters.set(selectedId, { promise, resolve, reject })
     const previous = read()
     const job: QueuedMutation = previous.find(item => item.id === selectedId && item.accountId === input.accountId)
-        ?? { ...input, id: selectedId, status: 'pending', error: null, createdAt: Date.now() }
+        ?? withOrder({ ...input, id: selectedId, status: 'pending', error: null, createdAt: Date.now(), order: Math.max(Date.now(), highestOrder + 1) }, 0)
     if (!previous.includes(job)) jobs = [...previous, job]
     const previousUnsaved = unsaved.get(jobKey(job))
     unsaved.set(jobKey(job), job)
