@@ -62,11 +62,11 @@ function removeStorageKey(storage: Storage | null, key: string): void {
     }
 }
 
-function cacheKeys(storage: Storage): string[] {
+function cacheKeys(storage: Storage, forPruning = false): string[] {
     const keys: string[] = []
     for (let index = 0; index < storage.length; index += 1) {
         const key = storage.key(index)
-        if (key?.startsWith(CACHE_PREFIX) && !key.startsWith('pancake:offline-mutation')) keys.push(key)
+        if (key?.startsWith(CACHE_PREFIX) && (!forPruning || !key.startsWith('pancake:offline-mutation'))) keys.push(key)
     }
     return keys
 }
@@ -91,12 +91,12 @@ function envelopeSavedAt(storage: Storage, key: string): number {
 
 function pruneStorage(storage: Storage): void {
     const byOldest = (a: string, b: string) => envelopeSavedAt(storage, a) - envelopeSavedAt(storage, b)
-    const keys = cacheKeys(storage)
+    const keys = cacheKeys(storage, true)
     for (const [prefix, limit] of PREFIX_LIMITS) {
         const matching = keys.filter((key) => key.startsWith(prefix)).sort(byOldest)
         for (const key of matching.slice(0, Math.max(0, matching.length - limit))) removeStorageKey(storage, key)
     }
-    const remaining = cacheKeys(storage).filter((key) => !isStartupKey(key)).sort(byOldest)
+    const remaining = cacheKeys(storage, true).filter((key) => !isStartupKey(key)).sort(byOldest)
     for (const key of remaining.slice(0, Math.max(0, remaining.length - MAX_CACHE_ENTRIES))) {
         removeStorageKey(storage, key)
     }
@@ -156,7 +156,7 @@ export function writePersistentCache<T>(key: string, value: T): void {
     } catch {
         // A quota failure can be recoverable after evicting the oldest entry.
         try {
-            const oldest = cacheKeys(storage).filter((candidate) => !isStartupKey(candidate)).sort(
+            const oldest = cacheKeys(storage, true).filter((candidate) => !isStartupKey(candidate)).sort(
                 (a, b) => envelopeSavedAt(storage, a) - envelopeSavedAt(storage, b),
             )[0]
             if (oldest) removeStorageKey(storage, oldest)

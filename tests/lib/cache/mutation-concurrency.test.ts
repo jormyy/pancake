@@ -719,7 +719,7 @@ it('keeps deleted input as proof after aged completion cleanup', async () => {
     expect(race.run(stale, 'queue.pendingMutations().length')).toBe(0)
 })
 
-it('keeps every queue prefix outside cache eviction and cache reset', async () => {
+it('protects every queue prefix from eviction but removes all of them on forced clear', async () => {
     const { storageRace, persistentCache } = await import('../../helpers/mutation-storage-race')
     const race = storageRace(), tab = race.tab('A')
     const names = ['pancake:offline-mutations:v1', ...['', '-done', '-failure', '-retry'].map(suffix => `pancake:offline-mutation${suffix}:v1:A:test`)]
@@ -731,7 +731,7 @@ it('keeps every queue prefix outside cache eviction and cache reset', async () =
     race.onBeforeSet = name => { if (name === 'pancake:test:quota' && fail) { fail = false; throw new Error('Quota') } }
     cache.writePersistentCache('pancake:test:quota', {})
     cache.clearPersistentCaches()
-    expect([...race.values.keys()].sort()).toEqual(names.sort())
+    expect([...race.values.keys()]).toEqual([])
 })
 
 it('retains aged completion proof while its input deletion fails', async () => {
@@ -779,4 +779,17 @@ it('does not infer completion or send when the deleted input cannot be read', as
     race.run(stale, start)
     expect(race.sends).toEqual(['A'])
     expect(race.run(stale, 'queue.pendingMutations()[0].status')).toBe('failed')
+})
+
+it.each(['forced clear', 'sign-out'] as const)('drops saved queued bodies and current callers on %s like main', async mode => {
+    const { storageRace, persistentCache, enqueue } = await import('../../helpers/mutation-storage-race')
+    const race = storageRace(), tab = race.tab('A')
+    race.run(tab, enqueue)
+    expect(race.run(tab, 'queue.pendingMutations().length')).toBe(1)
+    persistentCache(tab).clearPersistentCaches()
+    if (mode === 'sign-out') race.run(tab, 'session.setSessionOwner(null)')
+    race.run(tab, 'queue.pendingMutations("A")')
+    expect([...race.values.keys()].filter(name => name.startsWith('pancake:offline-mutation'))).toEqual([])
+    expect(race.run(tab, 'queue.pendingMutations("A").length')).toBe(0)
+    expect(tab.result).toBe('Your account changed. Please retry.')
 })
