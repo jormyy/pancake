@@ -179,12 +179,11 @@ export function removePersistentCache(key: string): void {
 export function clearPersistentCaches(): void {
     memoryCache.clear()
     savedAtIndex.clear()
-    clearSessionCaches()
     const storage = localStorageForCache()
-    if (!storage) return
     try {
-        for (const key of cacheKeys(storage)) storage.removeItem(key)
+        if (storage) for (const key of cacheKeys(storage)) storage.removeItem(key)
     } catch {
         // Best effort only.
     }
+    clearSessionCaches(true)
 }

@@ -15,6 +15,7 @@ const failures = new Map<string, Map<string, string>>()
 const acknowledged = new Map<string, Set<string>>()
 let fallbackFactSequence = 0
 let highestOrder = 0
+let discardVersion = 0
 const completedJobs = new Set<string>()
 const savedInputs = new Set<string>()
 const unsavedCompletions = new Map<string, string>()
@@ -197,6 +198,11 @@ function complete(job: QueuedMutation): void {
     publish()
     try {
         if (typeof window === 'undefined') return
+        window.localStorage.removeItem(entryPrefix + jobKey(job))
+        if (unsavedCompletions.has(jobKey(job))) {
+            const snapshot = diskSnapshot()
+            if (unsavedCompletions.has(jobKey(job)) && snapshot.legacy.kind === 'available' && snapshot.legacy.jobs.every(item => completedJobs.has(jobKey(item)) || snapshot.entries.has(jobKey(item)))) window.localStorage.removeItem(key)
+        }
         const legacy = legacySnapshot()
         if (legacy.kind === 'unavailable') return
         const retained = new Set(legacy.jobs.map(jobKey))
@@ -320,16 +326,18 @@ export function retryMutation(id: string): void {
 export function replayMutations(): Promise<void> {
     if (!saveCompletions()) return Promise.resolve()
     const generation = sessionGeneration()
+    const version = discardVersion
+    const valid = () => generation === sessionGeneration() && version === discardVersion
     if (replay?.generation === generation) return replay.promise
     if (!senders.size || typeof navigator !== 'undefined' && navigator.onLine === false) return Promise.resolve()
     const task = (async () => {
         while (typeof navigator === 'undefined' || navigator.onLine !== false) {
-            if (generation !== sessionGeneration()) return
+            if (!valid()) return
             if (!saveCompletions()) return
             let snapshot = diskSnapshot()
             if (snapshot.kind === 'unavailable') {
                 await Promise.resolve()
-                if (generation !== sessionGeneration() || typeof navigator !== 'undefined' && navigator.onLine === false) return
+                if (!valid() || typeof navigator !== 'undefined' && navigator.onLine === false) return
                 snapshot = diskSnapshot()
                 if (snapshot.kind === 'unavailable') {
                     const blocked = read(snapshot).find(item => item.accountId === sessionOwner())
@@ -353,7 +361,7 @@ export function replayMutations(): Promise<void> {
             let completion = completionState(jobKey(job))
             if (completion === 'unavailable') {
                 await Promise.resolve()
-                if (generation !== sessionGeneration() || typeof navigator !== 'undefined' && navigator.onLine === false) return
+                if (!valid() || typeof navigator !== 'undefined' && navigator.onLine === false) return
                 completion = completionState(jobKey(job))
             }
             if (completion === 'unavailable') {
@@ -366,15 +374,17 @@ export function replayMutations(): Promise<void> {
                 rejectCompleted(job)
                 continue
             }
-            const current = () => generation === sessionGeneration() && job.accountId === sessionOwner()
+            const current = () => valid() && job.accountId === sessionOwner()
             let finish!: () => void
             sending.set(job.id, new Promise<void>(resolve => { finish = resolve }))
             try {
                 const value = await sender(job)
+                if (version !== discardVersion) return
                 if (current() && isCompleted(jobKey(job))) rejectCompleted(job)
                 complete(job)
                 if (current()) { waiters.get(job.id)?.resolve(value); waiters.delete(job.id) }
             } catch (cause) {
+                if (version !== discardVersion) return
                 if (current() && isCompleted(jobKey(job))) rejectCompleted(job)
                 if (typeof navigator !== 'undefined' && navigator.onLine === false) return
                 const error = cause instanceof Error ? cause.message : 'Could not send this action.'
@@ -391,7 +401,7 @@ export function replayMutations(): Promise<void> {
     void task.finally(() => {
         if (replay?.promise !== task) return
         replay = undefined
-        if (generation !== sessionGeneration()) return
+        if (!valid()) return
         const next = pendingMutations()[0]
         notify()
         if (typeof navigator !== 'undefined' && navigator.onLine === false) return
@@ -401,10 +411,23 @@ export function replayMutations(): Promise<void> {
 }
 
 if (typeof window !== 'undefined') window.addEventListener('online', () => { void replayMutations() })
-onSessionCachesCleared(() => {
+onSessionCachesCleared(discardPending => {
     for (const waiter of waiters.values()) waiter.reject(new Error('Your account changed. Please retry.'))
     waiters.clear()
     jobs = undefined
+    notifiedJobs = undefined
+    if (discardPending) {
+        discardVersion++
+        replay = undefined
+        unsaved.clear()
+        unsavedCompletions.clear()
+        failures.clear()
+        acknowledged.clear()
+        completedJobs.clear()
+        savedInputs.clear()
+        highestOrder = 0
+        fallbackFactSequence = 0
+    }
     for (const listener of listeners) listener()
 })
 

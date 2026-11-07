@@ -653,8 +653,8 @@ it.each(['read', 'replay', 'enqueue', 'retry'] as const)('saves retained complet
     race.onBeforeSet = key => { if (key.startsWith(completionPrefix)) throw new Error('Storage unavailable') }
     race.run(writer, start)
     expect(writer.result).toBe('saved')
-    expect(race.values.has('pancake:offline-mutation:v1:' + id)).toBe(true)
-    expect(JSON.parse(race.values.get('pancake:offline-mutations:v1')!)).toHaveLength(1)
+    expect(race.values.has('pancake:offline-mutation:v1:' + id)).toBe(false)
+    expect(race.values.has('pancake:offline-mutations:v1')).toBe(false)
     expect(race.values.has(completionPrefix + id)).toBe(false)
     writer.input = { ...records[1], accountId: 'A', path: '/second' }
     if (recovery === 'retry') {
@@ -673,7 +673,7 @@ it.each(['read', 'replay', 'enqueue', 'retry'] as const)('saves retained complet
     expect(race.sends).toEqual(recovery === 'enqueue' || recovery === 'retry' ? ['A', 'A'] : ['A'])
 })
 
-it('cannot share completion with a stale tab while every storage write stays unavailable', async () => {
+it('retains the physical-limit fallback when writes and removals both fail', async () => {
     const { storageRace, start, enqueue, completionPrefix } = await import('../../helpers/mutation-storage-race')
     const race = storageRace()
     const writer = race.tab('A')
@@ -683,12 +683,12 @@ it('cannot share completion with a stale tab while every storage write stays una
     stale.console = writer.console
     let removals = 0
     race.onBeforeSet = () => { throw new Error('Storage unavailable') }
-    race.onRemove = () => { removals++ }
+    race.onRemove = () => { removals++; throw new Error('Removal unavailable') }
     race.run(writer, start)
     expect(writer.result).toBe('saved')
     race.run(writer, 'queue.replayMutations()')
     expect(race.sends).toEqual(['A'])
-    expect(removals).toBe(0)
+    expect(removals).toBeGreaterThan(0)
     expect([...race.values.keys()].some(key => key.startsWith(completionPrefix))).toBe(false)
     race.run(stale, start)
     expect(race.sends).toEqual(['A', 'A'])
@@ -792,4 +792,72 @@ it.each(['forced clear', 'sign-out'] as const)('drops saved queued bodies and cu
     expect([...race.values.keys()].filter(name => name.startsWith('pancake:offline-mutation'))).toEqual([])
     expect(race.run(tab, 'queue.pendingMutations("A").length')).toBe(0)
     expect(tab.result).toBe('Your account changed. Please retry.')
+})
+
+it('discards legacy imports on forced cache clear without replaying them', async () => {
+    const { legacyClear } = await import('../../helpers/mutation-storage-race')
+    expect(legacyClear()).toEqual({ case: 'clear', pending: 0, sends: 0 })
+})
+
+it('does not replay a successful action after full quota and reload', async () => {
+    const { quotaReload } = await import('../../helpers/mutation-storage-race')
+    expect(quotaReload()).toEqual({ case: 'quota', caller: 'saved', sends: 1 })
+})
+
+it.each(['success', 'rejection', 'offline rejection'] as const)('does not restore an in-flight action after forced clear and %s', async outcome => {
+    const { storageRace, persistentCache, enqueue, start } = await import('../../helpers/mutation-storage-race')
+    const race = storageRace(), tab = race.tab('A')
+    race.run(tab, enqueue)
+    race.run(tab, 'queue.subscribeMutations(()=>queue.pendingMutations());queue.configureMutationReplay(()=>{record();return new Promise((resolve,reject)=>{finish=resolve;fail=reject})});' + start)
+    persistentCache(tab).clearPersistentCaches()
+    expect(race.run(tab, 'queue.pendingMutations().length')).toBe(0)
+    if (outcome === 'success') race.run(tab, 'finish("saved")')
+    else race.run(tab, (outcome === 'offline rejection' ? 'navigator.onLine=false;' : '') + 'fail(new Error("Rejected"))')
+    expect(race.values.size).toBe(0)
+    expect(race.run(tab, 'queue.pendingMutations().length')).toBe(0)
+    expect(tab.result).toBe('Your account changed. Please retry.')
+    expect(race.sends).toEqual(['A'])
+})
+
+it('drops an unsaved completion on forced clear instead of writing it back later', async () => {
+    const { storageRace, persistentCache, enqueue, start } = await import('../../helpers/mutation-storage-race')
+    const race = storageRace(), tab = race.tab('A')
+    tab.console = { ...console, error() {} }
+    race.run(tab, enqueue)
+    race.onBeforeSet = () => { throw new Error('QuotaExceededError') }
+    race.run(tab, start)
+    persistentCache(tab).clearPersistentCaches()
+    race.onBeforeSet = undefined
+    race.run(tab, 'queue.pendingMutations();' + start)
+    expect(race.values.size).toBe(0)
+    expect(race.sends).toEqual(['A'])
+})
+
+it('preserves another account’s saved action during completion under quota', async () => {
+    const { storageRace, records, enqueue, start } = await import('../../helpers/mutation-storage-race')
+    const race = storageRace(), a = race.tab('A')
+    a.console = { ...console, error() {} }
+    race.run(a, enqueue)
+    race.run(a, 'queue.configureMutationReplay(()=>{record();return new Promise(resolve=>finish=resolve)});' + start)
+    const b = race.tab('B')
+    b.console = a.console
+    race.run(b, enqueue)
+    race.onBeforeSet = () => { throw new Error('QuotaExceededError') }
+    race.run(a, 'finish("saved")')
+    const restoredA = race.tab('A'), restoredB = race.tab('B')
+    restoredA.console = restoredB.console = a.console
+    expect(race.run(restoredA, 'queue.pendingMutations().length')).toBe(0)
+    expect(race.run(restoredB, 'queue.pendingMutations().map(job=>job.id)')).toEqual([records[1].id])
+    race.run(restoredA, start)
+    race.run(restoredB, start)
+    expect(race.sends).toEqual(['A', 'B'])
+})
+
+it('does not carry a discarded legacy rejection into a new action with the same key', async () => {
+    const { storageRace, persistentCache, records, enqueue } = await import('../../helpers/mutation-storage-race')
+    const race = storageRace([{ ...records[0], status: 'failed', error: 'Discarded rejection' }]), tab = race.tab('A')
+    expect(race.run(tab, 'queue.pendingMutations()[0].status')).toBe('failed')
+    persistentCache(tab).clearPersistentCaches()
+    race.run(tab, enqueue)
+    expect(race.run(tab, 'queue.pendingMutations().map(job=>({status:job.status,error:job.error}))')).toEqual([{ status: 'pending', error: null }])
 })

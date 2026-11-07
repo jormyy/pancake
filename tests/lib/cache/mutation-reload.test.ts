@@ -143,7 +143,7 @@ describe('settled mutation persistence across reload', () => {
         expect(enumerate).not.toHaveBeenCalled()
     })
 
-    it('keeps the uncertain failed job when the external completion record cannot be saved', async () => {
+    it('uses deleted input as completion proof when the external completion write fails', async () => {
         const session = await import('@/lib/session-cache-registry')
         session.setSessionOwner('account')
         const queue = await import('@/lib/cache/mutation-queue')
@@ -163,13 +163,13 @@ describe('settled mutation persistence across reload', () => {
         })
         other.configureMutationReplay(async () => 'saved')
         await other.replayMutations()
-        expect(JSON.parse(values.get(key)!)).toHaveLength(1)
+        expect(values.has(key)).toBe(false)
         expect(other.pendingMutations()).toEqual([])
         expect([...values.keys()].some(name => name.startsWith(completionPrefix))).toBe(false)
         session.setSessionOwner('other')
         session.setSessionOwner('account')
         await queue.replayMutations()
-        expect(queue.pendingMutations()[0]).toMatchObject({ status: 'failed', error: 'Server rejected' })
+        expect(queue.pendingMutations()).toEqual([])
     })
 
     it('rejects a current waiting caller instead of resending a job completed in another tab', async () => {

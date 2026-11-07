@@ -131,3 +131,24 @@ export function agedCompletion() {
     race.run(stale, start)
     return { sends: race.sends.length, pending: race.run(stale, 'queue.pendingMutations().length') as number }
 }
+
+export function legacyClear() {
+    const race = storageRace([records[0]]), tab = race.tab('A')
+    persistentCache(tab).clearPersistentCaches()
+    const pending = race.run(tab, 'queue.pendingMutations().length') as number
+    race.run(tab, start)
+    return { case: 'clear', pending, sends: race.sends.length }
+}
+
+export function quotaReload(blockRemoval = false) {
+    const race = storageRace(), writer = race.tab('A')
+    writer.console = { ...console, error() {} }
+    race.run(writer, enqueue)
+    race.onBeforeSet = () => { throw new Error('QuotaExceededError') }
+    if (blockRemoval) race.onRemove = () => { throw new Error('Removal unavailable') }
+    race.run(writer, start)
+    const restored = race.tab('A')
+    restored.console = writer.console
+    race.run(restored, start)
+    return { case: 'quota', caller: writer.result as string, sends: race.sends.length }
+}

@@ -1,6 +1,6 @@
 import { enumerableStorage } from '../../helpers/enumerable-storage'
 import { afterEach, expect, it, vi } from 'vitest'
-import { agedCompletion, cachePressure, cleanupRace, enqueueRace } from '../../helpers/mutation-storage-race'
+import { agedCompletion, cachePressure, cleanupRace, enqueueRace, legacyClear, quotaReload } from '../../helpers/mutation-storage-race'
 import { runCompletionRace } from '../../helpers/mutation-completion-race'
 import type { QueuedMutation } from '@/lib/cache/mutation-queue'
 
@@ -356,6 +356,8 @@ it.each(seeds)('preserves queue invariants through seeded sequence %i', async se
             })
         })
     }
+    await step('forcedLegacyClear', () => { expect(legacyClear()).toEqual({ case: 'clear', pending: 0, sends: 0 }) })
+    await step('fullQuotaReload', () => { expect(quotaReload()).toEqual({ case: 'quota', caller: 'saved', sends: 1 }) })
     await step('cachePressure', () => { expect(cachePressure(), String(seed)).toBe(64) })
     await step('completionAgeJump', () => { wallNow += 8 * 24 * 60 * 60 * 1000; expect(agedCompletion()).toEqual({ sends: 1, pending: 0 }) })
     await step('malformedStart', () => { expect(saved).toBe('{invalid'); expect(queue.mutationSnapshot()).toEqual([]) })
