@@ -66,7 +66,7 @@ function cacheKeys(storage: Storage): string[] {
     const keys: string[] = []
     for (let index = 0; index < storage.length; index += 1) {
         const key = storage.key(index)
-        if (key?.startsWith(CACHE_PREFIX)) keys.push(key)
+        if (key?.startsWith(CACHE_PREFIX) && !key.startsWith('pancake:offline-mutation')) keys.push(key)
     }
     return keys
 }

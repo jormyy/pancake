@@ -16,6 +16,7 @@ const acknowledged = new Map<string, Set<string>>()
 let fallbackFactSequence = 0
 let highestOrder = 0
 const completedJobs = new Set<string>()
+const savedInputs = new Set<string>()
 const unsavedCompletions = new Map<string, string>()
 const completionMaxAge = 7 * 24 * 60 * 60 * 1000
 let jobs: QueuedMutation[] | undefined
@@ -43,13 +44,15 @@ function completionState(id: string): 'completed' | 'unproven' | 'unavailable' {
     if (completedJobs.has(id)) return 'completed'
     try {
         const raw = typeof window !== 'undefined' ? window.localStorage.getItem(completionPrefix + id) : null
-        if (raw === null) return 'unproven'
+        if (raw === null) {
+            if (typeof window === 'undefined' || !savedInputs.has(id) || window.localStorage.getItem(entryPrefix + id) !== null) return 'unproven'
+            completedJobs.add(id)
+            return 'completed'
+        }
         const timestamp = Number(raw)
         if (!Number.isFinite(timestamp) || timestamp <= 0) return 'unavailable'
-        const now = Date.now()
-        const completed = Number.isFinite(timestamp) && timestamp > 0 && timestamp >= now - completionMaxAge
-        if (completed) completedJobs.add(id)
-        return completed ? 'completed' : 'unproven'
+        completedJobs.add(id)
+        return 'completed'
     } catch { return 'unavailable' }
 }
 
@@ -123,6 +126,7 @@ function diskSnapshot(): DiskSnapshot {
             const value: unknown = JSON.parse(raw)
             if (isQueuedMutation(value) && name === entryPrefix + jobKey(value)) {
                 const legacyOrder = legacy.kind === 'available' ? legacy.jobs.find(job => jobKey(job) === id)?.order : undefined
+                savedInputs.add(id)
                 snapshot.entries.set(id, withOrder(value, legacyOrder ?? value.createdAt))
                 snapshot.missing.delete(id)
                 corruptEntries.delete(id)
@@ -191,6 +195,18 @@ function complete(job: QueuedMutation): void {
     unsaved.set(jobKey(job), null)
     jobs = read().filter(item => jobKey(item) !== jobKey(job))
     publish()
+    try {
+        if (typeof window === 'undefined') return
+        const legacy = legacySnapshot()
+        if (legacy.kind === 'unavailable') return
+        const retained = new Set(legacy.jobs.map(jobKey))
+        for (const name of Object.keys(window.localStorage)) {
+            if (!name.startsWith(completionPrefix)) continue
+            const id = name.slice(completionPrefix.length)
+            const timestamp = Number(window.localStorage.getItem(name))
+            if (timestamp > 0 && timestamp < Date.now() - completionMaxAge && !retained.has(id) && window.localStorage.getItem(entryPrefix + id) === null && Number(window.localStorage.getItem(name)) === timestamp) window.localStorage.removeItem(name)
+        }
+    } catch {}
 }
 
 function publish(required = false, last?: string): void {
@@ -205,6 +221,7 @@ function publish(required = false, last?: string): void {
                 else {
                     for (const [failureId, error] of failures.get(id) ?? []) window.localStorage.setItem(failurePrefix + id + ':' + failureId, JSON.stringify({ id, failureId, error }))
                     window.localStorage.setItem(entryPrefix + id, JSON.stringify({ ...job, status: 'pending', error: null }))
+                    savedInputs.add(id)
                 }
             }
             unsaved.clear()

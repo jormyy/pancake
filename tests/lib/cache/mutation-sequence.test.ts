@@ -1,6 +1,6 @@
 import { enumerableStorage } from '../../helpers/enumerable-storage'
 import { afterEach, expect, it, vi } from 'vitest'
-import { cleanupRace, enqueueRace } from '../../helpers/mutation-storage-race'
+import { agedCompletion, cachePressure, cleanupRace, enqueueRace } from '../../helpers/mutation-storage-race'
 import { runCompletionRace } from '../../helpers/mutation-completion-race'
 import type { QueuedMutation } from '@/lib/cache/mutation-queue'
 
@@ -51,7 +51,7 @@ it.each(seeds)('preserves queue invariants through seeded sequence %i', async se
         let legacy: QueuedMutation[] = []
         try { const value: unknown = JSON.parse(saved ?? '[]'); if (Array.isArray(value)) legacy = value } catch {}
         const entries = [...entryValues.values()].flatMap(value => { try { const job = JSON.parse(value); return job && typeof job.id === 'string' ? [job as QueuedMutation] : [] } catch { return [] } })
-        return [...new Map([...legacy, ...entries].map(job => [job.id, job])).values()].filter(job => { const value = Number(completionValues.get(completionPrefix + `${job.accountId}:${job.id}`)); return !Number.isFinite(value) || value <= 0 || value < Date.now() - 7 * 24 * 60 * 60 * 1000 }).map(job => {
+        return [...new Map([...legacy, ...entries].map(job => [job.id, job])).values()].filter(job => { const value = Number(completionValues.get(completionPrefix + `${job.accountId}:${job.id}`)); return !Number.isFinite(value) || value <= 0 }).map(job => {
             const id = `${job.accountId}:${job.id}`
             const rejected = new Map<string, string>()
             if (job.status === 'failed') rejected.set('legacy', job.error ?? 'Could not send this action.')
@@ -356,6 +356,8 @@ it.each(seeds)('preserves queue invariants through seeded sequence %i', async se
             })
         })
     }
+    await step('cachePressure', () => { expect(cachePressure(), String(seed)).toBe(64) })
+    await step('completionAgeJump', () => { wallNow += 8 * 24 * 60 * 60 * 1000; expect(agedCompletion()).toEqual({ sends: 1, pending: 0 }) })
     await step('malformedStart', () => { expect(saved).toBe('{invalid'); expect(queue.mutationSnapshot()).toEqual([]) })
     let orderedFirst = '', orderedSecond = ''
     await step('enqueue', () => { orderedFirst = enqueue() })

@@ -81,7 +81,7 @@ describe('settled mutation persistence across reload', () => {
         expect(queue.pendingMutations()[0].status).toBe('failed')
     })
 
-    it('leaves completion records untouched because cleanup cannot atomically delete an old value', async () => {
+    it('prunes only old completion records whose input and legacy backup are gone', async () => {
         const now = 2_000_000_000_000
         const age = 7 * 24 * 60 * 60 * 1000
         vi.spyOn(Date, 'now').mockReturnValue(now)
@@ -99,7 +99,7 @@ describe('settled mutation persistence across reload', () => {
         online = true
         await queue.replayMutations()
         await expect(result).resolves.toBe('saved')
-        expect(values.has(completionPrefix + 'expired')).toBe(true)
+        expect(values.has(completionPrefix + 'expired')).toBe(false)
         expect(values.has(completionPrefix + 'corrupt')).toBe(true)
         expect(values.get(completionPrefix + 'boundary')).toBe(String(now - age))
         expect(values.get(completionPrefix + 'recent')).toBe(String(now - 1))
@@ -108,7 +108,7 @@ describe('settled mutation persistence across reload', () => {
     })
 
     it.each([
-        ['expired', -7 * 24 * 60 * 60 * 1000 - 1, true],
+        ['expired', -7 * 24 * 60 * 60 * 1000 - 1, false],
         ['boundary', -7 * 24 * 60 * 60 * 1000, false],
         ['future', 60_000, false],
     ] as const)('applies completion age policy to a %s record', async (_label, offset, sends) => {

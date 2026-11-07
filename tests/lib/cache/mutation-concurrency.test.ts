@@ -474,7 +474,7 @@ it.each(['transient', 'persistent'] as const)('does not resend completed work wh
     expect(race.run(stale, 'queue.pendingMutations().length')).toBe(0)
 })
 
-it('blocks sending when completion becomes unreadable after the storage snapshot', async () => {
+it('uses a readable deleted input when completion becomes unreadable after the storage snapshot', async () => {
     const { storageRace, records, completionPrefix, enqueue, start } = await import('../../helpers/mutation-storage-race')
     const race = storageRace([records[0]])
     const first = race.tab('A'), stale = race.tab('A')
@@ -488,7 +488,7 @@ it('blocks sending when completion becomes unreadable after the storage snapshot
     }
     race.run(stale, start)
     expect(race.sends).toEqual(['A'])
-    expect(stale.result).toBe('Could not read your pending actions. Refresh and retry.')
+    expect(stale.result).toBe('This action completed in another tab. Refresh to see the result.')
     race.onGet = undefined
     race.run(stale, start)
     expect(race.sends).toEqual(['A'])
@@ -692,4 +692,91 @@ it('cannot share completion with a stale tab while every storage write stays una
     expect([...race.values.keys()].some(key => key.startsWith(completionPrefix))).toBe(false)
     race.run(stale, start)
     expect(race.sends).toEqual(['A', 'A'])
+})
+
+it('preserves all 64 offline actions under persistent cache pressure', async () => {
+    const { cachePressure } = await import('../../helpers/mutation-storage-race')
+    expect(cachePressure()).toBe(64)
+})
+
+it('keeps a completed action from resending after eight days', async () => {
+    const { agedCompletion } = await import('../../helpers/mutation-storage-race')
+    expect(agedCompletion()).toEqual({ sends: 1, pending: 0 })
+})
+
+it('keeps deleted input as proof after aged completion cleanup', async () => {
+    const { storageRace, records, completionPrefix, enqueue, start } = await import('../../helpers/mutation-storage-race')
+    const race = storageRace(), writer = race.tab('A')
+    race.run(writer, enqueue)
+    const stale = race.tab('A')
+    race.run(writer, start)
+    race.now += 8 * 24 * 60 * 60 * 1000
+    writer.input = { ...records[1], accountId: 'A' }
+    race.run(writer, enqueue + ';' + start)
+    expect(race.values.has(completionPrefix + 'A:' + records[0].id)).toBe(false)
+    race.run(stale, start)
+    expect(race.sends).toEqual(['A', 'A'])
+    expect(race.run(stale, 'queue.pendingMutations().length')).toBe(0)
+})
+
+it('keeps every queue prefix outside cache eviction and cache reset', async () => {
+    const { storageRace, persistentCache } = await import('../../helpers/mutation-storage-race')
+    const race = storageRace(), tab = race.tab('A')
+    const names = ['pancake:offline-mutations:v1', ...['', '-done', '-failure', '-retry'].map(suffix => `pancake:offline-mutation${suffix}:v1:A:test`)]
+    for (const name of names) race.values.set(name, '[]')
+    const cache = persistentCache(tab)
+    for (let index = 0; index < 65; index++) cache.writePersistentCache(`pancake:test:${index}`, {})
+    for (const name of names) expect(race.values.get(name)).toBe('[]')
+    let fail = true
+    race.onBeforeSet = name => { if (name === 'pancake:test:quota' && fail) { fail = false; throw new Error('Quota') } }
+    cache.writePersistentCache('pancake:test:quota', {})
+    cache.clearPersistentCaches()
+    expect([...race.values.keys()].sort()).toEqual(names.sort())
+})
+
+it('retains aged completion proof while its input deletion fails', async () => {
+    const { storageRace, records, completionPrefix, enqueue, start } = await import('../../helpers/mutation-storage-race')
+    const race = storageRace(), writer = race.tab('A')
+    race.run(writer, enqueue)
+    const inputName = 'pancake:offline-mutation:v1:A:' + records[0].id
+    race.onRemove = name => {
+        if (name !== inputName) return
+        race.now += 8 * 24 * 60 * 60 * 1000
+        throw new Error('Removal unavailable')
+    }
+    race.run(writer, start)
+    expect(race.values.has(inputName)).toBe(true)
+    expect(race.values.has(completionPrefix + 'A:' + records[0].id)).toBe(true)
+    const stale = race.tab('A')
+    race.run(stale, start)
+    expect(race.sends.filter(account => account === 'A')).toHaveLength(1)
+})
+
+it('retains old completion proof while a legacy backup still contains the job', async () => {
+    const { storageRace, records, completionPrefix, enqueue, start } = await import('../../helpers/mutation-storage-race')
+    const race = storageRace(), writer = race.tab('A')
+    race.run(writer, enqueue)
+    const backup = 'pancake:offline-mutations:v1'
+    race.onBeforeSet = name => { if (name === backup) throw new Error('Backup write unavailable') }
+    race.onRemove = name => { if (name === backup) throw new Error('Backup removal unavailable') }
+    race.run(writer, start)
+    race.now += 8 * 24 * 60 * 60 * 1000
+    writer.input = { ...records[1], accountId: 'A' }
+    race.run(writer, enqueue + ';' + start)
+    expect(race.values.has(completionPrefix + 'A:' + records[0].id)).toBe(true)
+    expect(race.run(race.tab('A'), 'queue.pendingMutations().length')).toBe(0)
+    expect(race.sends).toEqual(['A', 'A'])
+})
+
+it('does not infer completion or send when the deleted input cannot be read', async () => {
+    const { storageRace, records, completionPrefix, enqueue, start } = await import('../../helpers/mutation-storage-race')
+    const race = storageRace(), writer = race.tab('A')
+    race.run(writer, enqueue)
+    const stale = race.tab('A')
+    race.run(writer, start)
+    race.values.delete(completionPrefix + 'A:' + records[0].id)
+    race.onGet = name => { if (name === 'pancake:offline-mutation:v1:A:' + records[0].id) throw new Error('Input unavailable') }
+    race.run(stale, start)
+    expect(race.sends).toEqual(['A'])
+    expect(race.run(stale, 'queue.pendingMutations()[0].status')).toBe('failed')
 })

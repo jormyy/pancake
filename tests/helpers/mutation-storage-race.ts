@@ -99,3 +99,35 @@ export function enqueueRace(boundary: 'initial check' | 'persist read' | 'persis
     race.run(second, 'queue.queueMutation(input,input.id).then(()=>result="unexpected",e=>result=e.message)')
     return { ...result, retry: second.result }
 }
+
+export function persistentCache(tab: Context) {
+    const module = { exports: {} as typeof import('@/lib/persistent-cache') }
+    const source = transpileModule(readFileSync('lib/persistent-cache.ts', 'utf8'), {
+        compilerOptions: { module: ModuleKind.CommonJS, target: ScriptTarget.ES2022 },
+    }).outputText
+    runInContext(`(function(require,module,exports){${source}\n})`, tab)(
+        (name: string) => name === 'react-native' ? { Platform: { OS: 'web' } } : tab.session,
+        module, module.exports,
+    )
+    return module.exports
+}
+
+export function cachePressure() {
+    const race = storageRace(), tab = race.tab('A')
+    for (let index = 1; index <= 64; index++) {
+        tab.input = { ...records[0], id: `10000000-0000-4000-8000-${String(index).padStart(12, '0')}` }
+        race.run(tab, enqueue)
+    }
+    persistentCache(tab).writePersistentCache('pancake:team-roster:v1:test', {})
+    return race.run(race.tab('A'), 'queue.pendingMutations().length') as number
+}
+
+export function agedCompletion() {
+    const race = storageRace(), writer = race.tab('A')
+    race.run(writer, enqueue)
+    const stale = race.tab('A')
+    race.run(writer, start)
+    race.now += 8 * 24 * 60 * 60 * 1000
+    race.run(stale, start)
+    return { sends: race.sends.length, pending: race.run(stale, 'queue.pendingMutations().length') as number }
+}
