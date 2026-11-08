@@ -166,18 +166,21 @@ async function remoteRead(name, options, params, environment, fetcher) {
     } catch { cached = undefined }
   }
   let response
+  let receivedResponse = false
+  const exhausted = () => new CliError(receivedResponse ? 'Public API did not recover within the request budget' : 'Could not reach the public API', receivedResponse ? 7 : 6)
   const signal = AbortSignal.timeout(15000)
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
       response = await fetcher(url, { headers: cached ? { 'If-None-Match': cached.etag } : {}, redirect: 'error', signal })
+      receivedResponse = true
       if (![502,503,504].includes(response.status) || attempt === 2) break
       await response.body?.cancel()
     } catch (error) {
       if (!signal.aborted && error?.name !== 'AbortError' && !(error instanceof TypeError)) throw new CliError('Public API returned an invalid response', 7)
-      if (attempt === 2 || signal.aborted) throw new CliError('Could not reach the public API', 6)
+      if (attempt === 2 || signal.aborted) throw exhausted()
     }
     await new Promise(resolve => setTimeout(resolve, 100 * 2 ** attempt))
-    if (signal.aborted) throw new CliError('Could not reach the public API', 6)
+    if (signal.aborted) throw exhausted()
   }
   if (response.status === 304 && cached) return cached.body
   if (!response.ok) {
@@ -200,7 +203,7 @@ async function remoteRead(name, options, params, environment, fetcher) {
     }
   } catch (error) {
     if (error instanceof CliError) throw error
-    if (signal.aborted || error?.name === 'AbortError' || error instanceof TypeError) throw new CliError('Could not read the public API response', 6)
+    if (signal.aborted || error?.name === 'AbortError' || error instanceof TypeError) throw new CliError('Public API returned an incomplete response', 7)
     throw new CliError('Public API returned an invalid response body', 7)
   } finally { try { await reader.cancel() } catch { } }
   let body

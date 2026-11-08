@@ -607,7 +607,7 @@ BEGIN
           to_jsonb(left((p.headshot_url)::text,1024)),
           'eligiblePositions',
           CASE WHEN to_jsonb(p.eligible_positions) IS NULL OR to_jsonb(p.eligible_positions)='null'::jsonb THEN NULL ELSE (SELECT coalesce(jsonb_agg(to_jsonb(left((element.value #>> '{}'),32)) ORDER BY element.ordinality),'[]'::jsonb) FROM jsonb_array_elements(to_jsonb(p.eligible_positions)) WITH ORDINALITY element(value,ordinality) WHERE element.ordinality<=10) END) AS data
-        FROM public.players p LEFT JOIN LATERAL public.get_league_projection_rows(p_league_id,selected_year,(now() AT TIME ZONE 'America/New_York')::date,'today',ARRAY[p.id],1,0) pr ON true
+        FROM public.players p LEFT JOIN private.public_projection_rows(p_league_id,selected_year,(now() AT TIME ZONE 'America/New_York')::date) pr ON pr.player_id=p.id
         WHERE (true)
       ), filtered AS (
         SELECT data FROM visible WHERE (params->>'player' IS NULL OR data->>'id'=params->>'player') AND (params->>'query' IS NULL OR position(lower(params->>'query') IN lower(data->>'name'))>0) AND (params->>'position' IS NULL OR data->>'position'=params->>'position')

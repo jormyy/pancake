@@ -209,6 +209,7 @@
     "private.prevent_uncleared_waiver_free_agent_add()": {"acl":["PUBLIC|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.projection_sync_due_work(timestamp with time zone)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.prune_perf_beacons()": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
+    "private.public_projection_rows(uuid,integer,date)": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.publish_asset_lock_change()": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.publish_league_inventory_hint(uuid,jsonb)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.publish_league_version(uuid,text[],text[])": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},

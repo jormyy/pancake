@@ -4,7 +4,7 @@ import path from 'node:path'
 
 const root = path.resolve(import.meta.dirname, '../..')
 const policyPath = 'supabase/functions/api/public/policy.json'
-const migrationPath = 'supabase/migrations/20261214010600_public_sort_ties.sql'
+const migrationPath = 'supabase/migrations/20261214010700_public_projection_batch.sql'
 const quote = value => `'${value.replaceAll("'", "''")}'`
 
 function contractFor(policy) {
@@ -36,7 +36,29 @@ function boundedSql(expression, schema, json = false) {
   return expression
 }
 
-function sqlFor(policy) {
+function projectionSql(policy, source) {
+  const [schema, name] = policy.projectionSource.unpagedFunction.split('.')
+  if (schema !== 'private' || !/^[a-z_]+$/.test(name)) throw new Error('Invalid private projection function')
+  const returns = source.slice(source.indexOf('RETURNS TABLE ('), source.indexOf('LANGUAGE plpgsql'))
+  const original = source.slice(source.indexOf('WITH args AS ('), source.lastIndexOf('\nEND;'))
+  let query = original.replace(/,\n    LEAST\(GREATEST\(COALESCE\(p_limit, 600\), 1\), 1000\) AS page_limit,\n    GREATEST\(COALESCE\(p_offset, 0\), 0\) AS page_offset/, '')
+  query = query.replace(/\nLIMIT \(SELECT page_limit FROM args\)\nOFFSET \(SELECT page_offset FROM args\);\s*$/, ';')
+    .replaceAll('p_view', "'today'").replaceAll('p_player_ids', 'NULL::uuid[]')
+  if (!returns || query === original || /p_limit|p_offset|page_limit|page_offset|p_view|p_player_ids/.test(query)) throw new Error('Projection source pagination changed')
+  return `CREATE OR REPLACE FUNCTION ${schema}.${name}(p_league_id uuid,p_season_year integer,p_game_date date)
+${returns}LANGUAGE plpgsql STABLE SET search_path='' SET plan_cache_mode=force_generic_plan AS $$
+#variable_conflict use_column
+BEGIN
+RETURN QUERY
+${query}
+END;
+$$;
+REVOKE ALL ON FUNCTION ${schema}.${name}(uuid,integer,date) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION ${schema}.${name}(uuid,integer,date) TO service_role;
+`
+}
+
+function sqlFor(policy, projection) {
   const cases = Object.entries(policy.resources).map(([name, definition]) => {
     const fields = Object.entries(definition.fields).flatMap(([key, field]) => [quote(key), boundedSql(field.sql,field.schema)]).join(',\n          ')
     const filters = Object.entries(definition.filters).filter(([, fields]) => fields.length).map(([key, fields]) => {
@@ -76,6 +98,7 @@ function sqlFor(policy) {
 SET LOCAL lock_timeout='3s';
 SET LOCAL statement_timeout='30s';
 
+${projection}
 CREATE INDEX IF NOT EXISTS public_api_buckets_minute ON private.public_api_buckets(minute);
 
 CREATE OR REPLACE FUNCTION public.public_admit_read(p_client_key text)
@@ -162,13 +185,15 @@ COMMIT;
 export async function generate(check = false) {
   const policy = JSON.parse(await readFile(path.join(root, policyPath), 'utf8'))
   const contract = JSON.stringify(contractFor(policy), null, 2)+'\n'
-  const sql = sqlFor(policy)
-  const baseline = await readFile(path.join(root,'supabase/migrations/20261214010500_public_projection_bounds.sql'),'utf8')
+  const projection = projectionSql(policy, await readFile(path.join(root, 'supabase/sql/functions/by-name', ...policy.projectionSource.function.split('.'))+'.sql', 'utf8'))
+  const sql = sqlFor(policy, projection)
+  const baseline = await readFile(path.join(root,'supabase/migrations/20261214010600_public_sort_ties.sql'),'utf8')
   const oldRead = baseline.slice(baseline.indexOf('CREATE OR REPLACE FUNCTION public.public_read_v2'),baseline.indexOf('\nREVOKE ALL ON FUNCTION public.public_read_v2'))
-  const rollback = `BEGIN;\nSET LOCAL lock_timeout='3s';\nSET LOCAL statement_timeout='30s';\n${oldRead}\nREVOKE ALL ON FUNCTION public.public_read_v2(uuid,text,jsonb,text) FROM PUBLIC,anon,authenticated;\nGRANT EXECUTE ON FUNCTION public.public_read_v2(uuid,text,jsonb,text) TO service_role;\nNOTIFY pgrst,'reload schema';\nCOMMIT;\n`
+  const rollback = `BEGIN;\nSET LOCAL lock_timeout='3s';\nSET LOCAL statement_timeout='30s';\n${oldRead}\nREVOKE ALL ON FUNCTION public.public_read_v2(uuid,text,jsonb,text) FROM PUBLIC,anon,authenticated;\nGRANT EXECUTE ON FUNCTION public.public_read_v2(uuid,text,jsonb,text) TO service_role;\nDROP FUNCTION private.public_projection_rows(uuid,integer,date);\nNOTIFY pgrst,'reload schema';\nCOMMIT;\n`
   const outputs = {
+    'supabase/sql/functions/by-name/private/public_projection_rows.sql': projection.slice(0,projection.indexOf('\nREVOKE ALL'))+'\n',
     [migrationPath]: sql,
-    'supabase/rollbacks/20261214010600_public_sort_ties.sql': rollback,
+    'supabase/rollbacks/20261214010700_public_projection_batch.sql': rollback,
     'supabase/functions/api/public/schema-v2.json': contract,
     'packages/pancake-cli/schemas/v2.json': contract,
     'packages/pancake-cli/schemas/options-v2.json': JSON.stringify(Object.fromEntries(Object.entries(policy.resources).map(([name, item]) => [name, { filters: Object.keys(item.filters), filterFields: item.filters, order: item.order, tieBreaker: policy.tieBreaker, direction: item.direction ?? 'asc', sorts: Object.entries(item.fields).filter(([, field]) => !(Array.isArray(field.schema.type)?field.schema.type:[field.schema.type]).some(type=>['object','array'].includes(type))).map(([key]) => key) }])), null, 2)+'\n',

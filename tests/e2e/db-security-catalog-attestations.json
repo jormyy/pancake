@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261214010600",
+  "candidateVersion": "20261214010700",
   "common": {
     "functions": [
       {
@@ -2697,6 +2697,10 @@
     {
       "filename": "20261214010600_public_sort_ties.sql",
       "sha256": "0522b701a0b2f2fab49310adc015afa48189c406cb08ebec811df1c234fb4951"
+    },
+    {
+      "filename": "20261214010700_public_projection_batch.sql",
+      "sha256": "6b4860b0125aafa374d1f8fd7bc556c45aa13e6b91ee29a3e9418896ddf74f22"
     }
   ],
   "preMigration": {
