@@ -3616,6 +3616,13 @@
       "statementCount": 12,
       "statementsSha256": "f5b3a35dd7ecf598c99c073ad3c48d7889d68210f9efd1b8657260646065b098",
       "sha256": "eb578cc0ecfb627bead270eb416b22e93b9e18aede470520aa42b5cb32686a2f"
+    },
+    {
+      "name": "public_sort_ties",
+      "version": "20261214010600",
+      "statementCount": 12,
+      "statementsSha256": "e0c553a7ef0552f6ffe67dd344604b1d076490eb38ad02c8f8d16505d4757cfa",
+      "sha256": "0522b701a0b2f2fab49310adc015afa48189c406cb08ebec811df1c234fb4951"
     }
   ]
 }

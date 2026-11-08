@@ -2929,5 +2929,9 @@
       ],
       "direction": "desc"
     }
+  },
+  "tieBreaker": {
+    "field": "id",
+    "direction": "asc"
   }
 }

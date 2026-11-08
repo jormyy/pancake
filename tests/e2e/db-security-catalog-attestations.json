@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261214010500",
+  "candidateVersion": "20261214010600",
   "common": {
     "functions": [
       {
@@ -2693,6 +2693,10 @@
     {
       "filename": "20261214010500_public_projection_bounds.sql",
       "sha256": "eb578cc0ecfb627bead270eb416b22e93b9e18aede470520aa42b5cb32686a2f"
+    },
+    {
+      "filename": "20261214010600_public_sort_ties.sql",
+      "sha256": "0522b701a0b2f2fab49310adc015afa48189c406cb08ebec811df1c234fb4951"
     }
   ],
   "preMigration": {

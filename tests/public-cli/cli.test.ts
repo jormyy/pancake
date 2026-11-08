@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { mkdtemp, rm, readdir, readFile } from 'node:fs/promises'
+import { mkdtemp, rm, readdir, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { run } from '../../packages/pancake-cli/bin/pancake.mjs'
@@ -112,6 +112,21 @@ describe('public CLI v2',()=>{
     const result=await invoke(args,{fetch:async()=>{calls++;throw new Error('invalid response implementation')}})
     expect(result.code).toBe(7)
     expect(calls).toBe(1)
+  })
+  it.each(['asc','desc'])('breaks tied custom draft sorts by ascending ID with %s primary direction',async direction=>{
+    const directory=await mkdtemp(path.join(tmpdir(),'public-cli-ties-'));temporary.push(directory)
+    const data=structuredClone(fixture)
+    const high='ffffffff-ffff-4fff-8fff-ffffffffffff'
+    const low='00000000-0000-4000-8000-000000000000'
+    data.resources.drafts.items=[{...data.resources.drafts.items[0],id:high},{...data.resources.drafts.items[0],id:low}]
+    const filename=path.join(directory,'ties.json')
+    await writeFile(filename,JSON.stringify(data))
+    const options=['drafts','--league',league,'--fixture',filename,'--sort','seasonYear','--direction',direction,'--limit','1']
+    const first=JSON.parse((await invoke(options)).stdout)
+    expect(first.items[0].id).toBe(low)
+    const second=JSON.parse((await invoke([...options,'--cursor',first.nextCursor])).stdout)
+    expect(second.items[0].id).toBe(high)
+    expect(second.nextCursor).toBeNull()
   })
   it('revalidates public cache entries without token-based keys',async()=>{
     const directory=await mkdtemp(path.join(tmpdir(),'public-cli-cache-'));temporary.push(directory)

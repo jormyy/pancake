@@ -68,7 +68,8 @@ export function modelObservation(resource: Resource, rows: Record<string, unknow
   const key = String(params.sort ?? spec.order[0])
   const direction = (params.direction ?? spec.direction ?? 'asc') === 'asc' ? 1 : -1
   const compare = (a: unknown, b: unknown) => a === b ? 0 : a == null ? 1 : b == null ? -1 : a < b ? -1 : 1
-  visible.sort((a,b) => direction * compare(a[key],b[key]) || spec.order.slice(1).map(field => compare(a[field],b[field])).find(value => value !== 0) || 0)
+  const secondary=[...spec.order.slice(1).filter(field=>field!==policy.tieBreaker.field),policy.tieBreaker.field]
+  visible.sort((a,b) => (a[key]==null || b[key]==null ? compare(a[key],b[key]) : direction*compare(a[key],b[key])) || secondary.map(field => compare(a[field],b[field])).find(value => value !== 0) || 0)
   const offset = Number(params.offset ?? 0), limit = Number(params.limit ?? 25)
   return { status: 200, items: visible.slice(offset, offset+limit), hasMore: visible.length > offset+limit }
 }

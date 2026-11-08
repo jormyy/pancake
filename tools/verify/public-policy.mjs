@@ -4,7 +4,7 @@ import path from 'node:path'
 
 const root = path.resolve(import.meta.dirname, '../..')
 const policyPath = 'supabase/functions/api/public/policy.json'
-const migrationPath = 'supabase/migrations/20261214010500_public_projection_bounds.sql'
+const migrationPath = 'supabase/migrations/20261214010600_public_sort_ties.sql'
 const quote = value => `'${value.replaceAll("'", "''")}'`
 
 function contractFor(policy) {
@@ -53,7 +53,7 @@ function sqlFor(policy) {
       throw new Error('Unknown visibility operation')
     })
     const first = definition.order[0]
-    const rest = definition.order.slice(1).map(key => `data->${quote(key)} ASC`).join(', ')
+    const rest = [...definition.order.slice(1).filter(key=>key!==policy.tieBreaker.field),policy.tieBreaker.field].map(key => `data->${quote(key)} ${policy.tieBreaker.direction.toUpperCase()}`).join(', ')
     const order = `CASE WHEN COALESCE(params->>'direction',${quote(definition.direction ?? 'asc')})='asc' THEN nullif(data->COALESCE(params->>'sort',${quote(first)}),'null'::jsonb) END ASC NULLS LAST,
         CASE WHEN COALESCE(params->>'direction',${quote(definition.direction ?? 'asc')})='desc' THEN nullif(data->COALESCE(params->>'sort',${quote(first)}),'null'::jsonb) END DESC NULLS LAST${rest ? ', '+rest : ''}`
     return `WHEN ${quote(name)} THEN
@@ -163,15 +163,15 @@ export async function generate(check = false) {
   const policy = JSON.parse(await readFile(path.join(root, policyPath), 'utf8'))
   const contract = JSON.stringify(contractFor(policy), null, 2)+'\n'
   const sql = sqlFor(policy)
-  const baseline = await readFile(path.join(root,'supabase/migrations/20261214010400_public_read_admission.sql'),'utf8')
+  const baseline = await readFile(path.join(root,'supabase/migrations/20261214010500_public_projection_bounds.sql'),'utf8')
   const oldRead = baseline.slice(baseline.indexOf('CREATE OR REPLACE FUNCTION public.public_read_v2'),baseline.indexOf('\nREVOKE ALL ON FUNCTION public.public_read_v2'))
   const rollback = `BEGIN;\nSET LOCAL lock_timeout='3s';\nSET LOCAL statement_timeout='30s';\n${oldRead}\nREVOKE ALL ON FUNCTION public.public_read_v2(uuid,text,jsonb,text) FROM PUBLIC,anon,authenticated;\nGRANT EXECUTE ON FUNCTION public.public_read_v2(uuid,text,jsonb,text) TO service_role;\nNOTIFY pgrst,'reload schema';\nCOMMIT;\n`
   const outputs = {
     [migrationPath]: sql,
-    'supabase/rollbacks/20261214010500_public_projection_bounds.sql': rollback,
+    'supabase/rollbacks/20261214010600_public_sort_ties.sql': rollback,
     'supabase/functions/api/public/schema-v2.json': contract,
     'packages/pancake-cli/schemas/v2.json': contract,
-    'packages/pancake-cli/schemas/options-v2.json': JSON.stringify(Object.fromEntries(Object.entries(policy.resources).map(([name, item]) => [name, { filters: Object.keys(item.filters), filterFields: item.filters, order: item.order, direction: item.direction ?? 'asc', sorts: Object.entries(item.fields).filter(([, field]) => !(Array.isArray(field.schema.type)?field.schema.type:[field.schema.type]).some(type=>['object','array'].includes(type))).map(([key]) => key) }])), null, 2)+'\n',
+    'packages/pancake-cli/schemas/options-v2.json': JSON.stringify(Object.fromEntries(Object.entries(policy.resources).map(([name, item]) => [name, { filters: Object.keys(item.filters), filterFields: item.filters, order: item.order, tieBreaker: policy.tieBreaker, direction: item.direction ?? 'asc', sorts: Object.entries(item.fields).filter(([, field]) => !(Array.isArray(field.schema.type)?field.schema.type:[field.schema.type]).some(type=>['object','array'].includes(type))).map(([key]) => key) }])), null, 2)+'\n',
   }
   for (const name of ['public_read_v2','public_admit_read']) {
     const start = sql.indexOf(`CREATE OR REPLACE FUNCTION public.${name}(`)

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { createPublicHandler, publicContract, resourceNames } from '../../supabase/functions/api/public/handler'
 import { modelObservation, type Shape } from '../../supabase/functions/api/public/policy'
+import fixture from '../fixtures/public-cli/league-v2.json'
 
 const league = '11111111-1111-4111-8111-111111111111'
 function sample(shape: Shape): unknown {
@@ -35,6 +36,11 @@ describe('public v2 projection',()=>{
   })
   it('keeps generated contracts identical',()=>{
     expect(JSON.parse(readFileSync('packages/pancake-cli/schemas/v2.json','utf8'))).toEqual(publicContract)
+  })
+  it.each(['asc','desc'])('models the final ID tie-breaker with %s primary direction',direction=>{
+    const rows=['ffffffff-ffff-4fff-8fff-ffffffffffff','00000000-0000-4000-8000-000000000000'].map(id=>({...fixture.resources.drafts.items[0],id,isMock:false}))
+    const result=modelObservation('drafts',rows,{league,sort:'seasonYear',direction,limit:1})
+    expect(result.items?.[0].id).toBe('00000000-0000-4000-8000-000000000000')
   })
   it('makes cursor scopes depend on the league and filters',async()=>{
     const handler=createPublicHandler(async()=>({status:200,items:[],hasMore:true}))

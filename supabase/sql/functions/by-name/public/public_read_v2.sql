@@ -137,9 +137,9 @@ BEGIN
         SELECT data FROM visible WHERE true
       ), page AS (
         SELECT data, row_number() OVER (ORDER BY CASE WHEN COALESCE(params->>'direction','asc')='asc' THEN nullif(data->COALESCE(params->>'sort','id'),'null'::jsonb) END ASC NULLS LAST,
-        CASE WHEN COALESCE(params->>'direction','asc')='desc' THEN nullif(data->COALESCE(params->>'sort','id'),'null'::jsonb) END DESC NULLS LAST) AS ordinal
+        CASE WHEN COALESCE(params->>'direction','asc')='desc' THEN nullif(data->COALESCE(params->>'sort','id'),'null'::jsonb) END DESC NULLS LAST, data->'id' ASC) AS ordinal
         FROM filtered ORDER BY CASE WHEN COALESCE(params->>'direction','asc')='asc' THEN nullif(data->COALESCE(params->>'sort','id'),'null'::jsonb) END ASC NULLS LAST,
-        CASE WHEN COALESCE(params->>'direction','asc')='desc' THEN nullif(data->COALESCE(params->>'sort','id'),'null'::jsonb) END DESC NULLS LAST LIMIT page_limit+1 OFFSET page_offset
+        CASE WHEN COALESCE(params->>'direction','asc')='desc' THEN nullif(data->COALESCE(params->>'sort','id'),'null'::jsonb) END DESC NULLS LAST, data->'id' ASC LIMIT page_limit+1 OFFSET page_offset
       )
       SELECT coalesce(jsonb_agg(data ORDER BY ordinal) FILTER (WHERE ordinal<=page_offset+page_limit),'[]'::jsonb),
         count(*)>page_limit INTO result_rows, more FROM page;
@@ -309,9 +309,9 @@ BEGIN
         SELECT data FROM visible WHERE (params->>'team' IS NULL OR data->>'teamId'=params->>'team')
       ), page AS (
         SELECT data, row_number() OVER (ORDER BY CASE WHEN COALESCE(params->>'direction','asc')='asc' THEN nullif(data->COALESCE(params->>'sort','id'),'null'::jsonb) END ASC NULLS LAST,
-        CASE WHEN COALESCE(params->>'direction','asc')='desc' THEN nullif(data->COALESCE(params->>'sort','id'),'null'::jsonb) END DESC NULLS LAST) AS ordinal
+        CASE WHEN COALESCE(params->>'direction','asc')='desc' THEN nullif(data->COALESCE(params->>'sort','id'),'null'::jsonb) END DESC NULLS LAST, data->'id' ASC) AS ordinal
         FROM filtered ORDER BY CASE WHEN COALESCE(params->>'direction','asc')='asc' THEN nullif(data->COALESCE(params->>'sort','id'),'null'::jsonb) END ASC NULLS LAST,
-        CASE WHEN COALESCE(params->>'direction','asc')='desc' THEN nullif(data->COALESCE(params->>'sort','id'),'null'::jsonb) END DESC NULLS LAST LIMIT page_limit+1 OFFSET page_offset
+        CASE WHEN COALESCE(params->>'direction','asc')='desc' THEN nullif(data->COALESCE(params->>'sort','id'),'null'::jsonb) END DESC NULLS LAST, data->'id' ASC LIMIT page_limit+1 OFFSET page_offset
       )
       SELECT coalesce(jsonb_agg(data ORDER BY ordinal) FILTER (WHERE ordinal<=page_offset+page_limit),'[]'::jsonb),
         count(*)>page_limit INTO result_rows, more FROM page;
@@ -643,9 +643,9 @@ BEGIN
         SELECT data FROM visible WHERE (params->>'draft' IS NULL OR data->>'id'=params->>'draft')
       ), page AS (
         SELECT data, row_number() OVER (ORDER BY CASE WHEN COALESCE(params->>'direction','asc')='asc' THEN nullif(data->COALESCE(params->>'sort','id'),'null'::jsonb) END ASC NULLS LAST,
-        CASE WHEN COALESCE(params->>'direction','asc')='desc' THEN nullif(data->COALESCE(params->>'sort','id'),'null'::jsonb) END DESC NULLS LAST) AS ordinal
+        CASE WHEN COALESCE(params->>'direction','asc')='desc' THEN nullif(data->COALESCE(params->>'sort','id'),'null'::jsonb) END DESC NULLS LAST, data->'id' ASC) AS ordinal
         FROM filtered ORDER BY CASE WHEN COALESCE(params->>'direction','asc')='asc' THEN nullif(data->COALESCE(params->>'sort','id'),'null'::jsonb) END ASC NULLS LAST,
-        CASE WHEN COALESCE(params->>'direction','asc')='desc' THEN nullif(data->COALESCE(params->>'sort','id'),'null'::jsonb) END DESC NULLS LAST LIMIT page_limit+1 OFFSET page_offset
+        CASE WHEN COALESCE(params->>'direction','asc')='desc' THEN nullif(data->COALESCE(params->>'sort','id'),'null'::jsonb) END DESC NULLS LAST, data->'id' ASC LIMIT page_limit+1 OFFSET page_offset
       )
       SELECT coalesce(jsonb_agg(data ORDER BY ordinal) FILTER (WHERE ordinal<=page_offset+page_limit),'[]'::jsonb),
         count(*)>page_limit INTO result_rows, more FROM page;

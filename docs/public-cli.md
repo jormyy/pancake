@@ -78,7 +78,9 @@ Use `trade-assets --trade "$TRADE_ID"` for paginated player, pick, and budget-tr
 Budget transfer amounts are omitted, as are all waiver bids.
 For multi-team trades, `teamIds` contains the participants. A team filter includes these participants.
 
-Results use stable ID tie-breakers. Offset cursors bind the version, league, resource, filters, limit, and sort.
+Every sort ends with ascending `id` as its final tie-breaker.
+`--direction` controls the selected primary key; secondary keys remain ascending.
+Offset cursors bind the version, league, resource, filters, limit, and sort.
 Continue until `nextCursor` is null. Concurrent public changes can shift pages; restart a scan for a fresh view.
 The current safety limit is an offset of 100,000. The API returns an error instead of falsely ending a larger scan.
 No count of private records is exposed.
@@ -261,7 +263,7 @@ Additional two-league fixture checks compare complete responses and cursors befo
 ## Database release and recovery
 
 Follow [RELEASE-DB.md](../supabase/RELEASE-DB.md). This change does not apply migrations or deploy to production.
-Apply `20261214010300_public_league_reads.sql`, `20261214010400_public_read_admission.sql`, then `20261214010500_public_projection_bounds.sql` on the isolated stack first.
+Apply `20261214010300_public_league_reads.sql`, `20261214010400_public_read_admission.sql`, `20261214010500_public_projection_bounds.sql`, then `20261214010600_public_sort_ties.sql` on the isolated stack first.
 The second migration separates admission, removes the global quota, and validates values before SQL casts.
 Run the catalog query and database tests. Regenerate database types and the database function catalog from that tested stack.
 The canonical SQL source check must also pass before release.
@@ -269,6 +271,7 @@ After approval, apply the database migration before deploying the Edge API and i
 Old version-one clients receive an explicit version-retired response.
 
 If verification fails, restore the matching previous Edge artifact.
+[Rollback 106](../supabase/rollbacks/20261214010600_public_sort_ties.sql) restores the previous sort behavior.
 [Rollback 105](../supabase/rollbacks/20261214010500_public_projection_bounds.sql) restores the earlier public reader without changing stored data.
 [Rollback 104](../supabase/rollbacks/20261214010400_public_read_admission.sql) restores the earlier reader and removes separate admission.
 [Rollback 103](../supabase/rollbacks/20261214010300_public_league_reads.sql) then removes the feature reader and counters if required.

@@ -118,7 +118,8 @@ async function fixtureRead(filename, name, params) {
       : key === 'week' ? Number(target) >= item[fields[0]] && Number(target) <= item[fields[1]]
       : fields.some(field => Array.isArray(item[field]) ? item[field].includes(target) : String(item[field]) === target))
   }
-  const keys = [params.get('sort') ?? supported[name].order[0], ...supported[name].order.slice(1)]
+  const tie = supported[name].tieBreaker.field
+  const keys = [params.get('sort') ?? supported[name].order[0], ...supported[name].order.slice(1).filter(key=>key!==tie), tie]
   const direction = (params.get('direction') ?? supported[name].direction) === 'desc' ? -1 : 1
   items = [...items].sort((a,b) => {
     for (const [index,key] of keys.entries()) {
