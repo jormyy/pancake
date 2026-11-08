@@ -16,7 +16,8 @@ Start with the guide that matches the change.
 | [Scheduler operations](operations-scheduler.md) | Cadences, leases, load shedding, retention, and diagnosis |
 | [Source monitoring](source-monitoring.md) | Provider identity, projections, corrections, and recovery |
 | [Interface design](interface-design.md) | Phone layout, shared controls, typography, and assets |
-| [Public CLI](public-cli.md) | Read-only shared results and operator reports |
+| [Public agent guide](https://pancakedynasty.vercel.app/agents.md) | Anonymous CLI and API use |
+| [Public CLI reference](public-cli.md) | Schemas, privacy rules, and operator reports |
 
 ## Detailed contracts
 

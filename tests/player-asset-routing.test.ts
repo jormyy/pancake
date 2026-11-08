@@ -28,3 +28,26 @@ it.each(['/player/abc', '/settings'])('keeps HTML routing for %s', pathname => {
     expect(match?.dest).toBe(pathname.startsWith('/player/') ? '/player/[id].html' : '/+not-found.html')
     expect(match?.status ?? 200).toBe(200)
 })
+
+it.each([
+    ['/llms.txt', 'text/plain; charset=utf-8'],
+    ['/agents.md', 'text/markdown; charset=utf-8'],
+])('serves %s as text before the HTML fallback', (pathname, contentType) => {
+    const filesystem = routes.findIndex(route => route.handle === 'filesystem')
+    const match = routes.slice(0, filesystem).find(route => route.src && new RegExp(route.src).test(pathname))
+    expect(match).toMatchObject({ continue: true, headers: { 'Content-Type': contentType } })
+    expect(readFileSync(`public${pathname}`, 'utf8')).toMatch(/^# /)
+    expect(readFileSync(`public${pathname}`, 'utf8')).not.toMatch(/<!doctype html|<html/i)
+})
+
+it('links discovery to the public Markdown guide on the production site', () => {
+    const discovery = readFileSync('public/llms.txt', 'utf8')
+    expect(discovery).toMatch(/^# .+\n\n> .+\n/)
+    const links = [...discovery.matchAll(/\[[^\]]+\]\(([^)]+)\)/g)].map(match => new URL(match[1]))
+    expect(links.length).toBeGreaterThan(0)
+    expect(links.map(link => link.href)).toContain('https://pancakedynasty.vercel.app/agents.md')
+    for (const link of links) {
+        expect(link.origin).toBe('https://pancakedynasty.vercel.app')
+        expect(readFileSync(`public${link.pathname}`, 'utf8')).toMatch(/^# /)
+    }
+})

@@ -25,6 +25,20 @@
       "continue": true
     },
     {
+      "src": "^/llms\\.txt$",
+      "headers": {
+        "Content-Type": "text/plain; charset=utf-8"
+      },
+      "continue": true
+    },
+    {
+      "src": "^/agents\\.md$",
+      "headers": {
+        "Content-Type": "text/markdown; charset=utf-8"
+      },
+      "continue": true
+    },
+    {
       "handle": "filesystem"
     },
     {

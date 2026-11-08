@@ -1,6 +1,7 @@
 # Public Pancake CLI
 
-This guide describes candidate API v2. Production deployment remains pending.
+Production API v2 is live. Anonymous reads need no login or token.
+See the [public agent guide](https://pancakedynasty.vercel.app/agents.md) for installation and usage.
 
 Every non-deleted league is public. The CLI requires no login, share token, or commissioner action.
 It reads public league data and performs no mutations.
@@ -267,7 +268,9 @@ Additional two-league fixture checks compare complete responses and cursors befo
 
 ## Public CLI release order
 
-Follow [RELEASE-DB.md](../supabase/RELEASE-DB.md). This change does not apply migrations or deploy to production.
+Production API v2 is deployed. The CLI is available from this repository, not the npm registry.
+The following steps describe isolated validation and future recovery, not a pending initial rollout.
+Follow [RELEASE-DB.md](../supabase/RELEASE-DB.md).
 Apply `20261214010300_public_league_reads.sql`, `20261214010400_public_read_admission.sql`, `20261214010500_public_projection_bounds.sql`, then `20261214010600_public_sort_ties.sql` on the isolated stack first.
 The second migration separates admission, removes the global quota, and validates values before SQL casts.
 For the projection performance fix, apply [migration 107](../supabase/migrations/20261214010700_public_projection_batch.sql) after those four migrations.
@@ -324,7 +327,7 @@ League latency rises while its payload grows about fourfold and admission adds a
 The middle roster page has a higher p95 despite a lower median; thirty samples do not establish tail stability.
 Raw per-request measurements, database statement samples and environment details accompany the review evidence.
 The repository harness is tools/perf/public-cli.mjs; its eight focused tests check measurement behavior.
-No production speedup or deployment is claimed.
+These measurements do not establish a production speedup.
 
 ## Production-scale projection check
 

@@ -1,0 +1,7 @@
+# Pancake
+
+> Read public fantasy basketball league data anonymously through the Pancake CLI and API.
+
+## Public usage
+
+- [Agent guide](https://pancakedynasty.vercel.app/agents.md): Installation, discovery, schemas, pagination, errors, and privacy.
