@@ -1,0 +1,2937 @@
+{
+  "version": 2,
+  "maxLimit": 50,
+  "defaultLimit": 25,
+  "maxOffset": 100000,
+  "maxResponseBytes": 2097152,
+  "resources": {
+    "leagues": {
+      "source": "public.leagues l",
+      "where": "l.deleted_at IS NULL",
+      "fields": {
+        "id": {
+          "sql": "l.id",
+          "schema": {
+            "type": "string",
+            "maxLength": 36
+          }
+        },
+        "name": {
+          "sql": "l.name",
+          "schema": {
+            "type": "string",
+            "maxLength": 1024,
+            "x-overflow": "truncate"
+          }
+        },
+        "status": {
+          "sql": "l.status::text",
+          "schema": {
+            "type": "string",
+            "maxLength": 9
+          }
+        }
+      },
+      "filters": {
+        "query": [
+          "name"
+        ]
+      },
+      "order": [
+        "name",
+        "id"
+      ],
+      "visibility": [
+        {
+          "field": "deletedAt",
+          "op": "null",
+          "column": "l.deleted_at"
+        }
+      ]
+    },
+    "league": {
+      "source": "public.leagues l",
+      "where": "l.deleted_at IS NULL AND l.id=p_league_id",
+      "fields": {
+        "id": {
+          "sql": "l.id",
+          "schema": {
+            "type": "string",
+            "maxLength": 36
+          }
+        },
+        "name": {
+          "sql": "l.name",
+          "schema": {
+            "type": "string",
+            "maxLength": 1024,
+            "x-overflow": "truncate"
+          }
+        },
+        "status": {
+          "sql": "l.status::text",
+          "schema": {
+            "type": "string",
+            "maxLength": 9
+          }
+        },
+        "leagueId": {
+          "sql": "l.id",
+          "schema": {
+            "type": "string",
+            "maxLength": 36
+          }
+        },
+        "seasonId": {
+          "sql": "selected_season",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 36
+          }
+        },
+        "seasonYear": {
+          "sql": "selected_year",
+          "schema": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "timezone": {
+          "sql": "l.timezone",
+          "schema": {
+            "type": "string",
+            "maxLength": 1024,
+            "x-overflow": "truncate"
+          }
+        },
+        "rosterSize": {
+          "sql": "l.roster_size",
+          "schema": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "irSlots": {
+          "sql": "l.ir_slots",
+          "schema": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "taxiSlots": {
+          "sql": "l.taxi_slots",
+          "schema": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "taxiRule": {
+          "sql": "l.taxi_rule",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 19
+          }
+        },
+        "taxiMaxSeasons": {
+          "sql": "l.taxi_max_seasons",
+          "schema": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "teamLimit": {
+          "sql": "l.team_limit",
+          "schema": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "auctionBudget": {
+          "sql": "l.auction_budget",
+          "schema": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "waiverMode": {
+          "sql": "l.waiver_mode",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 7
+          }
+        },
+        "faabStartingBudget": {
+          "sql": "l.faab_starting_budget",
+          "schema": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "weeklyAddLimit": {
+          "sql": "l.weekly_add_limit",
+          "schema": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "tradeDeadline": {
+          "sql": "l.trade_deadline",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 64
+          }
+        },
+        "tradeVetoMode": {
+          "sql": "l.trade_veto_mode",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 12
+          }
+        },
+        "tradeVetoWindowHours": {
+          "sql": "l.trade_veto_window_hours",
+          "schema": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "tradeVetoThresholdPercent": {
+          "sql": "l.trade_veto_threshold_percent",
+          "schema": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "allowInactiveTrades": {
+          "sql": "l.allow_inactive_trades",
+          "schema": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          }
+        },
+        "playoffStartWeek": {
+          "sql": "l.playoff_start_week",
+          "schema": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "playoffEntrants": {
+          "sql": "l.playoff_entrants",
+          "schema": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "rookieDraftOrder": {
+          "sql": "l.rookie_draft_order",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 6
+          }
+        },
+        "futurePickYears": {
+          "sql": "l.future_pick_years",
+          "schema": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "scoringSettings": {
+          "sql": "jsonb_build_object('points',l.scoring_settings->'points','rebounds',l.scoring_settings->'rebounds','assists',l.scoring_settings->'assists','steals',l.scoring_settings->'steals','blocks',l.scoring_settings->'blocks','turnovers',l.scoring_settings->'turnovers','three_pointers_made',l.scoring_settings->'three_pointers_made','field_goals_made',l.scoring_settings->'field_goals_made','field_goals_attempted',l.scoring_settings->'field_goals_attempted','free_throws_made',l.scoring_settings->'free_throws_made','free_throws_attempted',l.scoring_settings->'free_throws_attempted','double_double',l.scoring_settings->'double_double','triple_double',l.scoring_settings->'triple_double')",
+          "schema": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "points": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "rebounds": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "assists": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "steals": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "blocks": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "turnovers": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "three_pointers_made": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "field_goals_made": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "field_goals_attempted": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "free_throws_made": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "free_throws_attempted": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "double_double": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "triple_double": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "points",
+              "rebounds",
+              "assists",
+              "steals",
+              "blocks",
+              "turnovers",
+              "three_pointers_made",
+              "field_goals_made",
+              "field_goals_attempted",
+              "free_throws_made",
+              "free_throws_attempted",
+              "double_double",
+              "triple_double"
+            ]
+          }
+        },
+        "playoffRoundLengths": {
+          "sql": "l.playoff_round_lengths",
+          "schema": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "maxItems": 20,
+            "items": {
+              "type": "integer"
+            },
+            "x-overflow": "truncate"
+          }
+        },
+        "playoffRoundWeeks": {
+          "sql": "l.playoff_round_weeks",
+          "schema": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "maxItems": 20,
+            "items": {
+              "type": "integer"
+            },
+            "x-overflow": "truncate"
+          }
+        },
+        "playoffTotalWeeks": {
+          "sql": "l.playoff_total_weeks",
+          "schema": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "lineupSlots": {
+          "sql": "coalesce((SELECT jsonb_agg(jsonb_build_object('slotType',slot.slot_type,'slotCount',slot.slot_count) ORDER BY slot.slot_type) FROM public.lineup_slot_templates slot WHERE slot.league_id=l.id),'[]'::jsonb)",
+          "schema": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "slotType",
+                "slotCount"
+              ],
+              "properties": {
+                "slotType": {
+                  "type": "string",
+                  "maxLength": 4
+                },
+                "slotCount": {
+                  "type": "integer"
+                }
+              }
+            },
+            "x-overflow": "truncate"
+          }
+        },
+        "waiverOrder": {
+          "sql": "coalesce((SELECT jsonb_agg(jsonb_build_object('teamId',w.member_id,'priority',w.priority) ORDER BY w.priority,w.member_id) FROM public.waiver_priorities w JOIN public.league_members member ON member.id=w.member_id AND member.league_id=w.league_id WHERE w.league_id=l.id AND w.league_season_id=selected_season),'[]'::jsonb)",
+          "schema": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "teamId",
+                "priority"
+              ],
+              "properties": {
+                "teamId": {
+                  "type": "string",
+                  "maxLength": 36
+                },
+                "priority": {
+                  "type": "integer"
+                }
+              }
+            },
+            "x-overflow": "truncate"
+          }
+        }
+      },
+      "filters": {
+        "season": []
+      },
+      "order": [
+        "id"
+      ],
+      "visibility": []
+    },
+    "seasons": {
+      "source": "public.league_seasons s",
+      "where": "s.league_id=p_league_id",
+      "fields": {
+        "id": {
+          "sql": "s.id",
+          "schema": {
+            "type": "string",
+            "maxLength": 36
+          }
+        },
+        "leagueId": {
+          "sql": "s.league_id",
+          "schema": {
+            "type": "string",
+            "maxLength": 36
+          }
+        },
+        "seasonYear": {
+          "sql": "s.season_year",
+          "schema": {
+            "type": "integer"
+          }
+        },
+        "isCurrent": {
+          "sql": "s.is_current",
+          "schema": {
+            "type": "boolean"
+          }
+        },
+        "regularSeasonStart": {
+          "sql": "s.regular_season_start",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 64
+          }
+        },
+        "regularSeasonEnd": {
+          "sql": "s.regular_season_end",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 64
+          }
+        }
+      },
+      "filters": {},
+      "order": [
+        "seasonYear",
+        "id"
+      ],
+      "visibility": []
+    },
+    "teams": {
+      "source": "public.league_members m",
+      "where": "m.league_id=p_league_id",
+      "fields": {
+        "id": {
+          "sql": "m.id",
+          "schema": {
+            "type": "string",
+            "maxLength": 36
+          }
+        },
+        "leagueId": {
+          "sql": "m.league_id",
+          "schema": {
+            "type": "string",
+            "maxLength": 36
+          }
+        },
+        "name": {
+          "sql": "coalesce(m.team_name,'Team')",
+          "schema": {
+            "type": "string",
+            "maxLength": 40
+          }
+        }
+      },
+      "filters": {
+        "team": [
+          "id"
+        ],
+        "query": [
+          "name"
+        ]
+      },
+      "order": [
+        "name",
+        "id"
+      ],
+      "visibility": []
+    },
+    "players": {
+      "source": "public.players p",
+      "where": "true",
+      "fields": {
+        "id": {
+          "sql": "p.id",
+          "schema": {
+            "type": "string",
+            "maxLength": 36
+          }
+        },
+        "leagueId": {
+          "sql": "p_league_id",
+          "schema": {
+            "type": "string",
+            "maxLength": 36
+          }
+        },
+        "name": {
+          "sql": "p.display_name",
+          "schema": {
+            "type": "string",
+            "maxLength": 1024,
+            "x-overflow": "truncate"
+          }
+        },
+        "nbaId": {
+          "sql": "p.nba_id",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1024,
+            "x-overflow": "truncate"
+          }
+        },
+        "nbaTeam": {
+          "sql": "p.nba_team",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1024,
+            "x-overflow": "truncate"
+          }
+        },
+        "position": {
+          "sql": "p.position::text",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 2
+          }
+        },
+        "injuryStatus": {
+          "sql": "p.injury_status",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1024,
+            "x-overflow": "truncate"
+          }
+        },
+        "yearsExperience": {
+          "sql": "p.years_exp",
+          "schema": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "status": {
+          "sql": "p.status",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1024,
+            "x-overflow": "truncate"
+          }
+        },
+        "birthdate": {
+          "sql": "p.birthdate",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 64
+          }
+        },
+        "injuryReason": {
+          "sql": "p.injury_reason",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1024,
+            "x-overflow": "truncate"
+          }
+        },
+        "injuryExpectedReturn": {
+          "sql": "p.injury_expected_return",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1024,
+            "x-overflow": "truncate"
+          }
+        },
+        "nbaDraftNumber": {
+          "sql": "p.nba_draft_number",
+          "schema": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "careerGames": {
+          "sql": "p.career_regular_season_games",
+          "schema": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "headshotUrl": {
+          "sql": "p.headshot_url",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1024,
+            "x-overflow": "truncate"
+          }
+        },
+        "eligiblePositions": {
+          "sql": "p.eligible_positions",
+          "schema": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "maxItems": 10,
+            "items": {
+              "type": "string",
+              "maxLength": 32,
+              "x-overflow": "truncate"
+            },
+            "x-overflow": "truncate"
+          }
+        }
+      },
+      "filters": {
+        "player": [
+          "id"
+        ],
+        "query": [
+          "name"
+        ],
+        "position": [
+          "position"
+        ]
+      },
+      "order": [
+        "name",
+        "id"
+      ],
+      "visibility": []
+    },
+    "free-agents": {
+      "source": "public.players p LEFT JOIN public.roster_players r ON r.player_id=p.id AND r.league_id=p_league_id AND r.league_season_id=selected_season LEFT JOIN LATERAL (SELECT max(w.clears_at) AS clears_at FROM public.waiver_wire_log w WHERE w.player_id=p.id AND w.league_id=p_league_id AND w.league_season_id=selected_season AND w.cleared_at IS NULL AND w.clears_at>now()) hold ON true",
+      "where": "r.id IS NULL",
+      "fields": {
+        "id": {
+          "sql": "p.id",
+          "schema": {
+            "type": "string",
+            "maxLength": 36
+          }
+        },
+        "leagueId": {
+          "sql": "p_league_id",
+          "schema": {
+            "type": "string",
+            "maxLength": 36
+          }
+        },
+        "name": {
+          "sql": "p.display_name",
+          "schema": {
+            "type": "string",
+            "maxLength": 1024,
+            "x-overflow": "truncate"
+          }
+        },
+        "nbaId": {
+          "sql": "p.nba_id",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1024,
+            "x-overflow": "truncate"
+          }
+        },
+        "nbaTeam": {
+          "sql": "p.nba_team",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1024,
+            "x-overflow": "truncate"
+          }
+        },
+        "position": {
+          "sql": "p.position::text",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 2
+          }
+        },
+        "injuryStatus": {
+          "sql": "p.injury_status",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1024,
+            "x-overflow": "truncate"
+          }
+        },
+        "yearsExperience": {
+          "sql": "p.years_exp",
+          "schema": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "status": {
+          "sql": "p.status",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1024,
+            "x-overflow": "truncate"
+          }
+        },
+        "availability": {
+          "sql": "CASE WHEN hold.clears_at IS NULL THEN 'free-agent' ELSE 'waivers' END",
+          "schema": {
+            "type": "string",
+            "enum": [
+              "free-agent",
+              "waivers"
+            ],
+            "maxLength": 10
+          }
+        },
+        "waiverClearsAt": {
+          "sql": "hold.clears_at",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 64
+          }
+        },
+        "waiverEligible": {
+          "sql": "true",
+          "schema": {
+            "type": "boolean"
+          }
+        },
+        "birthdate": {
+          "sql": "p.birthdate",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 64
+          }
+        },
+        "injuryReason": {
+          "sql": "p.injury_reason",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1024,
+            "x-overflow": "truncate"
+          }
+        },
+        "injuryExpectedReturn": {
+          "sql": "p.injury_expected_return",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1024,
+            "x-overflow": "truncate"
+          }
+        },
+        "nbaDraftNumber": {
+          "sql": "p.nba_draft_number",
+          "schema": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "careerGames": {
+          "sql": "p.career_regular_season_games",
+          "schema": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "headshotUrl": {
+          "sql": "p.headshot_url",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1024,
+            "x-overflow": "truncate"
+          }
+        },
+        "eligiblePositions": {
+          "sql": "p.eligible_positions",
+          "schema": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "maxItems": 10,
+            "items": {
+              "type": "string",
+              "maxLength": 32,
+              "x-overflow": "truncate"
+            },
+            "x-overflow": "truncate"
+          }
+        }
+      },
+      "filters": {
+        "player": [
+          "id"
+        ],
+        "query": [
+          "name"
+        ],
+        "position": [
+          "position"
+        ],
+        "season": []
+      },
+      "order": [
+        "name",
+        "id"
+      ],
+      "visibility": []
+    },
+    "rosters": {
+      "source": "public.roster_players r JOIN public.players p ON p.id=r.player_id JOIN public.league_members m ON m.id=r.member_id AND m.league_id=r.league_id",
+      "where": "r.league_id=p_league_id AND r.league_season_id=selected_season",
+      "fields": {
+        "id": {
+          "sql": "r.id",
+          "schema": {
+            "type": "string",
+            "maxLength": 36
+          }
+        },
+        "leagueId": {
+          "sql": "r.league_id",
+          "schema": {
+            "type": "string",
+            "maxLength": 36
+          }
+        },
+        "seasonYear": {
+          "sql": "selected_year",
+          "schema": {
+            "type": "integer"
+          }
+        },
+        "teamId": {
+          "sql": "r.member_id",
+          "schema": {
+            "type": "string",
+            "maxLength": 36
+          }
+        },
+        "isOnIR": {
+          "sql": "r.is_on_ir",
+          "schema": {
+            "type": "boolean"
+          }
+        },
+        "isOnTaxi": {
+          "sql": "r.is_on_taxi",
+          "schema": {
+            "type": "boolean"
+          }
+        },
+        "player": {
+          "sql": "jsonb_build_object('id',p.id,'name',p.display_name,'nbaId',p.nba_id,'nbaTeam',p.nba_team,'position',p.position::text,'injuryStatus',p.injury_status,'yearsExperience',p.years_exp,'status',p.status,'birthdate',p.birthdate,'injuryReason',p.injury_reason,'injuryExpectedReturn',p.injury_expected_return,'nbaDraftNumber',p.nba_draft_number,'careerGames',p.career_regular_season_games,'headshotUrl',p.headshot_url,'eligiblePositions',p.eligible_positions)",
+          "schema": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "maxLength": 36
+              },
+              "name": {
+                "type": "string",
+                "maxLength": 1024,
+                "x-overflow": "truncate"
+              },
+              "nbaId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024,
+                "x-overflow": "truncate"
+              },
+              "nbaTeam": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024,
+                "x-overflow": "truncate"
+              },
+              "position": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 2
+              },
+              "injuryStatus": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024,
+                "x-overflow": "truncate"
+              },
+              "yearsExperience": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "status": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024,
+                "x-overflow": "truncate"
+              },
+              "birthdate": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 64
+              },
+              "injuryReason": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024,
+                "x-overflow": "truncate"
+              },
+              "injuryExpectedReturn": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024,
+                "x-overflow": "truncate"
+              },
+              "nbaDraftNumber": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "careerGames": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "headshotUrl": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1024,
+                "x-overflow": "truncate"
+              },
+              "eligiblePositions": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "maxItems": 10,
+                "items": {
+                  "type": "string",
+                  "maxLength": 32,
+                  "x-overflow": "truncate"
+                },
+                "x-overflow": "truncate"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "nbaId",
+              "nbaTeam",
+              "position",
+              "injuryStatus",
+              "yearsExperience",
+              "status",
+              "birthdate",
+              "injuryReason",
+              "injuryExpectedReturn",
+              "nbaDraftNumber",
+              "careerGames",
+              "headshotUrl",
+              "eligiblePositions"
+            ]
+          }
+        }
+      },
+      "filters": {
+        "team": [
+          "teamId"
+        ],
+        "season": []
+      },
+      "order": [
+        "id"
+      ],
+      "visibility": []
+    },
+    "standings": {
+      "source": "public.league_members m LEFT JOIN public.standings_current c ON c.member_id=m.id AND c.league_season_id=selected_season",
+      "where": "m.league_id=p_league_id",
+      "fields": {
+        "id": {
+          "sql": "m.id",
+          "schema": {
+            "type": "string",
+            "maxLength": 36
+          }
+        },
+        "leagueId": {
+          "sql": "m.league_id",
+          "schema": {
+            "type": "string",
+            "maxLength": 36
+          }
+        },
+        "name": {
+          "sql": "coalesce(m.team_name,'Team')",
+          "schema": {
+            "type": "string",
+            "maxLength": 40
+          }
+        },
+        "wins": {
+          "sql": "coalesce(c.wins,0)",
+          "schema": {
+            "type": "integer"
+          }
+        },
+        "losses": {
+          "sql": "coalesce(c.losses,0)",
+          "schema": {
+            "type": "integer"
+          }
+        },
+        "ties": {
+          "sql": "coalesce(c.ties,0)",
+          "schema": {
+            "type": "integer"
+          }
+        },
+        "pointsFor": {
+          "sql": "coalesce(c.points_for,0)",
+          "schema": {
+            "type": "number"
+          }
+        },
+        "pointsAgainst": {
+          "sql": "coalesce(c.points_against,0)",
+          "schema": {
+            "type": "number"
+          }
+        },
+        "maxPointsFor": {
+          "sql": "coalesce(c.max_points_for,0)",
+          "schema": {
+            "type": "number"
+          }
+        },
+        "rank": {
+          "sql": "row_number() OVER (ORDER BY (coalesce(c.wins,0)+0.5*coalesce(c.ties,0))/greatest(coalesce(c.wins+c.losses+c.ties,0),1) DESC,coalesce(c.points_for,0)/greatest(coalesce(c.wins+c.losses+c.ties,0),1) DESC,coalesce(c.max_points_for,0) DESC,coalesce(c.points_against,0),m.team_name,m.id)",
+          "schema": {
+            "type": "integer"
+          }
+        }
+      },
+      "filters": {
+        "team": [
+          "id"
+        ]
+      },
+      "order": [
+        "rank",
+        "id"
+      ],
+      "visibility": []
+    },
+    "matchups": {
+      "source": "public.matchups m JOIN public.league_members h ON h.id=m.home_member_id AND h.league_id=m.league_id JOIN public.league_members a ON a.id=m.away_member_id AND a.league_id=m.league_id",
+      "where": "m.league_id=p_league_id AND m.league_season_id=selected_season AND NOT m.is_voided",
+      "fields": {
+        "id": {
+          "sql": "m.id",
+          "schema": {
+            "type": "string",
+            "maxLength": 36
+          }
+        },
+        "leagueId": {
+          "sql": "m.league_id",
+          "schema": {
+            "type": "string",
+            "maxLength": 36
+          }
+        },
+        "seasonYear": {
+          "sql": "selected_year",
+          "schema": {
+            "type": "integer"
+          }
+        },
+        "weekNumber": {
+          "sql": "m.week_number",
+          "schema": {
+            "type": "integer"
+          }
+        },
+        "endWeekNumber": {
+          "sql": "coalesce(m.end_week_number,m.week_number)",
+          "schema": {
+            "type": "integer"
+          }
+        },
+        "homeTeamId": {
+          "sql": "m.home_member_id",
+          "schema": {
+            "type": "string",
+            "maxLength": 36
+          }
+        },
+        "awayTeamId": {
+          "sql": "m.away_member_id",
+          "schema": {
+            "type": "string",
+            "maxLength": 36
+          }
+        },
+        "homeTeamName": {
+          "sql": "h.team_name",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 40
+          }
+        },
+        "awayTeamName": {
+          "sql": "a.team_name",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 40
+          }
+        },
+        "homePoints": {
+          "sql": "m.home_points",
+          "schema": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "awayPoints": {
+          "sql": "m.away_points",
+          "schema": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "finalized": {
+          "sql": "m.is_finalized",
+          "schema": {
+            "type": "boolean"
+          }
+        },
+        "winnerTeamId": {
+          "sql": "m.winner_member_id",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 36
+          }
+        }
+      },
+      "filters": {
+        "team": [
+          "homeTeamId",
+          "awayTeamId"
+        ],
+        "week": [
+          "weekNumber",
+          "endWeekNumber"
+        ],
+        "season": []
+      },
+      "order": [
+        "weekNumber",
+        "id"
+      ],
+      "visibility": [
+        {
+          "field": "isVoided",
+          "op": "eq",
+          "value": false,
+          "column": "m.is_voided"
+        }
+      ]
+    },
+    "scores": {
+      "source": "public.matchups m JOIN public.league_members h ON h.id=m.home_member_id AND h.league_id=m.league_id JOIN public.league_members a ON a.id=m.away_member_id AND a.league_id=m.league_id",
+      "where": "m.league_id=p_league_id AND m.league_season_id=selected_season AND NOT m.is_voided",
+      "fields": {
+        "id": {
+          "sql": "m.id",
+          "schema": {
+            "type": "string",
+            "maxLength": 36
+          }
+        },
+        "leagueId": {
+          "sql": "m.league_id",
+          "schema": {
+            "type": "string",
+            "maxLength": 36
+          }
+        },
+        "seasonYear": {
+          "sql": "selected_year",
+          "schema": {
+            "type": "integer"
+          }
+        },
+        "weekNumber": {
+          "sql": "m.week_number",
+          "schema": {
+            "type": "integer"
+          }
+        },
+        "endWeekNumber": {
+          "sql": "coalesce(m.end_week_number,m.week_number)",
+          "schema": {
+            "type": "integer"
+          }
+        },
+        "homeTeamId": {
+          "sql": "m.home_member_id",
+          "schema": {
+            "type": "string",
+            "maxLength": 36
+          }
+        },
+        "awayTeamId": {
+          "sql": "m.away_member_id",
+          "schema": {
+            "type": "string",
+            "maxLength": 36
+          }
+        },
+        "homeTeamName": {
+          "sql": "h.team_name",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 40
+          }
+        },
+        "awayTeamName": {
+          "sql": "a.team_name",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 40
+          }
+        },
+        "homePoints": {
+          "sql": "m.home_points",
+          "schema": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "awayPoints": {
+          "sql": "m.away_points",
+          "schema": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "finalized": {
+          "sql": "m.is_finalized",
+          "schema": {
+            "type": "boolean"
+          }
+        },
+        "winnerTeamId": {
+          "sql": "m.winner_member_id",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 36
+          }
+        }
+      },
+      "filters": {
+        "team": [
+          "homeTeamId",
+          "awayTeamId"
+        ],
+        "week": [
+          "weekNumber",
+          "endWeekNumber"
+        ],
+        "season": []
+      },
+      "order": [
+        "weekNumber",
+        "id"
+      ],
+      "visibility": [
+        {
+          "field": "isVoided",
+          "op": "eq",
+          "value": false,
+          "column": "m.is_voided"
+        }
+      ]
+    },
+    "schedule": {
+      "source": "public.matchups m JOIN public.league_members h ON h.id=m.home_member_id AND h.league_id=m.league_id JOIN public.league_members a ON a.id=m.away_member_id AND a.league_id=m.league_id",
+      "where": "m.league_id=p_league_id AND m.league_season_id=selected_season AND NOT m.is_voided",
+      "fields": {
+        "id": {
+          "sql": "m.id",
+          "schema": {
+            "type": "string",
+            "maxLength": 36
+          }
+        },
+        "leagueId": {
+          "sql": "m.league_id",
+          "schema": {
+            "type": "string",
+            "maxLength": 36
+          }
+        },
+        "seasonYear": {
+          "sql": "selected_year",
+          "schema": {
+            "type": "integer"
+          }
+        },
+        "weekNumber": {
+          "sql": "m.week_number",
+          "schema": {
+            "type": "integer"
+          }
+        },
+        "endWeekNumber": {
+          "sql": "coalesce(m.end_week_number,m.week_number)",
+          "schema": {
+            "type": "integer"
+          }
+        },
+        "homeTeamId": {
+          "sql": "m.home_member_id",
+          "schema": {
+            "type": "string",
+            "maxLength": 36
+          }
+        },
+        "awayTeamId": {
+          "sql": "m.away_member_id",
+          "schema": {
+            "type": "string",
+            "maxLength": 36
+          }
+        },
+        "homeTeamName": {
+          "sql": "h.team_name",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 40
+          }
+        },
+        "awayTeamName": {
+          "sql": "a.team_name",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 40
+          }
+        },
+        "homePoints": {
+          "sql": "m.home_points",
+          "schema": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "awayPoints": {
+          "sql": "m.away_points",
+          "schema": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "finalized": {
+          "sql": "m.is_finalized",
+          "schema": {
+            "type": "boolean"
+          }
+        },
+        "winnerTeamId": {
+          "sql": "m.winner_member_id",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 36
+          }
+        }
+      },
+      "filters": {
+        "team": [
+          "homeTeamId",
+          "awayTeamId"
+        ],
+        "week": [
+          "weekNumber",
+          "endWeekNumber"
+        ],
+        "season": []
+      },
+      "order": [
+        "weekNumber",
+        "id"
+      ],
+      "visibility": [
+        {
+          "field": "isVoided",
+          "op": "eq",
+          "value": false,
+          "column": "m.is_voided"
+        }
+      ]
+    },
+    "player-stats": {
+      "source": "public.players p LEFT JOIN public.player_season_averages c ON c.player_id=p.id AND c.league_id=p_league_id AND c.season_year=selected_year LEFT JOIN public.mv_player_season_averages a ON a.player_id=p.id AND a.season_year=selected_year LEFT JOIN public.v_player_avg_fantasy_points fp ON fp.player_id=p.id AND fp.league_id=p_league_id AND fp.season_year=selected_year",
+      "where": "true",
+      "fields": {
+        "id": {
+          "sql": "p.id",
+          "schema": {
+            "type": "string",
+            "maxLength": 36
+          }
+        },
+        "leagueId": {
+          "sql": "p_league_id",
+          "schema": {
+            "type": "string",
+            "maxLength": 36
+          }
+        },
+        "name": {
+          "sql": "p.display_name",
+          "schema": {
+            "type": "string",
+            "maxLength": 1024,
+            "x-overflow": "truncate"
+          }
+        },
+        "nbaId": {
+          "sql": "p.nba_id",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1024,
+            "x-overflow": "truncate"
+          }
+        },
+        "nbaTeam": {
+          "sql": "p.nba_team",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1024,
+            "x-overflow": "truncate"
+          }
+        },
+        "position": {
+          "sql": "p.position::text",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 2
+          }
+        },
+        "injuryStatus": {
+          "sql": "p.injury_status",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1024,
+            "x-overflow": "truncate"
+          }
+        },
+        "yearsExperience": {
+          "sql": "p.years_exp",
+          "schema": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "status": {
+          "sql": "p.status",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1024,
+            "x-overflow": "truncate"
+          }
+        },
+        "seasonYear": {
+          "sql": "selected_year",
+          "schema": {
+            "type": "integer"
+          }
+        },
+        "fantasyPoints": {
+          "sql": "coalesce(c.avg_fantasy_points,fp.avg_fantasy_points)",
+          "schema": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "gamesPlayed": {
+          "sql": "coalesce((c.averages->>'games_played')::integer,a.games_played)",
+          "schema": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "points": {
+          "sql": "coalesce((c.averages->>'avg_points')::numeric,a.avg_points)",
+          "schema": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "rebounds": {
+          "sql": "coalesce((c.averages->>'avg_rebounds')::numeric,a.avg_rebounds)",
+          "schema": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "assists": {
+          "sql": "coalesce((c.averages->>'avg_assists')::numeric,a.avg_assists)",
+          "schema": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "steals": {
+          "sql": "coalesce((c.averages->>'avg_steals')::numeric,a.avg_steals)",
+          "schema": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "blocks": {
+          "sql": "coalesce((c.averages->>'avg_blocks')::numeric,a.avg_blocks)",
+          "schema": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "turnovers": {
+          "sql": "coalesce((c.averages->>'avg_turnovers')::numeric,a.avg_turnovers)",
+          "schema": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "threePointersMade": {
+          "sql": "coalesce((c.averages->>'avg_three_pointers_made')::numeric,a.avg_three_pointers_made)",
+          "schema": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "minutes": {
+          "sql": "coalesce((c.averages->>'avg_minutes_played')::numeric,a.avg_minutes_played)",
+          "schema": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "birthdate": {
+          "sql": "p.birthdate",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 64
+          }
+        },
+        "injuryReason": {
+          "sql": "p.injury_reason",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1024,
+            "x-overflow": "truncate"
+          }
+        },
+        "injuryExpectedReturn": {
+          "sql": "p.injury_expected_return",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1024,
+            "x-overflow": "truncate"
+          }
+        },
+        "nbaDraftNumber": {
+          "sql": "p.nba_draft_number",
+          "schema": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "careerGames": {
+          "sql": "p.career_regular_season_games",
+          "schema": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "headshotUrl": {
+          "sql": "p.headshot_url",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1024,
+            "x-overflow": "truncate"
+          }
+        },
+        "eligiblePositions": {
+          "sql": "p.eligible_positions",
+          "schema": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "maxItems": 10,
+            "items": {
+              "type": "string",
+              "maxLength": 32,
+              "x-overflow": "truncate"
+            },
+            "x-overflow": "truncate"
+          }
+        },
+        "fieldGoalsMade": {
+          "sql": "coalesce((c.averages->>'avg_field_goals_made')::numeric,a.avg_field_goals_made)",
+          "schema": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "fieldGoalsAttempted": {
+          "sql": "coalesce((c.averages->>'avg_field_goals_attempted')::numeric,a.avg_field_goals_attempted)",
+          "schema": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "freeThrowsMade": {
+          "sql": "coalesce((c.averages->>'avg_free_throws_made')::numeric,a.avg_free_throws_made)",
+          "schema": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "freeThrowsAttempted": {
+          "sql": "coalesce((c.averages->>'avg_free_throws_attempted')::numeric,a.avg_free_throws_attempted)",
+          "schema": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "doubleDoubles": {
+          "sql": "coalesce((c.averages->>'double_doubles')::numeric,a.double_doubles)",
+          "schema": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "tripleDoubles": {
+          "sql": "coalesce((c.averages->>'triple_doubles')::numeric,a.triple_doubles)",
+          "schema": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        }
+      },
+      "filters": {
+        "player": [
+          "id"
+        ],
+        "query": [
+          "name"
+        ],
+        "position": [
+          "position"
+        ],
+        "season": []
+      },
+      "order": [
+        "name",
+        "id"
+      ],
+      "visibility": []
+    },
+    "projections": {
+      "source": "public.players p LEFT JOIN LATERAL public.get_league_projection_rows(p_league_id,selected_year,(now() AT TIME ZONE 'America/New_York')::date,'today',ARRAY[p.id],1,0) pr ON true",
+      "where": "true",
+      "fields": {
+        "id": {
+          "sql": "p.id",
+          "schema": {
+            "type": "string",
+            "maxLength": 36
+          }
+        },
+        "leagueId": {
+          "sql": "p_league_id",
+          "schema": {
+            "type": "string",
+            "maxLength": 36
+          }
+        },
+        "name": {
+          "sql": "p.display_name",
+          "schema": {
+            "type": "string",
+            "maxLength": 1024,
+            "x-overflow": "truncate"
+          }
+        },
+        "nbaId": {
+          "sql": "p.nba_id",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1024,
+            "x-overflow": "truncate"
+          }
+        },
+        "nbaTeam": {
+          "sql": "p.nba_team",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1024,
+            "x-overflow": "truncate"
+          }
+        },
+        "position": {
+          "sql": "p.position::text",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 2
+          }
+        },
+        "injuryStatus": {
+          "sql": "p.injury_status",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1024,
+            "x-overflow": "truncate"
+          }
+        },
+        "yearsExperience": {
+          "sql": "p.years_exp",
+          "schema": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "status": {
+          "sql": "p.status",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1024,
+            "x-overflow": "truncate"
+          }
+        },
+        "date": {
+          "sql": "pr.projection_date",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 64
+          }
+        },
+        "source": {
+          "sql": "pr.projection_source",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1024,
+            "x-overflow": "truncate"
+          }
+        },
+        "fetchedAt": {
+          "sql": "pr.projection_fetched_at",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 64
+          }
+        },
+        "projectionStatus": {
+          "sql": "pr.projection_status",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1024,
+            "x-overflow": "truncate"
+          }
+        },
+        "fantasyPoints": {
+          "sql": "pr.projection_fantasy_points",
+          "schema": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "points": {
+          "sql": "pr.projection_points",
+          "schema": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "rebounds": {
+          "sql": "pr.projection_rebounds",
+          "schema": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "assists": {
+          "sql": "pr.projection_assists",
+          "schema": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "steals": {
+          "sql": "pr.projection_steals",
+          "schema": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "blocks": {
+          "sql": "pr.projection_blocks",
+          "schema": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "turnovers": {
+          "sql": "pr.projection_turnovers",
+          "schema": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "minutes": {
+          "sql": "pr.projection_minutes",
+          "schema": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "birthdate": {
+          "sql": "p.birthdate",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 64
+          }
+        },
+        "injuryReason": {
+          "sql": "p.injury_reason",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1024,
+            "x-overflow": "truncate"
+          }
+        },
+        "injuryExpectedReturn": {
+          "sql": "p.injury_expected_return",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1024,
+            "x-overflow": "truncate"
+          }
+        },
+        "nbaDraftNumber": {
+          "sql": "p.nba_draft_number",
+          "schema": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "careerGames": {
+          "sql": "p.career_regular_season_games",
+          "schema": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "headshotUrl": {
+          "sql": "p.headshot_url",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1024,
+            "x-overflow": "truncate"
+          }
+        },
+        "eligiblePositions": {
+          "sql": "p.eligible_positions",
+          "schema": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "maxItems": 10,
+            "items": {
+              "type": "string",
+              "maxLength": 32,
+              "x-overflow": "truncate"
+            },
+            "x-overflow": "truncate"
+          }
+        }
+      },
+      "filters": {
+        "player": [
+          "id"
+        ],
+        "query": [
+          "name"
+        ],
+        "position": [
+          "position"
+        ]
+      },
+      "order": [
+        "name",
+        "id"
+      ],
+      "visibility": []
+    },
+    "drafts": {
+      "source": "public.drafts d",
+      "where": "d.league_id=p_league_id AND d.league_season_id=selected_season AND NOT d.is_mock",
+      "fields": {
+        "id": {
+          "sql": "d.id",
+          "schema": {
+            "type": "string",
+            "maxLength": 36
+          }
+        },
+        "leagueId": {
+          "sql": "d.league_id",
+          "schema": {
+            "type": "string",
+            "maxLength": 36
+          }
+        },
+        "seasonYear": {
+          "sql": "selected_year",
+          "schema": {
+            "type": "integer"
+          }
+        },
+        "draftType": {
+          "sql": "d.draft_type::text",
+          "schema": {
+            "type": "string",
+            "maxLength": 7
+          }
+        },
+        "status": {
+          "sql": "d.status::text",
+          "schema": {
+            "type": "string",
+            "maxLength": 11
+          }
+        },
+        "scheduledAt": {
+          "sql": "d.scheduled_at",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 64
+          }
+        },
+        "startedAt": {
+          "sql": "d.started_at",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 64
+          }
+        },
+        "completedAt": {
+          "sql": "d.completed_at",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 64
+          }
+        }
+      },
+      "filters": {
+        "draft": [
+          "id"
+        ],
+        "season": []
+      },
+      "order": [
+        "id"
+      ],
+      "visibility": [
+        {
+          "field": "isMock",
+          "op": "eq",
+          "value": false,
+          "column": "d.is_mock"
+        }
+      ]
+    },
+    "draft-results": {
+      "source": "(SELECT s.id,s.draft_id,s.member_id,s.player_id,s.overall_pick,s.round,s.picked_at,NULL::integer AS price FROM public.snake_draft_picks s WHERE s.player_id IS NOT NULL AND s.picked_at IS NOT NULL UNION ALL SELECT n.id,n.draft_id,n.winning_member_id,n.player_id,n.nomination_order,NULL::integer,n.closed_at,n.final_price FROM public.nominations n WHERE n.status='sold' AND n.winning_member_id IS NOT NULL) pick JOIN public.drafts d ON d.id=pick.draft_id JOIN public.players p ON p.id=pick.player_id JOIN public.league_members m ON m.id=pick.member_id AND m.league_id=d.league_id",
+      "where": "d.league_id=p_league_id AND d.league_season_id=selected_season AND NOT d.is_mock AND d.status='completed'",
+      "fields": {
+        "id": {
+          "sql": "pick.id",
+          "schema": {
+            "type": "string",
+            "maxLength": 36
+          }
+        },
+        "leagueId": {
+          "sql": "d.league_id",
+          "schema": {
+            "type": "string",
+            "maxLength": 36
+          }
+        },
+        "seasonYear": {
+          "sql": "selected_year",
+          "schema": {
+            "type": "integer"
+          }
+        },
+        "draftId": {
+          "sql": "d.id",
+          "schema": {
+            "type": "string",
+            "maxLength": 36
+          }
+        },
+        "draftType": {
+          "sql": "d.draft_type::text",
+          "schema": {
+            "type": "string",
+            "maxLength": 7
+          }
+        },
+        "overallPick": {
+          "sql": "pick.overall_pick",
+          "schema": {
+            "type": "integer"
+          }
+        },
+        "round": {
+          "sql": "pick.round",
+          "schema": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "teamId": {
+          "sql": "pick.member_id",
+          "schema": {
+            "type": "string",
+            "maxLength": 36
+          }
+        },
+        "teamName": {
+          "sql": "m.team_name",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 40
+          }
+        },
+        "playerId": {
+          "sql": "p.id",
+          "schema": {
+            "type": "string",
+            "maxLength": 36
+          }
+        },
+        "playerName": {
+          "sql": "p.display_name",
+          "schema": {
+            "type": "string",
+            "maxLength": 1024,
+            "x-overflow": "truncate"
+          }
+        },
+        "pickedAt": {
+          "sql": "pick.picked_at",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 64
+          }
+        },
+        "price": {
+          "sql": "pick.price",
+          "schema": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        }
+      },
+      "filters": {
+        "draft": [
+          "draftId"
+        ],
+        "team": [
+          "teamId"
+        ],
+        "season": []
+      },
+      "order": [
+        "draftId",
+        "overallPick",
+        "id"
+      ],
+      "visibility": [
+        {
+          "field": "isMock",
+          "op": "eq",
+          "value": false,
+          "column": "d.is_mock"
+        },
+        {
+          "field": "draftStatus",
+          "op": "eq",
+          "value": "completed",
+          "column": "d.status"
+        }
+      ]
+    },
+    "picks": {
+      "source": "public.draft_picks p",
+      "where": "p.league_id=p_league_id",
+      "fields": {
+        "id": {
+          "sql": "p.id",
+          "schema": {
+            "type": "string",
+            "maxLength": 36
+          }
+        },
+        "leagueId": {
+          "sql": "p.league_id",
+          "schema": {
+            "type": "string",
+            "maxLength": 36
+          }
+        },
+        "seasonYear": {
+          "sql": "p.season_year",
+          "schema": {
+            "type": "integer"
+          }
+        },
+        "round": {
+          "sql": "p.round",
+          "schema": {
+            "type": "integer"
+          }
+        },
+        "teamId": {
+          "sql": "p.current_owner_id",
+          "schema": {
+            "type": "string",
+            "maxLength": 36
+          }
+        },
+        "originalTeamId": {
+          "sql": "p.original_owner_id",
+          "schema": {
+            "type": "string",
+            "maxLength": 36
+          }
+        },
+        "isUsed": {
+          "sql": "p.is_used",
+          "schema": {
+            "type": "boolean"
+          }
+        }
+      },
+      "filters": {
+        "team": [
+          "teamId"
+        ],
+        "season": [
+          "seasonYear"
+        ]
+      },
+      "order": [
+        "seasonYear",
+        "round",
+        "id"
+      ],
+      "visibility": []
+    },
+    "trades": {
+      "source": "public.trades t JOIN public.league_seasons s ON s.id=t.league_season_id AND s.league_id=t.league_id",
+      "where": "t.league_id=p_league_id AND t.status='completed' AND t.completed_at IS NOT NULL",
+      "fields": {
+        "id": {
+          "sql": "t.id",
+          "schema": {
+            "type": "string",
+            "maxLength": 36
+          }
+        },
+        "leagueId": {
+          "sql": "t.league_id",
+          "schema": {
+            "type": "string",
+            "maxLength": 36
+          }
+        },
+        "seasonYear": {
+          "sql": "s.season_year",
+          "schema": {
+            "type": "integer"
+          }
+        },
+        "status": {
+          "sql": "t.status::text",
+          "schema": {
+            "type": "string",
+            "enum": [
+              "completed"
+            ],
+            "maxLength": 9
+          }
+        },
+        "completedAt": {
+          "sql": "t.completed_at",
+          "schema": {
+            "type": "string",
+            "maxLength": 64
+          }
+        },
+        "proposerTeamId": {
+          "sql": "t.proposer_member_id",
+          "schema": {
+            "type": "string",
+            "maxLength": 36
+          }
+        },
+        "recipientTeamId": {
+          "sql": "t.recipient_member_id",
+          "schema": {
+            "type": "string",
+            "maxLength": 36
+          }
+        },
+        "teamIds": {
+          "sql": "ARRAY(SELECT participant.member_id::text FROM public.trade_participants participant WHERE participant.trade_id=t.id AND participant.league_id=t.league_id ORDER BY participant.member_id)",
+          "schema": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 36
+            },
+            "maxItems": 12,
+            "x-overflow": "truncate"
+          }
+        }
+      },
+      "filters": {
+        "trade": [
+          "id"
+        ],
+        "season": [
+          "seasonYear"
+        ],
+        "team": [
+          "proposerTeamId",
+          "recipientTeamId",
+          "teamIds"
+        ]
+      },
+      "order": [
+        "completedAt",
+        "id"
+      ],
+      "visibility": [
+        {
+          "field": "status",
+          "op": "eq",
+          "value": "completed",
+          "column": "t.status"
+        },
+        {
+          "field": "completedAt",
+          "op": "notNull",
+          "column": "t.completed_at"
+        }
+      ],
+      "direction": "desc"
+    },
+    "trade-assets": {
+      "source": "public.trade_items i JOIN public.trades t ON t.id=i.trade_id AND t.league_id=i.league_id JOIN public.league_seasons s ON s.id=t.league_season_id AND s.league_id=t.league_id LEFT JOIN public.players p ON p.id=i.player_id LEFT JOIN public.draft_picks pick ON pick.id=i.pick_id AND pick.league_id=i.league_id",
+      "where": "t.league_id=p_league_id AND t.status='completed' AND t.completed_at IS NOT NULL",
+      "fields": {
+        "id": {
+          "sql": "i.id",
+          "schema": {
+            "type": "string",
+            "maxLength": 36
+          }
+        },
+        "leagueId": {
+          "sql": "i.league_id",
+          "schema": {
+            "type": "string",
+            "maxLength": 36
+          }
+        },
+        "tradeId": {
+          "sql": "i.trade_id",
+          "schema": {
+            "type": "string",
+            "maxLength": 36
+          }
+        },
+        "status": {
+          "sql": "t.status::text",
+          "schema": {
+            "type": "string",
+            "enum": [
+              "completed"
+            ],
+            "maxLength": 9
+          }
+        },
+        "completedAt": {
+          "sql": "t.completed_at",
+          "schema": {
+            "type": "string",
+            "maxLength": 64
+          }
+        },
+        "fromTeamId": {
+          "sql": "i.from_member_id",
+          "schema": {
+            "type": "string",
+            "maxLength": 36
+          }
+        },
+        "toTeamId": {
+          "sql": "i.to_member_id",
+          "schema": {
+            "type": "string",
+            "maxLength": 36
+          }
+        },
+        "kind": {
+          "sql": "CASE WHEN i.player_id IS NOT NULL THEN 'player' WHEN i.pick_id IS NOT NULL THEN 'pick' ELSE 'budget' END",
+          "schema": {
+            "type": "string",
+            "enum": [
+              "player",
+              "pick",
+              "budget"
+            ],
+            "maxLength": 6
+          }
+        },
+        "playerId": {
+          "sql": "i.player_id",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 36
+          }
+        },
+        "playerName": {
+          "sql": "p.display_name",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1024,
+            "x-overflow": "truncate"
+          }
+        },
+        "pickId": {
+          "sql": "i.pick_id",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 36
+          }
+        },
+        "pickSeasonYear": {
+          "sql": "pick.season_year",
+          "schema": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "pickRound": {
+          "sql": "pick.round",
+          "schema": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        }
+      },
+      "filters": {
+        "trade": [
+          "tradeId"
+        ],
+        "team": [
+          "fromTeamId",
+          "toTeamId"
+        ]
+      },
+      "order": [
+        "tradeId",
+        "id"
+      ],
+      "visibility": [
+        {
+          "field": "status",
+          "op": "eq",
+          "value": "completed",
+          "column": "t.status"
+        },
+        {
+          "field": "completedAt",
+          "op": "notNull",
+          "column": "t.completed_at"
+        }
+      ]
+    },
+    "transactions": {
+      "source": "(SELECT tx.id,tx.league_id,tx.league_season_id,tx.member_id,tx.player_id,tx.transaction_type,tx.occurred_at,tx.related_trade_id FROM public.roster_transactions tx WHERE tx.transaction_type IN ('fa_add','fa_drop','waiver_add','waiver_drop','trade_in','trade_out','draft_won','carry_over') AND (tx.transaction_type NOT IN ('trade_in','trade_out') OR EXISTS(SELECT 1 FROM public.trades t WHERE t.id=tx.related_trade_id AND t.league_id=tx.league_id AND t.status='completed' AND t.completed_at IS NOT NULL)) UNION ALL SELECT a.id,a.league_id,a.league_season_id,a.actor_member_id,a.related_player_id,a.event_type,a.created_at,a.related_trade_id FROM public.league_activity a JOIN public.trades t ON t.id=a.related_trade_id AND t.league_id=a.league_id AND t.status='completed' AND t.completed_at IS NOT NULL WHERE a.event_type='trade_completed') tx LEFT JOIN public.players p ON p.id=tx.player_id LEFT JOIN public.league_members m ON m.id=tx.member_id AND m.league_id=tx.league_id",
+      "where": "tx.league_id=p_league_id AND tx.league_season_id=selected_season",
+      "fields": {
+        "id": {
+          "sql": "tx.id",
+          "schema": {
+            "type": "string",
+            "maxLength": 36
+          }
+        },
+        "leagueId": {
+          "sql": "tx.league_id",
+          "schema": {
+            "type": "string",
+            "maxLength": 36
+          }
+        },
+        "teamId": {
+          "sql": "tx.member_id",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 36
+          }
+        },
+        "teamName": {
+          "sql": "m.team_name",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 40
+          }
+        },
+        "playerId": {
+          "sql": "tx.player_id",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 36
+          }
+        },
+        "playerName": {
+          "sql": "p.display_name",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1024,
+            "x-overflow": "truncate"
+          }
+        },
+        "type": {
+          "sql": "tx.transaction_type",
+          "schema": {
+            "type": "string",
+            "enum": [
+              "fa_add",
+              "fa_drop",
+              "waiver_add",
+              "waiver_drop",
+              "trade_in",
+              "trade_out",
+              "draft_won",
+              "carry_over",
+              "trade_completed"
+            ],
+            "maxLength": 15
+          }
+        },
+        "occurredAt": {
+          "sql": "tx.occurred_at",
+          "schema": {
+            "type": "string",
+            "maxLength": 64
+          }
+        },
+        "tradeId": {
+          "sql": "CASE WHEN tx.transaction_type IN ('trade_in','trade_out','trade_completed') THEN tx.related_trade_id END",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 36
+          }
+        }
+      },
+      "filters": {
+        "team": [
+          "teamId"
+        ],
+        "season": []
+      },
+      "order": [
+        "occurredAt",
+        "id"
+      ],
+      "visibility": [
+        {
+          "field": "type",
+          "op": "in",
+          "value": [
+            "fa_add",
+            "fa_drop",
+            "waiver_add",
+            "waiver_drop",
+            "trade_in",
+            "trade_out",
+            "draft_won",
+            "carry_over",
+            "trade_completed"
+          ],
+          "column": "tx.transaction_type"
+        },
+        {
+          "field": "relatedTradeStatus",
+          "op": "completedWhenTrade",
+          "column": "tx.related_trade_id"
+        }
+      ],
+      "direction": "desc"
+    }
+  },
+  "tieBreaker": {
+    "field": "id",
+    "direction": "asc"
+  }
+}

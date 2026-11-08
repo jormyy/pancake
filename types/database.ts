@@ -7073,9 +7073,19 @@ export type Database = {
         Returns: string
       }
       prune_unbounded_history: { Args: never; Returns: Json }
+      public_admit_read: { Args: { p_client_key: string }; Returns: Json }
       public_prune_read_log: { Args: never; Returns: number }
       public_read: {
         Args: { p_params?: Json; p_resource: string; p_token: string }
+        Returns: Json
+      }
+      public_read_v2: {
+        Args: {
+          p_client_key?: string
+          p_league_id: string
+          p_params?: Json
+          p_resource: string
+        }
         Returns: Json
       }
       public_share_token: {

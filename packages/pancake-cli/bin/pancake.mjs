@@ -1,18 +1,21 @@
 #!/usr/bin/env node
 import { createHash } from 'node:crypto'
 import { Buffer } from 'node:buffer'
-import { readFileSync } from 'node:fs'
+import { readFileSync, realpathSync } from 'node:fs'
 import { readFile, writeFile, mkdir, readdir, stat, unlink } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { spawnSync } from 'node:child_process'
-const contract = JSON.parse(readFileSync(new URL('../schemas/v1.json', import.meta.url), 'utf8'))
+const contract = JSON.parse(readFileSync(new URL('../schemas/v2.json', import.meta.url), 'utf8'))
 
-const exitCodes = { success: 0, usage: 2, auth: 3, missing: 4, limited: 5, network: 6, server: 7, operator: 8 }
+const supported = JSON.parse(readFileSync(new URL('../schemas/options-v2.json', import.meta.url), 'utf8'))
+const maximumBytes = 2 * 1024 * 1024
+const defaultApiUrl = 'https://ceeytbfmwsnzalxlkalc.supabase.co/functions/v1/api'
+const exitCodes = { success: 0, usage: 2, missing: 4, limited: 5, network: 6, server: 7 }
 const resources = Object.keys(contract.resources)
-const filters = ['limit', 'cursor', 'season', 'week', 'team', 'player', 'query', 'position']
-const values = new Set([...filters, 'api-url', 'token', 'fixture', 'cache-dir', 'operator-connection'])
+const filters = ['league', 'limit', 'cursor', 'season', 'week', 'team', 'player', 'draft', 'trade', 'query', 'position', 'sort', 'direction']
+const idLookups = { league: 'leagues', team: 'teams', player: 'players', draft: 'drafts', trade: 'trades' }
+const values = new Set([...filters, 'api-url', 'fixture', 'cache-dir'])
 const flags = new Set(['json', 'text', 'no-cache', 'help', 'version'])
 class CliError extends Error {
   constructor(message, code) { super(message); this.code = code }
@@ -30,7 +33,7 @@ function parse(args) {
       options[key] = true
     } else {
       const value = rest.length ? rest.join('=') : args[++index]
-      if (!value || value.startsWith('--')) throw new CliError(`--${key} needs a value`, 2)
+      if (!value || value.startsWith('--')) throw new CliError(Object.hasOwn(idLookups,key) ? `--${key} needs a UUID; run \`pancake ${idLookups[key]}${key==='league'?'':' --league ID'}\` to find IDs` : `--${key} needs a value`, 2)
       options[key] = value
     }
   }
@@ -40,8 +43,8 @@ function parse(args) {
 function description(name) {
   const selected = name ? { [name]: contract.resources[name] } : contract.resources
   if (name && !contract.resources[name]) throw new CliError('Unknown resource', 2)
-  return { $schema: 'urn:pancake:cli:v1:description', version: 1,
-    commands: [...resources, 'describe', 'explain', 'db-health'], filters,
+  return { $schema: 'urn:pancake:cli:v2:description', version: 2,
+    commands: [...resources, 'describe', 'explain'], filters, defaultApiUrl,
     options: [...values, ...flags], exitCodes, schemas: selected }
 }
 function explain(target) {
@@ -53,9 +56,10 @@ function explain(target) {
     schema = schema.properties?.[field]
     if (!schema) throw new CliError('Unknown field', 2)
   }
-  return { $schema: 'urn:pancake:cli:v1:explanation', version: 1, object: target, definition: schema }
+  return { $schema: 'urn:pancake:cli:v2:explanation', version: 2, object: target, definition: schema }
 }
 function validate(value, schema) {
+  if ((typeof value === 'string' && Array.from(value).length > (schema.maxLength ?? 100000)) || (Array.isArray(value) && value.length > (schema.maxItems ?? 50))) throw new CliError('Response exceeds schema bounds', 7)
   if (schema.const !== undefined && value !== schema.const) throw new CliError('Response schema does not match', 7)
   if (schema.enum && !schema.enum.includes(value)) throw new CliError('Response contains an invalid field', 7)
   const types = Array.isArray(schema.type) ? schema.type : [schema.type]
@@ -84,24 +88,48 @@ function queryOptions(options, name) {
   numberOption(options.limit, 25, 50)
   numberOption(options.week, 1, 60)
   numberOption(options.season, 1, 2200)
-  for (const key of ['team', 'player']) if (options[key] && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(options[key])) throw new CliError(`Invalid --${key}`, 2)
-  if (name === 'rosters' && !options.team) throw new CliError('rosters requires --team; use standings to find team IDs', 2)
-  const supported = { season: ['league', 'rosters', 'matchups', 'scores', 'schedule', 'draft-results', 'player-stats'], week: ['matchups', 'scores', 'schedule'], team: ['rosters', 'standings', 'matchups', 'scores', 'schedule', 'transactions'],
-    player: ['player-stats', 'projections'], query: ['player-stats', 'projections'], position: ['player-stats', 'projections'] }
-  for (const [filter, commands] of Object.entries(supported)) if (options[filter] !== undefined && !commands.includes(name)) throw new CliError(`--${filter} is not supported for ${name}`, 2)
-  for (const filter of filters) if (options[filter] !== undefined) params.set(filter, options[filter])
+  if (name !== 'leagues' && !options.league) throw new CliError('--league is required; run `pancake leagues` to find league IDs', 2)
+  if (name === 'rosters' && !options.team) throw new CliError('--team is required; run `pancake teams --league ID` to find team IDs', 2)
+  for (const key of Object.keys(idLookups)) {
+    if (options[key] && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(options[key])) {
+      throw new CliError(`--${key} must be a UUID; run \`pancake ${idLookups[key]}${key === 'league' ? '' : ' --league ID'}\` to find IDs`, 2)
+    }
+  }
+  if (name === 'leagues' && options.league) throw new CliError('leagues does not accept --league', 2)
+  for (const key of filters) {
+    if (options[key] === undefined) continue
+    if (!['league','limit','cursor','sort','direction'].includes(key) && !supported[name].filters.includes(key)) throw new CliError(`--${key} is not supported for ${name}`, 2)
+    if (key === 'sort' && !supported[name].sorts.includes(options[key])) throw new CliError('Invalid sort field', 2)
+    if (key === 'direction' && !['asc','desc'].includes(options[key])) throw new CliError('Invalid sort direction', 2)
+    if (['query','position'].includes(key) && (options[key].length > 100 || /[\u0000-\u001f]/.test(options[key]))) throw new CliError('Invalid text filter', 2)
+    params.set(key, options[key])
+  }
   params.sort()
   return params
 }
 async function fixtureRead(filename, name, params) {
+  if ((await stat(filename)).size > maximumBytes) throw new CliError('Fixture exceeds output limit', 7)
   const fixture = JSON.parse(await readFile(filename, 'utf8'))
-  let items = fixture.resources[name].items
-  if (params.has('team')) items = items.filter(item => item.teamId === params.get('team') || item.homeTeamId === params.get('team') || item.awayTeamId === params.get('team'))
-  if (params.has('player')) items = items.filter(item => item.id === params.get('player'))
-  if (params.has('query')) items = items.filter(item => (item.name ?? '').toLowerCase().includes(params.get('query').toLowerCase()))
-  if (params.has('position')) items = items.filter(item => item.position === params.get('position'))
-  if (params.has('week')) items = items.filter(item => item.weekNumber <= Number(params.get('week')) && item.endWeekNumber >= Number(params.get('week')))
-  if (params.has('season')) items = items.filter(item => item.seasonYear === undefined || item.seasonYear === Number(params.get('season')))
+  let items = fixture.resources[name].items.filter(item => name === 'leagues' || item.leagueId === params.get('league'))
+  for (const [key, fields] of Object.entries(supported[name].filterFields)) {
+    if (!params.has(key) || !fields.length) continue
+    const target = params.get(key)
+    items = items.filter(item => key === 'query' ? fields.some(field => String(item[field] ?? '').toLowerCase().includes(target.toLowerCase()))
+      : key === 'week' ? Number(target) >= item[fields[0]] && Number(target) <= item[fields[1]]
+      : fields.some(field => Array.isArray(item[field]) ? item[field].includes(target) : String(item[field]) === target))
+  }
+  const tie = supported[name].tieBreaker.field
+  const keys = [params.get('sort') ?? supported[name].order[0], ...supported[name].order.slice(1).filter(key=>key!==tie), tie]
+  const direction = (params.get('direction') ?? supported[name].direction) === 'desc' ? -1 : 1
+  items = [...items].sort((a,b) => {
+    for (const [index,key] of keys.entries()) {
+      if (a[key] === b[key]) continue
+      if (a[key] == null) return 1
+      if (b[key] == null) return -1
+      return (a[key] < b[key] ? -1 : 1) * (index === 0 ? direction : 1)
+    }
+    return 0
+  })
   let offset = 0
   if (params.has('cursor')) {
     try {
@@ -111,7 +139,7 @@ async function fixtureRead(filename, name, params) {
     } catch { throw new CliError('Invalid fixture cursor', 2) }
   }
   const limit = Number(params.get('limit') ?? 25)
-  return { $schema: `urn:pancake:public:v1:${name}`, version: 1, resource: name,
+  return { $schema: `urn:pancake:public:v2:${name}`, version: 2, resource: name,
     items: items.slice(offset, offset + limit), nextCursor: offset + limit < items.length ? Buffer.from(JSON.stringify({ resource: name, offset: offset + limit })).toString('base64') : null }
 }
 async function trimCache(directory) {
@@ -122,14 +150,12 @@ async function trimCache(directory) {
 }
 async function remoteRead(name, options, params, environment, fetcher) {
   let base
-  try { base = new URL(options['api-url'] ?? environment.PANCAKE_API_URL) } catch { throw new CliError('Set PANCAKE_API_URL or --api-url', 2) }
+  try { base = new URL(options['api-url'] ?? environment.PANCAKE_API_URL ?? defaultApiUrl) } catch { throw new CliError('Invalid API URL; use --api-url with an HTTPS URL', 2) }
   if (!['http:', 'https:'].includes(base.protocol) || base.username || base.password || base.search || base.hash ||
     (base.protocol === 'http:' && !['127.0.0.1', 'localhost', '[::1]'].includes(base.hostname))) throw new CliError('Use HTTPS or a loopback HTTP API URL', 2)
-  const token = options.token ?? environment.PANCAKE_TOKEN
-  if (!/^[a-f0-9]{64}$/i.test(token ?? '')) throw new CliError('Set PANCAKE_TOKEN or --token to a league share token', 3)
-  const url = `${base.href.replace(/\/+$/, '')}/public/v1/${name}?${params}`
+  const url = `${base.href.replace(/\/+$/, '')}/public/v2/${name}?${params}`
   const directory = options['cache-dir'] ?? path.join(homedir(), '.cache', 'pancake')
-  const key = createHash('sha256').update(`${url}\n${token.toLowerCase()}`).digest('hex')
+  const key = createHash('sha256').update(url).digest('hex')
   const filename = path.join(directory, `${key}.json`)
   let cached
   if (!options['no-cache']) {
@@ -140,20 +166,46 @@ async function remoteRead(name, options, params, environment, fetcher) {
     } catch { cached = undefined }
   }
   let response
-  try {
-    response = await fetcher(url, { headers: { Authorization: `Bearer ${token}`, ...(cached ? { 'If-None-Match': cached.etag } : {}) }, redirect: 'error', signal: AbortSignal.timeout(15000) })
-  } catch { throw new CliError('Could not reach the public API', 6) }
+  const signal = AbortSignal.timeout(15000)
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      response = await fetcher(url, { headers: cached ? { 'If-None-Match': cached.etag } : {}, redirect: 'error', signal })
+      if (![502,503,504].includes(response.status) || attempt === 2) break
+      await response.body?.cancel()
+    } catch (error) {
+      if (!signal.aborted && error?.name !== 'AbortError' && !(error instanceof TypeError)) throw new CliError('Public API returned an invalid response', 7)
+      if (attempt === 2 || signal.aborted) throw new CliError('Could not reach the public API', 6)
+    }
+    await new Promise(resolve => setTimeout(resolve, 100 * 2 ** attempt))
+    if (signal.aborted) throw new CliError('Could not reach the public API', 6)
+  }
   if (response.status === 304 && cached) return cached.body
   if (!response.ok) {
     const status = response.status
-    throw new CliError(status === 429 ? `Read limit reached; retry after ${response.headers.get('retry-after') ?? '60'} seconds` : `Public API returned ${status}`,
-      status === 401 || status === 403 ? 3 : status === 404 ? 4 : status === 429 ? 5 : status === 400 ? 2 : 7)
+    await response.body?.cancel()
+    throw new CliError(status === 404 ? 'Public resource not found' : status === 429 ? 'Read limit reached' : `Public API returned ${status}`,
+      status === 404 ? 4 : status === 429 ? 5 : status === 400 ? 2 : 7)
   }
+  if (!response.body || response.bodyUsed || response.body.locked) throw new CliError('Public API returned an empty or unreadable response', 7)
+  const reader = response.body.getReader()
+  const chunks = []
+  let bytes = 0
+  try {
+    while (true) {
+      const part = await reader.read()
+      if (part.done) break
+      bytes += part.value.byteLength
+      if (bytes > maximumBytes) throw new CliError('Response exceeds output limit', 7)
+      chunks.push(part.value)
+    }
+  } catch (error) {
+    if (error instanceof CliError) throw error
+    if (signal.aborted || error?.name === 'AbortError' || error instanceof TypeError) throw new CliError('Could not read the public API response', 6)
+    throw new CliError('Public API returned an invalid response body', 7)
+  } finally { try { await reader.cancel() } catch { } }
   let body
-  try { body = await response.json() } catch (error) {
-    if (error?.name === 'AbortError' || error?.name === 'TimeoutError' || error instanceof TypeError) throw new CliError('Could not read the public API response', 6)
-    throw new CliError('Public API returned invalid JSON', 7)
-  }
+  try { body = JSON.parse(Buffer.concat(chunks).toString('utf8')) }
+  catch { throw new CliError('Public API returned invalid JSON', 7) }
   validate(body, contract.resources[name])
   if (!options['no-cache'] && response.headers.has('etag')) {
     try {
@@ -163,15 +215,6 @@ async function remoteRead(name, options, params, environment, fetcher) {
     } catch { }
   }
   return body
-}
-function operatorHealth(connection) {
-  if (!connection) throw new CliError('db-health is private; supply --operator-connection', 2)
-  const query = `SELECT jsonb_build_object('database', current_database(), 'connections', (SELECT numbackends FROM pg_stat_database WHERE datname=current_database()), 'tables', (SELECT COALESCE(jsonb_agg(jsonb_build_object('schema', schemaname, 'table', relname, 'liveRows', n_live_tup, 'deadRows', n_dead_tup, 'lastAutovacuum', last_autovacuum) ORDER BY n_dead_tup DESC, schemaname, relname), '[]'::jsonb) FROM pg_stat_user_tables))`;
-  const result = spawnSync('psql', [connection, '-w', '-X', '-qAt', '-v', 'ON_ERROR_STOP=1', '-c', query], { encoding: 'utf8', timeout: 10000,
-    env: { ...process.env, PGOPTIONS: '-c default_transaction_read_only=on -c statement_timeout=5000' } })
-  if (result.status !== 0) throw new CliError('Operator health query failed', 8)
-  try { return { $schema: 'urn:pancake:operator:v1:health', version: 1, private: true, report: JSON.parse(result.stdout) } }
-  catch { throw new CliError('Invalid operator health report', 8) }
 }
 export async function run(args, io = {}) {
   const output = io.stdout ?? process.stdout
@@ -185,15 +228,15 @@ export async function run(args, io = {}) {
     const [name, target, ...extra] = positional
     if (extra.length || (target && !['describe', 'explain'].includes(name))) throw new CliError('Unexpected arguments', 2)
     let result
-    if (options.version) result = { version: '1.0.0', schemaVersion: 1 }
+    if (options.version) result = { version: '2.0.0', schemaVersion: 2 }
     else if (options.help || !name || name === 'describe') result = description(target)
     else if (name === 'explain') result = explain(target)
-    else if (name === 'db-health') result = operatorHealth(options['operator-connection'])
     else if (resources.includes(name)) {
       const params = queryOptions(options, name)
       result = options.fixture ? await fixtureRead(options.fixture, name, params) : await remoteRead(name, options, params, environment, fetcher)
       validate(result, contract.resources[name])
     } else throw new CliError(`Unknown command: ${name}`, 2)
+    if (Buffer.byteLength(JSON.stringify(result)) > maximumBytes) throw new CliError('Response exceeds output limit', 7)
     if (json) output.write(`${JSON.stringify(result)}\n`)
     else if (result.items) output.write(result.items.map(item => Object.entries(item).map(([key, value]) => `${key}=${typeof value === 'object' ? JSON.stringify(value) : value}`).join('  ')).join('\n') + `\n${result.nextCursor ? `nextCursor=${result.nextCursor}\n` : ''}`)
     else output.write(`${JSON.stringify(result, null, 2)}\n`)
@@ -201,8 +244,8 @@ export async function run(args, io = {}) {
   } catch (error) {
     const code = error instanceof CliError ? error.code : 7
     const message = error instanceof CliError ? error.message : 'Could not read public data'
-    errors.write(json ? `${JSON.stringify({ $schema: 'urn:pancake:cli:v1:error', version: 1, error: { code, message } })}\n` : `${message}\n`)
+    errors.write(json ? `${JSON.stringify({ $schema: 'urn:pancake:cli:v2:error', version: 2, error: { code, message } })}\n` : `${message}\n`)
     return code
   }
 }
-if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) process.exitCode = await run(process.argv.slice(2))
+if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) process.exitCode = await run(process.argv.slice(2))

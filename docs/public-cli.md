@@ -1,306 +1,317 @@
 # Public Pancake CLI
 
-The public API shares league results without member accounts.
-A commissioner controls one active share token per league.
-The CLI requires Node 22 or later.
-It has no runtime dependencies and never prompts.
+This guide describes candidate API v2. Production deployment remains pending.
 
-## Install and connect
+Every non-deleted league is public. The CLI requires no login, share token, or commissioner action.
+It reads public league data and performs no mutations.
+Use Node 22 or later.
 
-Install the package from this repository:
+## Install and discover
 
 ```sh
 npm install -g ./packages/pancake-cli
-export PANCAKE_API_URL=https://your-api.example/functions/v1/api
-export PANCAKE_TOKEN=your-league-share-token
-pancake standings --json
+pancake leagues --query dynasty --json
+pancake teams --league "$LEAGUE_ID" --json
+pancake rosters --league "$LEAGUE_ID" --team "$TEAM_ID" --json
 ```
 
-Use your API origin. The CLI has no default hosted endpoint.
-Use HTTPS outside localhost.
-Use environment variables to keep tokens out of command history.
-The package has one executable entry: `pancake`.
+The default is `https://ceeytbfmwsnzalxlkalc.supabase.co/functions/v1/api`.
+The [production project record](production-migration-history.md) names this project.
+The [app URL resolver](../lib/shared/api-url.ts) defines the `/functions/v1/api` path.
+The default points to the production location for this release. API v2 is not deployed by this work.
+No configuration is needed after release. The package ships no Supabase key or database credentials.
+Set `PANCAKE_API_URL` or pass `--api-url` to override the default. The flag takes precedence.
+Use HTTPS except for loopback development URLs.
+Get stable league IDs from `leagues` and team IDs from `teams`.
+Missing required options and malformed UUID options exit 2 locally, with the lookup command in stderr. They make no network request.
+Team IDs identify league memberships. They are not account IDs.
 
-## Enable, rotate, and revoke sharing
+## Commands and public fields
 
-Call the commissioner RPC through an authenticated Supabase client:
+Each command reads `GET /public/v2/<command>`.
+Every command except `leagues`, `describe`, and `explain` requires `--league`.
+`rosters` also requires `--team`.
+All data commands accept `--limit`, `--cursor`, `--sort`, and `--direction asc|desc`.
+The default page size is 25. The maximum is 50.
+Only the resource's scalar public fields are valid sort keys.
 
-```js
-const { data, error } = await supabase.rpc('public_share_token', {
-  p_league_id: leagueId,
-  p_action: 'create',
-})
-if (error) throw error
-console.log(data.token)
-```
+The table is the public item-field inventory. Nested roster player fields match `players`, excluding `leagueId`.
+Scoring settings contain only the thirteen scoring weights in the schema.
 
-The RPC accepts `create`, `rotate`, and `revoke`.
-Both commissioners and co-commissioners can call it.
-`create` fails when an active token exists.
-`rotate` returns a new token and invalidates the previous token.
-`revoke` disables sharing immediately.
-Recreating a revoked token also generates a new value.
-Only the creation response contains the raw token.
-The database stores its SHA-256 hash.
-
-A share token grants read access to its league only.
-A token never grants database access or write access.
-Do not place it in URLs, source code, or public logs.
-
-## Commands and filters
-
-Each resource command maps to `GET /public/v1/<command>`.
-Every request requires `Authorization: Bearer <share-token>`.
-
-| Command | Result | Extra filters |
+| Command | Allowed item fields | Additional filters |
 | --- | --- | --- |
-| `league` | Public league settings and scoring weights | `--season` |
-| `standings` | Current standings in published rank order | `--team` |
-| `rosters` | Players on one team, including IR and taxi status | `--team` required; `--season` |
-| `matchups` | League matchups and published scores | `--season`, `--week`, `--team` |
-| `scores` | Same score records as `matchups` | `--season`, `--week`, `--team` |
-| `schedule` | League matchup schedule and published results | `--season`, `--week`, `--team` |
-| `transactions` | Completed moves from the current season feed | `--team` |
-| `draft-results` | Settled results from completed, non-mock drafts | `--season` |
-| `player-stats` | Player season averages under league scoring | `--season`, `--player`, `--query`, `--position` |
-| `projections` | Current published player projections | `--player`, `--query`, `--position` |
+| `leagues` | `id`, `name`, `status` | `--query` |
+| `league` | `id`, `name`, `status`, `leagueId`, `seasonId`, `seasonYear`, `timezone`, `rosterSize`, `irSlots`, `taxiSlots`, `taxiRule`, `taxiMaxSeasons`, `teamLimit`, `auctionBudget`, `waiverMode`, `faabStartingBudget`, `weeklyAddLimit`, `tradeDeadline`, `tradeVetoMode`, `tradeVetoWindowHours`, `tradeVetoThresholdPercent`, `allowInactiveTrades`, `playoffStartWeek`, `playoffEntrants`, `rookieDraftOrder`, `futurePickYears`, `scoringSettings`, `playoffRoundLengths`, `playoffRoundWeeks`, `playoffTotalWeeks`, `lineupSlots`, `waiverOrder` | `--season` |
+| `seasons` | `id`, `leagueId`, `seasonYear`, `isCurrent`, `regularSeasonStart`, `regularSeasonEnd` | None |
+| `teams` | `id`, `leagueId`, `name` | `--team`, `--query` |
+| `players` | `id`, `leagueId`, `name`, `nbaId`, `nbaTeam`, `position`, `injuryStatus`, `yearsExperience`, `status`, `birthdate`, `injuryReason`, `injuryExpectedReturn`, `nbaDraftNumber`, `careerGames`, `headshotUrl`, `eligiblePositions` | `--player`, `--query`, `--position` |
+| `free-agents` | `id`, `leagueId`, `name`, `nbaId`, `nbaTeam`, `position`, `injuryStatus`, `yearsExperience`, `status`, `availability`, `waiverClearsAt`, `waiverEligible`, `birthdate`, `injuryReason`, `injuryExpectedReturn`, `nbaDraftNumber`, `careerGames`, `headshotUrl`, `eligiblePositions` | `--player`, `--query`, `--position`, `--season` |
+| `rosters` | `id`, `leagueId`, `seasonYear`, `teamId`, `isOnIR`, `isOnTaxi`, `player` | `--team`, `--season` |
+| `standings` | `id`, `leagueId`, `name`, `wins`, `losses`, `ties`, `pointsFor`, `pointsAgainst`, `maxPointsFor`, `rank` | `--team` |
+| `matchups` | `id`, `leagueId`, `seasonYear`, `weekNumber`, `endWeekNumber`, `homeTeamId`, `awayTeamId`, `homeTeamName`, `awayTeamName`, `homePoints`, `awayPoints`, `finalized`, `winnerTeamId` | `--team`, `--week`, `--season` |
+| `scores` | `id`, `leagueId`, `seasonYear`, `weekNumber`, `endWeekNumber`, `homeTeamId`, `awayTeamId`, `homeTeamName`, `awayTeamName`, `homePoints`, `awayPoints`, `finalized`, `winnerTeamId` | `--team`, `--week`, `--season` |
+| `schedule` | `id`, `leagueId`, `seasonYear`, `weekNumber`, `endWeekNumber`, `homeTeamId`, `awayTeamId`, `homeTeamName`, `awayTeamName`, `homePoints`, `awayPoints`, `finalized`, `winnerTeamId` | `--team`, `--week`, `--season` |
+| `player-stats` | `id`, `leagueId`, `name`, `nbaId`, `nbaTeam`, `position`, `injuryStatus`, `yearsExperience`, `status`, `seasonYear`, `fantasyPoints`, `gamesPlayed`, `points`, `rebounds`, `assists`, `steals`, `blocks`, `turnovers`, `threePointersMade`, `minutes`, `birthdate`, `injuryReason`, `injuryExpectedReturn`, `nbaDraftNumber`, `careerGames`, `headshotUrl`, `eligiblePositions`, `fieldGoalsMade`, `fieldGoalsAttempted`, `freeThrowsMade`, `freeThrowsAttempted`, `doubleDoubles`, `tripleDoubles` | `--player`, `--query`, `--position`, `--season` |
+| `projections` | `id`, `leagueId`, `name`, `nbaId`, `nbaTeam`, `position`, `injuryStatus`, `yearsExperience`, `status`, `date`, `source`, `fetchedAt`, `projectionStatus`, `fantasyPoints`, `points`, `rebounds`, `assists`, `steals`, `blocks`, `turnovers`, `minutes`, `birthdate`, `injuryReason`, `injuryExpectedReturn`, `nbaDraftNumber`, `careerGames`, `headshotUrl`, `eligiblePositions` | `--player`, `--query`, `--position` |
+| `drafts` | `id`, `leagueId`, `seasonYear`, `draftType`, `status`, `scheduledAt`, `startedAt`, `completedAt` | `--draft`, `--season` |
+| `draft-results` | `id`, `leagueId`, `seasonYear`, `draftId`, `draftType`, `overallPick`, `round`, `teamId`, `teamName`, `playerId`, `playerName`, `pickedAt`, `price` | `--draft`, `--team`, `--season` |
+| `picks` | `id`, `leagueId`, `seasonYear`, `round`, `teamId`, `originalTeamId`, `isUsed` | `--team`, `--season` |
+| `trades` | `id`, `leagueId`, `seasonYear`, `status`, `completedAt`, `proposerTeamId`, `recipientTeamId`, `teamIds` | `--trade`, `--season`, `--team` |
+| `trade-assets` | `id`, `leagueId`, `tradeId`, `status`, `completedAt`, `fromTeamId`, `toTeamId`, `kind`, `playerId`, `playerName`, `pickId`, `pickSeasonYear`, `pickRound` | `--trade`, `--team` |
+| `transactions` | `id`, `leagueId`, `teamId`, `teamName`, `playerId`, `playerName`, `type`, `occurredAt`, `tradeId` | `--team`, `--season` |
 
-All resource commands accept `--limit` and `--cursor`.
-The default limit is 25. The maximum is 50.
-`--season` selects the season's starting year.
-Player statistics can use seasons before the league was created.
-`--week` includes multiweek matchups that cover that week.
-`--team` accepts a team ID from `standings`.
-Team IDs identify league memberships, never user accounts.
-`--player` accepts a player ID from `player-stats`.
+`season` is the season's starting year. `seasons` lists a league's available seasons.
+Standings use the current published standings cache. Historical standings are not supported.
+`matchups`, `scores`, and `schedule` share one result projection. A week filter includes multiweek matchups spanning that week.
+`players` lists canonical player metadata. `player-stats` adds league-scored season averages.
+`projections` reads the existing public-data projection calculator. It never reads claims or lineups.
+`free-agents` includes all unrostered players, including players on waivers.
+`waiverEligible` means a player is unrostered. It does not predict whether a manager's claim will succeed.
+`waiverClearsAt` is null when no active hold exists.
+Manager budget, roster capacity, existing claims, and reservations never affect those public fields.
+The settings `waiverOrder` is the published league order, not the order of private claims.
 
-Results have deterministic order when source data does not change.
-Standings follow published rank. Rosters follow roster entry IDs.
-Matchups follow week and ID. Transactions follow newest time and ID.
-Draft results follow draft ID and pick order. Players follow display name and ID.
+`drafts` lists non-mock drafts. `draft-results` returns completed draft picks and sold auction results with stable player IDs.
+Use `--draft` to page through one draft. `picks` lists current ownership of future draft-pick assets.
+`trades` returns only completed trades with a completion timestamp.
+Use `trade-assets --trade "$TRADE_ID"` for paginated player, pick, and budget-transfer asset identities.
+Budget transfer amounts are omitted, as are all waiver bids.
+For multi-team trades, `teamIds` contains the participants. A team filter includes these participants.
 
-Cursors continue the same resource, token, limit, and filters.
-Read until `nextCursor` is null, including after an empty filtered page.
-Live edits can shift offset-based pages. Restart a scan when you need one consistent fresh view.
+Every sort ends with ascending `id` as its final tie-breaker.
+`--direction` controls the selected primary key; secondary keys remain ascending.
+Offset cursors bind the version, league, resource, filters, limit, and sort.
+Continue until `nextCursor` is null. Concurrent public changes can shift pages; restart a scan for a fresh view.
+The current safety limit is an offset of 100,000. The API returns an error instead of falsely ending a larger scan.
+No count of private records is exposed.
 
-## JSON and schemas
+## Database source inventory
 
-JSON is the default when stdout is not a terminal.
-`--json` forces JSON. `--text` forces text.
-Errors go to stderr. Resource data goes to stdout.
+All rows pass the selected public league boundary before their resource query runs.
+The new function uses explicit projections instead of authenticated screen payloads.
+Its exact column expressions and predicates are stored in the policy file and checked against the generated migration.
+
+| Resource | Source query | Record predicate before paging |
+| --- | --- | --- |
+| `leagues`, `league` | `leagues` and selected `league_seasons`; settings also read `lineup_slot_templates` | `deleted_at IS NULL`; one league for settings |
+| `seasons` | `league_seasons` | Selected league |
+| `teams` | `league_members` | Selected league; membership ID and team name only |
+| `rosters` | `roster_players`, `players`, scoped `league_members` | Selected league and season; public team filter |
+| `players` | `players` | Canonical public player directory |
+| `free-agents` | `players`, scoped `roster_players`, active `waiver_wire_log` | No ownership in selected league season; hold has no `cleared_at` and a future `clears_at` |
+| `standings` | `league_members`, `standings_current` | Selected league and current season cache; published win-rate and points-rate ranking |
+| `matchups`, `scores`, `schedule` | `matchups`, scoped home and away `league_members` | Selected league and season; `NOT is_voided` |
+| `player-stats` | `players`, `player_season_averages`, `mv_player_season_averages`, `v_player_avg_fantasy_points` | League-specific scoring and selected statistics year |
+| `projections` | `players`, narrow `get_league_projection_rows` calculation | Selected league scoring; current date; one canonical player per calculation |
+| `drafts` | `drafts` | Selected league and season; `NOT is_mock` |
+| `draft-results` | `snake_draft_picks` or sold `nominations`, `drafts`, `players`, scoped `league_members` | Non-mock completed draft; picked snake player or sold auction result |
+| `picks` | `draft_picks` | Selected league; optional future season and current owner |
+| `trades` | `trades`, scoped `league_seasons`, `trade_participants` | `status='completed' AND completed_at IS NOT NULL` |
+| `trade-assets` | `trade_items`, qualifying parent `trades`, scoped `draft_picks`, `players` | Same completed-parent rule; item and parent league agree |
+| `transactions` | Public move types from `roster_transactions` plus `trade_completed` from `league_activity` | Selected league and season; trade events require a completed parent before paging |
+
+Underlying tables retain their existing RLS and grants. Anonymous callers receive no new table or RPC privileges.
+Only the Edge service role gains execute permission on `public_read_v2`.
+The definer function's predicates enforce its boundary; it does not rely on underlying RLS to filter its own queries.
+The internal rate table has RLS enabled and no client grants.
+
+Completed auction sale prices are public draft results. Open auction bids and waiver bids are not returned.
+
+## Agent examples and schemas
+
+```sh
+pancake describe
+pancake describe free-agents
+pancake explain trades.completedAt
+pancake player-stats --league "$LEAGUE_ID" --query Jokic --sort fantasyPoints --direction desc
+pancake free-agents --league "$LEAGUE_ID" --position C --limit 50
+pancake trades --league "$LEAGUE_ID" --team "$TEAM_ID"
+pancake trade-assets --league "$LEAGUE_ID" --trade "$TRADE_ID"
+```
+
+`describe` and `explain` work offline. They list field schemas, commands, valid options, and exit codes.
+JSON is the default for redirected stdout. Use `--json` or `--text` to select a format.
+Only data goes to stdout. Errors go to stderr.
 
 ```json
 {
-  "$schema": "urn:pancake:public:v1:standings",
-  "version": 1,
-  "resource": "standings",
+  "$schema": "urn:pancake:public:v2:teams",
+  "version": 2,
+  "resource": "teams",
   "items": [],
   "nextCursor": null
 }
 ```
 
-The package includes JSON Schema definitions in `schemas/v1.json`.
-Every response names its versioned schema.
-Unknown private fields are removed before serialization.
-Breaking schema changes require a new API version.
+The package includes `schemas/v2.json`. Version two changes the access scope from one capability token to an explicit public league ID.
+Version one routes return HTTP 410. Version one schema files remain available as historical contracts.
+A script can pass each response's `nextCursor` to the same command and options.
+Stop on errors. Do not infer private claims or pending trades from public data.
 
-```sh
-pancake describe
-pancake describe player-stats
-pancake explain standings.pointsFor
-pancake explain rosters.player
-```
+## Privacy boundary
 
-`describe` returns commands, options, exit codes, and full field schemas.
-`explain` returns a resource or field definition.
-Both work offline without a token.
+[The policy file](../supabase/functions/api/public/policy.json) declares the public fields, source queries, record rules, filters, and default order.
+[The generator](../tools/verify/public-policy.mjs) builds both response schemas and the [current SQL migration](../supabase/migrations/20261214010600_public_sort_ties.sql).
+The generator applies record predicates and an explicit field projection before public filters, ordering, page bounds, and `hasMore`.
+The Edge handler repeats the field projection before serialization and rejects invalid shapes.
+The database function is security definer with an empty search path. Only the Edge service role can execute it.
+It does not impersonate a member or call authenticated screen functions.
 
-## Script examples
+Excluded data includes account IDs, email addresses, profiles, invite codes, notifications, messages, commissioner-only fields, claims, bids, and lineup assignments.
+The API also excludes offers, negotiations, trade notes, veto votes, estimates, and accepted trades awaiting execution.
+Only `completed` trades with non-null `completed_at` pass the trade predicate.
+The [trade execution code](../supabase/migrations/20261214010000_trade_rule_error_transport.sql) moves assets before recording that state.
+Acceptance clears `completed_at` and can wait for a veto window or roster constraint.
 
-Find team names and points with `jq`:
+The [waiver policy](../supabase/migrations/20260627000018_waiver_claim_privacy.sql) hides expired uncleared holds.
+The new projection also requires `cleared_at IS NULL AND clears_at > now()` for public waiver clear times.
+The [team timeline](../supabase/migrations/20261106000200_timeline_producers.sql) removes bid amounts from other members' displayed details.
+No pending or historical claim bid is published here.
 
-```sh
-pancake standings --json | jq -r '.items[] | [.teamName, .pointsFor] | @tsv'
-pancake scores --week 3 --json
-pancake rosters --team "$TEAM_ID" --json
-pancake player-stats --query Jokic --json
-```
+The old `public_share_token` RPC and storage remain for compatibility with existing database callers.
+The new API never reads those tokens or their rate counters. Their creation and revocation do not affect public access.
+The old token reader remains restricted to the service role and has no active public route.
+The public package no longer includes `db-health`. The separate operator tooling under `scripts/db-health` remains unchanged.
 
-Read every page from Node:
+## Public string bounds
 
-```js
-import { execFileSync } from 'node:child_process'
-let cursor
-const rows = []
-do {
-  const args = ['player-stats', '--json', '--limit', '50']
-  if (cursor) args.push('--cursor', cursor)
-  const page = JSON.parse(execFileSync('pancake', args, { encoding: 'utf8' }))
-  rows.push(...page.items)
-  cursor = page.nextCursor
-} while (cursor)
-console.log(JSON.stringify(rows))
-```
+The database accepts unbounded text for league and player names, external player IDs, injury text, URLs, and other provider text.
+The public projection returns at most 1,024 Unicode code points from those values.
+It also limits each eligible-position string to 32 code points.
+These prefixes are applied in SQL before public search, sorting, counts, and pagination.
+The Edge serializer applies the same rule as a backstop. Stored values are unchanged.
 
-Give an agent this task:
+Public UUIDs retain all 36 characters. Date and timestamp strings allow 64 characters.
+Team names retain their database limit of 40 characters. Database enums and checked fields use their actual maximum label lengths.
+Nested strings follow the same rules as top-level fields. Bounded arrays retain their first declared maximum number of items.
+The schema marks lossy text or array projections with `x-overflow: truncate`.
 
-> Run `pancake describe standings`, then read `pancake standings --json`.
-> Compare points and records using only returned fields.
-> Stop on an error. Do not infer pending trades, bids, or hidden lineups.
+A page can contain fewer items than the requested limit when its JSON would exceed two MiB.
+Follow its cursor without changing the original request options. The cursor advances by the number of returned records.
+A large accepted text value cannot hide the other records on its page.
 
-## Privacy and caching
+## Limits, errors, and caching
 
-The API omits pending trades, offers, FAAB bids, private notes, and all lineup assignments.
-It omits member emails, user IDs, invite codes, and notification settings.
-Completed transactions omit free-form text and bid amounts.
-Draft results omit open nominations and bid histories.
+The server admits at most 60 reads per client-IP bucket per minute across Edge instances.
+Admission is a separate `public_admit_read` RPC. Its short transaction commits before `public_read_v2` begins.
+The read transaction never updates rate counters or holds their row locks.
+There is no application-wide quota that one client can exhaust for every user.
+The local limiter retains at most 4,096 client buckets. Database admission remains authoritative after local eviction.
+Expired database buckets are removed in indexed, bounded batches.
 
-The API reads existing screen functions and the existing matchup view.
-It adds no player aggregation or scoring query.
-Only the Edge service can call the public-read database function.
-The API accepts GET and CORS preflight. Writes return HTTP 405.
+Only `CF-Connecting-IP` supplies the client identity. `X-Forwarded-For` and `X-Real-IP` are ignored.
+[Supabase documents that its platform sets this header on every request](https://supabase.com/docs/guides/api/query-plans#production-use-with-pre-request-protection).
+[Its Edge log reference also lists the header](https://supabase.com/docs/guides/observability/log-field-reference).
+This trust applies to Supabase's managed ingress, not an arbitrary self-hosted proxy.
+[Cloudflare documents Worker and proxy limitations](https://developers.cloudflare.com/fundamentals/reference/http-headers/#cf-connecting-ip).
+A self-hosted deployment must overwrite this header at its trusted ingress before using this policy.
+Missing, duplicate, or malformed header values share one `unattributed` bucket. No alternate client header is trusted.
+IPv4 and IPv6 representations are normalized before hashing. No raw IP address is stored by this counter.
 
-Each token permits 60 reads per UTC minute.
-HTTP 429 includes `Retry-After` in seconds.
-Valid-token attempts count toward the limit, including conditional reads.
+Per-IP limits do not stop distributed attacks, prevent shared-NAT contention, or impose a total database-cost ceiling.
+Platform capacity controls still apply. No claim of complete denial-of-service protection is made.
 
-Responses include ETags and `private, no-cache, max-age=0, must-revalidate`.
-Conditional reads return HTTP 304 when data is unchanged.
-Every conditional read still checks token validity.
-Errors use `no-store`.
+HTTP 429 includes `Retry-After`. The CLI does not retry 429 or invalid requests.
+It retries network failures and HTTP 502, 503, or 504 at most twice with short exponential backoff.
+All attempts share a 15-second timeout. Redirects are rejected.
+Response bodies and stdout are capped at two MiB. Individual fields and lists have schema bounds.
 
-The CLI stores at most 128 response files under `~/.cache/pancake`.
-Cache keys include a hash of the URL and token.
-Cache files contain no raw token and use owner-only permissions.
-The CLI always revalidates cached data. It never returns stale data after an error.
-Use `--cache-dir <directory>` to choose another cache or `--no-cache` to disable it.
+Responses have ETags and require revalidation. Conditional requests still enforce resource access and rate limits.
+The CLI caches at most 128 files keyed by URL, without tokens. It never returns stale cache data after an error.
+Use `--no-cache` or `--cache-dir` when needed.
+The Edge API rejects missing or malformed required IDs with a fixed 400 response before any database call.
+The SQL reader also returns a fixed 400 for malformed parameter values instead of exception text.
+Valid unknown and cross-league object IDs use the same 404 response shape.
+A private trade ID and a nonexistent trade ID also share the same 404 response.
+Invalid options use 400; unexpected database failures use a fixed 503 response without database details.
 
-The audit log stores hourly resource counts and rejected-read counts per league.
-It stores no token, IP address, request body, user ID, or response data.
-Hourly cleanup removes at most 10,000 expired rows per run.
-Each read also removes that league's expired rows.
-The retained window is seven days plus the current hour.
-This bounds each active league to 1,690 audit rows.
-
-## Exit codes
-
-| Code | Meaning |
+| Exit | Meaning |
 | --- | --- |
 | 0 | Success |
-| 2 | Invalid command, option, filter, or request |
-| 3 | Missing, invalid, or revoked token |
-| 4 | Resource or season not found |
-| 5 | Rate limit reached |
+| 2 | Missing or invalid option, malformed UUID, or invalid request |
+| 4 | Syntactically valid but unavailable public resource |
+| 5 | Rate limit |
 | 6 | Network failure or timeout |
-| 7 | Server failure or invalid response schema |
-| 8 | Private operator report failure |
+| 7 | Server failure, invalid schema, or output limit |
 
-## Private operator placeholder
-
-`db-health` is a private operator command, outside the public API.
-It requires `psql` and an explicit PostgreSQL connection.
-It reports connections, estimated live and dead rows, and recent autovacuum times.
-It uses a read-only session with a five-second statement timeout.
-It does not report public league data or expose an operator connection to the API.
+## Verification and proof scope
 
 ```sh
-pancake db-health --operator-connection "$OPERATOR_DATABASE_URL" --json
-```
-
-This is the initial operator report, not a full database audit.
-Do not share operator credentials with public CLI users.
-
-## Verification
-
-Run local tests without a database:
-
-```sh
+node tools/verify/public-policy.mjs --check
+node tools/verify/public-model.mjs
 npx vitest run tests/public-cli
-npm run lint:all
-npm run typecheck
-npm run typecheck:tests
-pancake standings --fixture tests/fixtures/public-cli/league.json --json
+node --test tests/e2e/public-cli-v2.mjs
+node --test tools/perf/public-cli.test.mjs
+deno test supabase/functions/api/public/handler.test.ts supabase/functions/api/public/reader.test.ts
 ```
 
-The tests inject private fields, invalid transaction types, bad tokens, and malformed responses.
-They cover schema snapshots, cursors, ETags, rate errors, offline fixtures, and exit codes.
+The model exhaustively checks the bounded trade-state and completion-state combinations, filter/page cases, and 128 private-field subsets per case.
+It compares observable rows, search results, ordering, `hasMore`, and page slices with the private data absent.
+The tests also inject random private fields into every resource's serialization path.
+The packed-package test installs the actual executable under a temporary prefix and calls every command against a local stub server.
 
-Use the assigned private mini stack for database and end-to-end checks.
-Keep its project ID `pt4bafableux`, API port `58921`, and database port `58922`.
-Bind published ports to `127.0.0.1`. Disable cron before restoring the backup.
-Use a Docker bridge with `com.docker.network.bridge.host_binding_ipv4=127.0.0.1`.
-Pass that bridge to `supabase start --network-id`.
-After `db reset` or `functions serve`, reconnect replaced containers to that bridge.
-Recheck published bindings after each restart.
-Use only that stack's `supabase status -o env` output.
-Never use a hosted endpoint for these checks.
-
-```sh
-supabase status -o env > ../public-local.env
-node tests/e2e/public-cli.mjs --env=../public-local.env --restore=../fable-public-data.sql.gz
-node tests/e2e/public-cli.mjs --env=../public-local.env --edge-env=.env.public-cli
-supabase functions serve api --env-file .env.public-cli --no-verify-jwt
-node tests/e2e/public-cli.mjs --env=../public-local.env
-```
-
-Restore only on a disposable stack. The restore command replaces its league data.
-It loads public data, cached player totals, and two private player lookup tables.
-It creates local account shells without importing account credentials.
-It disables cron to prevent jobs and notifications.
-
-The end-to-end recipe checks SQL permissions, rotation, revocation, retention, all resource routes, and CLI parity.
-It checks historical player statistics and week filters.
-It creates and removes two completed draft fixtures to test nonempty draft results.
-It revokes its share token when finished.
-Delete copied backups and local environment files after testing.
-Stop the stack and remove `supabase/.temp/start-secrets`.
+The model assumes source tables and joins match the generated policy, fixed public snapshots, and a fixed request history.
+It does not prove timing independence, database execution, source-data correctness, concurrency, or availability under attack.
+A database failure can still reflect shared resource pressure. No stronger side-channel guarantee is claimed.
+Free-agent property cases vary pending claims, bids, counts, and claim order while comparing availability, search, sorting, and cursors.
+The projection reads only public roster ownership and active waiver holds; it never reads claim or bid tables.
+The real database noninterference test is [public-cli-v2.sql](../tests/db/public-cli-v2.sql).
+Both it and the [catalog verification](../tests/db/public-cli-v2-verify.sql) pass on a fresh isolated stack.
+The rollback chain, reapplication, real installed commands, and concurrent admission pass on that stack.
+Additional two-league fixture checks compare complete responses and cursors before and after private records are added.
 
 ## Public CLI release order
 
-This adds to the database release order in `supabase/RELEASE-DB.md`.
-Release 2.5 requires all migrations through `20261123000100`; see the release contract for the complete order.
-Database, then Edge, then merge the frontend.
-For this CLI, install or publish the npm package after the Edge API is available.
+Follow [RELEASE-DB.md](../supabase/RELEASE-DB.md). This change does not apply migrations or deploy to production.
+Apply `20261214010300_public_league_reads.sql`, `20261214010400_public_read_admission.sql`, `20261214010500_public_projection_bounds.sql`, then `20261214010600_public_sort_ties.sql` on the isolated stack first.
+The second migration separates admission, removes the global quota, and validates values before SQL casts.
+Run the catalog query and database tests. Regenerate database types and the database function catalog from that tested stack.
+The canonical SQL source check must also pass before release.
+After approval, apply the database migration before deploying the Edge API and installing version two of the CLI.
+Old version-one clients receive an explicit version-retired response.
 
-Apply these migrations after the existing `20261116000500` release head:
+If verification fails, restore the matching previous Edge artifact.
+[Rollback 106](../supabase/rollbacks/20261214010600_public_sort_ties.sql) restores the previous sort behavior.
+[Rollback 105](../supabase/rollbacks/20261214010500_public_projection_bounds.sql) restores the earlier public reader without changing stored data.
+[Rollback 104](../supabase/rollbacks/20261214010400_public_read_admission.sql) restores the earlier reader and removes separate admission.
+[Rollback 103](../supabase/rollbacks/20261214010300_public_league_reads.sql) then removes the feature reader and counters if required.
+These rollbacks preserve the existing sharing functions and league data.
+Confirm the previous version-one routes with a local fixture capability after recovery.
+Do not claim a rollout until a real stack passes the catalog, privacy, and installed-CLI checks.
 
-| Migration | Change |
-| --- | --- |
-| `20261118000100_public_cli.sql` | Share tokens, read limits, audit retention, and public resource reads. |
-| `20261118000200_public_matchup_state.sql` | Void flags and multiweek ranges from the current matchup row. |
-| `20261118000300_public_stats_seasons.sql` | Player statistics from seasons before the league exists. |
+## Local performance evidence
 
-The CLI branch originally attests 611 migrations through `20261118000300`.
-The integrated release attests 621 migrations through `20261123000100`.
-This work performs no hosted release, push, or deployment.
+These historical measurements use candidate `8274e012`, before the public-text and sort repairs.
 
-## Original CLI branch verification
+These are fixture/local-stack measurements on one Mac mini, not live production results.
+The baseline uses commit ce1c1c2e and a local fixture share token; version two uses no token.
+Both versions use the same router transport, PostgreSQL settings and seeded rows.
+The Edge router runs under host Deno because the task directory is outside the existing VM's allowed mounts.
+This does not verify the deployed Supabase Edge runtime.
 
-The October 28, 2026 check uses Node 22 and the supplied backup on the isolated mini stack.
-The backup contains 245,097 game-stat rows, 8,430 games, 2,618 players, and one ten-team league.
-The restore also includes cached season totals.
+The fixture contains 30 leagues, 360 teams, 600 players, 5,400 roster rows, 1,200 trades, 3,600 claims and 49,200 game-stat rows.
+Both runs use fixture date 2026-11-07 and fully primed derived caches.
+Each case has two warmups and 30 measured requests, spaced by at least 1.12 seconds.
+The harness traverses the cursor chain before selecting first, middle and last pages.
+Statement counts include nested and outer database statements with pg_stat_statements.track=all.
+The table reports median statement deltas and response sizes; latency columns show p50 and p95.
+Whole-database counters include occasional local Realtime polling. Candidate deltas range from 15 to 17; baseline deltas range from 31 to 174 across the listed resources. These are observed deltas, not individually attributed statement traces.
 
-| Check | Result |
-| --- | --- |
-| Full Vitest suite | 4,030 passed, zero failed, 38 skipped |
-| Public route and CLI tests | 64 passed |
-| Edge checks | 514 passed, zero failed, 14 ignored |
-| Quality checks | Passed |
-| Migration attestation | 611 migrations through `20261118000300` |
-| Private end-to-end run | All ten resources and CLI responses agree |
-| Privacy control | Removing the allowlist causes ten test failures |
-| Cache and access control | 304 for unchanged data, 429 at the limit, 401 after revocation |
-| Package check | Packed executable and bundled schemas work |
+| Resource and page | v1 p50 / p95 ms | v2 p50 / p95 ms | Statements p50 | KiB p50 |
+| --- | ---: | ---: | ---: | ---: |
+| league 1/1 | 12.3 / 13.7 | 15.9 / 17.8 | 31 → 15 | 0.5 → 2.1 |
+| rosters 1/3 | 18.9 / 20.4 | 17.8 / 20.2 | 77 → 15 | 1.4 → 2.8 |
+| rosters 2/3 | 19.0 / 19.8 | 18.4 / 25.9 | 77 → 15 | 1.4 → 2.8 |
+| rosters 3/3 | 18.6 / 21.3 | 18.0 / 20.3 | 77 → 15 | 1.3 → 2.7 |
+| player-stats 1/24 | 57.3 / 61.3 | 39.9 / 42.5 | 173 → 15 | 6.4 → 17.2 |
+| player-stats 12/24 | 57.2 / 59.5 | 39.8 / 43.7 | 173 → 15 | 6.4 → 17.3 |
+| player-stats 24/24 | 58.2 / 62.0 | 39.9 / 43.2 | 173 → 15 | 6.4 → 17.3 |
 
-The draft check uses two temporary completed drafts because the backup has none.
-The recipe removes both after the check.
-It also verifies older player seasons, week filters, and the private operator report.
-No hosted release, production request, email, or push notification is part of this check.
-
-## Release 2.5 integration
-
-Deploy the integrated database, then the changed Edge functions, then the frontend and CLI package.
-The public routes stay under `api`; they are not separate Edge functions.
-The value worker uses internal authorization and has no public route.
-The integration checks public database reads with synthetic league fixtures on an empty private stack.
-It does not restore the backup or repeat the earlier backup-based browser run.
+Version one emits an additional empty page after the last player-stat data page.
+The table compares matching nonempty pages; version two ends at the last data page.
+The public-read contract and payload fields differ between versions, so these are release comparisons rather than identical-query microbenchmarks.
+League latency rises while its payload grows about fourfold and admission adds an RPC. This experiment does not isolate their individual effects.
+The middle roster page has a higher p95 despite a lower median; thirty samples do not establish tail stability.
+Raw per-request measurements, database statement samples and environment details accompany the review evidence.
+The repository harness is tools/perf/public-cli.mjs; its eight focused tests check measurement behavior.
+No production speedup or deployment is claimed.
