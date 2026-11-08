@@ -260,7 +260,7 @@ Both it and the [catalog verification](../tests/db/public-cli-v2-verify.sql) pas
 The rollback chain, reapplication, real installed commands, and concurrent admission pass on that stack.
 Additional two-league fixture checks compare complete responses and cursors before and after private records are added.
 
-## Database release and recovery
+## Public CLI release order
 
 Follow [RELEASE-DB.md](../supabase/RELEASE-DB.md). This change does not apply migrations or deploy to production.
 Apply `20261214010300_public_league_reads.sql`, `20261214010400_public_read_admission.sql`, `20261214010500_public_projection_bounds.sql`, then `20261214010600_public_sort_ties.sql` on the isolated stack first.
