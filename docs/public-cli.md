@@ -370,7 +370,7 @@ Rebuild the derived player averages before measurement. The review evidence reco
 Set `SUPABASE_DB_URL` to your isolated loopback database. Run [the checker](../tools/perf/public-cli-scale.mjs):
 
 ```sh
-node tools/perf/public-cli-scale.mjs fixture.json output-dir
+node tools/perf/run.mjs public-cli-scale fixture.json output-dir
 ```
 
 The fixture JSON supplies `leagueId` and `memberId`. Only loopback database connections are accepted.
