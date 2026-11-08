@@ -2,6 +2,7 @@
 
 Read public data from every non-deleted league without signing in or obtaining a share token.
 Requires Node 22 or later. The package has no runtime dependencies.
+The package is not published on npm. Install it from a checkout of [the public repository](https://github.com/jormyy/pancake).
 
 ```sh
 npm install -g ./packages/pancake-cli
@@ -37,6 +38,6 @@ Exit codes are 0 for success, 2 for usage and invalid options, 4 for valid but u
 All retries share a 15-second budget. Once any HTTP response arrives, exhausted retries return 7.
 An interrupted response body also returns 7.
 
-See [the public CLI guide](../../docs/public-cli.md) for coverage, privacy assumptions, verification, and database recovery.
-Fresh local database migrations, privacy checks, rollback/reapply, and installed CLI reads pass.
-Production v2 is not deployed or verified. See the guide for local measurements and their limits.
+See the [public agent guide](https://pancakedynasty.vercel.app/agents.md) for installation and usage.
+Production v2 supports anonymous reads at the default API URL.
+See the [maintainer reference](../../docs/public-cli.md) for coverage, privacy assumptions, verification, and database recovery.
