@@ -35,4 +35,5 @@ Missing required or malformed UUID options fail locally with a lookup command.
 Exit codes are 0 for success, 2 for usage and invalid options, 4 for valid but unavailable resources, 5 for rate limits, 6 for network failure, and 7 for server/schema failures.
 
 See [the public CLI guide](../../docs/public-cli.md) for coverage, privacy assumptions, verification, and database recovery.
-Database execution and production verification remain pending until a real stack is available.
+Fresh local database migrations, privacy checks, rollback/reapply, and installed CLI reads pass.
+Production v2 is not deployed or verified. See the guide for local measurements and their limits.

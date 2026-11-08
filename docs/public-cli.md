@@ -237,7 +237,9 @@ A database failure can still reflect shared resource pressure. No stronger side-
 Free-agent property cases vary pending claims, bids, counts, and claim order while comparing availability, search, sorting, and cursors.
 The projection reads only public roster ownership and active waiver holds; it never reads claim or bid tables.
 The real database noninterference test is [public-cli-v2.sql](../tests/db/public-cli-v2.sql).
-It and the [catalog verification](../tests/db/public-cli-v2-verify.sql) remain unexecuted until the isolated stack is available.
+Both it and the [catalog verification](../tests/db/public-cli-v2-verify.sql) pass on a fresh isolated stack.
+Both rollback stages, reapplication, real installed commands, and concurrent admission also pass on that stack.
+Additional two-league fixture checks compare complete responses and cursors before and after private records are added.
 
 ## Database release and recovery
 
@@ -256,11 +258,37 @@ Both preserve the existing sharing functions and league data.
 Confirm the previous version-one routes with a local fixture capability after recovery.
 Do not claim a rollout until a real stack passes the catalog, privacy, and installed-CLI checks.
 
-## Performance evidence still required
+## Local performance evidence
 
-The baseline moves to a separate isolated copy of base commit `ce1c1c2e`.
-Measure baseline and final responses on mini with the same seeded public data, page sizes, cases, and sample counts.
-Use at least 30 samples after warmup. Record p50, p95, statement counts, bytes, and per-page cost.
-The harness is `tools/perf/public-cli.mjs`; its seven focused tests validate measurement logic, not API speed.
-The original version-one harness needs a local fixture share token only for historical baseline reads.
-Version-two live reads need no token. A working isolated stack remains unavailable, so no speedup is claimed.
+These are fixture/local-stack measurements on one Mac mini, not live production results.
+The baseline uses commit ce1c1c2e and a local fixture share token; version two uses no token.
+Both versions use the same router transport, PostgreSQL settings and seeded rows.
+The Edge router runs under host Deno because the task directory is outside the existing VM's allowed mounts.
+This does not verify the deployed Supabase Edge runtime.
+
+The fixture contains 30 leagues, 360 teams, 600 players, 5,400 roster rows, 1,200 trades, 3,600 claims and 49,200 game-stat rows.
+Both runs use fixture date 2026-11-07 and fully primed derived caches.
+Each case has two warmups and 30 measured requests, spaced by at least 1.12 seconds.
+The harness traverses the cursor chain before selecting first, middle and last pages.
+Statement counts include nested and outer database statements with pg_stat_statements.track=all.
+The table reports median statement deltas and response sizes; latency columns show p50 and p95.
+Whole-database counters include occasional local Realtime polling. Candidate deltas range from 15 to 17; baseline deltas range from 31 to 174 across the listed resources. These are observed deltas, not individually attributed statement traces.
+
+| Resource and page | v1 p50 / p95 ms | v2 p50 / p95 ms | Statements p50 | KiB p50 |
+| --- | ---: | ---: | ---: | ---: |
+| league 1/1 | 12.3 / 13.7 | 15.9 / 17.8 | 31 → 15 | 0.5 → 2.1 |
+| rosters 1/3 | 18.9 / 20.4 | 17.8 / 20.2 | 77 → 15 | 1.4 → 2.8 |
+| rosters 2/3 | 19.0 / 19.8 | 18.4 / 25.9 | 77 → 15 | 1.4 → 2.8 |
+| rosters 3/3 | 18.6 / 21.3 | 18.0 / 20.3 | 77 → 15 | 1.3 → 2.7 |
+| player-stats 1/24 | 57.3 / 61.3 | 39.9 / 42.5 | 173 → 15 | 6.4 → 17.2 |
+| player-stats 12/24 | 57.2 / 59.5 | 39.8 / 43.7 | 173 → 15 | 6.4 → 17.3 |
+| player-stats 24/24 | 58.2 / 62.0 | 39.9 / 43.2 | 173 → 15 | 6.4 → 17.3 |
+
+Version one emits an additional empty page after the last player-stat data page.
+The table compares matching nonempty pages; version two ends at the last data page.
+The public-read contract and payload fields differ between versions, so these are release comparisons rather than identical-query microbenchmarks.
+League latency rises while its payload grows about fourfold and admission adds an RPC. This experiment does not isolate their individual effects.
+The middle roster page has a higher p95 despite a lower median; thirty samples do not establish tail stability.
+Raw per-request measurements, database statement samples and environment details accompany the review evidence.
+The repository harness is tools/perf/public-cli.mjs; its eight focused tests check measurement behavior.
+No production speedup or deployment is claimed.

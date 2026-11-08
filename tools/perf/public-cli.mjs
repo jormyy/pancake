@@ -91,7 +91,7 @@ export function summarize(samples) {
   })
 }
 
-async function databaseCounter(connection) {
+export async function databaseCounter(connection) {
   const database = new URL(connection)
   if (!['postgres:', 'postgresql:'].includes(database.protocol) || !['localhost', '127.0.0.1', '[::1]'].includes(database.hostname)) {
     throw new Error('Database measurement requires a loopback disposable stack')
@@ -99,7 +99,9 @@ async function databaseCounter(connection) {
   const env = { ...process.env, PGHOST: database.hostname.replace(/^\[|\]$/g, ''), PGPORT: database.port || '5432',
     PGUSER: decodeURIComponent(database.username), PGPASSWORD: decodeURIComponent(database.password),
     PGDATABASE: database.pathname.slice(1), PGOPTIONS: '-c default_transaction_read_only=on -c statement_timeout=5000',
-    PGSERVICE: '', PGSERVICEFILE: '', PGPASSFILE: '/dev/null' }
+    PGPASSFILE: '/dev/null' }
+  delete env.PGSERVICE
+  delete env.PGSERVICEFILE
   delete env.PANCAKE_TOKEN
   delete env.PANCAKE_PERF_DB_URL
   return async () => {

@@ -1,6 +1,9 @@
+import { mkdtemp, writeFile, rm } from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { measure, readBody, summarize, summary } from './public-cli.mjs'
+import { databaseCounter, measure, readBody, summarize, summary } from './public-cli.mjs'
 
 const plan = { cases: [{ resource: 'players', query: {} }], samples: 2, warmup: 1, pages: 2, limit: 1, intervalMs: 1100 }
 const page = cursor => Response.json({ version: 1, resource: 'players', items: [{ id: 'one' }], nextCursor: cursor })
@@ -45,4 +48,24 @@ test('caps buffered responses', async () => {
 
 test('rejects wrong resource envelopes', async () => {
   await assert.rejects(measure(plan, { wait: async () => {}, request: async () => Response.json({ version: 1, resource: 'trades', items: [], nextCursor: null }) }), /Invalid public response/)
+})
+
+
+test('database counters remove inherited service configuration', async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'pancake-public-counter-'))
+  const original = { PATH: process.env.PATH, PGSERVICE: process.env.PGSERVICE, PGSERVICEFILE: process.env.PGSERVICEFILE }
+  try {
+    await writeFile(path.join(directory, 'psql'), '#!/usr/bin/env node\nif ("PGSERVICE" in process.env || "PGSERVICEFILE" in process.env) process.exit(1)\nconsole.log(JSON.stringify({ track: "all", calls: 7 }))\n', { mode: 0o700 })
+    process.env.PATH = directory + path.delimiter + process.env.PATH
+    process.env.PGSERVICE = 'unrelated'
+    process.env.PGSERVICEFILE = '/unrelated'
+    const counter = await databaseCounter('postgresql://fixture:fixture@127.0.0.1:59422/postgres')
+    assert.equal(await counter(), 7)
+  } finally {
+    for (const [key, value] of Object.entries(original)) {
+      if (value === undefined) delete process.env[key]
+      else process.env[key] = value
+    }
+    await rm(directory, { recursive: true, force: true })
+  }
 })

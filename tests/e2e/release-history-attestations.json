@@ -3595,6 +3595,20 @@
       "statementCount": 3,
       "statementsSha256": "57e51bad7cf4ff7b3bfbfa5c165b2f16ebf2fee6466abbe40a7bb1d5fd253adb",
       "sha256": "d337e31efda5c124895a6c32d2aeb565204be0e5ec26076c7d5abdb4a81a9421"
+    },
+    {
+      "name": "public_league_reads",
+      "version": "20261214010300",
+      "statementCount": 11,
+      "statementsSha256": "207715a8c0053a22cf3a68a20e9dfe0d17ce7320d1a210cda7e3c59a415f509c",
+      "sha256": "8078f7df4f867fe29f36fd1882918c4fcfb29b7bccfe57b8804857bcf9078174"
+    },
+    {
+      "name": "public_read_admission",
+      "version": "20261214010400",
+      "statementCount": 12,
+      "statementsSha256": "8df813eb4ff19ae8d9db70d847ff549f7a03f061ce5973ee254b1874b3f7acc3",
+      "sha256": "0f823a9b0d0e67e89d23098ffe506a7616f9844e82bcd127dd01853188ac7cec"
     }
   ]
 }
