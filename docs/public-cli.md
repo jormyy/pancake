@@ -18,8 +18,8 @@ pancake rosters --league "$LEAGUE_ID" --team "$TEAM_ID" --json
 The default is `https://ceeytbfmwsnzalxlkalc.supabase.co/functions/v1/api`.
 The [production project record](production-migration-history.md) names this project.
 The [app URL resolver](../lib/shared/api-url.ts) defines the `/functions/v1/api` path.
-The default points to the production location for this release. API v2 is not deployed by this work.
-No configuration is needed after release. The package ships no Supabase key or database credentials.
+The default points to the deployed production API v2.
+No endpoint configuration is needed. The package ships no Supabase key or database credentials.
 Set `PANCAKE_API_URL` or pass `--api-url` to override the default. The flag takes precedence.
 Use HTTPS except for loopback development URLs.
 Get stable league IDs from `leagues` and team IDs from `teams`.
@@ -64,7 +64,10 @@ Scoring settings contain only the thirteen scoring weights in the schema.
 Standings use the current published standings cache. Historical standings are not supported.
 `matchups`, `scores`, and `schedule` share one result projection. A week filter includes multiweek matchups spanning that week.
 `players` lists canonical player metadata. `player-stats` adds league-scored season averages.
-`projections` reads the existing public-data projection calculator. It never reads claims or lineups.
+`projections` uses the existing projection calculation once for the complete player set.
+The generator copies its calculation into a private helper without the screen reader's 1,000-row pagination cap.
+The existing screen reader keeps its behavior. Public filtering, sorting and pagination follow the field allowlist.
+The calculation never reads claims or lineups.
 `free-agents` includes all unrostered players, including players on waivers.
 `waiverEligible` means a player is unrostered. It does not predict whether a manager's claim will succeed.
 `waiverClearsAt` is null when no active hold exists.
@@ -102,7 +105,7 @@ Its exact column expressions and predicates are stored in the policy file and ch
 | `standings` | `league_members`, `standings_current` | Selected league and current season cache; published win-rate and points-rate ranking |
 | `matchups`, `scores`, `schedule` | `matchups`, scoped home and away `league_members` | Selected league and season; `NOT is_voided` |
 | `player-stats` | `players`, `player_season_averages`, `mv_player_season_averages`, `v_player_avg_fantasy_points` | League-specific scoring and selected statistics year |
-| `projections` | `players`, narrow `get_league_projection_rows` calculation | Selected league scoring; current date; one canonical player per calculation |
+| `projections` | `players`, set-wise `private.public_projection_rows` calculation | Selected league scoring; current date; all canonical players in one calculation |
 | `drafts` | `drafts` | Selected league and season; `NOT is_mock` |
 | `draft-results` | `snake_draft_picks` or sold `nominations`, `drafts`, `players`, scoped `league_members` | Non-mock completed draft; picked snake player or sold auction result |
 | `picks` | `draft_picks` | Selected league; optional future season and current owner |
@@ -151,7 +154,7 @@ Stop on errors. Do not infer private claims or pending trades from public data.
 ## Privacy boundary
 
 [The policy file](../supabase/functions/api/public/policy.json) declares the public fields, source queries, record rules, filters, and default order.
-[The generator](../tools/verify/public-policy.mjs) builds both response schemas and the [current SQL migration](../supabase/migrations/20261214010600_public_sort_ties.sql).
+[The generator](../tools/verify/public-policy.mjs) builds both response schemas and the [current SQL migration](../supabase/migrations/20261214010700_public_projection_batch.sql).
 The generator applies record predicates and an explicit field projection before public filters, ordering, page bounds, and `hasMore`.
 The Edge handler repeats the field projection before serialization and rejects invalid shapes.
 The database function is security definer with an empty search path. Only the Edge service role can execute it.
@@ -214,6 +217,8 @@ Platform capacity controls still apply. No claim of complete denial-of-service p
 HTTP 429 includes `Retry-After`. The CLI does not retry 429 or invalid requests.
 It retries network failures and HTTP 502, 503, or 504 at most twice with short exponential backoff.
 All attempts share a 15-second timeout. Redirects are rejected.
+If any HTTP response arrives, exhausted retries return exit 7. Exit 6 means no HTTP response arrived.
+An interrupted response body also returns exit 7.
 Response bodies and stdout are capped at two MiB. Individual fields and lists have schema bounds.
 
 Responses have ETags and require revalidation. Conditional requests still enforce resource access and rate limits.
@@ -231,7 +236,7 @@ Invalid options use 400; unexpected database failures use a fixed 503 response w
 | 2 | Missing or invalid option, malformed UUID, or invalid request |
 | 4 | Syntactically valid but unavailable public resource |
 | 5 | Rate limit |
-| 6 | Network failure or timeout |
+| 6 | Transport failure or timeout before any HTTP response |
 | 7 | Server failure, invalid schema, or output limit |
 
 ## Verification and proof scope
@@ -265,12 +270,17 @@ Additional two-league fixture checks compare complete responses and cursors befo
 Follow [RELEASE-DB.md](../supabase/RELEASE-DB.md). This change does not apply migrations or deploy to production.
 Apply `20261214010300_public_league_reads.sql`, `20261214010400_public_read_admission.sql`, `20261214010500_public_projection_bounds.sql`, then `20261214010600_public_sort_ties.sql` on the isolated stack first.
 The second migration separates admission, removes the global quota, and validates values before SQL casts.
+For the projection performance fix, apply [migration 107](../supabase/migrations/20261214010700_public_projection_batch.sql) after those four migrations.
+It adds a private set-wise calculation and replaces the public reader without changing its arguments or response fields.
+No Edge redeployment is required for this SQL change. Release the matching CLI fix for retry exit codes.
 Run the catalog query and database tests. Regenerate database types and the database function catalog from that tested stack.
 The canonical SQL source check must also pass before release.
 After approval, apply the database migration before deploying the Edge API and installing version two of the CLI.
 Old version-one clients receive an explicit version-retired response.
 
 If verification fails, restore the matching previous Edge artifact.
+[Rollback 107](../supabase/rollbacks/20261214010700_public_projection_batch.sql) restores the previous reader and drops only the new private helper.
+It preserves stored data, but restores the known projection timeout at larger player counts.
 [Rollback 106](../supabase/rollbacks/20261214010600_public_sort_ties.sql) restores the previous sort behavior.
 [Rollback 105](../supabase/rollbacks/20261214010500_public_projection_bounds.sql) restores the earlier public reader without changing stored data.
 [Rollback 104](../supabase/rollbacks/20261214010400_public_read_admission.sql) restores the earlier reader and removes separate admission.
@@ -315,3 +325,55 @@ The middle roster page has a higher p95 despite a lower median; thirty samples d
 Raw per-request measurements, database statement samples and environment details accompany the review evidence.
 The repository harness is tools/perf/public-cli.mjs; its eight focused tests check measurement behavior.
 No production speedup or deployment is claimed.
+
+## Production-scale projection check
+
+The projection repair uses a fixture with 3,000 players, 246,000 game-stat rows and 1,821 internal projection rows.
+The old reader reaches its five-second timeout on the first, middle and last projection pages.
+The repaired reader passes all 1,710 measured reads across 19 resources.
+Each page case has two warmups and 30 measured reads, with a five-second statement timeout and a 2.5-second pass limit.
+The slowest p95 is 138 ms. These are fixture/local-stack results on the Mac mini, not production timings.
+
+The table shows p50 / p95 milliseconds through loopback psql, including client startup and response consumption.
+When a resource fits on one page, its first, middle and last cases use that same page.
+
+| Resource | First page | Middle page | Last page |
+| --- | ---: | ---: | ---: |
+| leagues | 21.8 / 25.0 | 21.2 / 24.4 | 20.4 / 23.8 |
+| league | 21.4 / 25.3 | 20.8 / 25.6 | 22.3 / 25.6 |
+| seasons | 20.1 / 24.0 | 21.4 / 25.1 | 21.1 / 25.7 |
+| teams | 22.0 / 25.1 | 21.0 / 25.1 | 21.1 / 24.8 |
+| players | 38.7 / 41.9 | 39.5 / 41.5 | 39.3 / 44.2 |
+| free-agents | 43.5 / 46.6 | 43.6 / 47.4 | 43.3 / 48.4 |
+| rosters | 25.0 / 29.5 | 24.6 / 28.0 | 25.2 / 27.8 |
+| standings | 22.1 / 24.3 | 22.3 / 25.1 | 22.6 / 24.6 |
+| matchups | 23.5 / 25.5 | 23.1 / 25.4 | 22.9 / 26.2 |
+| scores | 24.5 / 27.0 | 23.0 / 26.6 | 22.8 / 24.8 |
+| schedule | 23.1 / 25.6 | 23.8 / 25.9 | 23.5 / 26.3 |
+| player-stats | 78.4 / 80.8 | 79.0 / 83.0 | 78.1 / 80.6 |
+| projections | 126.9 / 137.5 | 128.2 / 132.6 | 128.1 / 130.7 |
+| drafts | 22.0 / 24.3 | 21.5 / 25.1 | 22.1 / 24.1 |
+| draft-results | 23.6 / 25.3 | 23.6 / 25.6 | 23.3 / 25.3 |
+| picks | 22.1 / 25.4 | 23.0 / 26.4 | 22.4 / 24.9 |
+| trades | 22.4 / 23.9 | 23.0 / 26.1 | 22.2 / 25.5 |
+| trade-assets | 22.4 / 25.0 | 22.3 / 25.9 | 22.9 / 25.3 |
+| transactions | 23.2 / 25.7 | 23.2 / 27.2 | 22.7 / 24.6 |
+
+The call trace records one `private.public_projection_rows` invocation per public projection request.
+The existing screen projection function is not called by the repaired reader.
+Projection requests return the same fields and retain the public ID tie-breaker.
+The set-wise calculation still evaluates per-player scoring; the change removes repeated whole-query setup.
+Statement counters include nested SQL and occasional local background polling.
+
+After the repository benchmark seed, [the scale fixture](../tools/perf/public-cli-scale.sql) expands the player/stat data.
+Rebuild the derived player averages before measurement. The review evidence records the complete setup and raw samples.
+Set `SUPABASE_DB_URL` to your isolated loopback database. Run [the checker](../tools/perf/public-cli-scale.mjs):
+
+```sh
+node tools/perf/public-cli-scale.mjs fixture.json output-dir
+```
+
+The fixture JSON supplies `leagueId` and `memberId`. Only loopback database connections are accepted.
+For HTTP checks, set `PANCAKE_API_URL` to the local Edge router and add `http` after the output directory.
+That mode uses a distinct synthetic client IP per case on the isolated router. It sends no authorization header.
+Production keeps its normal client limits.
