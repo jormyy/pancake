@@ -171,6 +171,23 @@ The new API never reads those tokens or their rate counters. Their creation and 
 The old token reader remains restricted to the service role and has no active public route.
 The public package no longer includes `db-health`. The separate operator tooling under `scripts/db-health` remains unchanged.
 
+## Public string bounds
+
+The database accepts unbounded text for league and player names, external player IDs, injury text, URLs, and other provider text.
+The public projection returns at most 1,024 Unicode code points from those values.
+It also limits each eligible-position string to 32 code points.
+These prefixes are applied in SQL before public search, sorting, counts, and pagination.
+The Edge serializer applies the same rule as a backstop. Stored values are unchanged.
+
+Public UUIDs retain all 36 characters. Date and timestamp strings allow 64 characters.
+Team names retain their database limit of 40 characters. Database enums and checked fields use their actual maximum label lengths.
+Nested strings follow the same rules as top-level fields. Bounded arrays retain their first declared maximum number of items.
+The schema marks lossy text or array projections with `x-overflow: truncate`.
+
+A page can contain fewer items than the requested limit when its JSON would exceed two MiB.
+Follow its cursor without changing the original request options. The cursor advances by the number of returned records.
+A large accepted text value cannot hide the other records on its page.
+
 ## Limits, errors, and caching
 
 The server admits at most 60 reads per client-IP bucket per minute across Edge instances.
@@ -244,7 +261,7 @@ Additional two-league fixture checks compare complete responses and cursors befo
 ## Database release and recovery
 
 Follow [RELEASE-DB.md](../supabase/RELEASE-DB.md). This change does not apply migrations or deploy to production.
-Apply `20261214010300_public_league_reads.sql`, then `20261214010400_public_read_admission.sql`, on the isolated stack first.
+Apply `20261214010300_public_league_reads.sql`, `20261214010400_public_read_admission.sql`, then `20261214010500_public_projection_bounds.sql` on the isolated stack first.
 The second migration separates admission, removes the global quota, and validates values before SQL casts.
 Run the catalog query and database tests. Regenerate database types and the database function catalog from that tested stack.
 The canonical SQL source check must also pass before release.
@@ -252,6 +269,7 @@ After approval, apply the database migration before deploying the Edge API and i
 Old version-one clients receive an explicit version-retired response.
 
 If verification fails, restore the matching previous Edge artifact.
+[Rollback 105](../supabase/rollbacks/20261214010500_public_projection_bounds.sql) restores the earlier public reader without changing stored data.
 [Rollback 104](../supabase/rollbacks/20261214010400_public_read_admission.sql) restores the earlier reader and removes separate admission.
 [Rollback 103](../supabase/rollbacks/20261214010300_public_league_reads.sql) then removes the feature reader and counters if required.
 Both preserve the existing sharing functions and league data.

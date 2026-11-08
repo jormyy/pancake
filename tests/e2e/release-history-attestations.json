@@ -3609,6 +3609,13 @@
       "statementCount": 12,
       "statementsSha256": "8df813eb4ff19ae8d9db70d847ff549f7a03f061ce5973ee254b1874b3f7acc3",
       "sha256": "0f823a9b0d0e67e89d23098ffe506a7616f9844e82bcd127dd01853188ac7cec"
+    },
+    {
+      "name": "public_projection_bounds",
+      "version": "20261214010500",
+      "statementCount": 12,
+      "statementsSha256": "f5b3a35dd7ecf598c99c073ad3c48d7889d68210f9efd1b8657260646065b098",
+      "sha256": "eb578cc0ecfb627bead270eb416b22e93b9e18aede470520aa42b5cb32686a2f"
     }
   ]
 }

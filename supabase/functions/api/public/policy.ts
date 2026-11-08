@@ -2,7 +2,7 @@ import definitions from './policy.json' with { type: 'json' }
 import contract from './schema-v2.json' with { type: 'json' }
 
 export type Resource = keyof typeof definitions.resources
-export type Shape = { type?: string | string[]; const?: unknown; enum?: unknown[]; properties?: Record<string, Shape>; items?: Shape; maxLength?: number; maxItems?: number }
+export type Shape = { type?: string | string[]; const?: unknown; enum?: unknown[]; properties?: Record<string, Shape>; items?: Shape; maxLength?: number; maxItems?: number; 'x-overflow'?: string }
 type Rule = { field: string; op: string; value?: unknown }
 export type Definition = { fields: Record<string, { schema: Shape }>; filters: Record<string, string[]>; order: string[]; direction?: string; visibility: Rule[] }
 export const publicContract = contract
@@ -26,11 +26,16 @@ export function publicValue(value: unknown, schema: Shape): unknown {
     return Object.fromEntries(Object.entries(schema.properties ?? {}).map(([key, shape]) => [key, publicValue(row[key], shape)]))
   }
   if (types.includes('array')) {
-    if (!Array.isArray(value) || value.length > (schema.maxItems ?? 50)) throw new Error('Invalid public list')
-    return value.map(item => publicValue(item, schema.items!))
+    if (!Array.isArray(value)) throw new Error('Invalid public list')
+    if (value.length > (schema.maxItems ?? 50) && schema['x-overflow'] !== 'truncate') throw new Error('Invalid public list')
+    return value.slice(0,schema.maxItems ?? 50).map(item => publicValue(item, schema.items!))
   }
   if (schema.enum && !schema.enum.includes(value)) throw new Error('Invalid public enum')
-  if (typeof value === 'string' && types.includes('string') && value.length <= (schema.maxLength ?? 1024)) return value
+  if (typeof value === 'string' && types.includes('string')) {
+    const characters=Array.from(value)
+    if (characters.length <= (schema.maxLength ?? 1024)) return value
+    if (schema['x-overflow']==='truncate') return characters.slice(0,schema.maxLength ?? 1024).join('')
+  }
   if (typeof value === 'boolean' && types.includes('boolean')) return value
   if (typeof value === 'number' && Number.isFinite(value) && (types.includes('number') || (types.includes('integer') && Number.isSafeInteger(value)))) return value
   throw new Error('Invalid public value')

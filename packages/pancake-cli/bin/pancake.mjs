@@ -59,7 +59,7 @@ function explain(target) {
   return { $schema: 'urn:pancake:cli:v2:explanation', version: 2, object: target, definition: schema }
 }
 function validate(value, schema) {
-  if ((typeof value === 'string' && value.length > (schema.maxLength ?? 100000)) || (Array.isArray(value) && value.length > (schema.maxItems ?? 50))) throw new CliError('Response exceeds schema bounds', 7)
+  if ((typeof value === 'string' && Array.from(value).length > (schema.maxLength ?? 100000)) || (Array.isArray(value) && value.length > (schema.maxItems ?? 50))) throw new CliError('Response exceeds schema bounds', 7)
   if (schema.const !== undefined && value !== schema.const) throw new CliError('Response schema does not match', 7)
   if (schema.enum && !schema.enum.includes(value)) throw new CliError('Response contains an invalid field', 7)
   const types = Array.isArray(schema.type) ? schema.type : [schema.type]

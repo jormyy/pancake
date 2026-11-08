@@ -6,7 +6,7 @@ import { verifyInstalled } from '../e2e/public-cli-v2.mjs'
 import { verifyLive } from '../e2e/public-cli.mjs'
 
 it('checks the bounded visibility model',()=>{expect(checkModel().checks).toBeGreaterThan(15000)})
-it('checks generated SQL and contracts against the policy',async()=>{await expect(generate(true)).resolves.toContain('supabase/migrations/20261214010400_public_read_admission.sql')})
+it('checks generated SQL and contracts against the policy',async()=>{await expect(generate(true)).resolves.toContain('supabase/migrations/20261214010500_public_projection_bounds.sql')})
 it('runs the installed executable for every resource',async()=>{await verifyInstalled()},15000)
 it('requires explicit live-read authorization outside loopback',async()=>{
   await expect(verifyLive('https://example.invalid','11111111-1111-4111-8111-111111111111')).rejects.toThrow()

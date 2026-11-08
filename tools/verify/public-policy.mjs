@@ -4,7 +4,7 @@ import path from 'node:path'
 
 const root = path.resolve(import.meta.dirname, '../..')
 const policyPath = 'supabase/functions/api/public/policy.json'
-const migrationPath = 'supabase/migrations/20261214010400_public_read_admission.sql'
+const migrationPath = 'supabase/migrations/20261214010500_public_projection_bounds.sql'
 const quote = value => `'${value.replaceAll("'", "''")}'`
 
 function contractFor(policy) {
@@ -19,9 +19,26 @@ function contractFor(policy) {
   return { $schema: 'https://json-schema.org/draft/2020-12/schema', version: 2, resources }
 }
 
+function boundedSql(expression, schema, json = false) {
+  if (schema['x-overflow'] === 'truncate' && (Array.isArray(schema.type) ? schema.type : [schema.type]).includes('string')) {
+    const text = json ? `(${expression} #>> '{}')` : `(${expression})::text`
+    return `to_jsonb(left(${text},${schema.maxLength}))`
+  }
+  const value = json ? expression : `to_jsonb(${expression})`
+  if (schema.properties) {
+    const fields = Object.entries(schema.properties).flatMap(([key, child]) => [quote(key), boundedSql(`bounded.value->${quote(key)}`,child,true)]).join(',')
+    return `(SELECT jsonb_build_object(${fields}) FROM (SELECT ${value} AS value OFFSET 0) bounded)`
+  }
+  if (schema.items) {
+    const bounded=`(SELECT coalesce(jsonb_agg(${boundedSql('element.value',schema.items,true)} ORDER BY element.ordinality),'[]'::jsonb) FROM jsonb_array_elements(${value}) WITH ORDINALITY element(value,ordinality) WHERE element.ordinality<=${schema.maxItems})`
+    return schema.type.includes('null') ? `CASE WHEN ${value} IS NULL OR ${value}='null'::jsonb THEN NULL ELSE ${bounded} END` : bounded
+  }
+  return expression
+}
+
 function sqlFor(policy) {
   const cases = Object.entries(policy.resources).map(([name, definition]) => {
-    const fields = Object.entries(definition.fields).flatMap(([key, field]) => [quote(key), field.sql]).join(',\n          ')
+    const fields = Object.entries(definition.fields).flatMap(([key, field]) => [quote(key), boundedSql(field.sql,field.schema)]).join(',\n          ')
     const filters = Object.entries(definition.filters).filter(([, fields]) => fields.length).map(([key, fields]) => {
       if (key === 'query') return `(params->>'query' IS NULL OR ${fields.map(field => `position(lower(params->>'query') IN lower(data->>${quote(field)}))>0`).join(' OR ')})`
       if (key === 'week') return `(params->>'week' IS NULL OR (params->>'week')::integer BETWEEN (data->>${quote(fields[0])})::integer AND (data->>${quote(fields[1])})::integer)`
@@ -146,12 +163,12 @@ export async function generate(check = false) {
   const policy = JSON.parse(await readFile(path.join(root, policyPath), 'utf8'))
   const contract = JSON.stringify(contractFor(policy), null, 2)+'\n'
   const sql = sqlFor(policy)
-  const baseline = await readFile(path.join(root,'supabase/migrations/20261214010300_public_league_reads.sql'),'utf8')
+  const baseline = await readFile(path.join(root,'supabase/migrations/20261214010400_public_read_admission.sql'),'utf8')
   const oldRead = baseline.slice(baseline.indexOf('CREATE OR REPLACE FUNCTION public.public_read_v2'),baseline.indexOf('\nREVOKE ALL ON FUNCTION public.public_read_v2'))
-  const rollback = `BEGIN;\nSET LOCAL lock_timeout='3s';\nSET LOCAL statement_timeout='30s';\nDROP FUNCTION IF EXISTS public.public_admit_read(text);\nDROP INDEX IF EXISTS private.public_api_buckets_minute;\n${oldRead}\nREVOKE ALL ON FUNCTION public.public_read_v2(uuid,text,jsonb,text) FROM PUBLIC,anon,authenticated;\nGRANT EXECUTE ON FUNCTION public.public_read_v2(uuid,text,jsonb,text) TO service_role;\nNOTIFY pgrst,'reload schema';\nCOMMIT;\n`
+  const rollback = `BEGIN;\nSET LOCAL lock_timeout='3s';\nSET LOCAL statement_timeout='30s';\n${oldRead}\nREVOKE ALL ON FUNCTION public.public_read_v2(uuid,text,jsonb,text) FROM PUBLIC,anon,authenticated;\nGRANT EXECUTE ON FUNCTION public.public_read_v2(uuid,text,jsonb,text) TO service_role;\nNOTIFY pgrst,'reload schema';\nCOMMIT;\n`
   const outputs = {
     [migrationPath]: sql,
-    'supabase/rollbacks/20261214010400_public_read_admission.sql': rollback,
+    'supabase/rollbacks/20261214010500_public_projection_bounds.sql': rollback,
     'supabase/functions/api/public/schema-v2.json': contract,
     'packages/pancake-cli/schemas/v2.json': contract,
     'packages/pancake-cli/schemas/options-v2.json': JSON.stringify(Object.fromEntries(Object.entries(policy.resources).map(([name, item]) => [name, { filters: Object.keys(item.filters), filterFields: item.filters, order: item.order, direction: item.direction ?? 'asc', sorts: Object.entries(item.fields).filter(([, field]) => !(Array.isArray(field.schema.type)?field.schema.type:[field.schema.type]).some(type=>['object','array'].includes(type))).map(([key]) => key) }])), null, 2)+'\n',

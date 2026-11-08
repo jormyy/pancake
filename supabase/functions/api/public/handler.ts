@@ -110,10 +110,18 @@ export function createPublicHandler(read: PublicRead, admit = createLimiter()) {
         result.status===429 ? { 'Retry-After': String(Math.min(60,Math.max(1,result.retryAfter ?? 60))) } : {})
       if (!Array.isArray(result.items) || result.items.length>limit || typeof result.hasMore!=='boolean') return failure(503)
       if (resource !== 'leagues' && result.items.some(row => !row || typeof row !== 'object' || (row as Record<string,unknown>).leagueId !== league)) return failure(503)
-      if (result.hasMore && offset+limit>policy.maxOffset) return failure(400)
-      const body = publicValue({ $schema: `urn:pancake:public:v2:${resource}`, version: 2, resource, items: result.items,
-        nextCursor: result.hasMore ? btoa(JSON.stringify({offset:offset+limit,scope})) : null },publicContract.resources[resource])
-      const text = JSON.stringify(body)
+      const items=publicValue(result.items,publicContract.resources[resource].properties.items) as unknown[]
+      let count=items.length
+      let text: string
+      do {
+        const more=result.hasMore || count<items.length
+        const nextOffset=offset+(count || limit)
+        if (more && nextOffset>policy.maxOffset) return failure(400)
+        text=JSON.stringify({ $schema: `urn:pancake:public:v2:${resource}`, version: 2, resource, items: items.slice(0,count),
+          nextCursor: more ? btoa(JSON.stringify({offset:nextOffset,scope})) : null })
+        if (new TextEncoder().encode(text).byteLength<=policy.maxResponseBytes || count<=1) break
+        count--
+      } while (true)
       if (new TextEncoder().encode(text).byteLength>policy.maxResponseBytes) return failure(503)
       const etag = `"${await digest(text)}"`
       const matches = (request.headers.get('if-none-match') ?? '').split(',').map(value => value.trim().replace(/^W\//,''))

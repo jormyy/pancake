@@ -9,7 +9,7 @@ function sample(shape: Shape): unknown {
   if (shape.properties) return Object.fromEntries(Object.entries(shape.properties).map(([key,value]) => [key,sample(value)]))
   if (shape.items) return []
   const type = Array.isArray(shape.type) ? shape.type[0] : shape.type
-  return type === 'string' ? league : type === 'boolean' ? false : 1
+  return type === 'string' ? league.slice(0,shape.maxLength ?? 1024) : type === 'boolean' ? false : 1
 }
 function request(resource: string, extra = '', headers: Record<string,string> = {}) {
   return new Request(`http://localhost/public/v2/${resource}?${resource === 'leagues' ? '' : `league=${league}`}${resource === 'rosters' ? `&team=${league}` : ''}${extra}`,{headers})
@@ -73,8 +73,8 @@ Deno.test('public v2 private trade states fail closed',async()=>{
 })
 Deno.test('public v2 bounds response size and relays durable rate limits',async()=>{
   const item=sample(publicContract.resources.teams.properties.items.items) as Record<string,unknown>
-  const tooLong=createPublicHandler(async()=>({status:200,items:[{...item,name:'x'.repeat(1025)}],hasMore:false}))
-  assert((await tooLong(request('teams'),'/public/v2/teams'))?.status===503)
+  const tooLong=createPublicHandler(async()=>({status:200,items:[{id:league,name:'x'.repeat(1025),status:'active'}],hasMore:false}))
+  assert((await tooLong(request('leagues'),'/public/v2/leagues'))?.status===200)
   const tooMany=createPublicHandler(async()=>({status:200,items:Array(51).fill(item),hasMore:false}))
   assert((await tooMany(request('teams'),'/public/v2/teams'))?.status===503)
   const rate=createPublicHandler(async()=>({status:429,retryAfter:900}))

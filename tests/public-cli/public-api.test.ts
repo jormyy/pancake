@@ -10,7 +10,7 @@ function sample(shape: Shape): unknown {
   if (shape.properties) return Object.fromEntries(Object.entries(shape.properties).map(([key,value])=>[key,sample(value)]))
   if (shape.items) return []
   const type=Array.isArray(shape.type)?shape.type[0]:shape.type
-  return type==='string'?league:type==='boolean'?false:1
+  return type==='string'?league.slice(0,shape.maxLength ?? 1024):type==='boolean'?false:1
 }
 describe('public v2 projection',()=>{
   it.each(resourceNames)('%s is independent of random private fields',async resource=>{

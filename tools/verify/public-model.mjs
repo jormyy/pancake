@@ -10,7 +10,7 @@ function sample(shape) {
   if (shape.properties) return Object.fromEntries(Object.entries(shape.properties).map(([key,value])=>[key,sample(value)]))
   if (shape.items) return []
   const type = Array.isArray(shape.type) ? shape.type[0] : shape.type
-  return type==='string' ? 'public' : type==='boolean' ? false : 1
+  return type==='string' ? 'public'.slice(0,shape.maxLength ?? 1024) : type==='boolean' ? false : 1
 }
 export function checkModel() {
   let checks = 0

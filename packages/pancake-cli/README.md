@@ -31,6 +31,7 @@ The package contains no operator command and performs no mutations.
 Stdout contains data; stderr contains errors. Use `--json`, `--text`, `--no-cache`, or `--cache-dir` as needed.
 Requests have a 15-second total timeout and at most two retries for safe transient failures.
 Output is capped at two MiB. Page sizes are capped at 50.
+Unbounded source text returns a documented public prefix. Oversized pages return fewer records and a continuation cursor.
 Missing required or malformed UUID options fail locally with a lookup command.
 Exit codes are 0 for success, 2 for usage and invalid options, 4 for valid but unavailable resources, 5 for rate limits, 6 for network failure, and 7 for server/schema failures.
 

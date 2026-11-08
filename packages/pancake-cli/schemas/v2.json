@@ -33,15 +33,16 @@
             "properties": {
               "id": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 36
               },
               "name": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 1024,
+                "x-overflow": "truncate"
               },
               "status": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 9
               }
             },
             "required": [
@@ -91,26 +92,27 @@
             "properties": {
               "id": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 36
               },
               "name": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 1024,
+                "x-overflow": "truncate"
               },
               "status": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 9
               },
               "leagueId": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 36
               },
               "seasonId": {
                 "type": [
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 36
               },
               "seasonYear": {
                 "type": [
@@ -120,7 +122,8 @@
               },
               "timezone": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 1024,
+                "x-overflow": "truncate"
               },
               "rosterSize": {
                 "type": [
@@ -145,7 +148,7 @@
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 19
               },
               "taxiMaxSeasons": {
                 "type": [
@@ -170,7 +173,7 @@
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 7
               },
               "faabStartingBudget": {
                 "type": [
@@ -189,14 +192,14 @@
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 64
               },
               "tradeVetoMode": {
                 "type": [
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 12
               },
               "tradeVetoWindowHours": {
                 "type": [
@@ -233,7 +236,7 @@
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 6
               },
               "futurePickYears": {
                 "type": [
@@ -348,7 +351,8 @@
                 "maxItems": 20,
                 "items": {
                   "type": "integer"
-                }
+                },
+                "x-overflow": "truncate"
               },
               "playoffRoundWeeks": {
                 "type": [
@@ -358,7 +362,8 @@
                 "maxItems": 20,
                 "items": {
                   "type": "integer"
-                }
+                },
+                "x-overflow": "truncate"
               },
               "playoffTotalWeeks": {
                 "type": [
@@ -379,13 +384,14 @@
                   "properties": {
                     "slotType": {
                       "type": "string",
-                      "maxLength": 32
+                      "maxLength": 4
                     },
                     "slotCount": {
                       "type": "integer"
                     }
                   }
-                }
+                },
+                "x-overflow": "truncate"
               },
               "waiverOrder": {
                 "type": "array",
@@ -406,7 +412,8 @@
                       "type": "integer"
                     }
                   }
-                }
+                },
+                "x-overflow": "truncate"
               }
             },
             "required": [
@@ -485,11 +492,11 @@
             "properties": {
               "id": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 36
               },
               "leagueId": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 36
               },
               "seasonYear": {
                 "type": "integer"
@@ -502,14 +509,14 @@
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 64
               },
               "regularSeasonEnd": {
                 "type": [
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 64
               }
             },
             "required": [
@@ -562,15 +569,15 @@
             "properties": {
               "id": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 36
               },
               "leagueId": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 36
               },
               "name": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 40
               }
             },
             "required": [
@@ -620,43 +627,47 @@
             "properties": {
               "id": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 36
               },
               "leagueId": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 36
               },
               "name": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 1024,
+                "x-overflow": "truncate"
               },
               "nbaId": {
                 "type": [
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 1024,
+                "x-overflow": "truncate"
               },
               "nbaTeam": {
                 "type": [
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 1024,
+                "x-overflow": "truncate"
               },
               "position": {
                 "type": [
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 2
               },
               "injuryStatus": {
                 "type": [
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 1024,
+                "x-overflow": "truncate"
               },
               "yearsExperience": {
                 "type": [
@@ -669,28 +680,31 @@
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 1024,
+                "x-overflow": "truncate"
               },
               "birthdate": {
                 "type": [
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 64
               },
               "injuryReason": {
                 "type": [
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 1024,
+                "x-overflow": "truncate"
               },
               "injuryExpectedReturn": {
                 "type": [
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 1024,
+                "x-overflow": "truncate"
               },
               "nbaDraftNumber": {
                 "type": [
@@ -709,7 +723,8 @@
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 1024,
+                "x-overflow": "truncate"
               },
               "eligiblePositions": {
                 "type": [
@@ -719,8 +734,10 @@
                 "maxItems": 10,
                 "items": {
                   "type": "string",
-                  "maxLength": 32
-                }
+                  "maxLength": 32,
+                  "x-overflow": "truncate"
+                },
+                "x-overflow": "truncate"
               }
             },
             "required": [
@@ -783,43 +800,47 @@
             "properties": {
               "id": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 36
               },
               "leagueId": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 36
               },
               "name": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 1024,
+                "x-overflow": "truncate"
               },
               "nbaId": {
                 "type": [
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 1024,
+                "x-overflow": "truncate"
               },
               "nbaTeam": {
                 "type": [
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 1024,
+                "x-overflow": "truncate"
               },
               "position": {
                 "type": [
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 2
               },
               "injuryStatus": {
                 "type": [
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 1024,
+                "x-overflow": "truncate"
               },
               "yearsExperience": {
                 "type": [
@@ -832,7 +853,8 @@
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 1024,
+                "x-overflow": "truncate"
               },
               "availability": {
                 "type": "string",
@@ -840,14 +862,14 @@
                   "free-agent",
                   "waivers"
                 ],
-                "maxLength": 1024
+                "maxLength": 10
               },
               "waiverClearsAt": {
                 "type": [
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 64
               },
               "waiverEligible": {
                 "type": "boolean"
@@ -857,21 +879,23 @@
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 64
               },
               "injuryReason": {
                 "type": [
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 1024,
+                "x-overflow": "truncate"
               },
               "injuryExpectedReturn": {
                 "type": [
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 1024,
+                "x-overflow": "truncate"
               },
               "nbaDraftNumber": {
                 "type": [
@@ -890,7 +914,8 @@
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 1024,
+                "x-overflow": "truncate"
               },
               "eligiblePositions": {
                 "type": [
@@ -900,8 +925,10 @@
                 "maxItems": 10,
                 "items": {
                   "type": "string",
-                  "maxLength": 32
-                }
+                  "maxLength": 32,
+                  "x-overflow": "truncate"
+                },
+                "x-overflow": "truncate"
               }
             },
             "required": [
@@ -967,18 +994,18 @@
             "properties": {
               "id": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 36
               },
               "leagueId": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 36
               },
               "seasonYear": {
                 "type": "integer"
               },
               "teamId": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 36
               },
               "isOnIR": {
                 "type": "boolean"
@@ -992,39 +1019,43 @@
                 "properties": {
                   "id": {
                     "type": "string",
-                    "maxLength": 1024
+                    "maxLength": 36
                   },
                   "name": {
                     "type": "string",
-                    "maxLength": 1024
+                    "maxLength": 1024,
+                    "x-overflow": "truncate"
                   },
                   "nbaId": {
                     "type": [
                       "string",
                       "null"
                     ],
-                    "maxLength": 1024
+                    "maxLength": 1024,
+                    "x-overflow": "truncate"
                   },
                   "nbaTeam": {
                     "type": [
                       "string",
                       "null"
                     ],
-                    "maxLength": 1024
+                    "maxLength": 1024,
+                    "x-overflow": "truncate"
                   },
                   "position": {
                     "type": [
                       "string",
                       "null"
                     ],
-                    "maxLength": 1024
+                    "maxLength": 2
                   },
                   "injuryStatus": {
                     "type": [
                       "string",
                       "null"
                     ],
-                    "maxLength": 1024
+                    "maxLength": 1024,
+                    "x-overflow": "truncate"
                   },
                   "yearsExperience": {
                     "type": [
@@ -1037,28 +1068,31 @@
                       "string",
                       "null"
                     ],
-                    "maxLength": 1024
+                    "maxLength": 1024,
+                    "x-overflow": "truncate"
                   },
                   "birthdate": {
                     "type": [
                       "string",
                       "null"
                     ],
-                    "maxLength": 1024
+                    "maxLength": 64
                   },
                   "injuryReason": {
                     "type": [
                       "string",
                       "null"
                     ],
-                    "maxLength": 1024
+                    "maxLength": 1024,
+                    "x-overflow": "truncate"
                   },
                   "injuryExpectedReturn": {
                     "type": [
                       "string",
                       "null"
                     ],
-                    "maxLength": 1024
+                    "maxLength": 1024,
+                    "x-overflow": "truncate"
                   },
                   "nbaDraftNumber": {
                     "type": [
@@ -1077,7 +1111,8 @@
                       "string",
                       "null"
                     ],
-                    "maxLength": 1024
+                    "maxLength": 1024,
+                    "x-overflow": "truncate"
                   },
                   "eligiblePositions": {
                     "type": [
@@ -1087,8 +1122,10 @@
                     "maxItems": 10,
                     "items": {
                       "type": "string",
-                      "maxLength": 32
-                    }
+                      "maxLength": 32,
+                      "x-overflow": "truncate"
+                    },
+                    "x-overflow": "truncate"
                   }
                 },
                 "required": [
@@ -1161,15 +1198,15 @@
             "properties": {
               "id": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 36
               },
               "leagueId": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 36
               },
               "name": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 40
               },
               "wins": {
                 "type": "integer"
@@ -1247,11 +1284,11 @@
             "properties": {
               "id": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 36
               },
               "leagueId": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 36
               },
               "seasonYear": {
                 "type": "integer"
@@ -1264,25 +1301,25 @@
               },
               "homeTeamId": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 36
               },
               "awayTeamId": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 36
               },
               "homeTeamName": {
                 "type": [
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 40
               },
               "awayTeamName": {
                 "type": [
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 40
               },
               "homePoints": {
                 "type": [
@@ -1304,7 +1341,7 @@
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 36
               }
             },
             "required": [
@@ -1364,11 +1401,11 @@
             "properties": {
               "id": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 36
               },
               "leagueId": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 36
               },
               "seasonYear": {
                 "type": "integer"
@@ -1381,25 +1418,25 @@
               },
               "homeTeamId": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 36
               },
               "awayTeamId": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 36
               },
               "homeTeamName": {
                 "type": [
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 40
               },
               "awayTeamName": {
                 "type": [
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 40
               },
               "homePoints": {
                 "type": [
@@ -1421,7 +1458,7 @@
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 36
               }
             },
             "required": [
@@ -1481,11 +1518,11 @@
             "properties": {
               "id": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 36
               },
               "leagueId": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 36
               },
               "seasonYear": {
                 "type": "integer"
@@ -1498,25 +1535,25 @@
               },
               "homeTeamId": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 36
               },
               "awayTeamId": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 36
               },
               "homeTeamName": {
                 "type": [
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 40
               },
               "awayTeamName": {
                 "type": [
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 40
               },
               "homePoints": {
                 "type": [
@@ -1538,7 +1575,7 @@
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 36
               }
             },
             "required": [
@@ -1598,43 +1635,47 @@
             "properties": {
               "id": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 36
               },
               "leagueId": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 36
               },
               "name": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 1024,
+                "x-overflow": "truncate"
               },
               "nbaId": {
                 "type": [
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 1024,
+                "x-overflow": "truncate"
               },
               "nbaTeam": {
                 "type": [
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 1024,
+                "x-overflow": "truncate"
               },
               "position": {
                 "type": [
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 2
               },
               "injuryStatus": {
                 "type": [
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 1024,
+                "x-overflow": "truncate"
               },
               "yearsExperience": {
                 "type": [
@@ -1647,7 +1688,8 @@
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 1024,
+                "x-overflow": "truncate"
               },
               "seasonYear": {
                 "type": "integer"
@@ -1717,21 +1759,23 @@
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 64
               },
               "injuryReason": {
                 "type": [
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 1024,
+                "x-overflow": "truncate"
               },
               "injuryExpectedReturn": {
                 "type": [
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 1024,
+                "x-overflow": "truncate"
               },
               "nbaDraftNumber": {
                 "type": [
@@ -1750,7 +1794,8 @@
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 1024,
+                "x-overflow": "truncate"
               },
               "eligiblePositions": {
                 "type": [
@@ -1760,8 +1805,10 @@
                 "maxItems": 10,
                 "items": {
                   "type": "string",
-                  "maxLength": 32
-                }
+                  "maxLength": 32,
+                  "x-overflow": "truncate"
+                },
+                "x-overflow": "truncate"
               },
               "fieldGoalsMade": {
                 "type": [
@@ -1877,43 +1924,47 @@
             "properties": {
               "id": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 36
               },
               "leagueId": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 36
               },
               "name": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 1024,
+                "x-overflow": "truncate"
               },
               "nbaId": {
                 "type": [
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 1024,
+                "x-overflow": "truncate"
               },
               "nbaTeam": {
                 "type": [
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 1024,
+                "x-overflow": "truncate"
               },
               "position": {
                 "type": [
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 2
               },
               "injuryStatus": {
                 "type": [
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 1024,
+                "x-overflow": "truncate"
               },
               "yearsExperience": {
                 "type": [
@@ -1926,35 +1977,38 @@
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 1024,
+                "x-overflow": "truncate"
               },
               "date": {
                 "type": [
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 64
               },
               "source": {
                 "type": [
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 1024,
+                "x-overflow": "truncate"
               },
               "fetchedAt": {
                 "type": [
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 64
               },
               "projectionStatus": {
                 "type": [
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 1024,
+                "x-overflow": "truncate"
               },
               "fantasyPoints": {
                 "type": [
@@ -2009,21 +2063,23 @@
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 64
               },
               "injuryReason": {
                 "type": [
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 1024,
+                "x-overflow": "truncate"
               },
               "injuryExpectedReturn": {
                 "type": [
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 1024,
+                "x-overflow": "truncate"
               },
               "nbaDraftNumber": {
                 "type": [
@@ -2042,7 +2098,8 @@
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 1024,
+                "x-overflow": "truncate"
               },
               "eligiblePositions": {
                 "type": [
@@ -2052,8 +2109,10 @@
                 "maxItems": 10,
                 "items": {
                   "type": "string",
-                  "maxLength": 32
-                }
+                  "maxLength": 32,
+                  "x-overflow": "truncate"
+                },
+                "x-overflow": "truncate"
               }
             },
             "required": [
@@ -2128,43 +2187,43 @@
             "properties": {
               "id": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 36
               },
               "leagueId": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 36
               },
               "seasonYear": {
                 "type": "integer"
               },
               "draftType": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 7
               },
               "status": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 11
               },
               "scheduledAt": {
                 "type": [
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 64
               },
               "startedAt": {
                 "type": [
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 64
               },
               "completedAt": {
                 "type": [
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 64
               }
             },
             "required": [
@@ -2219,22 +2278,22 @@
             "properties": {
               "id": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 36
               },
               "leagueId": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 36
               },
               "seasonYear": {
                 "type": "integer"
               },
               "draftId": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 36
               },
               "draftType": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 7
               },
               "overallPick": {
                 "type": "integer"
@@ -2247,29 +2306,30 @@
               },
               "teamId": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 36
               },
               "teamName": {
                 "type": [
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 40
               },
               "playerId": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 36
               },
               "playerName": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 1024,
+                "x-overflow": "truncate"
               },
               "pickedAt": {
                 "type": [
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 64
               },
               "price": {
                 "type": [
@@ -2335,11 +2395,11 @@
             "properties": {
               "id": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 36
               },
               "leagueId": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 36
               },
               "seasonYear": {
                 "type": "integer"
@@ -2349,11 +2409,11 @@
               },
               "teamId": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 36
               },
               "originalTeamId": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 36
               },
               "isUsed": {
                 "type": "boolean"
@@ -2410,11 +2470,11 @@
             "properties": {
               "id": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 36
               },
               "leagueId": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 36
               },
               "seasonYear": {
                 "type": "integer"
@@ -2424,19 +2484,19 @@
                 "enum": [
                   "completed"
                 ],
-                "maxLength": 1024
+                "maxLength": 9
               },
               "completedAt": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 64
               },
               "proposerTeamId": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 36
               },
               "recipientTeamId": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 36
               },
               "teamIds": {
                 "type": "array",
@@ -2444,7 +2504,8 @@
                   "type": "string",
                   "maxLength": 36
                 },
-                "maxItems": 12
+                "maxItems": 12,
+                "x-overflow": "truncate"
               }
             },
             "required": [
@@ -2499,34 +2560,34 @@
             "properties": {
               "id": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 36
               },
               "leagueId": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 36
               },
               "tradeId": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 36
               },
               "status": {
                 "type": "string",
                 "enum": [
                   "completed"
                 ],
-                "maxLength": 1024
+                "maxLength": 9
               },
               "completedAt": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 64
               },
               "fromTeamId": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 36
               },
               "toTeamId": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 36
               },
               "kind": {
                 "type": "string",
@@ -2535,28 +2596,29 @@
                   "pick",
                   "budget"
                 ],
-                "maxLength": 1024
+                "maxLength": 6
               },
               "playerId": {
                 "type": [
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 36
               },
               "playerName": {
                 "type": [
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 1024,
+                "x-overflow": "truncate"
               },
               "pickId": {
                 "type": [
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 36
               },
               "pickSeasonYear": {
                 "type": [
@@ -2628,39 +2690,40 @@
             "properties": {
               "id": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 36
               },
               "leagueId": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 36
               },
               "teamId": {
                 "type": [
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 36
               },
               "teamName": {
                 "type": [
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 40
               },
               "playerId": {
                 "type": [
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 36
               },
               "playerName": {
                 "type": [
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 1024,
+                "x-overflow": "truncate"
               },
               "type": {
                 "type": "string",
@@ -2675,18 +2738,18 @@
                   "carry_over",
                   "trade_completed"
                 ],
-                "maxLength": 1024
+                "maxLength": 15
               },
               "occurredAt": {
                 "type": "string",
-                "maxLength": 1024
+                "maxLength": 64
               },
               "tradeId": {
                 "type": [
                   "string",
                   "null"
                 ],
-                "maxLength": 1024
+                "maxLength": 36
               }
             },
             "required": [
