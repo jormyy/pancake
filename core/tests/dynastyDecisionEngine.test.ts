@@ -76,12 +76,32 @@ describe('dynasty decision engine', () => {
         const reverse = analyzeDynastyTrade(input, 'overall', routes.map(route => ({
             ...route, fromMemberId: route.toMemberId, toMemberId: route.fromMemberId,
         })))
-        expect(forward.teams[0].valuesSent).toBe(forward.assets[0].values.overall + forward.assets[1].values.overall)
+        expect(forward.teams[0]).toMatchObject({
+            valuesSent: 1077.293466, valuesReceived: 922.519367, netValue: -154.774099,
+        })
         for (const [index, team] of forward.teams.entries()) {
-            expect(team.impact).toBe(team.valuesReceived - team.valuesSent + team.packageEffect + team.rosterSlotEffect + team.replacementEffect)
+            const netValue = Number((team.valuesReceived - team.valuesSent + team.rosterSlotEffect).toFixed(6))
+            expect(team).toMatchObject({ packageEffect: 0, replacementEffect: 0, rosterSlotEffect: 0, fair: false })
+            expect(team.netValue).toBe(netValue)
+            expect(team.impact).toBe(team.fair ? 0 : netValue)
+            expect(reverse.teams[index].valuesSent).toBe(team.valuesReceived)
+            expect(reverse.teams[index].valuesReceived).toBe(team.valuesSent)
+            expect(reverse.teams[index].netValue).toBe(-netValue || 0)
             expect(reverse.teams[index].impact).toBe(-team.impact || 0)
             expect(reverse.teams[index].replacementEffect).toBe(-team.replacementEffect || 0)
         }
+    })
+
+    it('keeps unequal net values when fair trades have zero impact', () => {
+        const analysis = analyzeDynastyTrade(context, 'overall', [
+            { fromMemberId: 'a', toMemberId: 'b', asset: tradedPlayer('one', 50, 20) },
+            { fromMemberId: 'b', toMemberId: 'a', asset: tradedPlayer('two', 49, 20) },
+        ])
+
+        expect(analysis.teams).toMatchObject([
+            { memberId: 'a', valuesSent: 590.49, valuesReceived: 597.080225, netValue: 6.590225, fair: true, impact: 0 },
+            { memberId: 'b', valuesSent: 597.080225, valuesReceived: 590.49, netValue: -6.590225, fair: true, impact: 0 },
+        ])
     })
 
     it('values all transferred FAAB even when a manager holds more than the season grant', () => {
@@ -175,7 +195,6 @@ describe('dynasty decision engine', () => {
             tradedPlayer('weak-3', 470, 2, 34),
             tradedPlayer('weak-4', 480, 2, 34),
         ])
-        const elite = assets[0].values.overall
         const analysis = analyzeDynastyTrade(context, 'overall', [
             ...assets.slice(1).map((_, index) => ({
                 fromMemberId: 'a', toMemberId: 'b', asset: tradedPlayer(`weak-${index + 1}`, 450 + index * 10, 2, 34),
@@ -183,9 +202,14 @@ describe('dynasty decision engine', () => {
             { fromMemberId: 'b', toMemberId: 'a', asset: tradedPlayer('elite', 1, 42, 22) },
         ])
         const weakPackage = analysis.teams.find((team) => team.memberId === 'a')?.valuesSent ?? 0
+        const recipient = analysis.teams.find((team) => team.memberId === 'b')
 
-        expect(weakPackage).toBeLessThan(elite)
-        expect(analysis.teams.find((team) => team.memberId === 'b')?.packageEffect).toBeLessThan(0)
+        expect(weakPackage).toBe(0.014157)
+        expect(weakPackage).toBeLessThan(recipient?.valuesSent ?? 0)
+        expect(recipient).toMatchObject({
+            valuesSent: 990.03992, valuesReceived: 0.014157, packageEffect: 0,
+            netValue: -990.025763, impact: -990.025763, fair: false,
+        })
     })
 
     it('does not let a negative asset increase the sending package', () => {
