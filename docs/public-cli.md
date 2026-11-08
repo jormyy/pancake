@@ -1,6 +1,6 @@
 # Public Pancake CLI
 
-This guide describes candidate API v2. Database execution and deployment remain pending.
+This guide describes candidate API v2. Production deployment remains pending.
 
 Every non-deleted league is public. The CLI requires no login, share token, or commissioner action.
 It reads public league data and performs no mutations.
@@ -151,7 +151,7 @@ Stop on errors. Do not infer private claims or pending trades from public data.
 ## Privacy boundary
 
 [The policy file](../supabase/functions/api/public/policy.json) declares the public fields, source queries, record rules, filters, and default order.
-[The generator](../tools/verify/public-policy.mjs) builds both response schemas and the [current SQL migration](../supabase/migrations/20261214010400_public_read_admission.sql).
+[The generator](../tools/verify/public-policy.mjs) builds both response schemas and the [current SQL migration](../supabase/migrations/20261214010600_public_sort_ties.sql).
 The generator applies record predicates and an explicit field projection before public filters, ordering, page bounds, and `hasMore`.
 The Edge handler repeats the field projection before serialization and rejects invalid shapes.
 The database function is security definer with an empty search path. Only the Edge service role can execute it.
@@ -275,7 +275,7 @@ If verification fails, restore the matching previous Edge artifact.
 [Rollback 105](../supabase/rollbacks/20261214010500_public_projection_bounds.sql) restores the earlier public reader without changing stored data.
 [Rollback 104](../supabase/rollbacks/20261214010400_public_read_admission.sql) restores the earlier reader and removes separate admission.
 [Rollback 103](../supabase/rollbacks/20261214010300_public_league_reads.sql) then removes the feature reader and counters if required.
-Both preserve the existing sharing functions and league data.
+These rollbacks preserve the existing sharing functions and league data.
 Confirm the previous version-one routes with a local fixture capability after recovery.
 Do not claim a rollout until a real stack passes the catalog, privacy, and installed-CLI checks.
 

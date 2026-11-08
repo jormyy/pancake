@@ -104,4 +104,5 @@ pancake standings --league "$LEAGUE_ID" --json
 ```
 
 The CLI defaults to the production Edge API. Set `PANCAKE_API_URL` only to override it.
+API v2 is not deployed to production.
 See [Public CLI](docs/public-cli.md) for schemas, filters, scripts, privacy rules, and verification limits.
