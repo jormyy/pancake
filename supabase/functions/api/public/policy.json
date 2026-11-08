@@ -1970,7 +1970,7 @@
       "visibility": []
     },
     "projections": {
-      "source": "public.players p LEFT JOIN LATERAL public.get_league_projection_rows(p_league_id,selected_year,(now() AT TIME ZONE 'America/New_York')::date,'today',ARRAY[p.id],1,0) pr ON true",
+      "source": "public.players p LEFT JOIN private.public_projection_rows(p_league_id,selected_year,(now() AT TIME ZONE 'America/New_York')::date) pr ON pr.player_id=p.id",
       "where": "true",
       "fields": {
         "id": {
@@ -2933,5 +2933,9 @@
   "tieBreaker": {
     "field": "id",
     "direction": "asc"
+  },
+  "projectionSource": {
+    "function": "public.get_league_projection_rows",
+    "unpagedFunction": "private.public_projection_rows"
   }
 }

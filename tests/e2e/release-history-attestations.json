@@ -3623,6 +3623,13 @@
       "statementCount": 12,
       "statementsSha256": "e0c553a7ef0552f6ffe67dd344604b1d076490eb38ad02c8f8d16505d4757cfa",
       "sha256": "0522b701a0b2f2fab49310adc015afa48189c406cb08ebec811df1c234fb4951"
+    },
+    {
+      "name": "public_projection_batch",
+      "version": "20261214010700",
+      "statementCount": 15,
+      "statementsSha256": "a0d7e8ffec2562a4b5a79fc5e4791bbd258a719afc0ab04bcf0c2360779bf82f",
+      "sha256": "6b4860b0125aafa374d1f8fd7bc556c45aa13e6b91ee29a3e9418896ddf74f22"
     }
   ]
 }
