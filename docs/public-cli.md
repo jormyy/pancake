@@ -257,7 +257,7 @@ Free-agent property cases vary pending claims, bids, counts, and claim order whi
 The projection reads only public roster ownership and active waiver holds; it never reads claim or bid tables.
 The real database noninterference test is [public-cli-v2.sql](../tests/db/public-cli-v2.sql).
 Both it and the [catalog verification](../tests/db/public-cli-v2-verify.sql) pass on a fresh isolated stack.
-Both rollback stages, reapplication, real installed commands, and concurrent admission also pass on that stack.
+The rollback chain, reapplication, real installed commands, and concurrent admission pass on that stack.
 Additional two-league fixture checks compare complete responses and cursors before and after private records are added.
 
 ## Database release and recovery
@@ -280,6 +280,8 @@ Confirm the previous version-one routes with a local fixture capability after re
 Do not claim a rollout until a real stack passes the catalog, privacy, and installed-CLI checks.
 
 ## Local performance evidence
+
+These historical measurements use candidate `8274e012`, before the public-text and sort repairs.
 
 These are fixture/local-stack measurements on one Mac mini, not live production results.
 The baseline uses commit ce1c1c2e and a local fixture share token; version two uses no token.

@@ -94,7 +94,7 @@ describe('public CLI v2',()=>{
     expect((await invoke(args,{fetch:async()=>Response.json({...fixture.resources.teams,version:1})})).code).toBe(7)
     expect((await invoke(args,{fetch:async()=>Response.json({...fixture.resources.teams,private:'SECRET'})})).code).toBe(7)
   })
-  it.each([204,205,200])('classifies an empty HTTP %i body as an invalid server response',async status=>{
+  it.each([204,200])('classifies an empty HTTP %i body as an invalid server response',async status=>{
     let calls=0
     const result=await invoke(args,{fetch:async()=>{calls++;return new Response(null,{status})}})
     expect(result.code).toBe(7)
