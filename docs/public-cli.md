@@ -266,7 +266,7 @@ Both it and the [catalog verification](../tests/db/public-cli-v2-verify.sql) pas
 The rollback chain, reapplication, real installed commands, and concurrent admission pass on that stack.
 Additional two-league fixture checks compare complete responses and cursors before and after private records are added.
 
-## Maintenance and recovery
+## Public CLI release order
 
 Production API v2 is deployed. The CLI is available from this repository, not the npm registry.
 The following steps describe isolated validation and future recovery, not a pending initial rollout.
