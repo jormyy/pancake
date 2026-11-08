@@ -16,7 +16,7 @@ pancake explain trades.completedAt
 ```
 
 The default API is `https://ceeytbfmwsnzalxlkalc.supabase.co/functions/v1/api`.
-API v2 becomes available there after this release is deployed. No endpoint configuration is needed after release.
+API v2 is available there. No endpoint configuration is needed.
 Override it with `PANCAKE_API_URL` or `--api-url` when needed.
 
 Every data command except `leagues` requires `--league`. Use `describe` for commands, filters, schemas, and exit codes.
@@ -33,7 +33,9 @@ Requests have a 15-second total timeout and at most two retries for safe transie
 Output is capped at two MiB. Page sizes are capped at 50.
 Unbounded source text returns a documented public prefix. Oversized pages return fewer records and a continuation cursor.
 Missing required or malformed UUID options fail locally with a lookup command.
-Exit codes are 0 for success, 2 for usage and invalid options, 4 for valid but unavailable resources, 5 for rate limits, 6 for network failure, and 7 for server/schema failures.
+Exit codes are 0 for success, 2 for usage and invalid options, 4 for valid but unavailable resources, 5 for rate limits, 6 for transport failure before any HTTP response, and 7 for server/schema failures.
+All retries share a 15-second budget. Once any HTTP response arrives, exhausted retries return 7.
+An interrupted response body also returns 7.
 
 See [the public CLI guide](../../docs/public-cli.md) for coverage, privacy assumptions, verification, and database recovery.
 Fresh local database migrations, privacy checks, rollback/reapply, and installed CLI reads pass.

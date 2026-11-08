@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mkdtemp, rm, readdir, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -8,7 +8,7 @@ import fixture from '../fixtures/public-cli/league-v2.json'
 
 const league='11111111-1111-4111-8111-111111111111'
 const temporary:string[]=[]
-afterEach(async()=>{await Promise.all(temporary.splice(0).map(dir=>rm(dir,{recursive:true,force:true})))})
+afterEach(async()=>{vi.restoreAllMocks();await Promise.all(temporary.splice(0).map(dir=>rm(dir,{recursive:true,force:true})))})
 async function invoke(args:string[],extra:Record<string,unknown>={}) {
   let stdout='',stderr=''
   const code=await run(args,{stdout:{isTTY:false,write:(value:string)=>{stdout+=value}},stderr:{write:(value:string)=>{stderr+=value}},env:{},...extra})
@@ -51,6 +51,33 @@ describe('public CLI v2',()=>{
     expect(calls).toBe(1)
     expect(result.stdout).toBe('')
     expect(result.stderr).not.toContain('SECRET')
+  })
+  it.each([502,503,504])('retains HTTP %i failure when the retry budget expires',async status=>{
+    const controller=new AbortController()
+    vi.spyOn(AbortSignal,'timeout').mockReturnValue(controller.signal)
+    let calls=0
+    const result=await invoke(args,{fetch:async()=>{
+      calls++
+      controller.abort()
+      return new Response('PRIVATE SERVER DETAIL',{status})
+    }})
+    expect(result.code).toBe(7)
+    expect(calls).toBe(1)
+    expect(result.stdout).toBe('')
+    expect(result.stderr).not.toContain('PRIVATE SERVER DETAIL')
+    expect(result.stderr).not.toContain('Could not reach')
+  })
+  it.each([false,true])('classifies a transport timeout after an earlier response=%s',async answered=>{
+    const controller=new AbortController()
+    vi.spyOn(AbortSignal,'timeout').mockReturnValue(controller.signal)
+    let calls=0
+    const result=await invoke(args,{fetch:async()=>{
+      if(answered && calls++===0)return new Response('',{status:503})
+      controller.abort()
+      throw new DOMException('aborted','AbortError')
+    }})
+    expect(result.code).toBe(answered?7:6)
+    expect(result.stdout).toBe('')
   })
   it.each([{}, {PANCAKE_API_URL:'http://localhost:58921'}])('rejects missing scope locally with instructions',async env=>{
     let calls=0
@@ -101,10 +128,10 @@ describe('public CLI v2',()=>{
     expect(result.stdout).toBe('')
     expect(calls).toBe(1)
   })
-  it('keeps a broken response stream distinct from an invalid response body',async()=>{
+  it('classifies an interrupted HTTP response as a server failure',async()=>{
     const body=new ReadableStream({start(controller){controller.error(new TypeError('terminated'))}})
     const result=await invoke(args,{fetch:async()=>new Response(body)})
-    expect(result.code).toBe(6)
+    expect(result.code).toBe(7)
     expect(result.stdout).toBe('')
   })
   it('does not retry unexpected response failures as network errors',async()=>{
