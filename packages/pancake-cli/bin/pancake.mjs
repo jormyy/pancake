@@ -171,7 +171,8 @@ async function remoteRead(name, options, params, environment, fetcher) {
       response = await fetcher(url, { headers: cached ? { 'If-None-Match': cached.etag } : {}, redirect: 'error', signal })
       if (![502,503,504].includes(response.status) || attempt === 2) break
       await response.body?.cancel()
-    } catch {
+    } catch (error) {
+      if (!signal.aborted && error?.name !== 'AbortError' && !(error instanceof TypeError)) throw new CliError('Public API returned an invalid response', 7)
       if (attempt === 2 || signal.aborted) throw new CliError('Could not reach the public API', 6)
     }
     await new Promise(resolve => setTimeout(resolve, 100 * 2 ** attempt))
@@ -184,26 +185,26 @@ async function remoteRead(name, options, params, environment, fetcher) {
     throw new CliError(status === 404 ? 'Public resource not found' : status === 429 ? 'Read limit reached' : `Public API returned ${status}`,
       status === 404 ? 4 : status === 429 ? 5 : status === 400 ? 2 : 7)
   }
-  let body
+  if (!response.body || response.bodyUsed || response.body.locked) throw new CliError('Public API returned an empty or unreadable response', 7)
+  const reader = response.body.getReader()
+  const chunks = []
+  let bytes = 0
   try {
-    const reader = response.body.getReader()
-    const chunks = []
-    let bytes = 0
-    try {
-      while (true) {
-        const part = await reader.read()
-        if (part.done) break
-        bytes += part.value.byteLength
-        if (bytes > maximumBytes) throw new CliError('Response exceeds output limit', 7)
-        chunks.push(part.value)
-      }
-      body = JSON.parse(Buffer.concat(chunks).toString('utf8'))
-    } finally { await reader.cancel() }
+    while (true) {
+      const part = await reader.read()
+      if (part.done) break
+      bytes += part.value.byteLength
+      if (bytes > maximumBytes) throw new CliError('Response exceeds output limit', 7)
+      chunks.push(part.value)
+    }
   } catch (error) {
     if (error instanceof CliError) throw error
     if (signal.aborted || error?.name === 'AbortError' || error instanceof TypeError) throw new CliError('Could not read the public API response', 6)
-    throw new CliError('Public API returned invalid JSON', 7)
-  }
+    throw new CliError('Public API returned an invalid response body', 7)
+  } finally { try { await reader.cancel() } catch { } }
+  let body
+  try { body = JSON.parse(Buffer.concat(chunks).toString('utf8')) }
+  catch { throw new CliError('Public API returned invalid JSON', 7) }
   validate(body, contract.resources[name])
   if (!options['no-cache'] && response.headers.has('etag')) {
     try {
