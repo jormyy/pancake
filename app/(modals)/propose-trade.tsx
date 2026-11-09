@@ -637,7 +637,7 @@ export default function ProposeTradeScreen() {
     const editorReady = Boolean(membersError || (draftReady && !loading && prefillReady && recipientReady &&
         (participantIds.length < 2 || composer.assetsLoaded || composer.rosterError)))
     const verdict = (
-        <TradeAnalysisSummary players={Object.values(composer.participantRosters).flat()} analysis={tradeAnalysis.analysis} calculatedAt={tradeAnalysis.quote?.createdAt} participantName={composer.participantName}
+        <TradeAnalysisSummary picks={participantViews.flatMap(participant => participant.picks)} players={Object.values(composer.participantRosters).flat()} analysis={tradeAnalysis.analysis} calculatedAt={tradeAnalysis.quote?.createdAt} participantName={composer.participantName}
             loading={tradeAnalysis.loading} inset={!sideBySide} />
     )
 

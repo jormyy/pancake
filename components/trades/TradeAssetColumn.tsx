@@ -1,3 +1,4 @@
+import { orderTradeAssets } from '@/lib/trade-assets'
 import { AssetSelectionRow, LockedAssetNotice } from '@/components/roster/LockedAssetNotice'
 import { type AssetLock } from '@/lib/locked-assets'
 import { useScreenView } from '@/hooks/use-screen-view'
@@ -222,7 +223,7 @@ export function TradeAssetColumn({
             {picks.length > 0 ? (
                 <>
                     <Text style={styles.subSectionLabel}>DRAFT PICKS</Text>
-                    {picks.map((pick) => (
+                    {orderTradeAssets(picks).map((pick) => (
                         <PickRow
                             key={pick.pickId}
                             pick={pick}

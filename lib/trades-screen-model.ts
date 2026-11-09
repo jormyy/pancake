@@ -1,3 +1,4 @@
+import { orderTradeAssets } from '@/lib/trade-assets'
 import type { RosterPlayer } from '@/lib/roster'
 import type { Trade, TradeBlockItem, TradePickItem } from '@/lib/trades'
 import type { TradeTabKey } from '@/lib/trade-ui-model'
@@ -118,14 +119,14 @@ export function buildTradeList(input: TradeListInput): TradeListItem[] {
         return result
     }
     if (input.tab === 'block') {
-        const leagueListings = input.leagueBlockItems.filter((item) => !input.myBlockItems.some((mine) => mine.id === item.id))
+        const leagueListings = orderTradeAssets(input.leagueBlockItems.filter((item) => !input.myBlockItems.some((mine) => mine.id === item.id)), item => item.asset)
         result.push({ _type: 'header', label: 'League listings' })
         leagueListings.forEach((item) => result.push({ _type: 'blockItem', item }))
         if (leagueListings.length === 0 && (input.blockSettled || (!input.blockLoading && !input.blockError))) {
             result.push({ _type: 'empty', key: 'league-block-listings', message: 'No league listings yet.' })
         }
         result.push({ _type: 'header', label: 'Your listings' })
-        input.myBlockItems.forEach((item) => result.push({ _type: 'blockItem', item }))
+        orderTradeAssets(input.myBlockItems, item => item.asset).forEach((item) => result.push({ _type: 'blockItem', item }))
         if (input.myBlockItems.length === 0 && (input.blockSettled || (!input.blockLoading && !input.blockError))) {
             result.push({ _type: 'empty', key: 'my-block-listings', message: 'No listings yet.' })
         }
@@ -135,7 +136,7 @@ export function buildTradeList(input: TradeListInput): TradeListItem[] {
         }
         if (input.picks.length > 0) {
             result.push({ _type: 'header', label: 'List picks' })
-            input.picks.filter((pick) => !input.myBlockItems.some((item) => item.asset.kind === 'pick' && item.asset.pickId === pick.pickId)).forEach((pick) => result.push({ _type: 'blockPick', pick }))
+            orderTradeAssets(input.picks).filter((pick) => !input.myBlockItems.some((item) => item.asset.kind === 'pick' && item.asset.pickId === pick.pickId)).forEach((pick) => result.push({ _type: 'blockPick', pick }))
         }
         return result
     }

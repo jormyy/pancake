@@ -2,6 +2,7 @@ import { formatLeagueDateTime } from '@/lib/timezone'
 import { useLeagueTimezone } from '@/hooks/use-league-timezone'
 import { PlayerRowContent } from '@/components/player/PlayerRowContent'
 import { TradePickLabel } from '@/components/trades/TradePickLabel'
+import { orderTradeAssets } from '@/lib/trade-assets'
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh'
 import { useScreenStatusScroll } from '@/components/ui/ScreenStatusOverlay'
 import { View, Text, Pressable, StyleSheet } from 'react-native'
@@ -37,7 +38,7 @@ function ActivityRow({ item, isMe, myMemberId, padX = spacing.lg }: { item: Tran
                         {item.body ?? item.teamName}
                         {isMe ? <Text style={styles.meTag}> (you)</Text> : null}
                     </Text>
-                    {item.tradePicks?.map(pick => <TradePickLabel key={pick.pickId} pick={pick} context={{
+                    {orderTradeAssets(item.tradePicks ?? []).map(pick => <TradePickLabel key={pick.pickId} pick={pick} context={{
                         viewerMemberId: myMemberId ?? '',
                         memberNames: { [pick.fromMemberId ?? '']: pick.fromTeamName, [pick.toMemberId ?? '']: pick.toTeamName },
                     }} />)}
