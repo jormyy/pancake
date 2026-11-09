@@ -6,6 +6,7 @@ League provides standings, schedule, activity, draft tools, picks, settings, and
 
 - `league-standings` shows team positions and opens team rosters.
 - `league-schedule` shows weekly matchups and opens matchup details.
+- `league-past-scores` shows every team's stored total through a past matchup's Other matchups strip.
 - `league-activity` shows public league events and pagination.
 - `league-settings` shows rules, invite code, waiver order, and commissioner controls.
 - `league-picks` shows future pick ownership.
@@ -27,6 +28,7 @@ Preconditions:
 
 - **Standings.** Select League and snapshot `League sections`. Select Standings and require all seeded teams. Select the opponent and compare its roster.
 - **Schedule.** Select Schedule. Open the current week’s matchup and require both teams, date range, scores, and day controls.
+- **Past scores.** Select Schedule, then a completed week. Scroll to Other matchups and swipe through every team. Compare totals with stored matchups. Open another team's card. Return to Schedule and repeat with a different completed week.
 - **Activity.** Select Activity. Read the visible events and exercise Load more when present. Compare their order and contents with stored transactions.
 - **Settings.** Select Settings. Require rules, invite code, and waiver order. Open commissioner controls as the owner, change one reversible setting, save, reopen, and compare stored league settings.
 - **Picks and bracket.** Select Picks and confirm future ownership against stored picks. Open Bracket from Settings and follow a matchup.

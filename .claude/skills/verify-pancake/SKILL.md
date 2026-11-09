@@ -22,6 +22,9 @@ tools/verify/launch.sh
 Optionally pass a new absolute evidence directory outside the checkout.
 The default is `~/Documents/pancake-verify-evidence/<run-id>/`.
 Copy that printed path into `EVIDENCE` for the remaining commands.
+Use the filesystem's canonical path and letter case for the evidence directory.
+On macOS, a differently cased parent path can break Metro's workspace package resolution.
+Resolve the existing parent with `pwd -P` before choosing the new directory.
 
 ```sh
 EVIDENCE='/absolute/path/printed/by/launch'
