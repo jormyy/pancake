@@ -1,15 +1,17 @@
 import React from 'react'
 import { act, create } from 'react-test-renderer'
-import { expect, it, vi } from 'vitest'
-import type { DynastyTradeAnalysis } from '@/core/src/dynasty/decisionEngine'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import type { Trade, TradePickItem } from '@/lib/trades'
+import { trade } from '../../helpers/fixtures'
 import { analyzeDynastyTrade } from '@/core/src/dynasty/tradeScoring'
 import TradeAnalyzer from '@/components/trades/TradeAnalyzer'
 
-const saved = vi.hoisted(() => ({ value: null as unknown }))
-const state = vi.hoisted(() => ({ online: false, modelVersion: 'onenumber-trade-curve-v6', loading: false, analysis: null as unknown, retry: vi.fn() }))
+const saved = vi.hoisted(() => new Map<string, unknown>())
+const request = vi.hoisted(() => vi.fn())
+const state = vi.hoisted(() => ({ online: true }))
 const composer = vi.hoisted(() => ({
-    participantIds: ['me'], participantRosters: {}, participantViews: [] as { memberId: string }[], assetsReady: false, selectedAssetsAvailable: false,
-    selectedParticipantIds: new Set(), buildMultiTeamItems: () => [], reset: () => {},
+    participantIds: ['me', 'them'], participantRosters: {}, participantViews: [] as { memberId: string; picks: TradePickItem[] }[], assetsReady: true, selectedAssetsAvailable: false,
+    selectedParticipantIds: new Set(), buildMultiTeamItems: () => state.online ? [{ kind: 'pick', pickId: 'r2-2030', fromMemberId: 'me', toMemberId: 'them' }] : [], reset: () => {},
     setParticipantIds: () => {}, prefillFromTrade: () => {}, participantName: () => 'My team',
 }))
 vi.mock('react-native', () => ({ Platform: { OS: 'web' }, StyleSheet: { create: (value: unknown) => value }, ActivityIndicator: 'ActivityIndicator',
@@ -25,37 +27,63 @@ vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => ({ current
 vi.mock('@/hooks/use-auth', () => ({ useAuth: () => ({ user: { id: 'user' } }) }))
 vi.mock('@/hooks/use-online-status', () => ({ useOnlineStatus: () => state.online }))
 vi.mock('@/hooks/use-multi-team-trade-composer', () => ({ useMultiTeamTradeComposer: () => composer }))
-vi.mock('@/hooks/use-dynasty-trade-analysis', () => ({ useDynastyTradeAnalysis: () => ({ analysis: state.analysis, seasonYear: null, loading: state.loading, error: null, retry: state.retry }) }))
-vi.mock('@/lib/league', () => ({ getLeagueMembers: vi.fn(async () => []), isTradingClosed: () => false }))
+vi.mock('@/lib/shared/api', () => ({ apiPost: request }))
+vi.mock('@/lib/supabase', () => ({ supabase: {} }))
+vi.mock('@/contexts/panel-activity', () => ({ usePanelActivity: () => true }))
+vi.mock('@/lib/league-changes', () => ({ deferLeagueRefresh: () => ({ trigger: vi.fn(), cancel: vi.fn() }), listenForLeagueChanges: () => () => {} }))
+vi.mock('@/lib/league', () => ({ getLeagueMembers: vi.fn(async () => [{ id: 'them', team_name: 'Their team' }]), isTradingClosed: () => false }))
 vi.mock('@/lib/dynasty-decisions', () => ({
     dynastyAnalyzerLatestScopeCacheKey: () => 'scope', dynastyAnalyzerLatestRouteCacheKey: () => 'route',
-    dynastyAnalyzerSnapshotCacheKey: () => 'snapshot', dynastyAnalyzerRouteSignature: () => '', dynastyScoringSignature: () => '',
+    dynastyAnalyzerSnapshotCacheKey: () => 'snapshot', dynastyAnalyzerRouteSignature: (items: unknown[]) => items.length ? 'selected-route' : '', dynastyScoringSignature: () => '',
 }))
 vi.mock('@/lib/persistent-cache', () => ({
-    readPersistentCache: (key: string) => key === 'scope' ? { seasonYear: 2027 } : key === 'route' ? 'saved-route'
-        : key === 'snapshot' ? { modelVersion: state.modelVersion, analysis: saved.value, leagueId: 'league', memberId: 'me', participantNames: { me: 'My team' } } : null,
-    writePersistentCache: vi.fn(),
+    readPersistentCache: (key: string) => saved.get(key) ?? null,
+    writePersistentCache: (key: string, value: unknown) => saved.set(key, JSON.parse(JSON.stringify(value))),
 }))
 vi.mock('@/lib/trade-analyzer-session', () => ({ saveTradeAnalyzerDraft: vi.fn() }))
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
 
-it('keeps pick order in a saved offline analysis', async () => {
+let renderer: ReturnType<typeof create> | undefined
+beforeEach(() => { saved.clear(); state.online = true; composer.assetsReady = true; vi.useFakeTimers(); request.mockReset() })
+afterEach(async () => { await act(async () => renderer?.unmount()); renderer = undefined; vi.useRealTimers() })
+
+it.each(['composer', 'historical'] as const)('orders metadata-free server assets from %s picks and saves the result', async source => {
     const picks = [
-        { kind: 'pick', id: 'r2-2030', label: '2030 Round 2', round: 2, seasonYear: 2029, teams: 10 },
-        { kind: 'pick', id: 'r1-2031', label: '2031 Round 1', round: 1, seasonYear: 2030, teams: 10 },
-        { kind: 'pick', id: 'r1-2029', label: '2029 Round 1', round: 1, seasonYear: 2028, teams: 10 },
+        { kind: 'pick', id: 'r2-2030', label: '2030 Round 2', round: 2, seasonYear: 2030, teams: 10 },
+        { kind: 'pick', id: 'r1-2031', label: '2031 Round 1', round: 1, seasonYear: 2031, teams: 10 },
+        { kind: 'pick', id: 'r1-2029', label: '2029 Round 1', round: 1, seasonYear: 2029, teams: 10 },
     ] as const
     const analysis = analyzeDynastyTrade({ leagueId: 'league', seasonYear: 2027, scoringSettings: {} }, 'overall', picks.map(asset => ({
         fromMemberId: 'me', toMemberId: 'them', asset: { ...asset, slot: null, valueBands: { early: 500, mid: 400, late: 300 } },
     })))
-    saved.value = JSON.parse(JSON.stringify(analysis)) as DynastyTradeAnalysis
-    let renderer!: ReturnType<typeof create>
-    await act(async () => { renderer = create(React.createElement(TradeAnalyzer)) })
-    await act(async () => renderer.root.findByProps({ accessibilityLabel: 'View trade analysis' }).props.onPress())
-    const labels = renderer.root.findAllByType('Text' as React.ElementType).flatMap(node =>
+    expect(analysis.assets.every(asset => !('round' in asset) && !('seasonYear' in asset))).toBe(true)
+    const metadata: TradePickItem[] = picks.map(pick => ({ kind: 'pick', pickId: pick.id, round: pick.round, seasonYear: pick.seasonYear, originalTeamName: 'My team' }))
+    composer.participantViews = [{ memberId: 'me', picks: source === 'composer' ? metadata : [] }, { memberId: 'them', picks: [] }]
+    const prefillTrade: Trade | undefined = source === 'historical' ? trade({ id: 'history', routedItems: metadata.map(pick => ({ ...pick, fromMemberId: 'me', toMemberId: 'them' })) }) : undefined
+    const value = { id: 'quote', analysis, seasonYear: 2027, createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 600000).toISOString() }
+    request.mockResolvedValue(source === 'historical' ? { revaluation: { ...value, tradeId: 'history' } } : { quote: value })
+    await act(async () => { renderer = create(React.createElement(TradeAnalyzer, { prefillTrade })) })
+    await act(async () => { await vi.advanceTimersByTimeAsync(300) })
+    if (source === 'composer') await act(async () => renderer!.root.findByProps({ accessibilityLabel: 'View trade analysis' }).props.onPress())
+    const labels = () => renderer!.root.findAllByType('Text' as React.ElementType).flatMap(node =>
         typeof node.props.children === 'string' && /Round/.test(node.props.children) ? [node.props.children] : [])
-    await act(async () => renderer.unmount())
-    expect(labels).toEqual(['2029 Round 1', '2031 Round 1', '2030 Round 2'])
+    expect(labels()).toEqual(['2029 Round 1', '2031 Round 1', '2030 Round 2'])
+    const snapshot = saved.get('snapshot') as { analysis: typeof analysis }
+    expect(snapshot.analysis.assets).toEqual(analysis.assets.map((asset, index) => ({ ...asset, round: picks[index].round, seasonYear: picks[index].seasonYear })))
+    expect(snapshot.analysis.teams).toEqual(analysis.teams)
+    expect(analysis.assets.every(asset => !('round' in asset) && !('seasonYear' in asset))).toBe(true)
+    expect(request.mock.calls[0][0]).toBe(source === 'historical' ? '/trades/history/revalue' : '/trades/estimate')
+    if (source === 'historical') return
+    await act(async () => renderer!.unmount())
+    state.online = false
+    composer.participantViews = []
+    composer.assetsReady = false
+    request.mockClear()
+    await act(async () => { renderer = create(React.createElement(TradeAnalyzer)) })
+    await act(async () => renderer!.root.findByProps({ accessibilityLabel: 'View trade analysis' }).props.onPress())
+    expect(labels()).toEqual(['2029 Round 1', '2031 Round 1', '2030 Round 2'])
+    expect(saved.get('snapshot')).toEqual(snapshot)
+    expect(request).not.toHaveBeenCalled()
 })

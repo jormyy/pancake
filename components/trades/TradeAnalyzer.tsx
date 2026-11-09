@@ -92,6 +92,7 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
         teams: teamCount,
         faabBudget,
         participants: composer.participantViews,
+        historicalPicks: prefillTrade?.routedItems.filter(item => item.kind === 'pick'),
         items,
     })
     const cacheIdentity = user?.id && myMemberId && leagueId ? {
