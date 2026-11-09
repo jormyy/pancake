@@ -1,3 +1,4 @@
+import { orderTradeAssets } from '@/lib/trade-assets'
 import { PlayerRowContent, type PlayerRowContentProps } from '@/components/player/PlayerRowContent'
 import { TradePickLabel } from '@/components/trades/TradePickLabel'
 import { tradePickLabel, type TradePickContext } from '@/lib/trade-pick-label'
@@ -37,7 +38,7 @@ export function MultiTeamTradeOverview({ participants, items, compact = false, c
     const { incomingByMember, participantLabels } = useMemo(() => {
         const labels = new Map(participants.map((participant) => [participant.memberId, participant.label]))
         const incoming = new Map<string, TradeFlowItem[]>()
-        for (const item of items) {
+        for (const item of orderTradeAssets(items, item => item.pick ?? { kind: item.player ? 'player' : 'faab' })) {
             const bucket = incoming.get(item.toMemberId)
             if (bucket) bucket.push(item)
             else incoming.set(item.toMemberId, [item])

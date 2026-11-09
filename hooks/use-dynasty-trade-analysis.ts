@@ -6,7 +6,7 @@ import { dynastyAnalyzerRouteSignature, dynastyScoringSignature } from '@/lib/dy
 import { type TradeEstimateQuote, type TradeRevaluation } from '@/lib/trade-estimates'
 import type { TradeParticipantView } from '@/lib/trade-ui-model'
 import type { Json } from '@/types/database'
-import type { MultiTeamTradeItemPayload } from '@/lib/trades'
+import type { MultiTeamTradeItemPayload, TradePickItem } from '@/lib/trades'
 import { useOnlineStatus } from '@/hooks/use-online-status'
 import { usePanelActivity } from '@/contexts/panel-activity'
 import { deferLeagueRefresh, listenForLeagueChanges } from '@/lib/league-changes'
@@ -21,6 +21,7 @@ type Input = {
     teams: number
     faabBudget: number
     participants: TradeParticipantView[]
+    historicalPicks?: TradePickItem[]
     items: MultiTeamTradeItemPayload[]
 }
 
@@ -49,6 +50,9 @@ export function useDynastyTradeAnalysis(input: Input): {
     currentScope.current = scope
     const itemsRef = useRef(input.items)
     itemsRef.current = input.items
+    const picksRef = useRef(new Map<string, TradePickItem>())
+    picksRef.current = new Map([...input.participants.flatMap(participant => participant.picks), ...(input.historicalPicks ?? [])]
+        .map(pick => [pick.pickId, pick]))
     const debounceMs = input.debounceMs ?? 0
 
     useEffect(() => {
@@ -82,7 +86,11 @@ export function useDynastyTradeAnalysis(input: Input): {
             })
             void requested.then(value => {
                 if (cancelled || sequence.current !== request || currentScope.current !== scope) return
-                setResult({ scope, value, error: null })
+                const analysis = { ...value.analysis, assets: value.analysis.assets.map(asset => {
+                    const pick = asset.kind === 'pick' ? picksRef.current.get(asset.assetId) : undefined
+                    return pick ? { ...asset, round: pick.round, seasonYear: pick.seasonYear } : asset
+                }) }
+                setResult({ scope, value: { ...value, analysis }, error: null })
 
             }).catch(error => {
                 if (cancelled || sequence.current !== request || currentScope.current !== scope) return

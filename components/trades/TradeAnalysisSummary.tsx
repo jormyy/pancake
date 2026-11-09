@@ -1,3 +1,4 @@
+import { orderTradeAssets } from '@/lib/trade-assets'
 import { PlayerRowContent } from '@/components/player/PlayerRowContent'
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native'
 import type { RosterPlayer } from '@/lib/roster'
@@ -49,7 +50,7 @@ export function TradeAnalysisSummary({
                     </View>
                 ))}
             </View>
-            {analysis.assets.map((asset) => {
+            {orderTradeAssets(analysis.assets).map((asset) => {
                 const player = players.find(item => item.players.id === asset.assetId)?.players
                 return (
                 <View key={`${asset.kind}:${asset.assetId}`} style={styles.assetRow}>

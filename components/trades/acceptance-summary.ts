@@ -1,3 +1,4 @@
+import { orderTradeAssets } from '@/lib/trade-assets'
 import { tradePickContext, tradePickLabel } from '@/lib/trade-pick-label'
 import type { Trade, TradeRosterPreview } from '@/lib/trades'
 
@@ -8,7 +9,7 @@ function tradeCapacityLine(team: TradeRosterPreview) {
 
 export function tradeAcceptanceSummary(trade: Trade, teams: TradeRosterPreview[], memberId: string) {
     const context = tradePickContext(trade, memberId)
-    const assets = (direction: 'fromMemberId' | 'toMemberId') => trade.routedItems.filter(item => item[direction] === memberId)
+    const assets = (direction: 'fromMemberId' | 'toMemberId') => orderTradeAssets(trade.routedItems.filter(item => item[direction] === memberId))
         .map(item => item.kind === 'player' ? item.playerName : item.kind === 'pick' ? tradePickLabel(item, context) : `$${item.amount} FAAB`).join(', ') || 'nothing'
     const drops = teams.find(team => team.memberId === memberId)?.drops ?? []
     return [`You give: ${assets('fromMemberId')}`, `You get: ${assets('toMemberId')}`, ...teams.map(tradeCapacityLine),

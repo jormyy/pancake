@@ -1,3 +1,4 @@
+import { orderTradeAssets } from '@/lib/trade-assets'
 import { useLeagueTimezone } from '@/hooks/use-league-timezone'
 import { formatLeagueDateTime } from '@/lib/timezone'
 import { PendingMutationBadge } from '@/components/PendingMutationBadge'
@@ -149,7 +150,7 @@ export function AssetList({ items, label, showContext = true, stacked = false, p
             {items.length === 0 ? (
                 <Text style={styles.assetEmpty}>Nothing</Text>
             ) : (
-                items.map((item, index) => (
+                orderTradeAssets(items).map((item, index) => (
                     <TradeItemLine key={tradeItemKey(item, index)} item={item} showContext={showContext} pickContext={pickContext} />
                 ))
             )}
