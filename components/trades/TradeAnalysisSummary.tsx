@@ -1,5 +1,4 @@
 import { orderTradeAssets } from '@/lib/trade-assets'
-import type { TradePickItem } from '@/lib/trades'
 import { PlayerRowContent } from '@/components/player/PlayerRowContent'
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native'
 import type { RosterPlayer } from '@/lib/roster'
@@ -11,14 +10,12 @@ import { borderWidth, colors, componentTokens, fontSize, fontWeight, spacing, te
 export function TradeAnalysisSummary({
     analysis,
     players = [],
-    picks = [],
     participantName,
     loading = false,
     inset = true,
 }: {
     analysis: DynastyTradeAnalysis | null
     players?: RosterPlayer[]
-    picks?: readonly TradePickItem[]
     participantName: (memberId: string) => string
     loading?: boolean
     cached?: boolean
@@ -53,7 +50,7 @@ export function TradeAnalysisSummary({
                     </View>
                 ))}
             </View>
-            {orderTradeAssets(analysis.assets, asset => asset.kind === 'pick' ? picks.find(pick => pick.pickId === asset.assetId) ?? asset : asset).map((asset) => {
+            {orderTradeAssets(analysis.assets).map((asset) => {
                 const player = players.find(item => item.players.id === asset.assetId)?.players
                 return (
                 <View key={`${asset.kind}:${asset.assetId}`} style={styles.assetRow}>

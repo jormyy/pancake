@@ -262,7 +262,7 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
                     <Text style={styles.copy}>Retry analysis</Text>
                 </Pressable>
             </View> : null}
-            <TradeAnalysisSummary picks={[...(prefillTrade?.routedItems ?? []).filter(item => item.kind === 'pick'), ...composer.participantViews.flatMap(participant => participant.picks)]} players={Object.values(composer.participantRosters).flat()} analysis={shownAnalysis} calculatedAt={calculatedAt ?? undefined} participantName={analysisParticipantName}
+            <TradeAnalysisSummary players={Object.values(composer.participantRosters).flat()} analysis={shownAnalysis} calculatedAt={calculatedAt ?? undefined} participantName={analysisParticipantName}
                 loading={loading} cached={!analysis && Boolean(shownAnalysis)} inset={!sideBySide} />
         </View>
     )

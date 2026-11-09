@@ -65,6 +65,7 @@ export function valueDynastyAsset(_context: DynastyEngineContext, asset: Dynasty
   const values = { overall: value, contend: value, rebuild: value }
   return {
     assetId: asset.id, kind: asset.kind, label: asset.label, values, ranges,
+    ...(asset.kind === 'pick' ? { round: asset.round, seasonYear: asset.seasonYear } : {}),
     components: { production: 0, projection: 0, market: value, age: 0, healthMultiplier: 1, movementMultiplier: 1,
       replacement: 0, rosterSlot: 0, package: 0,
       shortTermPoints: asset.kind === 'player' ? asset.productionFantasyPoints ?? asset.projectionFantasyPoints ?? 0 : 0,

@@ -94,6 +94,8 @@ export type DynastyAssetResult = {
     assetId: string
     kind: DynastyAsset['kind']
     label: string
+    round?: number
+    seasonYear?: number
     values: Record<DynastyStrategy, number>
     ranges: Partial<Record<DynastyStrategy, DynastyValueRange>>
     components: DynastyAssetComponents
