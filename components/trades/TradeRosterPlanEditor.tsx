@@ -1,3 +1,4 @@
+import { useTradePlayerNavigation } from '@/components/trades/TradePlayerLink'
 import { readAssetLocks } from '@/lib/locked-assets'
 import { orderTradeAssets } from '@/lib/trade-assets'
 import { isIREligible, isTaxiEligible } from '@pancake/core'
@@ -21,6 +22,7 @@ export function TradeRosterPlanEditor({ incoming, roster, value, onChange, disab
     unavailableMoves?: Record<string, string>
     unavailableDestinations?: Record<string, Partial<Record<'ir' | 'taxi', string>>>
 }) {
+    const openPlayer = useTradePlayerNavigation()
     const rows = [
         ...roster.map(row => ({ id: row.players.id, name: row.players.display_name, injury: row.players.injury_status,
             player: { name: row.players.display_name, playerId: row.players.id, nbaId: row.players.nba_id, team: row.players.nba_team, positions: row.players.eligible_positions, birthdate: row.players.birthdate, yearsExp: row.players.years_exp, careerGames: row.players.career_regular_season_games, injuryStatus: row.players.injury_status },
@@ -62,7 +64,7 @@ export function TradeRosterPlanEditor({ incoming, roster, value, onChange, disab
                     birthdate: 'birthdate' in row.player ? row.player.birthdate : null, career_regular_season_games: row.player.careerGames },
             }
             const incomingStats = incoming.find(item => item.kind === 'player' && item.playerId === row.id)
-            return <RosterPlayerRow key={row.id} item={item} stackedActions
+            return <RosterPlayerRow key={row.id} item={item} stackedActions onPress={() => openPlayer(row.player)}
                 avgFpts={avgMap?.get(row.id) ?? (incomingStats?.kind === 'player' ? incomingStats.avgFantasyPoints ?? undefined : undefined)}
                 avgMinutes={avgStatsMap?.get(row.id)?.avg_minutes_played ?? (incomingStats?.kind === 'player' ? incomingStats.avgMinutesPlayed : undefined)}
                 metadata={row.incoming ? <Text style={styles.incoming}>Incoming</Text> : undefined}

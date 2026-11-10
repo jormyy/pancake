@@ -6,7 +6,8 @@ import { TradeAnalysisSummary } from '@/components/trades/TradeAnalysisSummary'
 import type { TradeRosterPreview } from '@/lib/trades'
 import type { DynastyTradeAnalysis } from '@pancake/core'
 
-vi.mock('react-native', () => ({ Platform: { OS: 'web' }, View: 'View', Text: 'Text', StyleSheet: { create: (value: unknown) => value } }))
+vi.mock('expo-router', () => ({ useRouter: () => ({ push: vi.fn() }) }))
+vi.mock('react-native', () => ({ Platform: { OS: 'web' }, Pressable: 'Pressable', View: 'View', Text: 'Text', StyleSheet: { create: (value: unknown) => value } }))
 vi.mock('@/components/player/PlayerRowContent', () => ({ PlayerRowContent: ({ stats }: { stats: React.ReactNode }) => stats }))
 vi.mock('@/components/ui/DeferredContent', () => ({ DeferredContent: ({ children }: React.PropsWithChildren) => children }))
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true

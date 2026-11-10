@@ -1,5 +1,6 @@
 import { orderTradeAssets } from '@/lib/trade-assets'
-import { PlayerRowContent, type PlayerRowContentProps } from '@/components/player/PlayerRowContent'
+import { TradePlayerLink } from '@/components/trades/TradePlayerLink'
+import type { PlayerRowContentProps } from '@/components/player/PlayerRowContent'
 import { TradePickLabel } from '@/components/trades/TradePickLabel'
 import { tradePickLabel, type TradePickContext } from '@/lib/trade-pick-label'
 import type { TradePickItem } from '@/lib/trades'
@@ -89,7 +90,7 @@ export function MultiTeamTradeOverview({ participants, items, compact = false, c
                                     <Text style={styles.empty}>No incoming assets</Text>
                                 ) : incoming.map((item) => (
                                     <View key={item.key} style={styles.assetRow}>
-                                        {item.player ? <PlayerRowContent {...item.player} stats={[typeof item.player.stats === 'string' ? item.player.stats : null, `From ${participantLabels.get(item.fromMemberId) ?? 'Unknown team'}`, item.detail].filter(Boolean).join(' · ')} /> : <>
+                                        {item.player ? <TradePlayerLink {...item.player} playerId={item.player.playerId ?? item.key.replace(/^player:/, '').split(':')[0]} stats={[typeof item.player.stats === 'string' ? item.player.stats : null, `From ${participantLabels.get(item.fromMemberId) ?? 'Unknown team'}`, item.detail].filter(Boolean).join(' · ')} /> : <>
                                         <MaterialIcons name="arrow-forward" size={16} color={colors.primary} />
                                         <View style={styles.assetCopy}>
                                             {item.pick ? <TradePickLabel pick={item.pick} context={pickContext} /> : <Text style={styles.assetLabel} numberOfLines={2}>{item.label}</Text>}
@@ -104,6 +105,7 @@ export function MultiTeamTradeOverview({ participants, items, compact = false, c
                                         {onRemoveItem ? (
                                             <Pressable style={styles.removeAsset}
                                                 onPress={() => onRemoveItem(item.key)} accessibilityRole="button"
+                                                accessibilityState={{ selected: true }}
                                                 accessibilityLabel={`Remove ${item.pick ? tradePickLabel(item.pick, pickContext) : item.label} sent by ${participantLabels.get(item.fromMemberId) ?? 'Unknown team'} from trade`}>
                                                 <MaterialIcons name="close" size={20} color={colors.textSecondary} />
                                             </Pressable>

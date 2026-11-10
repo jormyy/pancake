@@ -43,3 +43,5 @@ vi.mock('@/components/Badge', () => ({ Badge: 'Badge', InjuryBadge: 'InjuryBadge
 vi.mock('@/components/PosTag', () => ({ PosTag: 'PosTag' }))
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+
+export { navigation }

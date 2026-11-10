@@ -7,7 +7,7 @@ import type { RosterView } from '@/lib/cache/view-types'
 import { useAuth } from '@/hooks/use-auth'
 import { useLeagueContext } from '@/contexts/league-context'
 import { pickLabel, draftYear } from '@/lib/picks'
-import { PlayerRowContent } from '@/components/player/PlayerRowContent'
+import { TradePlayerLink } from '@/components/trades/TradePlayerLink'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { View, Text, StyleSheet } from 'react-native'
 
@@ -44,7 +44,7 @@ function PlayerRow({
 }) {
     const p = player.players
     const positions = getEligiblePositions(p)
-    const action = selected ? 'Remove' : 'Select'
+    const disabled = checking || locks.length > 0 || blocked && !selected
     const statText = playerSeasonContextText({
         yearsExp: p.years_exp,
         avgFantasyPoints: avgFpts ?? null,
@@ -52,28 +52,22 @@ function PlayerRow({
     })
 
     return (
-        <View><AssetSelectionRow locks={locks}
-            style={[styles.playerRow, selected && styles.playerRowSelected]}
-            onPress={onToggle}
-            disabled={checking || locks.length > 0 || blocked && !selected}
-            accessibilityRole="button"
-            accessibilityState={{ disabled: checking || locks.length > 0 || blocked && !selected }}
-            label={`${action} ${p.display_name} for trade`}
-            testID={testID}
-            id={testID}
-        >
-            <PlayerRowContent locks={locks} compact name={p.display_name} nbaId={p.nba_id} team={p.nba_team} positions={positions}
+        <View style={[styles.playerRow, selected && styles.playerRowSelected]}>
+            <TradePlayerLink compact playerId={p.id} name={p.display_name} nbaId={p.nba_id} team={p.nba_team} positions={positions}
                 birthdate={p.birthdate} yearsExp={p.years_exp} careerGames={p.career_regular_season_games} injuryStatus={p.injury_status}
                 stats={<View>
                     <Text style={styles.playerContext} numberOfLines={1}>{blocked && !selected ? 'Already routed' : statText}</Text>
                     {selected && destinationLabel ? <Text style={styles.routeMeta} numberOfLines={1}>To {destinationLabel}</Text> : null}
                 </View>} />
-            {selected && (
-                <View style={styles.removeBadge} aria-hidden>
-                    <MaterialIcons name="remove" size={18} color={colors.textWhite} />
-                </View>
-            )}
-        </AssetSelectionRow></View>
+            <LockedAssetNotice locks={locks} />
+            <AssetSelectionRow locks={locks} style={[styles.playerAction, disabled && styles.playerActionDisabled]}
+                onPress={onToggle} disabled={disabled} accessibilityRole="button"
+                accessibilityState={{ selected, disabled }}
+                label={`${selected ? 'Remove' : 'Add'} ${p.display_name} ${selected ? 'from' : 'to'} trade`}
+                testID={testID} id={testID}>
+                <Text style={styles.playerActionText}>{selected ? 'Remove' : 'Add'}</Text>
+            </AssetSelectionRow>
+        </View>
     )
 }
 
@@ -284,6 +278,9 @@ const styles = StyleSheet.create({
         borderBottomWidth: 1,
         borderBottomColor: colors.separator,
     },
+    playerAction: { minWidth: controlSize.minTouch, minHeight: controlSize.minTouch, paddingHorizontal: spacing.sm, alignItems: 'center', justifyContent: 'center', borderRadius: radii.md, borderWidth: 1, borderColor: colors.primaryBorder },
+    playerActionDisabled: { opacity: 0.5 },
+    playerActionText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.primaryDark },
     playerRowSelected: { backgroundColor: colors.primaryLight },
     pickCircle: {
         width: controlSize.avatar.md,

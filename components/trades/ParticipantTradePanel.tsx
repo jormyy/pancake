@@ -1,5 +1,5 @@
 import { orderTradeAssets, tradeRosterAssetOrder } from '@/lib/trade-assets'
-import { PlayerRowContent } from '@/components/player/PlayerRowContent'
+import { TradePlayerLink } from '@/components/trades/TradePlayerLink'
 import { pickLabel } from '@/lib/picks'
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
 import { TradeAssetColumn } from '@/components/trades/TradeAssetColumn'
@@ -114,7 +114,7 @@ export function ParticipantTradePanel({
                         const playerId = player.players.id
                         return (
                             <View key={`player:${playerId}`} style={styles.selectedRouteRow}>
-                                <PlayerRowContent name={player.players.display_name} nbaId={player.players.nba_id} team={player.players.nba_team} positions={player.players.eligible_positions ?? []}
+                                <TradePlayerLink playerId={player.players.id} name={player.players.display_name} nbaId={player.players.nba_id} team={player.players.nba_team} positions={player.players.eligible_positions ?? []}
                                     birthdate={player.players.birthdate} yearsExp={player.players.years_exp} careerGames={player.players.career_regular_season_games} injuryStatus={player.players.injury_status} />
                                 <RouteOptions
                                     destinationIds={participant.destinationIds}

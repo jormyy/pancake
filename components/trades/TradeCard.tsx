@@ -5,7 +5,7 @@ import { PendingMutationBadge } from '@/components/PendingMutationBadge'
 import { Badge } from '@/components/ui/Badge'
 import { TradePickLabel } from '@/components/trades/TradePickLabel'
 import { tradePickContext, type TradePickContext } from '@/lib/trade-pick-label'
-import { PlayerRowContent } from '@/components/player/PlayerRowContent'
+import { TradePlayerLink } from '@/components/trades/TradePlayerLink'
 import { View, Text, StyleSheet } from 'react-native'
 import { SavedTradeEstimate } from '@/components/trades/SavedTradeEstimate'
 import { useRouter } from 'expo-router'
@@ -118,7 +118,7 @@ function TradeItemLine({ item, showContext = true, pickContext }: { item: TradeI
         const positions = playerEligiblePositions(item)
         return (
             <View style={styles.assetRow}>
-                <PlayerRowContent compact name={item.playerName} nbaId={item.nbaId} team={item.nbaTeam} positions={positions}
+                <TradePlayerLink compact name={item.playerName} nbaId={item.nbaId} team={item.nbaTeam} positions={positions}
                     playerId={item.playerId} yearsExp={item.yearsExp} careerGames={item.careerGames} injuryStatus={item.injuryStatus}
                     metadata={item.toTaxi ? <Text style={styles.assetMeta}>To taxi</Text> : null}
                     stats={showContext ? playerSeasonContextText(item) : undefined} />
@@ -311,8 +311,6 @@ export function TradeCard({
     const pickContext = tradePickContext(trade, myMemberId)
     if (reviewMode === 'propose') model.status = 'Draft'
 
-    // The summary is the press target, not the whole card, so the header and
-    // action buttons never sit inside another button.
     const summary = (
         <>
             {model.meta.length > 0 ? <Text style={styles.meta} numberOfLines={2}>{model.meta.join(' · ')}</Text> : null}
@@ -346,9 +344,10 @@ export function TradeCard({
                 </View>
             </View>
 
+            <View style={styles.summary}>{summary}</View>
             {onOpen ? (
                 <MotionPressable
-                    style={styles.summary}
+                    style={styles.analyzeBtn}
                     onPress={onOpen}
                     accessibilityRole="button"
                     accessibilityLabel={`Show details of trade with ${model.opponentName}`}
@@ -356,9 +355,9 @@ export function TradeCard({
                     testID={`trade-details-${trade.id}`}
                     id={`trade-details-${trade.id}`}
                 >
-                    {summary}
+                    <Text style={styles.analyzeBtnText}>Details</Text>
                 </MotionPressable>
-            ) : <View style={styles.summary}>{summary}</View>}
+            ) : null}
 
             {!reviewMode ? <SavedTradeEstimate trade={trade} myMemberId={myMemberId} /> : null}
 

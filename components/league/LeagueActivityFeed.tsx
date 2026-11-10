@@ -1,5 +1,6 @@
 import { formatLeagueDateTime } from '@/lib/timezone'
 import { useLeagueTimezone } from '@/hooks/use-league-timezone'
+import { TradePlayerLink } from '@/components/trades/TradePlayerLink'
 import { PlayerRowContent } from '@/components/player/PlayerRowContent'
 import { TradePickLabel } from '@/components/trades/TradePickLabel'
 import { orderTradeAssets } from '@/lib/trade-assets'
@@ -52,9 +53,10 @@ function ActivityRow({ item, isMe, myMemberId, padX = spacing.lg }: { item: Tran
         )
     }
 
+    const PlayerContent = item.transactionType === 'trade' && item.playerId ? TradePlayerLink : PlayerRowContent
     return (
         <View style={[styles.txRow, { paddingHorizontal: padX }, isMe && styles.txRowMe]}>
-            <PlayerRowContent name={item.playerName} nbaId={item.nbaId} team={item.nbaTeam} positions={item.eligiblePositions} playerId={item.playerId} yearsExp={item.yearsExp} careerGames={item.careerGames} injuryStatus={item.injuryStatus}
+            <PlayerContent name={item.playerName} nbaId={item.nbaId} team={item.nbaTeam} positions={item.eligiblePositions} playerId={item.playerId ?? ''} yearsExp={item.yearsExp} careerGames={item.careerGames} injuryStatus={item.injuryStatus}
                 stats={`${item.teamName}${isMe ? ' (you)' : ''}`} />
             <View style={styles.txRight}>
                 <Badge label={label} color={color} variant="soft" />

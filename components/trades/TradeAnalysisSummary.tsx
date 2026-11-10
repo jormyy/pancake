@@ -1,5 +1,5 @@
 import { orderTradeAssets, tradeAnalysisAssetOrder } from '@/lib/trade-assets'
-import { PlayerRowContent } from '@/components/player/PlayerRowContent'
+import { TradePlayerLink } from '@/components/trades/TradePlayerLink'
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native'
 import type { RosterPlayer } from '@/lib/roster'
 import type { DynastyTradeAnalysis } from '@/core/src/dynasty/decisionEngine'
@@ -55,9 +55,9 @@ export function TradeAnalysisSummary({
                 return (
                 <View key={`${asset.kind}:${asset.assetId}`} style={styles.assetRow}>
                     <View style={styles.assetHeading}>
-                        {asset.kind === 'player' ? <PlayerRowContent compact name={asset.label} nbaId={player?.nba_id} team={player?.nba_team}
+                        {asset.kind === 'player' ? <TradePlayerLink compact playerId={asset.assetId} name={asset.label} nbaId={player?.nba_id} team={player?.nba_team}
                             positions={player?.eligible_positions ?? (player?.position ? [player.position] : [])}
-                            injuryStatus={player?.injury_status}
+                            injuryStatus={player?.injury_status} yearsExp={player?.years_exp} careerGames={player?.career_regular_season_games}
                             stats={<Text style={styles.assetValue} numberOfLines={1} adjustsFontSizeToFit>{assetValueLine(asset, analysis.strategy)}</Text>} /> : <View style={styles.assetCopy}>
                             <Text style={styles.assetName} numberOfLines={1}>{asset.label}</Text>
                             <Text style={styles.assetValue} numberOfLines={1} adjustsFontSizeToFit>{assetValueLine(asset, analysis.strategy)}</Text>
