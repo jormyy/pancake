@@ -53,11 +53,14 @@ function ActivityRow({ item, isMe, myMemberId, padX = spacing.lg }: { item: Tran
         )
     }
 
-    const PlayerContent = item.transactionType === 'trade' && item.playerId ? TradePlayerLink : PlayerRowContent
+    const playerProps = { name: item.playerName, nbaId: item.nbaId, team: item.nbaTeam, positions: item.eligiblePositions,
+        yearsExp: item.yearsExp, careerGames: item.careerGames, injuryStatus: item.injuryStatus,
+        stats: `${item.teamName}${isMe ? ' (you)' : ''}` }
     return (
         <View style={[styles.txRow, { paddingHorizontal: padX }, isMe && styles.txRowMe]}>
-            <PlayerContent name={item.playerName} nbaId={item.nbaId} team={item.nbaTeam} positions={item.eligiblePositions} playerId={item.playerId ?? ''} yearsExp={item.yearsExp} careerGames={item.careerGames} injuryStatus={item.injuryStatus}
-                stats={`${item.teamName}${isMe ? ' (you)' : ''}`} />
+            {(item.transactionType === 'trade_in' || item.transactionType === 'trade_out') && item.playerId
+                ? <TradePlayerLink {...playerProps} playerId={item.playerId} />
+                : <PlayerRowContent {...playerProps} playerId={item.playerId} />}
             <View style={styles.txRight}>
                 <Badge label={label} color={color} variant="soft" />
                 <Text style={styles.txTime}>{formatLeagueDateTime(item.occurredAt, timezone)}</Text>

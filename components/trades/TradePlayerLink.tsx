@@ -10,7 +10,9 @@ export function useTradePlayerNavigation() {
     return (player: TradePlayerIdentity) => router.push(tradePlayerDetailRoute(player))
 }
 
-export function TradePlayerLink(props: Omit<PlayerRowContentProps, 'playerId' | 'locks'> & { playerId: string }) {
+export type TradePlayerLinkProps = Omit<PlayerRowContentProps, 'playerId' | 'locks'> & TradePlayerIdentity
+
+export function TradePlayerLink(props: TradePlayerLinkProps) {
     const openPlayer = useTradePlayerNavigation()
     const [focused, setFocused] = useState(false)
     return <Pressable style={[styles.link, focused && styles.focused]}

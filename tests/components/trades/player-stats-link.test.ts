@@ -51,7 +51,7 @@ async function column(selected = false, blocked = false) {
     await act(async () => { tree = create(React.createElement(TradeAssetColumn, {
         memberId: 'mine', title: 'Send', subtitle: 'You', side: 'give', twoColumn: false, roster: [player], picks: [],
         avgMap: new Map(), avgStatsMap: new Map(), selectedPlayerIds: new Set(selected ? [player.players.id] : []),
-        selectedPickIds: new Set(), blockedPlayerIds: new Set(blocked ? [player.players.id] : []),
+        selectedPickIds: new Set<string>(), blockedPlayerIds: new Set(blocked ? [player.players.id] : []),
         onTogglePlayer: toggle, onTogglePick: vi.fn(), emptyText: '', testIdPrefix: 'trade-mine',
     })) })
     return { toggle, player, buttons: tree.root.findAllByType('Pressable' as React.ElementType) }
@@ -88,9 +88,9 @@ it.each(['checking', 'locked', 'routed'])('keeps stats available while selection
 
 it('retains the details control without enclosing any player controls', async () => {
     const open = vi.fn()
-    const offer = trade({ routedItems: [{ kind: 'player', playerId: 'p', playerName: 'Player', fromMemberId: 'member-a', toMemberId: 'member-b' }] })
+    const offer = trade({ routedItems: [{ kind: 'player', playerId: 'p', playerName: 'Player', position: null, nbaTeam: null, fromMemberId: 'member-a', toMemberId: 'member-b' }] })
     await act(async () => { tree = create(React.createElement(TradeCard, {
-        trade: offer, myMemberId: offer.proposerMemberId, tab: 'sent', acting: false,
+        trade: offer, myMemberId: offer.proposerMemberId, tab: 'offers', acting: false,
         onAccept: vi.fn(), onReject: vi.fn(), onVeto: vi.fn(), onWithdraw: vi.fn(), onAnalyze: vi.fn(), onOpen: open,
     })) })
     const details = tree.root.findAllByType('Pressable' as React.ElementType).find(button => button.props.testID === `trade-details-${offer.id}`)!

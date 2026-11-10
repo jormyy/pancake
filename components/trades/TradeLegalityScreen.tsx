@@ -1,5 +1,5 @@
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
-import type { ComponentProps } from 'react'
+import { useRef, type ComponentProps, type RefObject } from 'react'
 import { ErrorBanner, PageHeader } from '@/components/ui'
 import { colors, controlSize, radii, spacing, textStyles } from '@/constants/tokens'
 import { isTradeRosterLegal } from '@/lib/trade-legality-step'
@@ -8,7 +8,7 @@ import type { Trade, TradeRosterPreview } from '@/lib/trades'
 import { TradeCard } from './TradeCard'
 import { TradeRosterPlanEditor } from './TradeRosterPlanEditor'
 
-export function TradeLegalityScreen({ trade, memberId, teams, loading, saving, error, onRetry, onClose, onSubmit, mode, editor, retrying = false }: {
+export function TradeLegalityScreen({ trade, memberId, teams, loading, saving, error, onRetry, onClose, onSubmit, mode, editor, retrying = false, scrollPosition }: {
     trade: Trade
     memberId: string
     teams: TradeRosterPreview[]
@@ -19,9 +19,11 @@ export function TradeLegalityScreen({ trade, memberId, teams, loading, saving, e
     onClose: () => void
     onSubmit: () => void
     retrying?: boolean
+    scrollPosition?: RefObject<number>
     mode: 'propose' | 'accept'
     editor: ComponentProps<typeof TradeRosterPlanEditor>
 }) {
+    const scrollRef = useRef<ScrollView>(null)
     const own = teams.find(team => team.memberId === memberId)
     const legal = isTradeRosterLegal(own)
     const ready = !loading && !saving && (retrying || !error && legal)
@@ -33,7 +35,9 @@ export function TradeLegalityScreen({ trade, memberId, teams, loading, saving, e
                 testID={mode === 'propose' ? 'trade-confirm-submit' : 'trade-confirm-accept'}>
                 <Text style={[textStyles.rowTitle, { color: ready ? colors.textWhite : colors.textDisabled }]}>{action}</Text>
             </Pressable>} />
-        <ScrollView contentContainerStyle={styles.content}>
+        <ScrollView ref={scrollRef} contentContainerStyle={styles.content} scrollEventThrottle={16}
+            onScroll={event => { if (scrollPosition) scrollPosition.current = event.nativeEvent.contentOffset.y }}
+            onContentSizeChange={() => { if (scrollPosition) scrollRef.current?.scrollTo({ y: scrollPosition.current, animated: false }) }}>
             <TradeCard trade={trade} myMemberId={memberId} tab="offers" acting={saving} reviewMode={mode}
                 onAccept={onSubmit} onReject={onClose} onVeto={onClose} onWithdraw={onClose} onAnalyze={onClose} />
             <View style={styles.status} accessibilityLiveRegion="polite" testID="trade-roster-status">

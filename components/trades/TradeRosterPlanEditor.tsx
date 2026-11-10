@@ -1,4 +1,5 @@
 import { useTradePlayerNavigation } from '@/components/trades/TradePlayerLink'
+import { LockedAssetNotice } from '@/components/roster/LockedAssetNotice'
 import { readAssetLocks } from '@/lib/locked-assets'
 import { orderTradeAssets } from '@/lib/trade-assets'
 import { isIREligible, isTaxiEligible } from '@pancake/core'
@@ -54,8 +55,8 @@ export function TradeRosterPlanEditor({ incoming, roster, value, onChange, disab
         {rows.map(row => {
             const selected = selectedFor(row)
             if (selected !== section) return null
+            const locks = readAssetLocks(roster.find(item => item.players.id === row.id))
             const item: RosterPlayer = {
-                assetLocks: readAssetLocks(roster.find(item => item.players.id === row.id)),
                 id: row.id, acquired_via: 'trade', is_on_ir: selected === 'ir', is_on_taxi: selected === 'taxi',
                 players: { id: row.id, display_name: row.name, nba_team: row.player.team ?? null,
                     nba_id: row.player.nbaId ?? null, position: row.player.positions?.[0] ?? null,
@@ -68,7 +69,7 @@ export function TradeRosterPlanEditor({ incoming, roster, value, onChange, disab
                 avgFpts={avgMap?.get(row.id) ?? (incomingStats?.kind === 'player' ? incomingStats.avgFantasyPoints ?? undefined : undefined)}
                 avgMinutes={avgStatsMap?.get(row.id)?.avg_minutes_played ?? (incomingStats?.kind === 'player' ? incomingStats.avgMinutesPlayed : undefined)}
                 metadata={row.incoming ? <Text style={styles.incoming}>Incoming</Text> : undefined}
-                actions={<View style={styles.choices} accessibilityRole="radiogroup" accessibilityLabel={`${row.name} roster slot`}>
+                actions={<View style={styles.planActions}><LockedAssetNotice locks={locks} /><View style={styles.choices} accessibilityRole="radiogroup" accessibilityLabel={`${row.name} roster slot`}>
                     {(['active', 'ir', 'taxi', 'drop'] as const).flatMap(destination => {
                         const unavailable = disabled || row.fixedTaxi && destination !== 'taxi' || row.incoming && destination === 'drop' || Boolean(unavailableMoves[row.id]) ||
                             destination === 'ir' && (!allowIR || !isIREligible(row.injury ?? null) || Boolean(unavailableDestinations[row.id]?.ir)) ||
@@ -84,7 +85,7 @@ export function TradeRosterPlanEditor({ incoming, roster, value, onChange, disab
                             </Text>
                         </Pressable>]
                     })}
-                </View>} />
+                </View></View>} />
         })}</View>)}
     </View>
 }
@@ -93,6 +94,7 @@ const styles = StyleSheet.create({
     root: { gap: spacing.md },
     section: { backgroundColor: colors.bgCard, borderRadius: radii.lg, overflow: 'hidden' },
     incoming: { ...textStyles.meta, color: colors.primaryDark },
+    planActions: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-end', gap: spacing.sm, flexWrap: 'wrap' },
     choices: { flexDirection: 'row', gap: spacing.xs, alignSelf: 'flex-end' },
     choice: { minHeight: foundation.minTouch, paddingHorizontal: spacing.md, justifyContent: 'center', borderRadius: radii.md },
     selected: { backgroundColor: colors.primaryLight },

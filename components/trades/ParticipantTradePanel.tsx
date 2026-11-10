@@ -53,7 +53,7 @@ function RouteOptions({
                         onPress={() => onChange(destinationId)}
                         accessibilityRole="button"
                         accessibilityLabel={accessibilityLabel(destinationId)}
-                        accessibilityState={{ selected: active }}
+                        accessibilityState={{ selected: active }} aria-pressed={active}
                         testID={testID?.(destinationId)}
                         id={testID?.(destinationId)}
                     >

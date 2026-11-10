@@ -89,3 +89,11 @@ it('keeps the full pick label in the acceptance confirmation', () => {
     const offer = trade({ proposerMemberId: 'matthew', proposerTeamName: 'Matthew', recipientMemberId: 'mike', recipientTeamName: "Mike's Minions", routedItems: picks })
     expect(tradeAcceptanceSummary(offer, [], 'matthew')).toContain("2029 Round 1 (orig. Mike's Minions) — from Mike's Minions → to You")
 })
+
+it.each(['trade_in', 'trade_out', 'fa_add'])('opens player stats only for trade activity %s', async transactionType => {
+    const item: TransactionRow = { id: 'activity', memberId: 'member', teamName: 'Team', playerId: 'player', playerName: 'Player',
+        position: 'PG', eligiblePositions: ['PG'], nbaId: null, nbaTeam: 'BOS', transactionType, occurredAt: '2026-11-10T12:00:00Z' }
+    await act(async () => { screen = create(React.createElement(ActivityFeed, { transactions: [item] })) })
+    const links = screen.root.findAllByProps({ accessibilityLabel: 'View Player stats' }, { deep: false })
+    expect(links).toHaveLength(transactionType === 'fa_add' ? 0 : 1)
+})

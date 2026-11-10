@@ -1,5 +1,6 @@
+import { useIsFocused } from '@react-navigation/native'
 import { tradeRosterPlanKey } from '@/lib/trade-roster-preview'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Modal, StyleSheet } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { getRosterStatsMaps, type RosterStatsMaps } from '@/lib/roster-stats'
@@ -19,6 +20,8 @@ export function PendingTradeRosterPlan({ trade, memberId, onCancel, onConfirmed 
     onCancel: () => void
     onConfirmed: () => void
 }) {
+    const focused = useIsFocused()
+    const scrollPosition = useRef(0)
     const { currentLeague } = useLeagueContext()
     const leagueId = currentLeague?.id
     const [plan, setPlan] = useState<TradeRosterPlan>(() => prefillTradeRosterPlan(trade, memberId))
@@ -75,9 +78,9 @@ export function PendingTradeRosterPlan({ trade, memberId, onCancel, onConfirmed 
             if (teams) setResult({ owner, key: requestKey, teams })
         } finally { setSaving(false) }
     }
-    return <Modal visible animationType="slide" onRequestClose={onCancel}>
+    return <Modal visible={focused} animationType="slide" onRequestClose={onCancel}>
         <SafeAreaView style={styles.root}>
-            <TradeLegalityScreen trade={trade} memberId={memberId} teams={preview} loading={loading} saving={saving}
+            <TradeLegalityScreen scrollPosition={scrollPosition} trade={trade} memberId={memberId} teams={preview} loading={loading} saving={saving}
                 error={error} onRetry={() => setAttempt(value => value + 1)} onClose={onCancel} onSubmit={confirm} mode="accept"
                 editor={{ incoming, avgMap: stats?.avgMap, avgStatsMap: stats?.avgStatsMap, roster: roster.filter(row => !offered.has(row.players.id)), value: plan, onChange: setPlan,
                     allowIR: (currentLeague?.ir_slots ?? 0) > 0, allowTaxi: (currentLeague?.taxi_slots ?? 0) > 0,

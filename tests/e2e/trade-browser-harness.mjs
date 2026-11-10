@@ -126,7 +126,7 @@ export const clickTestId = async (session, testID, label) => {
     const memberId = testID.slice('trade-sender-'.length)
     const output = await browser(session, ['eval', `(() => {
       const visible = ${JSON.stringify(testID)} === 'trade-deal-summary'
-        ? [...document.querySelectorAll('[role="button"]')].some((node) => node.getAttribute('aria-label')?.startsWith('Remove ') && node.getAttribute('aria-label')?.endsWith(' from trade') && node.getBoundingClientRect().width > 0)
+        ? [...document.querySelectorAll('[role="button"]')].some((node) => node.getAttribute('aria-label')?.startsWith('Remove ') && node.getAttribute('aria-label')?.includes(' sent by ') && node.getAttribute('aria-label')?.endsWith(' from trade') && node.getBoundingClientRect().width > 0)
         : [...document.querySelectorAll('[data-testid]')].some((node) =>
           ['trade-' + ${JSON.stringify(memberId)} + '-player-', 'trade-' + ${JSON.stringify(memberId)} + '-pick-', 'trade-faab-' + ${JSON.stringify(memberId)}]
             .some((prefix) => node.getAttribute('data-testid').startsWith(prefix)) && node.getBoundingClientRect().width > 0);

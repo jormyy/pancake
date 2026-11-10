@@ -62,7 +62,7 @@ function PlayerRow({
             <LockedAssetNotice locks={locks} />
             <AssetSelectionRow locks={locks} style={[styles.playerAction, disabled && styles.playerActionDisabled]}
                 onPress={onToggle} disabled={disabled} accessibilityRole="button"
-                accessibilityState={{ selected, disabled }}
+                accessibilityState={{ selected, disabled }} aria-pressed={selected}
                 label={`${selected ? 'Remove' : 'Add'} ${p.display_name} ${selected ? 'from' : 'to'} trade`}
                 testID={testID} id={testID}>
                 <Text style={styles.playerActionText}>{selected ? 'Remove' : 'Add'}</Text>

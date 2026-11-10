@@ -68,7 +68,7 @@ it('preserves trade player and pick disabled states with independently pressable
     data.locks = [trade, pickLock]
     await render(React.createElement(TradeAssetColumn, { memberId: 'me', title: 'You', subtitle: '', side: 'give', twoColumn: false, roster: [locked], picks: [pick], avgMap: new Map(), avgStatsMap: new Map(), selectedPlayerIds: new Set<string>(), selectedPickIds: new Set<string>(), onTogglePlayer: noop, onTogglePick: noop, emptyText: '' }))
     check(2)
-    for (const row of screen.root.findAllByType('Pressable' as React.ElementType).filter(row => /for trade$/.test(row.props.accessibilityLabel))) expect(row.props.disabled).toBe(true)
+    for (const row of screen.root.findAllByType('Pressable' as React.ElementType).filter(row => /(?:for|to) trade$/.test(row.props.accessibilityLabel))) expect(row.props.disabled).toBe(true)
     const icon = screen.root.findAllByProps({ accessibilityLabel: 'Locked by a pending trade' })[0]
     expect(icon.props.accessibilityState.disabled).toBe(false)
     for (let parent = icon.parent; parent; parent = parent.parent) {
