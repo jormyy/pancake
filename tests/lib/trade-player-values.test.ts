@@ -38,3 +38,19 @@ it('does not fetch for an empty player list', async () => {
     expect(await getTradePlayerValues([])).toEqual(new Map())
     expect(query.from).not.toHaveBeenCalled()
 })
+
+it.each(['response error', 'rejected request'])('keeps trade roster assets when optional rankings fail with a %s', async failure => {
+    query.order.mockReset().mockReturnValueOnce(query)
+    if (failure === 'response error') query.order.mockResolvedValueOnce({ data: null, error: new Error('rankings unavailable') })
+    else query.order.mockRejectedValueOnce(new Error('rankings unavailable'))
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const player = rosterPlayer()
+    const rosters = { me: [player], them: [] }
+    try {
+        expect(await withTradeRosterValues(rosters)).toEqual({ me: [{ ...player, tradeValue: null }], them: [] })
+        expect(rosters).toEqual({ me: [player], them: [] })
+        expect(player).not.toHaveProperty('tradeValue')
+    } finally {
+        warn.mockRestore()
+    }
+})
