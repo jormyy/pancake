@@ -85,8 +85,9 @@ if (action === 'serve') {
     }
     if (command === 'capture') {
       const file = safeFile(values[0])
+      await page.waitForTimeout(400)
       const snapshot = await safeSnapshot()
-      await page.screenshot({ path: file + '.png', fullPage: true })
+      await page.screenshot({ path: file + '.png', fullPage: true, animations: 'disabled' })
       await writeFile(file + '.txt', snapshot)
       return file + '.png'
     }

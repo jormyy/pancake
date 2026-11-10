@@ -6,6 +6,7 @@ import { MAX_TRADE_FAAB_DIGITS } from '@/lib/multi-team-trade-state'
 import { MAX_TRADE_FAAB_AMOUNT } from '@pancake/core'
 import type { TradeParticipantView } from '@/lib/trade-ui-model'
 
+vi.mock('expo-router', () => ({ useRouter: () => ({ push: vi.fn() }) }))
 vi.mock('react-native', () => ({
     Platform: { OS: 'ios' },
     Pressable: 'Pressable',
