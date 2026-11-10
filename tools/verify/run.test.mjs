@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
 import { createServer } from 'node:http'
 import { requireLocal, stackConfig, refreshAppSources } from './run.mjs'
-import { beginTradeProof, tradeProofReceiptName } from './trade-proof.mjs'
+import { assertTradeProof, beginTradeProof, tradeProofReceiptName } from './trade-proof.mjs'
 
 test('local endpoint guard rejects hosted, lookalike, and wrong-protocol endpoints', () => {
   assert.equal(requireLocal('http://127.0.0.1:54121').port, '54121')
@@ -164,6 +164,15 @@ test('partial viewports and subfeatures cannot produce the canonical matrix rece
   assert.equal(tradeProofReceiptName(undefined, [390, 375, 1440]), canonical)
   for (const widths of [[390], [375], [1440], [390, 375]]) assert.notEqual(tradeProofReceiptName(undefined, widths), canonical)
   assert.notEqual(tradeProofReceiptName('activity', [390, 375, 1440]), canonical)
+})
+
+test('success requires every documented entry point at every requested viewport', () => {
+  const activity = ['league-trade-activity', 'league-completed-activity'].map(label => ({ label, width: 390 }))
+  assertTradeProof(activity, [390], 'activity')
+  assert.throws(() => assertTradeProof(activity.slice(0, 1), [390], 'activity'), /Every activity entry point/)
+  assert.throws(() => assertTradeProof([...activity, activity[0]], [390], 'activity'), /Every activity entry point/)
+  assert.throws(() => assertTradeProof(activity, [390, 375], 'activity'), /375px/)
+  assert.throws(() => assertTradeProof(activity, [390]), /Every full-matrix entry point/)
 })
 
 test('new attempts archive prior captures and receipts without touching unrelated evidence', async () => {

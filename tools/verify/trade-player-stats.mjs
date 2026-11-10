@@ -4,7 +4,7 @@ import { readFile, writeFile, readdir } from 'node:fs/promises'
 import path from 'node:path'
 import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { beginTradeProof, tradeProofReceiptName } from './trade-proof.mjs'
+import { assertTradeProof, beginTradeProof, tradeProofReceiptName } from './trade-proof.mjs'
 
 const [dirArg, ...options] = process.argv.slice(2)
 const dir = path.resolve(dirArg)
@@ -211,6 +211,10 @@ const existingOffers = async () => {
   await trades()
   await probe('received-card', 'E2E Player022', cardTarget(fixture.receivedTradeId, 'E2E Player022'))
   await probe('sent-card', 'E2E Player001', cardTarget(fixture.sentTradeId, 'E2E Player001'))
+  await click({ selector: `[data-testid="trade-details-${fixture.sentTradeId}"]` })
+  await wait(text => text.includes('Proposed by'))
+  await probe('sent-details', 'E2E Player001', { name: 'View E2E Player001 stats', index: width >= 960 ? 1 : 0 })
+  if (width < 960) await click('Back to trades')
   await click({ selector: `[data-testid="trade-details-${fixture.receivedTradeId}"]` })
   await wait(text => text.includes('Proposed by'))
   await probe('received-details', 'E2E Player022', { name: 'View E2E Player022 stats', index: width >= 960 ? 1 : 0 })
@@ -249,6 +253,7 @@ const existingOffers = async () => {
   await capture('pick-details-after')
   receipts.push({ kind: 'pick', width, label: 'pick-card-details', tradeId: fixture.pickTradeId })
   if (width < 960) await click('Back to trades')
+  await probe('multi-history-card', 'E2E Player013', cardTarget(fixture.multiTradeId, 'E2E Player013'))
   await click({ selector: `[data-testid="trade-details-${fixture.multiTradeId}"]` })
   await wait(text => text.includes('Verification completed multi-team stats'))
   await probe('multi-history-details', 'E2E Player013', { name: 'View E2E Player013 stats', index: width >= 960 ? 1 : 0 })
@@ -386,6 +391,7 @@ try {
     for (const [name, journey] of Object.entries(journeys)) if (!selected || selected === name) await journey()
   }
   assert.ok(receipts.some(receipt => receipt.kind === 'player'), 'A successful journey must contain visible stats round trips')
+  assertTradeProof(receipts, widths, selected)
   const captures = (await readdir(dir)).filter(file => /^webkit-trade-player-stats-.*\.(png|txt)$/.test(file)).sort()
   await writeFile(path.join(dir, tradeProofReceiptName(selected, widths)), JSON.stringify({ engine: 'WebKit', attemptId, widths, journeys: selected ? [selected] : Object.keys(journeys), captures, receipts }, null, 2) + '\n')
 } catch (error) {

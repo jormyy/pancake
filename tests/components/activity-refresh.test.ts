@@ -78,3 +78,28 @@ it.each(['trade_completed', 'commissioner_announcement'])('links grouped players
         if (screen) await act(async () => screen.unmount())
     }
 })
+
+it.each(['trade_in', 'trade_out', 'fa_add'])('opens individual stats only for trade activity: %s', async transactionType => {
+    const item: React.ComponentProps<typeof ActivityFeed>['transactions'][number] = {
+        id: 'event', memberId: 'a', teamName: 'A', playerId: 'player', playerName: 'Player', position: 'PG',
+        eligiblePositions: ['PG'], nbaId: null, transactionType, occurredAt: '2026-11-10T12:00:00Z',
+    }
+    let screen!: ReactTestRenderer
+    let row!: ReactTestRenderer
+    push.mockClear()
+    try {
+        await act(async () => { screen = create(React.createElement(ActivityFeed, { transactions: [item] })) })
+        const renderItem = screen.root.findByType('FlashList' as React.ElementType).props.renderItem
+        await act(async () => { row = create(renderItem({ item })) })
+        const links = row.root.findAllByType('Pressable' as React.ElementType)
+        expect(links).toHaveLength(transactionType === 'fa_add' ? 0 : 1)
+        if (links.length) {
+            expect(links[0].props.accessibilityLabel).toBe('View Player stats')
+            await act(async () => links[0].props.onPress())
+            expect(push).toHaveBeenCalledWith(expect.objectContaining({ pathname: '/player/[id]', params: expect.objectContaining({ id: 'player' }) }))
+        }
+    } finally {
+        if (row) await act(async () => row.unmount())
+        if (screen) await act(async () => screen.unmount())
+    }
+})

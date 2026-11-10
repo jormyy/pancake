@@ -54,7 +54,7 @@ Require these entry points in the evidence receipt:
 - Multi-team selected routes and expanded deal summary, including Remove and destination controls.
 - Remove a player through the summary, require the exact remaining assets/routes/notes/FAAB, then add them back and require the original state.
 - Proposal review, its roster plan, and analysis rows.
-- Received offers, sent offers, and completed two-team and multi-team history cards and details.
+- Received and sent offer cards and details, and completed two-team and multi-team history cards and details.
 - Analyzer selection, summary, and calculated asset rows.
 - Own and another manager's trade-block listings and roster picker.
 - Pending acceptance roster plan, individual trade activity and grouped completed-trade player rows in League activity.
@@ -68,6 +68,7 @@ The completed fixtures use the actual proposal, acceptance, and completion rules
 A completed pick exchange proves pick rows still open trade details.
 The first manager receives a reverse offer; the second manager receives the original offer.
 Fixture creation prepares state and is not interaction proof.
+Success requires the named receipt for every documented entry point at every requested viewport.
 `tradePlayerOrder` records the three imported values and expected identities; the visible builder observation proves their order.
 
 
