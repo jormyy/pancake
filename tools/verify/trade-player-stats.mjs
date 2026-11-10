@@ -133,10 +133,11 @@ const selection = async () => {
   state = await command('observe')
   assert.equal(state.url, before.url)
   assert.equal(state.targets.find(target => target.label === 'Remove E2E Player003 from trade').selected, 'true')
-  const controls = state.targets.filter(target => /^(Add .* to|Remove .* from) trade$/.test(target.label))
+  const prefix = `trade-${fixture.memberId}-player-`
+  const controls = state.targets.filter(target => target.testID?.startsWith(prefix))
   assert.ok(controls.some(target => target.label.startsWith('Add ')) && controls.some(target => target.label.startsWith('Remove ')))
   assert.ok(controls.every(target => target.width === touch.width && target.height >= 44), 'Add and Remove have one fixed width and retain minimum touch targets')
-  const order = state.targets.filter(target => target.label.startsWith('View ')).slice(0, fixture.tradePlayerOrder.length).map(target => target.label)
+  const order = state.targets.filter(target => target.label.startsWith('View ') && target.selectionId?.startsWith(prefix)).slice(0, fixture.tradePlayerOrder.length).map(target => target.label)
   assert.deepEqual(order, fixture.tradePlayerOrder.map(player => `View ${player.name} stats`), 'The builder retains the merged descending dynasty order')
   await capture('integrated-controls')
   await writeFile(path.join(dir, `trade-player-stats-${width}-integrated-controls.json`), JSON.stringify({ url: state.url, width, controls, expectedOrder: fixture.tradePlayerOrder, observedOrder: order }, null, 2))
@@ -303,6 +304,9 @@ const activity = async () => {
   await click({ role: 'tab', name: 'Activity' })
   const name = await matchingButton(/^View E2E Player0(?:11|31|13|33|45) stats$/)
   await probe('league-trade-activity', name.slice(5, -6), { name, index: 0 })
+  const grouped = (await command('links')).find(link => link.ancestors.some(id => id.startsWith('trade-activity-')))
+  assert.ok(grouped, 'Completed trade activity contains a player stats control')
+  await probe('league-completed-activity', grouped.label.slice(5, -6), { selector: `[data-testid^="trade-activity-"] [aria-label="${grouped.label}"]`, index: 0 })
 }
 const onlyFlags = options.filter(option => option.startsWith('--only='))
 assert.ok(onlyFlags.length <= 1 && onlyFlags.every(option => option.length > 7), 'Unknown journey filter: supply one nonempty --only value')

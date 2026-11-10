@@ -53,7 +53,7 @@ Require these entry points in the evidence receipt:
 - Received offers, sent offers, and completed two-team and multi-team history cards and details.
 - Analyzer selection, summary, and calculated asset rows.
 - Own and another manager's trade-block listings and roster picker.
-- Pending acceptance roster plan and trade entries in League activity.
+- Pending acceptance roster plan, individual trade activity and grouped completed-trade player rows in League activity.
 - A tradeable roster player with no statistics, with its profile empty state.
 - Tab order from stats to selection, Enter and Space, visible focus, and token-sized targets.
 - Equal fixed Add/Remove widths at every viewport, including a readable Remove label at 375px.

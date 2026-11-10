@@ -51,15 +51,15 @@
               "tap": "Edit assets sent by {{tradeTarget.teamName}}"
             },
             {
-              "tap": "Remove {{tradeTarget.player.display_name}} for trade"
+              "tap": "Remove {{tradeTarget.player.display_name}} from trade"
             },
             {
-              "tap": "Select {{tradeTarget.player.display_name}} for trade"
+              "tap": "Add {{tradeTarget.player.display_name}} to trade"
             }
           ]
         },
         "expected": {
-          "selector": "[aria-label=\"Remove {{tradeTarget.player.display_name}} for trade\"]"
+          "selector": "[aria-label=\"Remove {{tradeTarget.player.display_name}} from trade\"]"
         },
         "note": "The first asset tap scrolls the requested row into view. The second restores its selection. The preceding step proves route prefill."
       },
@@ -135,15 +135,15 @@
               "tap": "Edit assets sent by {{tradeTarget.teamName}}"
             },
             {
-              "tap": "Remove {{tradeTarget.player.display_name}} for trade"
+              "tap": "Remove {{tradeTarget.player.display_name}} from trade"
             },
             {
-              "tap": "Select {{tradeTarget.player.display_name}} for trade"
+              "tap": "Add {{tradeTarget.player.display_name}} to trade"
             }
           ]
         },
         "expected": {
-          "selector": "[aria-label=\"Remove {{tradeTarget.player.display_name}} for trade\"]"
+          "selector": "[aria-label=\"Remove {{tradeTarget.player.display_name}} from trade\"]"
         },
         "note": "The first asset tap scrolls the requested row into view. The second restores its selection. The preceding step proves route prefill."
       },
