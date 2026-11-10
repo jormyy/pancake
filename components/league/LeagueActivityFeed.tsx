@@ -26,7 +26,7 @@ function ActivityRow({ item, isMe, myMemberId, padX = spacing.lg }: { item: Tran
     const avatarSize = controlSize.avatar.md
     if (item.isSystem) {
         return (
-            <View style={[styles.txRow, { paddingHorizontal: padX }, isMe && styles.txRowMe]}>
+            <View testID={item.transactionType === 'trade_completed' ? `trade-activity-${item.id}` : undefined} style={[styles.txRow, { paddingHorizontal: padX }, isMe && styles.txRowMe]}>
                 <Avatar
                     name={item.title ?? item.playerName}
                     color={alpha(color, 0.22)}
@@ -39,7 +39,9 @@ function ActivityRow({ item, isMe, myMemberId, padX = spacing.lg }: { item: Tran
                         {item.body ?? item.teamName}
                         {isMe ? <Text style={styles.meTag}> (you)</Text> : null}
                     </Text>
-                    {orderTradeAssets(item.tradePlayers ?? []).map(player => <Text key={player.playerId} style={styles.txTeam}>{player.playerName} · {player.fromTeamName} → {player.toTeamName}</Text>)}
+                    {orderTradeAssets(item.tradePlayers ?? []).map(player => item.transactionType === 'trade_completed'
+                        ? <TradePlayerLink compact key={player.playerId} playerId={player.playerId} name={player.playerName} stats={`${player.fromTeamName} → ${player.toTeamName}`} />
+                        : <Text key={player.playerId} style={styles.txTeam}>{player.playerName} · {player.fromTeamName} → {player.toTeamName}</Text>)}
                     {orderTradeAssets(item.tradePicks ?? []).map(pick => <TradePickLabel key={pick.pickId} pick={pick} context={{
                         viewerMemberId: myMemberId ?? '',
                         memberNames: { [pick.fromMemberId ?? '']: pick.fromTeamName, [pick.toMemberId ?? '']: pick.toTeamName },

@@ -4,7 +4,9 @@ import { expect, it, vi } from 'vitest'
 import { ActivityFeed } from '@/components/league/LeagueActivityFeed'
 vi.mock('@/hooks/use-league-timezone', () => ({ useLeagueTimezone: () => 'America/Los_Angeles' }))
 
-vi.mock('expo-router', () => ({ useRouter: () => ({ push: vi.fn() }) }))
+const { push } = vi.hoisted(() => ({ push: vi.fn() }))
+vi.mock('expo-router', () => ({ useRouter: () => ({ push }) }))
+vi.mock('@/components/player/PlayerRowContent', () => ({ PlayerRowContent: 'PlayerRowContent' }))
 vi.mock('react-native', () => ({ View: 'View', Text: 'Text', Pressable: 'Pressable', ScrollView: 'ScrollView', Platform: { OS: 'web' }, StyleSheet: { create: (value: unknown) => value } }))
 vi.mock('@shopify/flash-list', () => ({ FlashList: 'FlashList' }))
 vi.mock('@/components/ui', () => ({ usePageMetrics: () => ({ padX: 16 }) }))
@@ -47,4 +49,32 @@ it('refreshes Activity from a web pull at the top of its list', async () => {
         })
         expect(refresh).toHaveBeenCalledOnce()
     } finally { await act(async () => screen.unmount()) }
+})
+
+it.each(['trade_completed', 'commissioner_announcement'])('links grouped players only for %s', async transactionType => {
+    const item: React.ComponentProps<typeof ActivityFeed>['transactions'][number] = {
+        id: 'event', memberId: null, teamName: 'Team', playerId: null, playerName: 'Trade completed', position: null,
+        eligiblePositions: [], nbaId: null, transactionType, occurredAt: '2026-11-10T12:00:00Z', isSystem: true,
+        tradePlayers: [
+            { kind: 'player', playerId: 'low', playerName: 'Low', tradeValue: 100, fromMemberId: 'a', toMemberId: 'b', fromTeamName: 'A', toTeamName: 'B' },
+            { kind: 'player', playerId: 'high', playerName: 'High', tradeValue: 900, fromMemberId: 'b', toMemberId: 'a', fromTeamName: 'B', toTeamName: 'A' },
+        ],
+    }
+    let screen!: ReactTestRenderer
+    let row!: ReactTestRenderer
+    push.mockClear()
+    try {
+        await act(async () => { screen = create(React.createElement(ActivityFeed, { transactions: [item] })) })
+        const renderItem = screen.root.findByType('FlashList' as React.ElementType).props.renderItem
+        await act(async () => { row = create(renderItem({ item })) })
+        const links = row.root.findAllByType('Pressable' as React.ElementType)
+        expect(links.map(link => link.props.accessibilityLabel)).toEqual(transactionType === 'trade_completed' ? ['View High stats', 'View Low stats'] : [])
+        if (transactionType === 'trade_completed') {
+            await act(async () => links[0].props.onPress())
+            expect(push).toHaveBeenCalledWith(expect.objectContaining({ pathname: '/player/[id]', params: expect.objectContaining({ id: 'high' }) }))
+        }
+    } finally {
+        if (row) await act(async () => row.unmount())
+        if (screen) await act(async () => screen.unmount())
+    }
 })
