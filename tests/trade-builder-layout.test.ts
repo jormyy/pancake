@@ -2,11 +2,13 @@ import React from 'react'
 import { act, create } from 'react-test-renderer'
 import { expect, it, vi } from 'vitest'
 import { MultiTeamTradeBuilder } from '@/components/trades/MultiTeamTradeBuilder'
+const dimensions = vi.hoisted(() => ({ width: 402 }))
+vi.mock('@/components/ui/Button', () => ({ Button: 'Button' }))
 vi.mock('@/hooks/use-league-timezone', () => ({ useLeagueTimezone: () => 'America/Los_Angeles' }))
 
 vi.mock('react-native', () => ({
     Platform: { OS: 'web' }, Pressable: 'Pressable', ScrollView: 'ScrollView', Text: 'Text', TextInput: 'TextInput', View: 'View',
-    StyleSheet: { create: (value: unknown) => value }, useWindowDimensions: () => ({ width: 402 }),
+    StyleSheet: { create: (value: unknown) => value }, useWindowDimensions: () => dimensions,
 }))
 vi.mock('@expo/vector-icons/MaterialIcons', () => ({ default: 'MaterialIcons' }))
 vi.mock('@/components/ui/DeferredContent', () => ({ DeferredContent: ({ children }: { children: React.ReactNode }) => children }))
@@ -34,3 +36,22 @@ it('keeps the deal summary in document flow so it cannot cover sender controls',
 })
 
 vi.mock('@/lib/shared/api', () => ({ API_URL: 'http://127.0.0.1:54321/functions/v1/api' }))
+
+it.each([402, 1200])('keeps analysis reachable at width %s', async width => {
+    dimensions.width = width
+    const change = vi.fn()
+    let renderer!: ReturnType<typeof create>
+    await act(async () => { renderer = create(React.createElement(MultiTeamTradeBuilder, {
+        participants: [], items: [{ kind: 'player', playerId: 'player', fromMemberId: 'me', toMemberId: 'other' }],
+        myMemberId: 'me', faabEnabled: false, notesError: null, expirationError: null, rosterError: null, rosterLoading: false,
+        avgMap: new Map(), avgStatsMap: new Map(), participantName: String, onRetry: change,
+        onTogglePlayer: change, onTogglePick: change, onRemoveAsset: change, onDestinationChange: change,
+        onPlayerDestinationChange: change, onPickDestinationChange: change, onFaabChange: change, onAnalyze: change,
+    })) })
+    const button = renderer.root.findByProps({ accessibilityLabel: 'Analyze trade proposal' })
+    expect(button.props.disabled).toBe(false)
+    await act(async () => button.props.onPress())
+    expect(change).toHaveBeenCalledOnce()
+    await act(async () => renderer.unmount())
+    dimensions.width = 402
+})

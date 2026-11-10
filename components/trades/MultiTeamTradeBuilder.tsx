@@ -231,7 +231,11 @@ export function MultiTeamTradeBuilder({
             onLayout={(event) => setContentWidth(event.nativeEvent.layout.width)}
         >
             {useColumns ? (
-                <MultiTeamTradeOverview pickContext={pickContext} participants={overviewParticipants} items={overviewItems} columns onRemoveItem={removeItem} />
+                <>
+                    <MultiTeamTradeOverview pickContext={pickContext} participants={overviewParticipants} items={overviewItems} columns onRemoveItem={removeItem} />
+                    {onAnalyze ? <View style={styles.summaryRow}><Button title="Analyze" variant="secondary" size="sm" onPress={onAnalyze} disabled={items.length === 0}
+                        accessibilityLabel="Analyze trade proposal" /></View> : null}
+                </>
             ) : (
                 <>
                     <View style={styles.summaryRow}>
