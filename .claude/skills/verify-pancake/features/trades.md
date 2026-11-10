@@ -69,6 +69,7 @@ A completed pick exchange proves pick rows still open trade details.
 The first manager receives a reverse offer; the second manager receives the original offer.
 Fixture creation prepares state and is not interaction proof.
 Success requires the named receipt for every documented entry point at every requested viewport.
+Capture names must be unique within a viewport; column-selection evidence uses a separate namespace from stats round trips.
 `tradePlayerOrder` records the three imported values and expected identities; the visible builder observation proves their order.
 
 

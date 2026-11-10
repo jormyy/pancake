@@ -12,6 +12,12 @@ const steps = {
   activity: ['league-trade-activity', 'league-completed-activity'],
 }
 
+export function reserveTradeCapture(captures, width, label) {
+  const key = `${width}-${label}`
+  assert.ok(!captures.has(key), `Duplicate trade proof capture: ${key}`)
+  captures.add(key)
+}
+
 export function assertTradeProof(receipts, widths, selected) {
   const expected = (selected ? steps[selected] : Object.values(steps).flat()).toSorted()
   for (const width of widths) assert.deepEqual(receipts.filter(receipt => receipt.width === width).map(receipt => receipt.label).toSorted(), expected, `Every ${selected ?? 'full-matrix'} entry point is required at ${width}px`)

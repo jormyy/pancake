@@ -4,7 +4,7 @@ import { readFile, writeFile, readdir } from 'node:fs/promises'
 import path from 'node:path'
 import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { assertTradeProof, beginTradeProof, tradeProofReceiptName } from './trade-proof.mjs'
+import { assertTradeProof, beginTradeProof, reserveTradeCapture, tradeProofReceiptName } from './trade-proof.mjs'
 
 const [dirArg, ...options] = process.argv.slice(2)
 const dir = path.resolve(dirArg)
@@ -46,7 +46,11 @@ const database = async label => {
   await writeFile(path.join(dir, `trade-player-stats-${width}-${label}-database.json`), JSON.stringify(result, null, 2))
   return result
 }
-const capture = label => command('capture', `trade-player-stats-${width}-${label}`)
+const captureKeys = new Set()
+const capture = label => {
+  reserveTradeCapture(captureKeys, width, label)
+  return command('capture', `trade-player-stats-${width}-${label}`)
+}
 const probe = async (label, name, target = { name: `View ${name} stats` }, empty = false, key) => {
   await wait(text => text.includes(name))
   await command('scroll', JSON.stringify(target))
@@ -113,7 +117,7 @@ const exerciseColumnSelection = async label => {
   const id = `trade-${fixture.memberId}-player-${fixture.playerIdsByName[name]}`
   const target = { selector: `[data-testid="${id}"]` }
   await command('scroll', JSON.stringify(target))
-  await capture(label + '-selection-before')
+  await capture(label + '-column-selection-before')
   const before = await command('observe')
   assert.equal(before.targets.find(target => target.testID === id)?.selected, 'false')
   await click(target)
@@ -123,15 +127,15 @@ const exerciseColumnSelection = async label => {
   assert.equal(added.targets.find(target => target.testID === id)?.selected, 'true')
   const unrelated = state => controlState(state.controls.filter(control => !control.label?.includes(name)))
   assert.deepEqual(unrelated(added), unrelated(before), label + ' Add preserves other draft state')
-  await capture(label + '-selection-added')
+  await capture(label + '-column-selection-added')
   await click(target)
   await wait(text => text.includes(`Add ${name} to trade`))
   const restored = await command('observe')
   assert.equal(restored.url, before.url, label + ' Remove does not navigate')
   assert.deepEqual(controlState(restored.controls), controlState(before.controls), label + ' Remove restores draft state')
   assert.deepEqual([...restored.selectionLabels].sort(), [...before.selectionLabels].sort())
-  await capture(label + '-selection-restored')
-  await writeFile(path.join(dir, `trade-player-stats-${width}-${label}-selection-state.json`), JSON.stringify({ attemptId, before, added, restored }, null, 2))
+  await capture(label + '-column-selection-restored')
+  await writeFile(path.join(dir, `trade-player-stats-${width}-${label}-column-selection-state.json`), JSON.stringify({ attemptId, before, added, restored }, null, 2))
   receipts.push({ kind: 'selection', width, label: label + '-column-add-remove', remainingStatePreserved: true, restored: true })
 }
 const tabSender = async name => {

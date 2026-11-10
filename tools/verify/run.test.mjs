@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
 import { createServer } from 'node:http'
 import { requireLocal, stackConfig, refreshAppSources } from './run.mjs'
-import { assertTradeProof, beginTradeProof, tradeProofReceiptName } from './trade-proof.mjs'
+import { assertTradeProof, beginTradeProof, reserveTradeCapture, tradeProofReceiptName } from './trade-proof.mjs'
 
 test('local endpoint guard rejects hosted, lookalike, and wrong-protocol endpoints', () => {
   assert.equal(requireLocal('http://127.0.0.1:54121').port, '54121')
@@ -173,6 +173,14 @@ test('success requires every documented entry point at every requested viewport'
   assert.throws(() => assertTradeProof([...activity, activity[0]], [390], 'activity'), /Every activity entry point/)
   assert.throws(() => assertTradeProof(activity, [390, 375], 'activity'), /375px/)
   assert.throws(() => assertTradeProof(activity, [390]), /Every full-matrix entry point/)
+})
+
+test('stats and selection captures stay distinct while duplicate viewport captures fail', () => {
+  const captures = new Set()
+  reserveTradeCapture(captures, 390, 'analyzer-selection-before')
+  reserveTradeCapture(captures, 390, 'analyzer-column-selection-before')
+  reserveTradeCapture(captures, 375, 'analyzer-selection-before')
+  assert.throws(() => reserveTradeCapture(captures, 390, 'analyzer-selection-before'), /Duplicate trade proof capture/)
 })
 
 test('new attempts archive prior captures and receipts without touching unrelated evidence', async () => {
