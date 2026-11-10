@@ -44,13 +44,14 @@ It checks each URL against the fixture player ID and compares both scroll axes.
 Selections compare by identity and value; raw state files retain control order.
 `controlOrderChanged` records any refresh-time reordering separately.
 It saves each stats round trip and compares the prior editor controls and scroll position.
-Each attempt invalidates prior success receipts before driving. A failed attempt cannot satisfy the success-receipt checks with old captures.
+Each attempt archives prior feature receipts and captures before driving. The new receipt records the attempt ID, viewports and capture files. A failed or partial attempt cannot satisfy the full-matrix checks with old captures; only all three viewports can write the canonical receipt.
 Individual activity targets exclude grouped `trade-activity-*` rows; the grouped probe targets those rows explicitly.
 
 Require these entry points in the evidence receipt:
 
 - Propose, edit, and counter asset columns, with separate Add/Remove and unchanged pick controls.
 - Multi-team selected routes and expanded deal summary, including Remove and destination controls.
+- Remove a player through the summary, require the exact remaining assets/routes/notes/FAAB, then add them back and require the original state.
 - Proposal review, its roster plan, and analysis rows.
 - Received offers, sent offers, and completed two-team and multi-team history cards and details.
 - Analyzer selection, summary, and calculated asset rows.

@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
 import { createServer } from 'node:http'
 import { requireLocal, stackConfig, refreshAppSources } from './run.mjs'
+import { beginTradeProof, tradeProofReceiptName } from './trade-proof.mjs'
 
 test('local endpoint guard rejects hosted, lookalike, and wrong-protocol endpoints', () => {
   assert.equal(requireLocal('http://127.0.0.1:54121').port, '54121')
@@ -141,7 +142,7 @@ test('grouped-only activity cannot satisfy individual trade proof or retain prio
     request.on('end', () => {
       const { command, values } = JSON.parse(body)
       if (command === 'click') clicks.push(JSON.parse(values[0]))
-      const result = command === 'links' ? [{ label: 'View E2E Player013 stats', ancestors: ['trade-activity-group'] }] : 'navigation "Primary" Activity'
+      const result = command === 'links' ? [{ label: 'View E2E Player013 stats', ancestors: ['trade-activity-group'] }] : 'navigation "Primary" Activity\n- button "View E2E Player013 stats"'
       response.end(JSON.stringify({ result }))
     })
   })
@@ -156,4 +157,30 @@ test('grouped-only activity cannot satisfy individual trade proof or retain prio
     for (const name of ['all', 'activity']) await assert.rejects(readFile(path.join(dir, `trade-player-stats-${name}-receipt.json`)), /ENOENT/)
     assert.match(JSON.parse(await readFile(path.join(dir, 'trade-player-stats-failure.json'), 'utf8')).error, /Individual trade activity/)
   } finally { await new Promise(resolve => server.close(resolve)) }
+})
+
+test('partial viewports and subfeatures cannot produce the canonical matrix receipt', () => {
+  const canonical = 'trade-player-stats-all-receipt.json'
+  assert.equal(tradeProofReceiptName(undefined, [390, 375, 1440]), canonical)
+  for (const widths of [[390], [375], [1440], [390, 375]]) assert.notEqual(tradeProofReceiptName(undefined, widths), canonical)
+  assert.notEqual(tradeProofReceiptName('activity', [390, 375, 1440]), canonical)
+})
+
+test('new attempts archive prior captures and receipts without touching unrelated evidence', async () => {
+  const root = path.join(os.homedir(), 'Documents/pancake-verify-evidence')
+  await mkdir(root, { recursive: true })
+  const dir = await mkdtemp(path.join(root, 'proof-attempt-'))
+  const files = ['trade-player-stats-all-receipt.json', 'trade-player-stats-390-probe-state.json', 'webkit-trade-player-stats-375-probe.png', 'webkit-trade-player-stats-1440-probe.txt']
+  for (const file of [...files, 'fixture.json']) await writeFile(path.join(dir, file), file)
+  const first = await beginTradeProof(dir)
+  for (const file of files) {
+    await assert.rejects(readFile(path.join(dir, file)), /ENOENT/)
+    assert.equal(await readFile(path.join(dir, `previous-trade-proof-${first}`, file), 'utf8'), file)
+  }
+  assert.equal(await readFile(path.join(dir, 'fixture.json'), 'utf8'), 'fixture.json')
+  await writeFile(path.join(dir, files[0]), 'latest receipt')
+  const second = await beginTradeProof(dir)
+  assert.notEqual(first, second)
+  assert.equal(await readFile(path.join(dir, `previous-trade-proof-${second}`, files[0]), 'utf8'), 'latest receipt')
+  assert.equal(await readFile(path.join(dir, `previous-trade-proof-${first}`, files[0]), 'utf8'), files[0])
 })

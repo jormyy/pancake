@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict'
-import { readFile, writeFile, readdir, rm } from 'node:fs/promises'
+import { readFile, writeFile, readdir } from 'node:fs/promises'
 import path from 'node:path'
 import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
+import { beginTradeProof, tradeProofReceiptName } from './trade-proof.mjs'
 
 const [dirArg, ...options] = process.argv.slice(2)
 const dir = path.resolve(dirArg)
@@ -12,9 +13,7 @@ assert.equal(run.dir, dir)
 assert.equal(run.repo, path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..'))
 assert.match(run.id, /^pancake-verify-[a-z0-9-]+$/)
 assert.ok(!run.cleanedAt)
-for (const file of await readdir(dir)) {
-  if (/^trade-player-stats-.*-receipt\.json$/.test(file) || file === 'trade-player-stats-failure.json') await rm(path.join(dir, file), { force: true })
-}
+const attemptId = await beginTradeProof(dir)
 const fixture = JSON.parse(await readFile(path.join(dir, 'fixture.json'), 'utf8'))
 const { port } = JSON.parse(await readFile(path.join(dir, 'webkit-port.json'), 'utf8'))
 const receipts = []
@@ -83,7 +82,7 @@ const probe = async (label, name, target = { name: `View ${name} stats` }, empty
   assert.equal(after.overflow, false, label + ' fits the viewport')
   assert.deepEqual(after.nested, [], label + ' has no nested interactive targets')
   await capture(label + '-back')
-  await writeFile(path.join(dir, `trade-player-stats-${width}-${label}-state.json`), JSON.stringify({ before, after }, null, 2))
+  await writeFile(path.join(dir, `trade-player-stats-${width}-${label}-state.json`), JSON.stringify({ attemptId, before, after }, null, 2))
   receipts.push({ kind: 'player', width, label, name, playerUrl: stats.url, stateRestored: true, scrollRestored: true, controlOrderChanged: JSON.stringify(after.controls) !== JSON.stringify(before.controls) })
   console.log(`PASS ${width} ${label}`)
 }
@@ -146,7 +145,7 @@ const selection = async () => {
   const order = state.targets.filter(target => target.label.startsWith('View ') && target.selectionId?.startsWith(prefix)).slice(0, fixture.tradePlayerOrder.length).map(target => target.label)
   assert.deepEqual(order, fixture.tradePlayerOrder.map(player => `View ${player.name} stats`), 'The builder retains the merged descending dynasty order')
   await capture('integrated-controls')
-  await writeFile(path.join(dir, `trade-player-stats-${width}-integrated-controls.json`), JSON.stringify({ url: state.url, width, controls, expectedOrder: fixture.tradePlayerOrder, observedOrder: order }, null, 2))
+  await writeFile(path.join(dir, `trade-player-stats-${width}-integrated-controls.json`), JSON.stringify({ attemptId, url: state.url, width, controls, expectedOrder: fixture.tradePlayerOrder, observedOrder: order }, null, 2))
   await command('key', 'Enter')
   await wait(text => text.includes('Add E2E Player003 to trade'))
   assert.equal((await command('observe')).url, before.url)
@@ -244,6 +243,27 @@ const multi = async () => {
   await add('E2E Player041')
   await summary()
   await probe('multi-overview', 'E2E Player003', { name: 'View E2E Player003 stats', index: 0 })
+  await capture('multi-remove-before')
+  const before = await command('observe')
+  const remove = `Remove E2E Player041 sent by ${fixture.thirdTeamName} from trade`
+  assert.ok(buttons(await snapshot()).includes(remove))
+  await click(remove)
+  await wait(text => !text.includes(remove))
+  const after = await command('observe')
+  const unrelated = state => controlState(state.controls.filter(control => !control.label?.includes('E2E Player041')))
+  assert.equal(after.url, before.url, 'Summary removal does not navigate')
+  assert.deepEqual(unrelated(after), unrelated(before), 'Summary removal preserves other assets, routes, notes and FAAB')
+  assert.deepEqual([...after.selectionLabels].sort(), before.selectionLabels.filter(label => !label.includes('E2E Player041')).sort())
+  assert.equal(after.targets.find(target => target.label === 'Add E2E Player041 to trade')?.selected, 'false')
+  await capture('multi-remove-after')
+  await add('E2E Player041')
+  await wait(text => text.includes(remove))
+  const restored = await command('observe')
+  assert.deepEqual(controlState(restored.controls), controlState(before.controls), 'Adding back restores the exact prior trade state')
+  assert.deepEqual([...restored.selectionLabels].sort(), [...before.selectionLabels].sort())
+  await capture('multi-remove-restored')
+  await writeFile(path.join(dir, `trade-player-stats-${width}-multi-remove-state.json`), JSON.stringify({ attemptId, before, after, restored }, null, 2))
+  receipts.push({ kind: 'selection', width, label: 'multi-overview-remove', remainingStatePreserved: true, restored: true })
   await review()
   await probe('multi-review', 'E2E Player003')
   await click('Close trade review')
@@ -308,6 +328,7 @@ const activity = async () => {
   await click({ role: 'link', name: 'League' })
   await wait(text => text.includes('Activity'))
   await click({ role: 'tab', name: 'Activity' })
+  await matchingButton(/^View E2E Player0(?:11|31|13|33|45) stats$/)
   const links = await command('links')
   const individual = links.find(link => /^View E2E Player0(?:11|31|13|33|45) stats$/.test(link.label) && !link.ancestors.some(id => id.startsWith('trade-activity-')))
   assert.ok(individual, 'Individual trade activity contains a player stats control')
@@ -334,9 +355,10 @@ try {
     for (const [name, journey] of Object.entries(journeys)) if (!selected || selected === name) await journey()
   }
   assert.ok(receipts.some(receipt => receipt.kind === 'player'), 'A successful journey must contain visible stats round trips')
-  await writeFile(path.join(dir, `trade-player-stats-${selected ?? 'all'}-receipt.json`), JSON.stringify({ engine: 'WebKit', receipts }, null, 2) + '\n')
+  const captures = (await readdir(dir)).filter(file => /^webkit-trade-player-stats-.*\.(png|txt)$/.test(file)).sort()
+  await writeFile(path.join(dir, tradeProofReceiptName(selected, widths)), JSON.stringify({ engine: 'WebKit', attemptId, widths, journeys: selected ? [selected] : Object.keys(journeys), captures, receipts }, null, 2) + '\n')
 } catch (error) {
   await capture('failure').catch(() => {})
-  await writeFile(path.join(dir, 'trade-player-stats-failure.json'), JSON.stringify({ engine: 'WebKit', receipts, error: error.message }, null, 2) + '\n')
+  await writeFile(path.join(dir, 'trade-player-stats-failure.json'), JSON.stringify({ engine: 'WebKit', attemptId, receipts, error: error.message }, null, 2) + '\n')
   throw error
 }
