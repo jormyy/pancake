@@ -4,7 +4,7 @@ import { formatLeagueDateTime } from '@/lib/timezone'
 import { PendingMutationBadge } from '@/components/PendingMutationBadge'
 import { Badge } from '@/components/ui/Badge'
 import { TradePickLabel } from '@/components/trades/TradePickLabel'
-import { tradePickContext, type TradePickContext } from '@/lib/trade-pick-label'
+import { tradePickContext, tradePickLabel, type TradePickContext } from '@/lib/trade-pick-label'
 import { TradePlayerLink } from '@/components/trades/TradePlayerLink'
 import { View, Text, StyleSheet } from 'react-native'
 import { SavedTradeEstimate } from '@/components/trades/SavedTradeEstimate'
@@ -113,7 +113,7 @@ function tradeItemKey(item: TradeItem, index: number) {
     return `faab:${item.fromMemberId ?? 'from'}:${item.toMemberId ?? 'to'}:${item.amount}:${index}`
 }
 
-function TradeItemLine({ item, showContext = true, pickContext }: { item: TradeItem; showContext?: boolean; pickContext?: TradePickContext }) {
+function TradeItemLine({ item, showContext = true, pickContext, onOpen }: { item: TradeItem; showContext?: boolean; pickContext?: TradePickContext; onOpen?: () => void }) {
     if (item.kind === 'player') {
         const positions = playerEligiblePositions(item)
         return (
@@ -125,25 +125,27 @@ function TradeItemLine({ item, showContext = true, pickContext }: { item: TradeI
             </View>
         )
     }
+    const Row = onOpen ? MotionPressable : View
+    const details = onOpen ? { onPress: onOpen, accessibilityRole: 'button' as const, accessibilityLabel: `Show trade details for ${item.kind === 'pick' ? tradePickLabel(item, pickContext) : `$${item.amount} FAAB`}` } : {}
     if (item.kind === 'faab') {
         return (
-            <View style={styles.assetRow}>
+            <Row {...details} style={[styles.assetRow, onOpen && styles.assetLink]}>
                 <View style={styles.assetIcon}><Text style={styles.assetIconText}>$</Text></View>
                 <Text style={styles.assetName}>${item.amount} FAAB</Text>
-            </View>
+            </Row>
         )
     }
     return (
-        <View style={styles.assetRow}>
+        <Row {...details} style={[styles.assetRow, onOpen && styles.assetLink]}>
             <View style={styles.assetIcon}><Text style={styles.assetIconText}>R{item.round}</Text></View>
             <View style={styles.assetCopy}>
                 <TradePickLabel pick={item} context={pickContext} showDirection={false} />
             </View>
-        </View>
+        </Row>
     )
 }
 
-export function AssetList({ items, label, showContext = true, stacked = false, pickContext }: { items: TradeItem[]; label: string; showContext?: boolean; stacked?: boolean; pickContext?: TradePickContext }) {
+export function AssetList({ items, label, showContext = true, stacked = false, pickContext, onOpen }: { items: TradeItem[]; label: string; showContext?: boolean; stacked?: boolean; pickContext?: TradePickContext; onOpen?: () => void }) {
     return (
         <View style={[styles.assetBlock, stacked && styles.stackedAssetBlock]}>
             <Text style={styles.assetLabel} numberOfLines={1}>{label}</Text>
@@ -151,7 +153,7 @@ export function AssetList({ items, label, showContext = true, stacked = false, p
                 <Text style={styles.assetEmpty}>Nothing</Text>
             ) : (
                 orderTradeAssets(items).map((item, index) => (
-                    <TradeItemLine key={tradeItemKey(item, index)} item={item} showContext={showContext} pickContext={pickContext} />
+                    <TradeItemLine key={tradeItemKey(item, index)} item={item} showContext={showContext} pickContext={pickContext} onOpen={onOpen} />
                 ))
             )}
         </View>
@@ -315,8 +317,8 @@ export function TradeCard({
         <>
             {model.meta.length > 0 ? <Text style={styles.meta} numberOfLines={2}>{model.meta.join(' · ')}</Text> : null}
             <View style={[styles.sides, tab === 'history' && { flexDirection: 'column' }]}>
-                <AssetList items={model.receives} label={model.receiveLabel} pickContext={pickContext} stacked={tab === 'history'} showContext={tab !== 'history' && !brief && !trade.isMultiTeam} />
-                <AssetList items={model.gives} label={model.giveLabel} pickContext={pickContext} stacked={tab === 'history'} showContext={tab !== 'history' && !brief && !trade.isMultiTeam} />
+                <AssetList onOpen={onOpen} items={model.receives} label={model.receiveLabel} pickContext={pickContext} stacked={tab === 'history'} showContext={tab !== 'history' && !brief && !trade.isMultiTeam} />
+                <AssetList onOpen={onOpen} items={model.gives} label={model.giveLabel} pickContext={pickContext} stacked={tab === 'history'} showContext={tab !== 'history' && !brief && !trade.isMultiTeam} />
             </View>
             {trade.notes && !brief ? <Text style={styles.notes} numberOfLines={2}>“{trade.notes}”</Text> : null}
         </>
@@ -407,6 +409,7 @@ const styles = StyleSheet.create({
     assetLabel: { ...textStyles.sectionLabel },
     assetEmpty: { ...textStyles.meta, color: colors.textPlaceholder },
     assetRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 32 },
+    assetLink: { minHeight: controlSize.minTouch, borderRadius: radii.sm },
     assetCopy: { flex: 1, minWidth: 0, gap: spacing.xxs },
     assetName: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textPrimary },
     assetMetaRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.xs },

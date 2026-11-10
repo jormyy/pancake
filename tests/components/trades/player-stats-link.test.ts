@@ -99,3 +99,17 @@ it('retains the details control without enclosing any player controls', async ()
     await act(async () => details.props.onPress())
     expect(open).toHaveBeenCalledTimes(1)
 })
+
+it('keeps a draft pick row opening trade details while players open stats', async () => {
+    const open = vi.fn()
+    const offer = trade({ routedItems: [{ kind: 'pick', pickId: 'pick', seasonYear: 2028, round: 1, originalTeamName: 'Team A', fromMemberId: 'member-a', toMemberId: 'member-b' }] })
+    await act(async () => { tree = create(React.createElement(TradeCard, {
+        trade: offer, myMemberId: offer.proposerMemberId, tab: 'offers', acting: false,
+        onAccept: vi.fn(), onReject: vi.fn(), onVeto: vi.fn(), onWithdraw: vi.fn(), onAnalyze: vi.fn(), onOpen: open,
+    })) })
+    const pick = tree.root.findAllByType('Pressable' as React.ElementType).find(button => button.props.accessibilityLabel?.includes('Round 1'))
+    expect(pick).toBeDefined()
+    await act(async () => pick!.props.onPress())
+    expect(open).toHaveBeenCalledOnce()
+    expect(push).not.toHaveBeenCalled()
+})
