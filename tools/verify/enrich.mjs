@@ -36,6 +36,16 @@ if (!bracket.length) await checked(admin.from('matchups').insert([[seeds[0], see
 }))))
 const players = await checked(admin.from('players').select('id,display_name').like('sportsdata_id', 'e2e-player-%').order('sportsdata_id'))
 fixture.playerIdsByName = Object.fromEntries(players.map(player => [player.display_name, player.id]))
+fixture.tradePlayerOrder = [
+  { playerId: players[3].id, name: players[3].display_name, tradeValue: 900 },
+  { playerId: players[1].id, name: players[1].display_name, tradeValue: 500 },
+  { playerId: players[2].id, name: players[2].display_name, tradeValue: 100 },
+]
+await checked(admin.from('dynasty_rankings').upsert(fixture.tradePlayerOrder.map((player, index) => ({
+  source: 'onenumberhoops.com', source_rank: 980001 + index, source_player_id: `verify-trade-order-${index}`,
+  source_player_name: player.name, scoring_format: 'overall', player_id: player.playerId,
+  trade_value: player.tradeValue, fetched_at: new Date().toISOString(),
+})), { onConflict: 'source,source_rank' }))
 const roster = await checked(admin.from('roster_players').select('player_id').eq('league_id', fixture.leagueId))
 const additions = players.slice(40, 46).filter(player => !roster.some(row => row.player_id === player.id))
 if (additions.length) await checked(admin.from('roster_players').insert(additions.map(player => ({ league_id: fixture.leagueId, league_season_id: fixture.seasonId, member_id: third.id, player_id: player.id, acquired_via: 'verification' }))))

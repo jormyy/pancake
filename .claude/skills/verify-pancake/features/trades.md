@@ -56,12 +56,15 @@ Require these entry points in the evidence receipt:
 - Pending acceptance roster plan and trade entries in League activity.
 - A tradeable roster player with no statistics, with its profile empty state.
 - Tab order from stats to selection, Enter and Space, visible focus, and token-sized targets.
+- Equal fixed Add/Remove widths at every viewport, including a readable Remove label at 375px.
+- Builder player rows in the seeded descending dynasty order, with their stats links and selection controls working together.
 
 The fixture records `sentTradeId`, `receivedTradeId`, `completedTradeId`, `multiTradeId`, `pickTradeId`, and `noStatsPlayerId`.
 The completed fixtures use the actual proposal, acceptance, and completion rules.
 A completed pick exchange proves pick rows still open trade details.
 The first manager receives a reverse offer; the second manager receives the original offer.
 Fixture creation prepares state and is not interaction proof.
+`tradePlayerOrder` records the three imported values and expected identities; the visible builder observation proves their order.
 
 
 ## Gotchas
