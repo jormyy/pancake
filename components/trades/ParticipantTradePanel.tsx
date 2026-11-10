@@ -1,4 +1,4 @@
-import { orderTradeAssets } from '@/lib/trade-assets'
+import { orderTradeAssets, tradeRosterAssetOrder } from '@/lib/trade-assets'
 import { PlayerRowContent } from '@/components/player/PlayerRowContent'
 import { pickLabel } from '@/lib/picks'
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
@@ -84,7 +84,7 @@ export function ParticipantTradePanel({
     onPickDestinationChange,
     onFaabChange,
 }: ParticipantTradePanelProps) {
-    const selectedPlayers = participant.roster.filter((player) => participant.selectedPlayerIds.has(player.players.id))
+    const selectedPlayers = orderTradeAssets(participant.roster.filter((player) => participant.selectedPlayerIds.has(player.players.id)), tradeRosterAssetOrder)
     const selectedPicks = orderTradeAssets(participant.picks.filter((pick) => participant.selectedPickIds.has(pick.pickId)))
     const destinationName = participant.defaultDestinationId
         ? participantName(participant.defaultDestinationId)

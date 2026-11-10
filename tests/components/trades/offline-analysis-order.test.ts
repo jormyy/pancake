@@ -100,7 +100,8 @@ it('orders an old saved result offline without fetching or rewriting its values'
         { kind: 'pick', id: 'first', label: '2031 Round 1 · My team', round: 1, seasonYear: 2031, teams: 10, slot: null, valueBands: { early: 500, mid: 400, late: 300 } },
     ] as const
     const analysis = analyzeDynastyTrade({ leagueId: 'league', seasonYear: 2027, scoringSettings: {} }, 'overall',
-        routes.map(asset => ({ fromMemberId: 'me', toMemberId: 'them', asset })))
+        routes.map(asset => ({ fromMemberId: 'me', toMemberId: 'them', asset: asset.kind === 'player'
+            ? { age: null, dynastyRank: null, rankMovement: null, healthStatus: null, ...asset } : asset })))
     const snapshot = { modelVersion: 'onenumber-trade-curve-v6', analysis, leagueId: 'league', memberId: 'me', participantNames: { me: 'My team', them: 'Their team' }, savedAt: '2026-01-01' }
     saved.set('scope', {})
     saved.set('route', 'old-selection')

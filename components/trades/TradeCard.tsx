@@ -166,6 +166,8 @@ export function tradeFlowItem(item: TradeItem, index: number): TradeFlowItem | n
             fromMemberId: item.fromMemberId,
             toMemberId: item.toMemberId,
             label: item.playerName,
+            tradeValue: item.tradeValue,
+            playerId: item.playerId,
             player: { name: item.playerName, nbaId: item.nbaId, team: item.nbaTeam, positions: playerEligiblePositions(item),
                 playerId: item.playerId, yearsExp: item.yearsExp, careerGames: item.careerGames, injuryStatus: item.injuryStatus, stats: playerSeasonContextText(item) },
             detail: [item.nbaTeam, ...playerEligiblePositions(item), item.toTaxi ? 'To taxi' : null].filter(Boolean).join(' · '),

@@ -14,6 +14,7 @@ vi.mock('@/lib/supabase', () => ({
         })),
     },
 }))
+vi.mock('@/lib/trade-player-values', () => ({ getTradePlayerValues: async () => new Map([['player-a', 800]]) }))
 vi.mock('@/lib/roster-stats', () => ({ getRosterStatsMaps: mocks.getRosterStatsMaps }))
 
 import { getTradeById } from '@/lib/trades'
@@ -74,7 +75,7 @@ describe('trade read enrichment', () => {
 
         const trade = await getTradeById('trade-a', 'member-a')
 
-        expect(trade?.routedItems).toEqual([expect.objectContaining({ kind: 'player', playerId: 'player-a' })])
+        expect(trade?.routedItems).toEqual([expect.objectContaining({ kind: 'player', playerId: 'player-a', tradeValue: 800 })])
         expect(warn).toHaveBeenCalledWith('Could not load optional trade player averages.', expect.any(Error))
     })
 

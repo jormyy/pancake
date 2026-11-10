@@ -38,6 +38,7 @@ function ActivityRow({ item, isMe, myMemberId, padX = spacing.lg }: { item: Tran
                         {item.body ?? item.teamName}
                         {isMe ? <Text style={styles.meTag}> (you)</Text> : null}
                     </Text>
+                    {orderTradeAssets(item.tradePlayers ?? []).map(player => <Text key={player.playerId} style={styles.txTeam}>{player.playerName} · {player.fromTeamName} → {player.toTeamName}</Text>)}
                     {orderTradeAssets(item.tradePicks ?? []).map(pick => <TradePickLabel key={pick.pickId} pick={pick} context={{
                         viewerMemberId: myMemberId ?? '',
                         memberNames: { [pick.fromMemberId ?? '']: pick.fromTeamName, [pick.toMemberId ?? '']: pick.toTeamName },

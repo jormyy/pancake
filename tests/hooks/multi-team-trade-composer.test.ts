@@ -35,6 +35,7 @@ const rosterPlayer = (id: string) => ({
     },
 })
 
+vi.mock('@/lib/trade-player-values', () => ({ withTradeRosterValues: async (rosters: unknown) => rosters }))
 vi.mock('@/lib/trades', () => ({ getPicksForMembers }))
 vi.mock('@/lib/roster', () => ({ getRostersForMembers }))
 vi.mock('@/lib/roster-stats', () => ({

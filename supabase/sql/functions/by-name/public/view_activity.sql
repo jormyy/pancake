@@ -14,7 +14,21 @@ BEGIN
     'nbaId', feed.nba_id, 'nbaTeam', player.nba_team, 'injuryStatus', player.injury_status, 'yearsExp', player.years_exp,
     'careerGames', player.career_regular_season_games, 'transactionType', feed.transaction_type, 'occurredAt', feed.occurred_at,
     'playerMentions', feed.player_mentions, 'isSystem', feed.is_system, 'title', feed.title, 'body', feed.body, 'participantTeamNames', feed.participant_team_names,
-    'tradePicks', feed.trade_picks)), '[]')
+    'tradePicks', feed.trade_picks, 'tradePlayers', CASE WHEN feed.transaction_type='trade_completed' THEN COALESCE((
+      SELECT jsonb_agg(jsonb_build_object('kind','player','playerId',traded.id,'playerName',traded.display_name,
+        'tradeValue',(SELECT ranking.trade_value FROM public.dynasty_rankings ranking
+          WHERE ranking.player_id=traded.id AND ranking.source='onenumberhoops.com'
+          ORDER BY ranking.fetched_at DESC,ranking.source_rank LIMIT 1),
+        'fromMemberId',item.from_member_id,'toMemberId',item.to_member_id,
+        'fromTeamName',sender.team_name,'toTeamName',recipient.team_name) ORDER BY item.id)
+      FROM public.league_activity activity
+      JOIN public.trades trade ON trade.id=activity.related_trade_id AND trade.league_id=activity.league_id
+        AND trade.status='completed' AND trade.completed_at IS NOT NULL
+      JOIN public.trade_items item ON item.trade_id=trade.id AND item.league_id=trade.league_id
+      JOIN public.players traded ON traded.id=item.player_id
+      JOIN public.league_members sender ON sender.id=item.from_member_id AND sender.league_id=trade.league_id
+      JOIN public.league_members recipient ON recipient.id=item.to_member_id AND recipient.league_id=trade.league_id
+      WHERE activity.id=feed.id AND activity.league_id=p_league_id), '[]'::jsonb) ELSE '[]'::jsonb END)), '[]')
   INTO rows FROM public.get_league_activity_feed(p_league_id, page_size, GREATEST(COALESCE((p_params->>'offset')::integer, 0), 0)) feed
     LEFT JOIN public.players player ON player.id = feed.player_id;
   SELECT COALESCE(jsonb_agg(to_jsonb(announcement) ORDER BY announcement.published_at DESC), '[]') INTO announcements

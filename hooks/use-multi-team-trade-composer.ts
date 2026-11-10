@@ -12,6 +12,7 @@ import {
     multiTeamTradeStateFromItems,
     resolvedDestination,
 } from '@/lib/multi-team-trade-state'
+import { withTradeRosterValues } from '@/lib/trade-player-values'
 import { isTradeableRosterPlayer } from '@/lib/trade-assets'
 import type { TradeComposerMember, TradeParticipantView } from '@/lib/trade-ui-model'
 
@@ -212,7 +213,7 @@ export function useMultiTeamTradeComposer({
         async function loadParticipantAssets() {
             try {
                 const [rosters, picks] = await Promise.all([
-                    getRostersForMembers(missingParticipantIds, leagueId),
+                    getRostersForMembers(missingParticipantIds, leagueId).then(withTradeRosterValues),
                     getPicksForMembers(missingParticipantIds, leagueId, { tradeableOnly: true }),
                 ])
                 if (rosterLoadSeqRef.current !== requestId || !isCurrent(generation)) return

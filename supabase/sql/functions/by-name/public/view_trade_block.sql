@@ -11,6 +11,7 @@ BEGIN
     'note', item.note, 'updatedAt', item.updated_at, 'rosterLocation', CASE WHEN roster.id IS NOT NULL THEN
       CASE WHEN roster.is_on_taxi THEN 'taxi' WHEN roster.is_on_ir THEN 'ir' ELSE 'active' END END,
     'asset', CASE WHEN player.id IS NOT NULL THEN jsonb_build_object('kind', 'player', 'playerId', player.id,
+      'tradeValue', (SELECT ranking.trade_value FROM public.dynasty_rankings ranking WHERE ranking.player_id=player.id AND ranking.source='onenumberhoops.com' ORDER BY ranking.fetched_at DESC,ranking.source_rank LIMIT 1),
       'playerName', COALESCE(player.display_name, 'Unknown'), 'position', player.position, 'eligiblePositions', player.eligible_positions,
       'nbaTeam', player.nba_team, 'nbaId', player.nba_id, 'injuryStatus', player.injury_status,
       'yearsExp', player.years_exp, 'nbaDraftNumber', player.nba_draft_number, 'careerGames', player.career_regular_season_games,
@@ -38,7 +39,10 @@ BEGIN
     RETURN jsonb_build_object('block', items);
   END IF;
   roster := public.view_roster(p_league_id, p_member_id, (p_params - 'targetMemberId') || jsonb_build_object('inventoryOnly', true));
-  RETURN jsonb_build_object('context', context, 'block', items, 'items', items, 'roster', roster->'roster', 'picks', roster->'picks',
+  RETURN jsonb_build_object('context', context, 'block', items, 'items', items, 'roster', (SELECT COALESCE(jsonb_agg(entry || jsonb_build_object('tradeValue',
+      (SELECT ranking.trade_value FROM public.dynasty_rankings ranking WHERE ranking.player_id=(entry->'players'->>'id')::uuid
+        AND ranking.source='onenumberhoops.com' ORDER BY ranking.fetched_at DESC,ranking.source_rank LIMIT 1)) ORDER BY ordinal), '[]'::jsonb)
+      FROM jsonb_array_elements(roster->'roster') WITH ORDINALITY row(entry,ordinal)), 'picks', roster->'picks',
     'avgMap', roster->'avgMap', 'avgStatsMap', roster->'avgStatsMap');
 END;
 $$;

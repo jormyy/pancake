@@ -20,6 +20,8 @@ export type TradeFlowItem = {
     fromMemberId: string
     toMemberId: string
     label: string
+    tradeValue?: number | null
+    playerId?: string
     detail?: string | null
     player?: PlayerRowContentProps
     pick?: TradePickItem
@@ -38,7 +40,7 @@ export function MultiTeamTradeOverview({ participants, items, compact = false, c
     const { incomingByMember, participantLabels } = useMemo(() => {
         const labels = new Map(participants.map((participant) => [participant.memberId, participant.label]))
         const incoming = new Map<string, TradeFlowItem[]>()
-        for (const item of orderTradeAssets(items, item => item.pick ?? { kind: item.player ? 'player' : 'faab' })) {
+        for (const item of orderTradeAssets(items, item => item.pick ?? { kind: item.player ? 'player' : 'faab', tradeValue: item.tradeValue, playerName: item.label, playerId: item.playerId })) {
             const bucket = incoming.get(item.toMemberId)
             if (bucket) bucket.push(item)
             else incoming.set(item.toMemberId, [item])
