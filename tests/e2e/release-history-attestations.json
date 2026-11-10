@@ -3630,6 +3630,13 @@
       "statementCount": 15,
       "statementsSha256": "a0d7e8ffec2562a4b5a79fc5e4791bbd258a719afc0ab04bcf0c2360779bf82f",
       "sha256": "6b4860b0125aafa374d1f8fd7bc556c45aa13e6b91ee29a3e9418896ddf74f22"
+    },
+    {
+      "name": "trade_display_dynasty_values",
+      "version": "20261214010800",
+      "statementCount": 5,
+      "statementsSha256": "e1af25561e5f1c3376f06eed7da804d891d80e5ab81b12f2dbd46890f24e8af3",
+      "sha256": "a7d505b3431fe9ec0099899b6c7b8ef95170334df70b42b9d8ec7dbee8df2c6f"
     }
   ]
 }

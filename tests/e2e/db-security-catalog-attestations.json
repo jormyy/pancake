@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261214010700",
+  "candidateVersion": "20261214010800",
   "common": {
     "functions": [
       {
@@ -2701,6 +2701,10 @@
     {
       "filename": "20261214010700_public_projection_batch.sql",
       "sha256": "6b4860b0125aafa374d1f8fd7bc556c45aa13e6b91ee29a3e9418896ddf74f22"
+    },
+    {
+      "filename": "20261214010800_trade_display_dynasty_values.sql",
+      "sha256": "a7d505b3431fe9ec0099899b6c7b8ef95170334df70b42b9d8ec7dbee8df2c6f"
     }
   ],
   "preMigration": {
