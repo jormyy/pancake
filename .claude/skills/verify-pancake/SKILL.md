@@ -124,6 +124,8 @@ Update this map when behavior changes, using `/maintain-verification-skill` when
 ## WebKit
 
 Use the installed Playwright WebKit browser for desktop and iPhone-sized web verification.
+Login creates a touch context at mobile widths; its control actions use taps.
+At desktop width, login creates a desktop context and control actions use clicks.
 This path proves WebKit, not physical iOS Safari or an installed PWA.
 Install the lockfile's browsers with `npx playwright install webkit chromium` if the browser executables are missing.
 

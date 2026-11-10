@@ -23,7 +23,8 @@ const safeFile = name => {
 
 if (action === 'serve') {
   const browser = await webkit.launch({ headless: true })
-  let context = await browser.newContext({ viewport: { width: 390, height: 844 } })
+  let touch = true
+  let context = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true })
   let page = await context.newPage()
   page.setDefaultTimeout(15000)
   const visible = selector => page.locator(`${selector}:visible`)
@@ -39,7 +40,8 @@ if (action === 'serve') {
     if (command === 'login') {
       const viewport = page.viewportSize()
       await context.close()
-      context = await browser.newContext({ viewport })
+      touch = viewport.width < 960
+      context = await browser.newContext({ viewport, isMobile: touch, hasTouch: touch })
       page = await context.newPage()
       page.setDefaultTimeout(15000)
       await page.goto(run.url + '/sign-in')
@@ -55,7 +57,12 @@ if (action === 'serve') {
     }
     if (command === 'viewport') { await page.setViewportSize({ width: Number(values[0]), height: Number(values[1]) }); return page.viewportSize() }
     if (command === 'open') { const url = new URL(values[0], run.url); assert.equal(url.origin, run.url); await page.goto(url.href); return page.url() }
-    if (command === 'click') { await locate(JSON.parse(values[0])).click(); return page.url() }
+    if (command === 'click') {
+      const target = locate(JSON.parse(values[0]))
+      if (touch) await target.tap()
+      else await target.click()
+      return page.url()
+    }
     if (command === 'fill') { const { value, ...target } = JSON.parse(values[0]); await locate(target).fill(value); return 'Filled visible control' }
     if (command === 'key') { await page.keyboard.press(values[0]); return 'Pressed key' }
     if (command === 'scroll') { await locate(JSON.parse(values[0])).scrollIntoViewIfNeeded(); return 'Scrolled visible control into view' }
@@ -63,8 +70,9 @@ if (action === 'serve') {
     if (command === 'back') { await page.goBack(); return page.url() }
     if (command === 'links') return await page.locator('[aria-label^="View "], [aria-label^="Open E2E"]').filter({ visible: true }).evaluateAll(nodes => nodes.map(node => ({ label: node.getAttribute('aria-label'), text: node.textContent, ancestors: [...(function* () { for (let parent = node.parentElement; parent; parent = parent.parentElement) yield parent })()].map(parent => parent.getAttribute('data-testid')).filter(Boolean) })))
     if (command === 'snapshot') return await safeSnapshot()
-    if (command === 'observe') return await page.evaluate(() => ({
-      url: location.href, width: innerWidth, overflow: document.documentElement.scrollWidth > innerWidth,
+    if (command === 'observe') {
+      const observed = await page.evaluate(() => ({
+      url: location.href, width: innerWidth, touchPoints: navigator.maxTouchPoints, overflow: document.documentElement.scrollWidth > innerWidth,
       selectionLabels: [...document.querySelectorAll('[role="button"][aria-label^="Remove "]')].filter(node => node.getClientRects().length).map(node => node.getAttribute('aria-label')),
       focus: document.activeElement?.getAttribute('aria-label'),
       focusOutline: document.activeElement ? { style: getComputedStyle(document.activeElement).outlineStyle, width: getComputedStyle(document.activeElement).outlineWidth } : null,
@@ -72,7 +80,9 @@ if (action === 'serve') {
       controls: [...document.querySelectorAll('input,textarea,[aria-selected],[aria-checked],[aria-pressed]')].filter(node => node.getClientRects().length).map(node => ({ label: node.getAttribute('aria-label'), placeholder: node.getAttribute('placeholder'), value: node.type === 'password' ? undefined : node.value, selected: node.getAttribute('aria-selected') ?? node.getAttribute('aria-pressed'), checked: node.getAttribute('aria-checked') })),
       scroll: [...document.querySelectorAll('*')].filter(node => node.getClientRects().length && (node.scrollHeight > node.clientHeight && node.clientHeight > 100 && getComputedStyle(node).overflowY.match(/auto|scroll/) || node.scrollWidth > node.clientWidth && node.clientWidth > 100 && getComputedStyle(node).overflowX.match(/auto|scroll/))).map(node => ({ top: Math.round(node.scrollTop), left: Math.round(node.scrollLeft), height: node.clientHeight, width: node.clientWidth })),
       nested: [...document.querySelectorAll('[role="button"],[role="link"]')].filter(node => node.querySelector('[role="button"],[role="link"],button,a[href]') && node.getClientRects().length).map(node => node.getAttribute('aria-label')),
-    }))
+      }))
+      return { ...observed, inputMode: touch ? 'touch' : 'mouse' }
+    }
     if (command === 'capture') {
       const file = safeFile(values[0])
       const snapshot = await safeSnapshot()

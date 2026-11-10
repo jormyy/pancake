@@ -47,6 +47,7 @@ const probe = async (label, name, target = { name: `View ${name} stats` }, empty
   await command('scroll', JSON.stringify(target))
   if (key) await command('focus', JSON.stringify(target))
   const before = await command('observe')
+  assert.equal(before.inputMode, width < 960 ? 'touch' : 'mouse', 'Use touch input at phone sizes and desktop input at desktop size')
   if (label === 'keyboard-space' && width < 960) assert.ok(before.scroll.some(position => position.left > 0), 'Stats round trip starts with horizontal scroll')
   await capture(label + '-before')
   if (key) await command('key', key)
