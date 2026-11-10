@@ -50,6 +50,7 @@ Individual activity targets exclude grouped `trade-activity-*` rows; the grouped
 Require these entry points in the evidence receipt:
 
 - Propose, edit, and counter asset columns, with separate Add/Remove and unchanged pick controls.
+- Scope stats targets to their asset-column selection testID; exercise Add and Remove directly in edit, counter, multi-team and analyzer builders.
 - Multi-team selected routes and expanded deal summary, including Remove and destination controls.
 - Remove a player through the summary, require the exact remaining assets/routes/notes/FAAB, then add them back and require the original state.
 - Proposal review, its roster plan, and analysis rows.
