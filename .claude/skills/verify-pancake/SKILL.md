@@ -120,3 +120,47 @@ Do not delete other stacks, Docker volumes, profiles, or browser sessions.
 See [helper reference](../../../tools/verify/README.md) for commands and known setup limits.
 `launch.sh` creates the instance; `doctor.sh` checks it; `browser.sh` drives it; `observe.mjs` reads stored state; `cleanup.sh` removes runtime resources.
 Update this map when behavior changes, using `/maintain-verification-skill` when that skill is available.
+
+## WebKit
+
+Use the installed Playwright WebKit browser for desktop and iPhone-sized web verification.
+This path proves WebKit, not physical iOS Safari or an installed PWA.
+Install the lockfile's browsers with `npx playwright install webkit chromium` if the browser executables are missing.
+
+```sh
+node tools/verify/run.mjs webkit "$EVIDENCE"
+node tools/verify/webkit.mjs "$EVIDENCE" login 0
+node tools/verify/webkit.mjs "$EVIDENCE" viewport 390 844
+node tools/verify/webkit.mjs "$EVIDENCE" snapshot
+node tools/verify/webkit.mjs "$EVIDENCE" click '{"role":"button","name":"Propose trade"}'
+node tools/verify/webkit.mjs "$EVIDENCE" observe
+node tools/verify/webkit.mjs "$EVIDENCE" capture trade-player-stats-390
+```
+
+Start WebKit once per run; wait for `webkit-port.json` and inspect `webkit.log` if startup fails.
+Use `click` with an exact role/name or a visible CSS selector.
+Use `fill` with a JSON target and value, `focus` with a target, and `key` with a Playwright key name.
+`back` invokes browser Back; also exercise the visible Back control in player pages.
+`observe` reads visible controls, both scroll axes, nested controls, overflow, focus, and the URL.
+`capture` writes the real screenshot and accessibility snapshot outside the checkout.
+The run records the WebKit process identity; normal cleanup stops it and keeps captures.
+Repeat the full selected journey at 375×812 and 1440×1000.
+
+An admitted remote host may use an existing local Docker socket.
+Set `PANCAKE_VERIFY_DOCKER_HOST=unix:///absolute/path/docker.sock` on launch, doctor, and cleanup.
+Only a Unix socket is accepted; generated app endpoints remain on loopback.
+Keep each run's source copy and evidence on that host, and copy public proof files back after cleanup.
+
+After a source edit, run `node tools/verify/run.mjs rebuild "$EVIDENCE"` to refresh this owned instance.
+This copies app code, exports the current revision, reapplies enrichment, and repeats doctor.
+It retains the isolated database and does not copy environment files.
+Run `node tools/verify/run.mjs webkit "$EVIDENCE"` again to replace only this run's browser context.
+Run the full matrix with `node tools/verify/run.mjs trade-player-stats "$EVIDENCE"`; its log stays with the evidence.
+
+After cleanup, require these trade proof files to remain:
+
+```sh
+test -s "$EVIDENCE/trade-player-stats-all-receipt.json"
+test -s "$EVIDENCE/webkit-trade-player-stats-375-propose-name-back.png"
+test -s "$EVIDENCE/webkit-trade-player-stats-1440-accept-roster-plan-back.png"
+```

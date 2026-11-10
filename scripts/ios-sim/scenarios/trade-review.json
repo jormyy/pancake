@@ -11,7 +11,7 @@
         "tap": "Edit assets sent by {{otherTeam}}"
       },
       {
-        "tapPrefix": "Select "
+        "tapPrefix": "Add "
       }
     ],
     "steps": [
@@ -22,12 +22,12 @@
               "tap": "Edit assets sent by you"
             },
             {
-              "tap": "Select {{rosterPlayer.display_name}} for trade"
+              "tap": "Add {{rosterPlayer.display_name}} to trade"
             }
           ]
         },
         "expected": {
-          "selector": "[aria-label='Remove {{rosterPlayer.display_name}} for trade']"
+          "selector": "[aria-label='Remove {{rosterPlayer.display_name}} from trade']"
         }
       },
       {
@@ -80,7 +80,7 @@
         "tap": "Edit assets sent by {{otherTeam}}"
       },
       {
-        "tapPrefix": "Select "
+        "tapPrefix": "Add "
       }
     ],
     "steps": [
@@ -91,12 +91,12 @@
               "tap": "Edit assets sent by you"
             },
             {
-              "tap": "Select {{rosterPlayer.display_name}} for trade"
+              "tap": "Add {{rosterPlayer.display_name}} to trade"
             }
           ]
         },
         "expected": {
-          "selector": "[aria-label='Remove {{rosterPlayer.display_name}} for trade']"
+          "selector": "[aria-label='Remove {{rosterPlayer.display_name}} from trade']"
         }
       },
       {

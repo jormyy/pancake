@@ -14,7 +14,7 @@ requireLocal(env.E2E_SUPABASE_URL)
 requireLocal(env.SUPABASE_DB_URL, 'postgresql:')
 const admin = createClient(env.E2E_SUPABASE_URL, env.E2E_PANCAKE_SUPABASE_SECRET_KEY, { auth: { persistSession: false } })
 const checked = async operation => { const { data, error } = await operation; if (error) throw new Error(error.message); return data }
-const members = await checked(admin.from('league_members').select('id').eq('league_id', fixture.leagueId))
+const members = await checked(admin.from('league_members').select('id,team_name').eq('league_id', fixture.leagueId))
 const third = members.find(member => member.id !== fixture.memberId && member.id !== fixture.otherMemberId)
 const fourth = members.find(member => ![fixture.memberId, fixture.otherMemberId, third.id].includes(member.id))
 const seeds = [fixture.memberId, fixture.otherMemberId, third.id, fourth.id]
@@ -35,9 +35,45 @@ if (!bracket.length) await checked(admin.from('matchups').insert([[seeds[0], see
   matchup_type: 'playoff_semifinal', playoff_round: 1, playoff_position: index + 1, home_member_id: home, away_member_id: away,
 }))))
 const players = await checked(admin.from('players').select('id,display_name').like('sportsdata_id', 'e2e-player-%').order('sportsdata_id'))
+fixture.playerIdsByName = Object.fromEntries(players.map(player => [player.display_name, player.id]))
 const roster = await checked(admin.from('roster_players').select('player_id').eq('league_id', fixture.leagueId))
 const additions = players.slice(40, 46).filter(player => !roster.some(row => row.player_id === player.id))
 if (additions.length) await checked(admin.from('roster_players').insert(additions.map(player => ({ league_id: fixture.leagueId, league_season_id: fixture.seasonId, member_id: third.id, player_id: player.id, acquired_via: 'verification' }))))
+const pickNotes = 'Verification completed pick trade stats'
+let pickTrade = await checked(admin.from('trades').select('id,status').eq('league_id', fixture.leagueId).eq('notes', pickNotes).maybeSingle())
+if (!pickTrade) {
+  const pickFor = async memberId => (await checked(admin.from('draft_picks').select('id,season_year,round').eq('league_id', fixture.leagueId).eq('current_owner_id', memberId).gte('season_year', fixture.pastSeasonYear + 2).eq('round', 2).order('season_year').limit(1).single()))
+  const offered = await pickFor(fixture.memberId)
+  const requested = await pickFor(fixture.otherMemberId)
+  const id = await checked(admin.rpc('propose_trade_atomic', {
+    p_league_id: fixture.leagueId, p_league_season_id: fixture.seasonId, p_proposer_member_id: fixture.memberId,
+    p_recipient_member_id: fixture.otherMemberId, p_offer_player_ids: [], p_request_player_ids: [],
+    p_offer_pick_ids: [offered.id], p_request_pick_ids: [requested.id], p_notes: pickNotes,
+  }))
+  await checked(admin.rpc('accept_trade_atomic', { p_trade_id: id, p_accepting_member_id: fixture.otherMemberId }))
+  await checked(admin.rpc('process_due_accepted_trades_atomic', { p_limit: 200 }))
+  pickTrade = await checked(admin.from('trades').select('id,status').eq('id', id).single())
+}
+assert.equal(pickTrade.status, 'completed', 'Pick history fixture must complete')
+fixture.pickTradeId = pickTrade.id
+const multiNotes = 'Verification completed multi-team stats'
+let multiTrade = await checked(admin.from('trades').select('id,status').eq('league_id', fixture.leagueId).eq('notes', multiNotes).maybeSingle())
+if (!multiTrade) {
+  const id = await checked(admin.rpc('propose_multi_team_trade_atomic', {
+    p_league_id: fixture.leagueId, p_league_season_id: fixture.seasonId, p_proposer_member_id: fixture.memberId,
+    p_participant_member_ids: [fixture.memberId, fixture.otherMemberId, third.id], p_notes: multiNotes, p_expires_at: null,
+    p_items: [
+      { fromMemberId: fixture.memberId, toMemberId: fixture.otherMemberId, playerId: players[12].id },
+      { fromMemberId: fixture.otherMemberId, toMemberId: third.id, playerId: players[32].id },
+      { fromMemberId: third.id, toMemberId: fixture.memberId, playerId: players[44].id },
+    ],
+  }))
+  for (const memberId of [fixture.otherMemberId, third.id]) await checked(admin.rpc('accept_trade_atomic', { p_trade_id: id, p_accepting_member_id: memberId }))
+  await checked(admin.rpc('process_due_accepted_trades_atomic', { p_limit: 200 }))
+  multiTrade = await checked(admin.from('trades').select('id,status').eq('id', id).single())
+}
+assert.equal(multiTrade.status, 'completed', 'Multi-team history fixture must complete')
+fixture.multiTradeId = multiTrade.id
 const years = [fixture.pastSeasonYear, fixture.pastSeasonYear + 1]
 const games = []
 for (const [index, year] of years.entries()) {
@@ -75,6 +111,7 @@ if (rookieDraft) {
   }
 }
 fixture.thirdMemberId = third.id
+fixture.thirdTeamName = third.team_name
 fixture.playerGames = games
 fixture.newsUrl = `${run.url}/verification-news.html`
 fixture.bracketSeedMemberIds = seeds

@@ -180,13 +180,13 @@
         "tap": "Trade with {{otherTeam}}"
       },
       {
-        "tap": "Select {{rosterPlayer.display_name}} for trade"
+        "tap": "Add {{rosterPlayer.display_name}} to trade"
       },
       {
         "tap": "Edit assets sent by {{otherTeam}}"
       },
       {
-        "tap": "Select Keegan Carter 19 for trade"
+        "tap": "Add Keegan Carter 19 to trade"
       }
     ],
     "steps": [
@@ -293,13 +293,13 @@
         "tap": "Trade with {{otherTeam}}"
       },
       {
-        "tap": "Select {{rosterPlayer.display_name}} for trade"
+        "tap": "Add {{rosterPlayer.display_name}} to trade"
       },
       {
         "tap": "Edit assets sent by {{otherTeam}}"
       },
       {
-        "tap": "Select Keegan Carter 19 for trade"
+        "tap": "Add Keegan Carter 19 to trade"
       }
     ],
     "steps": [
@@ -367,7 +367,7 @@
         "tap": "Edit assets sent by {{otherTeam}}"
       },
       {
-        "tapPrefix": "Select "
+        "tapPrefix": "Add "
       }
     ],
     "steps": [
@@ -378,12 +378,12 @@
               "tap": "Edit assets sent by you"
             },
             {
-              "tap": "Select {{rosterPlayer.display_name}} for trade"
+              "tap": "Add {{rosterPlayer.display_name}} to trade"
             }
           ]
         },
         "expected": {
-          "selector": "[aria-label='Remove {{rosterPlayer.display_name}} for trade']"
+          "selector": "[aria-label='Remove {{rosterPlayer.display_name}} from trade']"
         }
       },
       {
@@ -434,7 +434,7 @@
           "tap": "Trade with {{otherTeam}}"
         },
         "expected": {
-          "selector": "[aria-label$=' for trade']"
+          "selector": "[aria-label^='Add '][aria-label$=' to trade']"
         }
       },
       {
@@ -449,7 +449,7 @@
       {
         "name": "asset",
         "action": {
-          "tap": "Select {{rosterPlayer.display_name}} for trade"
+          "tap": "Add {{rosterPlayer.display_name}} to trade"
         },
         "expected": {
           "selector": "[aria-label^='Route {{rosterPlayer.display_name}} to ']"
@@ -491,7 +491,7 @@
           "tap": "Trade with {{otherTeam}}"
         },
         "expected": {
-          "selector": "[aria-label$=' for trade']"
+          "selector": "[aria-label^='Add '][aria-label$=' to trade']"
         }
       },
       {
@@ -506,7 +506,7 @@
       {
         "name": "asset",
         "action": {
-          "tap": "Select {{rosterPlayer.display_name}} for trade"
+          "tap": "Add {{rosterPlayer.display_name}} to trade"
         },
         "expected": {
           "selector": "[aria-label^='Route {{rosterPlayer.display_name}} to ']"
@@ -551,16 +551,16 @@
           "tap": "Edit assets"
         },
         "expected": {
-          "selector": "[aria-label$=' for trade']"
+          "selector": "[aria-label^='Add '][aria-label$=' to trade']"
         },
         "name": "assets"
       },
       {
         "action": {
-          "tap": "Select {{rosterPlayer.display_name}} for trade"
+          "tap": "Add {{rosterPlayer.display_name}} to trade"
         },
         "expected": {
-          "selector": "[aria-label='Remove {{rosterPlayer.display_name}} for trade']"
+          "selector": "[aria-label='Remove {{rosterPlayer.display_name}} from trade']"
         },
         "name": "result"
       },

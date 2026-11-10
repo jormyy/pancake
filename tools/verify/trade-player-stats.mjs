@@ -1,0 +1,322 @@
+#!/usr/bin/env node
+import assert from 'node:assert/strict'
+import { readFile, writeFile } from 'node:fs/promises'
+import path from 'node:path'
+import { execFileSync } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
+
+const [dirArg, ...options] = process.argv.slice(2)
+const dir = path.resolve(dirArg)
+const run = JSON.parse(await readFile(path.join(dir, 'run.json'), 'utf8'))
+const fixture = JSON.parse(await readFile(path.join(dir, 'fixture.json'), 'utf8'))
+const { port } = JSON.parse(await readFile(path.join(dir, 'webkit-port.json'), 'utf8'))
+assert.ok(!run.cleanedAt)
+const receipts = []
+const controlState = controls => [...controls].sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)))
+const pause = ms => new Promise(resolve => setTimeout(resolve, ms))
+const command = async (command, ...values) => {
+  const response = await fetch(`http://127.0.0.1:${port}`, { method: 'POST', body: JSON.stringify({ command, values }) }).then(response => response.json())
+  assert.ok(!response.error, response.error)
+  return response.result
+}
+const snapshot = () => command('snapshot')
+const click = target => command('click', JSON.stringify(typeof target === 'string' ? { name: target } : target))
+const fill = (selector, value) => command('fill', JSON.stringify({ selector, value }))
+const wait = async check => {
+  for (let attempt = 0; attempt < 150; attempt++) {
+    const text = await snapshot()
+    if (check(text)) return text
+    await pause(100)
+  }
+  throw new Error('Visible expected state did not arrive')
+}
+const buttons = text => [...text.matchAll(/- button "([^"]+)"/g)].map(match => match[1])
+const matchingButton = async pattern => {
+  const text = await wait(text => buttons(text).some(name => pattern.test(name)))
+  return buttons(text).find(name => pattern.test(name))
+}
+let width
+const database = async label => {
+  const result = JSON.parse(execFileSync(process.execPath, [fileURLToPath(new URL('./observe.mjs', import.meta.url)), dir], { encoding: 'utf8' }))
+  await writeFile(path.join(dir, `trade-player-stats-${width}-${label}-database.json`), JSON.stringify(result, null, 2))
+  return result
+}
+const capture = label => command('capture', `trade-player-stats-${width}-${label}`)
+const probe = async (label, name, target = { name: `View ${name} stats` }, empty = false, key) => {
+  await wait(text => text.includes(name))
+  await command('scroll', JSON.stringify(target))
+  if (key) await command('focus', JSON.stringify(target))
+  const before = await command('observe')
+  if (label === 'keyboard-space' && width < 960) assert.ok(before.scroll.some(position => position.left > 0), 'Stats round trip starts with horizontal scroll')
+  await capture(label + '-before')
+  if (key) await command('key', key)
+  else await click(target)
+  await wait(text => text.includes(`heading "${name}" [level=1]`) && !text.includes('- dialog:'))
+  const stats = await command('observe')
+  assert.ok(fixture.playerIdsByName[name], 'Player identity fixture must exist')
+  assert.equal(new URL(stats.url).pathname, `/player/${fixture.playerIdsByName[name]}`)
+  if (empty) {
+    assert.equal(new URL(stats.url).pathname, `/player/${fixture.noStatsPlayerId}`)
+    await click('Game log')
+    await wait(text => text.includes('No games available.'))
+  }
+  await capture(label + '-stats')
+  await click('Back')
+  await wait(asyncText => !asyncText.includes(`heading "${name}" [level=1]`))
+  let after
+  for (let attempt = 0; attempt < 50; attempt++) {
+    after = await command('observe')
+    if (after.url === before.url && JSON.stringify(controlState(after.controls)) === JSON.stringify(controlState(before.controls))) break
+    await pause(100)
+  }
+  assert.equal(after.url, before.url, label + ' returns to the same trade route')
+  assert.deepEqual(controlState(after.controls), controlState(before.controls), label + ' preserves visible trade state')
+  assert.deepEqual([...after.selectionLabels].sort(), [...before.selectionLabels].sort(), label + ' preserves selected players, picks, and participants')
+  assert.deepEqual(after.scroll, before.scroll, label + ' preserves scroll position')
+  assert.equal(after.overflow, false, label + ' fits the viewport')
+  assert.deepEqual(after.nested, [], label + ' has no nested interactive targets')
+  await capture(label + '-back')
+  await writeFile(path.join(dir, `trade-player-stats-${width}-${label}-state.json`), JSON.stringify({ before, after }, null, 2))
+  receipts.push({ kind: 'player', width, label, name, playerUrl: stats.url, stateRestored: true, scrollRestored: true, controlOrderChanged: JSON.stringify(after.controls) !== JSON.stringify(before.controls) })
+  console.log(`PASS ${width} ${label}`)
+}
+const trades = async () => {
+  const text = await snapshot()
+  if (text.includes('Cancel trade proposal')) {
+    await click('Cancel trade proposal')
+    const next = await snapshot()
+    if (next.includes('Discard this trade?')) await click('Discard')
+  }
+  const tradeLink = (await snapshot()).match(/- link "(Trades[^"]*)"/)?.[1]
+  assert.ok(tradeLink, 'Trades navigation link is visible')
+  await click({ role: 'link', name: tradeLink })
+  await wait(text => text.includes('Trade sections'))
+  if (!(await snapshot()).includes('tab "Offers, 1" [selected]')) await click({ role: 'tab', name: 'Offers, 1' })
+  await wait(text => text.includes('heading "Incoming"'))
+}
+const cancel = async () => {
+  await click('Cancel trade proposal')
+  if ((await snapshot()).includes('Discard this trade?')) await click('Discard')
+  await wait(text => text.includes('Trade sections'))
+}
+const cardTarget = (tradeId, name) => ({ selector: `div:has(> [data-testid="trade-details-${tradeId}"]) [aria-label="View ${name} stats"]` })
+const add = name => click(`Add ${name} to trade`)
+const tabSender = async name => {
+  const label = `Edit assets sent by ${name}`
+  if (width < 960) await wait(text => text.includes(`tab "${label}"`))
+  if ((await snapshot()).includes(`tab "${label}"`)) await click({ role: 'tab', name: label })
+}
+const review = async () => { await click('Review trade proposal'); await wait(text => text.includes('Valid roster')) }
+const summary = async () => {
+  const name = buttons(await snapshot()).find(name => name.startsWith('Show deal summary.'))
+  if (name) await click(name)
+}
+const selection = async () => {
+  await wait(text => text.split('\n').some(line => line.includes('button "Add E2E Player003 to trade"') && !line.includes('[disabled]')))
+  const target = { name: 'View E2E Player003 stats' }
+  await command('key', 'Tab')
+  await command('focus', JSON.stringify(target))
+  await command('scroll', JSON.stringify({ name: 'Trade with E2E Team 10' }))
+  const before = await command('observe')
+  if (width < 960) assert.ok(before.scroll.some(position => position.left > 0), 'Exercise horizontal team-strip scrolling')
+  assert.notEqual(before.focusOutline.style, 'none')
+  assert.notEqual(before.focusOutline.width, '0px')
+  await command('key', 'Tab')
+  let state = await command('observe')
+  assert.equal(state.focus, 'Add E2E Player003 to trade')
+  assert.notEqual(state.focusOutline.style, 'none')
+  const touch = state.targets.find(target => target.label === state.focus)
+  assert.ok(touch.width >= 44 && touch.height >= 44)
+  await command('key', 'Space')
+  await wait(text => text.includes('Remove E2E Player003 from trade'))
+  state = await command('observe')
+  assert.equal(state.url, before.url)
+  assert.equal(state.targets.find(target => target.label === 'Remove E2E Player003 from trade').selected, 'true')
+  await command('key', 'Enter')
+  await wait(text => text.includes('Add E2E Player003 to trade'))
+  assert.equal((await command('observe')).url, before.url)
+  await probe('keyboard-space', 'E2E Player003', target, true, 'Space')
+  await probe('keyboard-enter', 'E2E Player003', target, false, 'Enter')
+}
+const proposal = async () => {
+  await trades()
+  await click('Propose trade')
+  await click('Trade with E2E Team 2')
+  await wait(text => text.includes('Add E2E Player003 to trade'))
+  await selection()
+  await add('E2E Player003')
+  const pick = await matchingButton(/^Select .* pick via E2E Team 1 for trade$/)
+  await click(pick)
+  await fill('[aria-label="FAAB sent by E2E Team 1 to E2E Team 2"]', '7')
+  await fill('[placeholder="Add a message to your trade offer..."]', `Keep these choices ${width}`)
+  await probe('propose-name', 'E2E Player003', { selector: '[aria-label="View E2E Player003 stats"] [data-testid="player-name-line"]', index: width >= 960 ? 1 : 0 }, true)
+  await probe('propose-photo', 'E2E Player003', { selector: '[aria-label="View E2E Player003 stats"] [data-testid="player-row-avatar"]', index: width >= 960 ? 1 : 0 })
+  await tabSender('E2E Team 2')
+  await add('E2E Player023')
+  await probe('propose-partner', 'E2E Player023', { name: 'View E2E Player023 stats', index: width >= 960 ? 1 : 0 })
+  await summary()
+  await probe('deal-summary', 'E2E Player003', { name: 'View E2E Player003 stats', index: 0 })
+  await click('Analyze trade proposal')
+  await wait(text => text.includes('Back to trade editor'))
+  await probe('propose-analysis', 'E2E Player003', { name: 'View E2E Player003 stats', index: 0 })
+  await click('Back to trade editor')
+  await review()
+  await probe('proposal-review', 'E2E Player003')
+  await probe('proposal-roster-plan', 'E2E Player004', { name: 'Open E2E Player004' })
+  await click('Close trade review')
+  await cancel()
+}
+const existingOffers = async () => {
+  await trades()
+  await probe('received-card', 'E2E Player022', cardTarget(fixture.receivedTradeId, 'E2E Player022'))
+  await probe('sent-card', 'E2E Player001', cardTarget(fixture.sentTradeId, 'E2E Player001'))
+  await click({ selector: `[data-testid="trade-details-${fixture.receivedTradeId}"]` })
+  await wait(text => text.includes('Proposed by'))
+  await probe('received-details', 'E2E Player022', { name: 'View E2E Player022 stats', index: width >= 960 ? 1 : 0 })
+  if (width < 960) await click('Back to trades')
+  await click({ name: 'Accept trade with E2E Team 2', index: 0 })
+  await wait(text => text.includes('- dialog:') && text.includes('Valid roster'))
+  await click({ role: 'radio', name: 'Drop E2E Player004 at completion' })
+  await probe('accept-review', 'E2E Player022', { selector: '[role="dialog"] [aria-label="View E2E Player022 stats"]' })
+  await probe('accept-roster-plan', 'E2E Player004', { selector: '[role="dialog"] [aria-label="Open E2E Player004"]' })
+  await click('Close trade review')
+  await click({ name: 'Edit trade with E2E Team 2', index: 0 })
+  await wait(text => text.includes('Cancel trade proposal') && text.includes('E2E Player001'))
+  await fill('[placeholder="Add a message to your trade offer..."]', 'Edited choices')
+  await probe('edit', 'E2E Player001', { name: 'View E2E Player001 stats', index: 0 })
+  await cancel()
+  await click({ name: 'Counter trade with E2E Team 2', index: 0 })
+  await wait(text => text.includes('Cancel trade proposal') && text.includes('E2E Player002'))
+  await fill('[placeholder="Add a message to your trade offer..."]', 'Counter choices')
+  await probe('counter', 'E2E Player002', { name: 'View E2E Player002 stats', index: 0 })
+  await cancel()
+  await click({ role: 'tab', name: 'History' })
+  await wait(text => text.includes('Completed'))
+  await probe('history-card', 'E2E Player011', cardTarget(fixture.completedTradeId, 'E2E Player011'))
+  await click({ selector: `[data-testid="trade-details-${fixture.completedTradeId}"]` })
+  await wait(text => text.includes('Proposed by'))
+  await probe('history-details', 'E2E Player031', { name: 'View E2E Player031 stats', index: width >= 960 ? 1 : 0 })
+  if (width < 960) await click('Back to trades')
+  const pickTarget = { selector: `div:has(> [data-testid="trade-details-${fixture.pickTradeId}"]) [aria-label^="Show trade details for"]`, index: 0 }
+  await command('scroll', JSON.stringify(pickTarget))
+  await capture('pick-details-before')
+  await click(pickTarget)
+  await wait(text => text.includes('Verification completed pick trade stats'))
+  assert.equal(new URL((await command('observe')).url).searchParams.get('tradeId'), fixture.pickTradeId)
+  await capture('pick-details-after')
+  receipts.push({ kind: 'pick', width, label: 'pick-card-details', tradeId: fixture.pickTradeId })
+  if (width < 960) await click('Back to trades')
+  await click({ selector: `[data-testid="trade-details-${fixture.multiTradeId}"]` })
+  await wait(text => text.includes('Verification completed multi-team stats'))
+  await probe('multi-history-details', 'E2E Player013', { name: 'View E2E Player013 stats', index: width >= 960 ? 1 : 0 })
+  if (width < 960) await click('Back to trades')
+}
+const multi = async () => {
+  await trades()
+  await click('Propose trade')
+  await click('Use multi-team trade mode')
+  await click('Trade with E2E Team 2')
+  await click(`Trade with ${fixture.thirdTeamName}`)
+  await wait(text => text.includes('Add E2E Player003 to trade'))
+  await add('E2E Player003')
+  await click(`Route E2E Player003 to ${fixture.thirdTeamName}`)
+  await fill('[aria-label="FAAB sent by E2E Team 1 to E2E Team 2"]', '9')
+  await fill('[placeholder="Add a message to your trade offer..."]', 'Keep multi-team routes')
+  await probe('selected-routes', 'E2E Player003', { name: 'View E2E Player003 stats', index: width >= 960 ? 1 : 0 })
+  await tabSender('E2E Team 2')
+  await add('E2E Player023')
+  await tabSender(fixture.thirdTeamName)
+  await add('E2E Player041')
+  await summary()
+  await probe('multi-overview', 'E2E Player003', { name: 'View E2E Player003 stats', index: 0 })
+  await review()
+  await probe('multi-review', 'E2E Player003')
+  await click('Close trade review')
+  await cancel()
+}
+const analyzer = async () => {
+  await trades()
+  await click('Revalue trade from E2E Team 1 with current inputs')
+  await wait(text => text.includes('View E2E Player001 stats'))
+  await probe('analyzer-prefill', 'E2E Player001', { name: 'View E2E Player001 stats', index: 0 })
+  await click({ role: 'tab', name: 'Analyzer' })
+  await wait(text => text.includes('Trade analysis'))
+  await click('Analyze with E2E Team 2')
+  await wait(text => text.includes('Add E2E Player003 to trade'))
+  await probe('analyzer-selection', 'E2E Player003')
+  await add('E2E Player003')
+  await tabSender('E2E Team 2')
+  await add('E2E Player023')
+  await summary()
+  await probe('analyzer-summary', 'E2E Player003', { name: 'View E2E Player003 stats', index: 0 })
+  const text = await snapshot()
+  if (text.includes('View trade analysis')) await click('View trade analysis')
+  await wait(text => text.includes('Dynasty trade analysis') || text.includes('Trade value'))
+  await probe('analyzer-values', 'E2E Player003', { selector: '[aria-label="Dynasty trade analysis"] [aria-label="View E2E Player003 stats"]' })
+}
+const block = async () => {
+  await trades()
+  await click({ role: 'tab', name: 'Block' })
+  await wait(text => text.includes('List E2E Player003 on trade block') || text.includes('Remove E2E Player003 from trade block'))
+  if ((await snapshot()).includes('Remove E2E Player003 from trade block')) await click('Remove E2E Player003 from trade block')
+  await wait(text => text.includes('List E2E Player003 on trade block'))
+  await probe('block-roster', 'E2E Player003')
+  const before = await database('block-before')
+  assert.ok(!before.trade_block_items.some(item => item.player_id === fixture.noStatsPlayerId))
+  await click('List E2E Player003 on trade block')
+  await wait(text => text.includes('Remove E2E Player003 from trade block'))
+  const listed = await database('block-listed')
+  assert.ok(listed.trade_block_items.some(item => item.player_id === fixture.noStatsPlayerId && item.member_id === fixture.memberId))
+  await probe('block-own-listing', 'E2E Player003', { name: 'View E2E Player003 stats', index: 0 })
+  await command('login', '1')
+  await trades()
+  await probe('second-manager-received', 'E2E Player001', cardTarget(fixture.sentTradeId, 'E2E Player001'))
+  await click({ role: 'tab', name: 'Block' })
+  await wait(text => text.includes('Offer for E2E Player003'))
+  await probe('block-other-listing', 'E2E Player003')
+  await click('Offer for E2E Player003')
+  await wait(text => text.includes('Cancel trade proposal'))
+  await tabSender('E2E Team 1')
+  await probe('block-offer', 'E2E Player003', { name: 'View E2E Player003 stats', index: 0 })
+  await cancel()
+  await command('login', '0')
+  await trades()
+  await click({ role: 'tab', name: 'Block' })
+  await wait(text => text.includes('Remove E2E Player003 from trade block'))
+  await click('Remove E2E Player003 from trade block')
+  await wait(text => !text.includes('Remove E2E Player003 from trade block'))
+  const removed = await database('block-removed')
+  assert.ok(!removed.trade_block_items.some(item => item.player_id === fixture.noStatsPlayerId))
+}
+
+const activity = async () => {
+  await click({ role: 'link', name: 'League' })
+  await wait(text => text.includes('Activity'))
+  await click({ role: 'tab', name: 'Activity' })
+  const name = await matchingButton(/^View E2E Player0(?:11|31|13|33|45) stats$/)
+  await probe('league-trade-activity', name.slice(5, -6), { name, index: 0 })
+}
+const onlyFlags = options.filter(option => option.startsWith('--only='))
+assert.ok(onlyFlags.length <= 1 && onlyFlags.every(option => option.length > 7), 'Unknown journey filter: supply one nonempty --only value')
+const selected = onlyFlags[0]?.slice(7)
+const widthFlags = options.filter(option => option.startsWith('--width='))
+assert.ok(widthFlags.length <= 1, 'Supply one --width value')
+const widths = widthFlags[0]?.slice(8).split(',').map(Number) ?? [390, 375, 1440]
+const journeys = { proposal, offers: existingOffers, multi, analyzer, block, activity }
+assert.ok(selected === undefined || Object.hasOwn(journeys, selected), `Unknown journey: ${selected}`)
+assert.ok(new Set(widths).size === widths.length && widths.length > 0 && widths.every(width => [390, 375, 1440].includes(width)), 'Choose supported verification widths')
+assert.ok(options.every(option => option.startsWith('--only=') || option.startsWith('--width=')), 'Unknown journey option')
+try {
+  for (width of widths) {
+    await command('viewport', String(width), String(width === 375 ? 812 : width === 390 ? 844 : 1000))
+    await command('login', '0')
+    await wait(text => text.includes('navigation "Primary"'))
+    for (const [name, journey] of Object.entries(journeys)) if (!selected || selected === name) await journey()
+  }
+  assert.ok(receipts.some(receipt => receipt.kind === 'player'), 'A successful journey must contain visible stats round trips')
+  await writeFile(path.join(dir, `trade-player-stats-${selected ?? 'all'}-receipt.json`), JSON.stringify({ engine: 'WebKit', receipts }, null, 2) + '\n')
+} catch (error) {
+  await capture('failure').catch(() => {})
+  await writeFile(path.join(dir, 'trade-player-stats-failure.json'), JSON.stringify({ engine: 'WebKit', receipts, error: error.message }, null, 2) + '\n')
+  throw error
+}
