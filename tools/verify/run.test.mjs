@@ -117,13 +117,43 @@ test('invalid journey filters fail before browser actions or success receipts', 
   })
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
   try {
-    await writeFile(path.join(dir, 'run.json'), JSON.stringify({ cleanedAt: null }))
+    await writeFile(path.join(dir, 'run.json'), JSON.stringify({ id: 'pancake-verify-filter', dir, repo: fileURLToPath(new URL('../../', import.meta.url)).replace(/\/$/, ''), cleanedAt: null }))
     await writeFile(path.join(dir, 'fixture.json'), '{}')
     await writeFile(path.join(dir, 'webkit-port.json'), JSON.stringify({ port: server.address().port }))
     for (const flags of [['--only=typo'], ['--only='], ['--only=offers', '--only=typo']]) {
+      for (const name of ['typo', 'all', 'offers']) await writeFile(path.join(dir, `trade-player-stats-${name}-receipt.json`), '{"oldSuccess":true}')
       await assert.rejects(promisify(execFile)(process.execPath, [fileURLToPath(new URL('./trade-player-stats.mjs', import.meta.url)), dir, ...flags]), /Unknown journey/)
       assert.equal(requests, 0)
+      for (const name of ['typo', 'all', 'offers']) await assert.rejects(readFile(path.join(dir, `trade-player-stats-${name}-receipt.json`)), /ENOENT/)
     }
     for (const name of ['typo', 'all', 'offers']) await assert.rejects(readFile(path.join(dir, `trade-player-stats-${name}-receipt.json`)), /ENOENT/)
+  } finally { await new Promise(resolve => server.close(resolve)) }
+})
+
+test('grouped-only activity cannot satisfy individual trade proof or retain prior success', async () => {
+  const root = path.join(os.homedir(), 'Documents/pancake-verify-evidence')
+  await mkdir(root, { recursive: true })
+  const dir = await mkdtemp(path.join(root, 'activity-proof-'))
+  const clicks = []
+  const server = createServer((request, response) => {
+    let body = ''
+    request.on('data', chunk => { body += chunk })
+    request.on('end', () => {
+      const { command, values } = JSON.parse(body)
+      if (command === 'click') clicks.push(JSON.parse(values[0]))
+      const result = command === 'links' ? [{ label: 'View E2E Player013 stats', ancestors: ['trade-activity-group'] }] : 'navigation "Primary" Activity'
+      response.end(JSON.stringify({ result }))
+    })
+  })
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
+  try {
+    await writeFile(path.join(dir, 'run.json'), JSON.stringify({ id: 'pancake-verify-activity-proof', dir, repo: fileURLToPath(new URL('../../', import.meta.url)).replace(/\/$/, ''), cleanedAt: null }))
+    await writeFile(path.join(dir, 'fixture.json'), '{}')
+    await writeFile(path.join(dir, 'webkit-port.json'), JSON.stringify({ port: server.address().port }))
+    for (const name of ['all', 'activity']) await writeFile(path.join(dir, `trade-player-stats-${name}-receipt.json`), '{"oldSuccess":true}')
+    await assert.rejects(promisify(execFile)(process.execPath, [fileURLToPath(new URL('./trade-player-stats.mjs', import.meta.url)), dir, '--only=activity', '--width=390']), /Individual trade activity contains a player stats control/)
+    assert.equal(clicks.some(target => target.name?.startsWith('View ')), false)
+    for (const name of ['all', 'activity']) await assert.rejects(readFile(path.join(dir, `trade-player-stats-${name}-receipt.json`)), /ENOENT/)
+    assert.match(JSON.parse(await readFile(path.join(dir, 'trade-player-stats-failure.json'), 'utf8')).error, /Individual trade activity/)
   } finally { await new Promise(resolve => server.close(resolve)) }
 })

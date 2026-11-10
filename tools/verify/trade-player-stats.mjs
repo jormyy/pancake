@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict'
-import { readFile, writeFile } from 'node:fs/promises'
+import { readFile, writeFile, readdir, rm } from 'node:fs/promises'
 import path from 'node:path'
 import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
@@ -8,9 +8,15 @@ import { fileURLToPath } from 'node:url'
 const [dirArg, ...options] = process.argv.slice(2)
 const dir = path.resolve(dirArg)
 const run = JSON.parse(await readFile(path.join(dir, 'run.json'), 'utf8'))
+assert.equal(run.dir, dir)
+assert.equal(run.repo, path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..'))
+assert.match(run.id, /^pancake-verify-[a-z0-9-]+$/)
+assert.ok(!run.cleanedAt)
+for (const file of await readdir(dir)) {
+  if (/^trade-player-stats-.*-receipt\.json$/.test(file) || file === 'trade-player-stats-failure.json') await rm(path.join(dir, file), { force: true })
+}
 const fixture = JSON.parse(await readFile(path.join(dir, 'fixture.json'), 'utf8'))
 const { port } = JSON.parse(await readFile(path.join(dir, 'webkit-port.json'), 'utf8'))
-assert.ok(!run.cleanedAt)
 const receipts = []
 const controlState = controls => [...controls].sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)))
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms))
@@ -302,8 +308,10 @@ const activity = async () => {
   await click({ role: 'link', name: 'League' })
   await wait(text => text.includes('Activity'))
   await click({ role: 'tab', name: 'Activity' })
-  const name = await matchingButton(/^View E2E Player0(?:11|31|13|33|45) stats$/)
-  await probe('league-trade-activity', name.slice(5, -6), { name, index: 0 })
+  const links = await command('links')
+  const individual = links.find(link => /^View E2E Player0(?:11|31|13|33|45) stats$/.test(link.label) && !link.ancestors.some(id => id.startsWith('trade-activity-')))
+  assert.ok(individual, 'Individual trade activity contains a player stats control')
+  await probe('league-trade-activity', individual.label.slice(5, -6), { name: individual.label, index: links.filter(link => link.label === individual.label).indexOf(individual) })
   const grouped = (await command('links')).find(link => link.ancestors.some(id => id.startsWith('trade-activity-')))
   assert.ok(grouped, 'Completed trade activity contains a player stats control')
   await probe('league-completed-activity', grouped.label.slice(5, -6), { selector: `[data-testid^="trade-activity-"] [aria-label="${grouped.label}"]`, index: 0 })

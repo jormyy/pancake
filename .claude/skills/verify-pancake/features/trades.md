@@ -44,6 +44,8 @@ It checks each URL against the fixture player ID and compares both scroll axes.
 Selections compare by identity and value; raw state files retain control order.
 `controlOrderChanged` records any refresh-time reordering separately.
 It saves each stats round trip and compares the prior editor controls and scroll position.
+Each attempt invalidates prior success receipts before driving. A failed attempt cannot satisfy the success-receipt checks with old captures.
+Individual activity targets exclude grouped `trade-activity-*` rows; the grouped probe targets those rows explicitly.
 
 Require these entry points in the evidence receipt:
 
