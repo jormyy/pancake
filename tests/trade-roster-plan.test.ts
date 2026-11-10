@@ -2,6 +2,10 @@ import './helpers/native-component-mocks'
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { tradeDraft } from '@/lib/trade-draft'
+import { createMultiTeamTradeState, multiTeamTradeReducer, buildMultiTeamTradeItems } from '@/lib/multi-team-trade-state'
+import type { TradeParticipantView } from '@/lib/trade-ui-model'
+import { RosterPlayerRow } from '@/components/roster/RosterItems'
 import { TradeRosterPlanEditor } from '@/components/trades/TradeRosterPlanEditor'
 import { rosterPlayer } from './helpers/fixtures'
 import type { TradeItem, TradeRosterPlan } from '@/lib/trades'
@@ -146,4 +150,41 @@ describe('trade roster plan', () => {
         expect(renderer!.root.findByProps({ accessibilityLabel: 'Incoming player: active' }).props.accessibilityState.checked).toBe(true)
     })
 
+})
+
+it('orders draft incoming players by value and stable keys without reordering existing roster rows', async () => {
+    let state = createMultiTeamTradeState('me')
+    state = multiTeamTradeReducer(state, { type: 'set-participants', actorMemberId: 'me', participantIds: ['me', 'them'] })
+    const players = [
+        { id: 'missing-z', name: 'Z missing', value: null },
+        { id: 'low', name: 'Low', value: 100 },
+        { id: 'tie-z', name: 'Tie', value: 800 },
+        { id: 'high', name: 'High', value: 900 },
+        { id: 'missing-a', name: 'A missing', value: null },
+        { id: 'tie-a', name: 'Tie', value: 800 },
+        { id: 'alpha', name: 'Alpha', value: 800 },
+    ]
+    for (const player of players) state = multiTeamTradeReducer(state, { type: 'select-asset', memberId: 'them', asset: 'player', assetId: player.id })
+    const roster = players.map(player => {
+        const row = rosterPlayer()
+        return { ...row, tradeValue: player.value, players: { ...row.players, id: player.id, display_name: player.name } }
+    })
+    const participants: TradeParticipantView[] = ['me', 'them'].map(memberId => ({
+        memberId, roster: memberId === 'them' ? roster : [], picks: [], destinationIds: [memberId === 'me' ? 'them' : 'me'],
+        defaultDestinationId: memberId === 'me' ? 'them' : 'me', selectedPlayerIds: new Set(memberId === 'them' ? players.map(player => player.id) : []),
+        selectedPickIds: new Set(), playerDestinationIds: {}, pickDestinationIds: {}, faabInputs: {},
+    }))
+    const draft = tradeDraft({ items: buildMultiTeamTradeItems(state, false), participants, memberId: 'me', participantName: id => id,
+        notes: '', expiresAt: null, avgMap: new Map(), avgStatsMap: new Map() })
+    const incoming = draft.routedItems.filter(item => item.toMemberId === 'me')
+    const existing = [rosterPlayer(), rosterPlayer()]
+    existing[0].players = { ...existing[0].players, id: 'existing-z', display_name: 'Z existing' }
+    existing[1].players = { ...existing[1].players, id: 'existing-a', display_name: 'A existing' }
+    await act(async () => { renderer = create(React.createElement(TradeRosterPlanEditor, {
+        incoming, roster: existing, value: emptyPlan, onChange: vi.fn(),
+    })) })
+    const rows = renderer!.root.findAllByType(RosterPlayerRow).map(row => row.props.item.players.id)
+    expect(rows).toEqual(['existing-z', 'existing-a', 'high', 'alpha', 'tie-a', 'tie-z', 'low', 'missing-a', 'missing-z'])
+    expect(incoming.map(item => item.kind === 'player' ? item.playerId : '')).toEqual(players.map(player => player.id))
+    expect(existing.map(row => row.players.id)).toEqual(['existing-z', 'existing-a'])
 })

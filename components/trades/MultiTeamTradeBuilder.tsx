@@ -130,6 +130,8 @@ export function MultiTeamTradeBuilder({
             fromMemberId: item.fromMemberId,
             toMemberId: item.toMemberId,
             label,
+            tradeValue: player?.tradeValue,
+            playerId: item.kind === 'player' ? item.playerId : undefined,
             pick: item.kind === 'pick' && pick ? { ...pick, fromMemberId: item.fromMemberId, toMemberId: item.toMemberId } : undefined,
             player: item.kind === 'player' ? {
                 name: label, nbaId: player?.players.nba_id, team: player?.players.nba_team,

@@ -22,5 +22,6 @@ export type TransactionRow = {
     isSystem?: boolean
     title?: string
     body?: string | null
+    tradePlayers?: { kind: 'player'; playerId: string; playerName: string; tradeValue: number | null; fromMemberId: string; toMemberId: string; fromTeamName: string; toTeamName: string }[]
     tradePicks?: (TradePickItem & { fromTeamName: string; toTeamName: string })[]
 }

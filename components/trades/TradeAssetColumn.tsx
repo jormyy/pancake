@@ -1,4 +1,4 @@
-import { orderTradeAssets } from '@/lib/trade-assets'
+import { orderTradeAssets, tradeRosterAssetOrder } from '@/lib/trade-assets'
 import { AssetSelectionRow, LockedAssetNotice } from '@/components/roster/LockedAssetNotice'
 import { type AssetLock } from '@/lib/locked-assets'
 import { useScreenView } from '@/hooks/use-screen-view'
@@ -203,7 +203,7 @@ export function TradeAssetColumn({
             {roster.length === 0 ? (
                 <Text style={styles.emptyRowText}>{emptyText}</Text>
             ) : (
-                roster.map((rp) => (
+                orderTradeAssets(roster, tradeRosterAssetOrder).map((rp) => (
                     <PlayerRow
                         key={rp.id}
                         player={rp}

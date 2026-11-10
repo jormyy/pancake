@@ -20,7 +20,7 @@ export function tradeDraft({ items, participants, memberId, participantName, not
         const row = participants.flatMap(team => team.roster).find(row => row.players.id === item.playerId)
         if (!row) return []
         const player = row.players
-        return [{ ...item, playerName: player.display_name, position: player.position, eligiblePositions: player.eligible_positions,
+        return [{ ...item, tradeValue: row.tradeValue, playerName: player.display_name, position: player.position, eligiblePositions: player.eligible_positions,
             nbaTeam: player.nba_team, nbaId: player.nba_id, injuryStatus: player.injury_status, yearsExp: player.years_exp,
             careerGames: player.career_regular_season_games, fromTaxi: row.is_on_taxi,
             avgFantasyPoints: avgMap.get(player.id), avgMinutesPlayed: avgStatsMap.get(player.id)?.avg_minutes_played }]

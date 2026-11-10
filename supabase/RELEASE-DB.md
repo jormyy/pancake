@@ -248,7 +248,7 @@ The [trade curve report](../docs/trade-curve.md) records the real trades, roster
 
 The supplied production head is `20261214006200`, from the recorded 2.14.7 release.
 This lab does not verify hosted state.
-The local candidate ends at `20261214010200`.
+The local candidate ends at `20261214010800`.
 Apply the pin migration after `20261214009600`, then release the matching optimizer and frontend.
 The pending history change adds `20261214009800_league_history.sql` after the pin migration.
 It adds completed Pancake seasons, final standings, champions, and season totals to the League screen.
@@ -261,8 +261,11 @@ It adds player tipoff times to the optimizer context without changing the respon
 Verify this migration on an isolated stack and regenerate both attestations before including it in a release.
 Apply it before the matching `lineup-optimizer` Edge function; old workers ignore the added JSON field.
 Prepare the deployment checkout with `npm ci` and stamp the Edge build before pausing workers or applying migrations.
+Apply `20261214010800_trade_display_dynasty_values.sql` before the matching frontend.
+It adds imported player values to trade-block reads and routed players to trade Activity entries.
+It changes no stored player values, roster order, or trade rules.
 Database, then Edge, then merge the frontend.
-Apply pending migrations through `20261214010200` only during the separately authorized release.
+Apply pending migrations through `20261214010800` only during the separately authorized release.
 Regenerate the catalog, types, and both attestations from a fresh private database before the final release checks.
 
 Deploy compatible database and Edge code before enabling public snapshots.

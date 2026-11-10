@@ -1,4 +1,4 @@
-import { orderTradeAssets } from '@/lib/trade-assets'
+import { orderTradeAssets, tradeRosterAssetOrder } from '@/lib/trade-assets'
 import type { RosterPlayer } from '@/lib/roster'
 import type { Trade, TradeBlockItem, TradePickItem } from '@/lib/trades'
 import type { TradeTabKey } from '@/lib/trade-ui-model'
@@ -132,7 +132,7 @@ export function buildTradeList(input: TradeListInput): TradeListItem[] {
         }
         if (input.blockRoster.length > 0) {
             result.push({ _type: 'header', label: 'List players' })
-            input.blockRoster.filter((player) => !input.myBlockItems.some((item) => item.asset.kind === 'player' && item.asset.playerId === player.players.id)).forEach((player) => result.push({ _type: 'blockPlayer', player }))
+            orderTradeAssets(input.blockRoster, tradeRosterAssetOrder).filter((player) => !input.myBlockItems.some((item) => item.asset.kind === 'player' && item.asset.playerId === player.players.id)).forEach((player) => result.push({ _type: 'blockPlayer', player }))
         }
         if (input.picks.length > 0) {
             result.push({ _type: 'header', label: 'List picks' })

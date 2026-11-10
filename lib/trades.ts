@@ -1,3 +1,4 @@
+import { getTradePlayerValues } from '@/lib/trade-player-values'
 import { readAssetLocks, type AssetLock } from '@/lib/locked-assets'
 import type { Json } from '@/types/database'
 import { supabase } from '@/lib/supabase'
@@ -710,7 +711,10 @@ export async function getTradeById(tradeId: string, memberId: string): Promise<T
     if (error) throw error
     if (!data) return null
     const row = data as TradeQueryRow
-    const [trade] = await enrichTradesWithStats([mapTradeRow(row, memberId)], row.league_id)
+    const mapped = mapTradeRow(row, memberId)
+    const values = await getTradePlayerValues(playerIdsFromItems(mapped.routedItems))
+    mapped.routedItems = mapped.routedItems.map(item => item.kind === 'player' ? { ...item, tradeValue: values.get(item.playerId) ?? null } : item)
+    const [trade] = await enrichTradesWithStats([mapped], row.league_id)
     return trade ?? null
 }
 
