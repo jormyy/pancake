@@ -87,3 +87,32 @@ it.each(['composer', 'historical'] as const)('orders metadata-free server assets
     expect(saved.get('snapshot')).toEqual(snapshot)
     expect(request).not.toHaveBeenCalled()
 })
+
+it('orders an old saved result offline without fetching or rewriting its values', async () => {
+    const routes = [
+        { kind: 'pick', id: 'second', label: '2030 Round 2 · My team', round: 2, seasonYear: 2030, teams: 10, slot: null, valueBands: { early: 500, mid: 400, late: 300 } },
+        { kind: 'player', id: 'missing', label: 'A missing' },
+        { kind: 'player', id: 'low', label: 'Low', tradeValue: 100 },
+        { kind: 'player', id: 'tie-b', label: 'Tie', tradeValue: 800 },
+        { kind: 'player', id: 'high', label: 'High', tradeValue: 900 },
+        { kind: 'player', id: 'tie-a', label: 'Tie', tradeValue: 800 },
+        { kind: 'player', id: 'zero', label: 'Zero', tradeValue: 0 },
+        { kind: 'pick', id: 'first', label: '2031 Round 1 · My team', round: 1, seasonYear: 2031, teams: 10, slot: null, valueBands: { early: 500, mid: 400, late: 300 } },
+    ] as const
+    const analysis = analyzeDynastyTrade({ leagueId: 'league', seasonYear: 2027, scoringSettings: {} }, 'overall',
+        routes.map(asset => ({ fromMemberId: 'me', toMemberId: 'them', asset })))
+    const snapshot = { modelVersion: 'onenumber-trade-curve-v6', analysis, leagueId: 'league', memberId: 'me', participantNames: { me: 'My team', them: 'Their team' }, savedAt: '2026-01-01' }
+    saved.set('scope', {})
+    saved.set('route', 'old-selection')
+    saved.set('snapshot', structuredClone(snapshot))
+    state.online = false
+    composer.assetsReady = false
+    composer.participantViews = []
+    await act(async () => { renderer = create(React.createElement(TradeAnalyzer)) })
+    await act(async () => renderer!.root.findByProps({ accessibilityLabel: 'View trade analysis' }).props.onPress())
+    const labels = renderer!.root.findAllByType('Text' as React.ElementType).flatMap(node =>
+        typeof node.props.children === 'string' && routes.some(asset => asset.label === node.props.children) ? [node.props.children] : [])
+    expect(labels).toEqual(['High', 'Tie', 'Tie', 'Low', 'Zero', 'A missing', '2031 Round 1 · My team', '2030 Round 2 · My team'])
+    expect(saved.get('snapshot')).toEqual(snapshot)
+    expect(request).not.toHaveBeenCalled()
+})

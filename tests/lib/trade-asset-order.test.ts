@@ -14,10 +14,26 @@ describe('trade asset display order', () => {
         { id: 'faab', kind: 'faab' },
     ]
 
-    it('keeps players in order, then sorts picks by round and year with stable ties', () => {
+    it('keeps players before picks sorted by round and year with stable ties', () => {
         expect(orderTradeAssets(assets).map(asset => asset.id)).toEqual([
             'aaron', 'pj', 'r1-2029', 'r1-2029-tie', 'r1-2030', 'r1-2031', 'r2-2030', 'r2-2031', 'faab',
         ])
+    })
+
+    it('orders dynasty values descending, then names and ids, with missing values last', () => {
+        const players = [
+            { kind: 'player', playerId: 'missing-b', playerName: 'Beta', tradeValue: null },
+            { kind: 'player', playerId: 'low', playerName: 'Low', tradeValue: 100 },
+            { kind: 'player', playerId: 'tie-b', playerName: 'Alpha', tradeValue: 800 },
+            { kind: 'player', playerId: 'high', playerName: 'High', tradeValue: 900 },
+            { kind: 'player', playerId: 'tie-a', playerName: 'Alpha', tradeValue: 800 },
+            { kind: 'player', playerId: 'zero', playerName: 'Zero', tradeValue: 0 },
+            { kind: 'player', playerId: 'missing-a', playerName: 'Alpha' },
+            { kind: 'player', playerId: 'invalid', playerName: 'Invalid', tradeValue: NaN },
+        ]
+        const expected = ['high', 'tie-a', 'tie-b', 'low', 'zero', 'missing-a', 'missing-b', 'invalid']
+        expect(orderTradeAssets(players).map(player => player.playerId)).toEqual(expected)
+        expect(orderTradeAssets([...players].reverse()).map(player => player.playerId)).toEqual(expected)
     })
 
     it('does not change the array or its assets', () => {

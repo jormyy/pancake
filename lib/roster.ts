@@ -11,6 +11,7 @@ import type { RosterSlotType } from '@/types/database'
 export { isIREligible, isDTD }
 
 export type RosterPlayer = {
+    tradeValue?: number | null
     lineupPin?: LineupPin
     assetLocks?: AssetLock[]
     id: string
