@@ -9,6 +9,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { readPwaRelease } from '../../tests/e2e/pwa-update-release.mjs'
+import { localFixtureEnv } from './local-fetch.mjs'
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const [action, target] = process.argv.slice(2)
@@ -200,12 +201,12 @@ async function launch() {
     await writeFile(path.join(dir, 'functions.env'), `E2E_ADMIN_SECRET=${env.E2E_ADMIN_SECRET}\nPANCAKE_EDGE_INTERNAL_TOKEN=${env.PANCAKE_EDGE_INTERNAL_TOKEN}\n`, { mode: 0o600 })
     output('psql', [env.SUPABASE_DB_URL, '-X', '-v', 'ON_ERROR_STOP=1', '-c', "select cron.unschedule(jobid) from cron.job;"])
     await background(run, 'functions', 'supabase', ['functions', 'serve', '--workdir', run.work, '--env-file', path.join(dir, 'functions.env')], repo, env)
-    await command('npm', ['run', 'e2e:seed'], run.work, env, path.join(dir, 'seed.log'))
+    await command('npm', ['run', 'e2e:seed'], run.work, localFixtureEnv(env), path.join(dir, 'seed.log'))
     await chmod(path.join(run.work, 'tests/e2e-state.json'), 0o600)
-    await command('node', [path.join(run.work, 'tools/verify/fixture.mjs'), dir], run.work, env, path.join(dir, 'fixture.log'))
+    await command('node', [path.join(run.work, 'tools/verify/fixture.mjs'), dir], run.work, localFixtureEnv(env), path.join(dir, 'fixture.log'))
     console.log('Seed ready. Building the local web app.')
     await command('npm', ['run', 'build:web:release'], run.work, env, path.join(dir, 'build.log'))
-    await command('node', [path.join(run.work, 'tools/verify/enrich.mjs'), dir], run.work, env, path.join(dir, 'enrich.log'))
+    await command('node', [path.join(run.work, 'tools/verify/enrich.mjs'), dir], run.work, localFixtureEnv(env), path.join(dir, 'enrich.log'))
     await command('node', [path.join(run.work, 'scripts/stamp-release-provenance.mjs')], run.work, env, path.join(dir, 'build.log'))
     await background(run, 'web', 'node', [path.join(repo, 'tests/e2e/static-web-server.mjs'), `--root=${path.join(run.work, 'dist')}`, `--port=${run.ports.frontend}`, '--host=127.0.0.1'], run.work, env)
     await waitFor(`${run.url}/sign-in`)
@@ -241,7 +242,7 @@ async function rebuild(run) {
   await rm(path.join(run.work, 'core/cjs'), { recursive: true, force: true })
   await command('node', [path.join(repo, 'node_modules/typescript/bin/tsc'), '-p', path.join(run.work, 'core/tsconfig.cjs.json')], run.work, env, path.join(run.dir, 'core-build.log'))
   await command('npm', ['run', 'build:web:release'], run.work, env, path.join(run.dir, 'rebuild.log'))
-  await command('node', [path.join(repo, 'tools/verify/enrich.mjs'), run.dir], run.work, env, path.join(run.dir, 'enrich.log'))
+  await command('node', [path.join(repo, 'tools/verify/enrich.mjs'), run.dir], run.work, localFixtureEnv(env), path.join(run.dir, 'enrich.log'))
   await command('node', [path.join(run.work, 'scripts/stamp-release-provenance.mjs')], run.work, env, path.join(run.dir, 'rebuild.log'))
   await doctor(run)
 }

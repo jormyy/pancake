@@ -18,6 +18,15 @@ export function reserveTradeCapture(captures, width, label) {
   captures.add(key)
 }
 
+export function assertTradeSenderStates(before, after, excludedName) {
+  const keep = label => !excludedName || !label?.includes(excludedName)
+  const normalize = states => states.map(state => ({ ...state,
+    controls: state.controls.filter(control => keep(control.label)).toSorted((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b))),
+    selectionLabels: state.selectionLabels.filter(keep).toSorted(),
+  })).toSorted((a, b) => a.sender.localeCompare(b.sender))
+  assert.deepEqual(normalize(after), normalize(before), 'Every sender retains its routes, FAAB and other draft state')
+}
+
 export function assertTradeProof(receipts, widths, selected) {
   const expected = (selected ? steps[selected] : Object.values(steps).flat()).toSorted()
   for (const width of widths) assert.deepEqual(receipts.filter(receipt => receipt.width === width).map(receipt => receipt.label).toSorted(), expected, `Every ${selected ?? 'full-matrix'} entry point is required at ${width}px`)

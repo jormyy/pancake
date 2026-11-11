@@ -44,6 +44,7 @@ It checks each URL against the fixture player ID and compares both scroll axes.
 Selections compare by identity and value; raw state files retain control order.
 `controlOrderChanged` records any refresh-time reordering separately.
 It saves each stats round trip and compares the prior editor controls and scroll position.
+Before and after stats or selection changes, visit every sender tab and compare its routes, FAAB and draft controls. Restore the active sender before testing the target and its scroll.
 Each attempt archives prior feature receipts and captures before driving. The new receipt records the attempt ID, viewports and capture files. A failed or partial attempt cannot satisfy the full-matrix checks with old captures; only all three viewports can write the canonical receipt.
 Individual activity targets exclude grouped `trade-activity-*` rows; the grouped probe targets those rows explicitly.
 

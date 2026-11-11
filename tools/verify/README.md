@@ -130,6 +130,7 @@ The browser uses a fresh private context and signs in through visible controls.
 The run tracks its server process for cleanup.
 Captures stay outside the checkout and survive cleanup.
 Use WebKit at 1440×1000, 390×844, and 375×812 for `trade-player-stats`.
+Fixture Node processes use fresh local HTTP connections to avoid stale forwarded sockets during seeding. The scoped preload preserves request headers and bodies and does not retry writes.
 This is WebKit web evidence; physical iOS Safari and installed PWA lifecycle need separate device proof.
 
 If the host uses an existing Docker Unix socket, pass it as `PANCAKE_VERIFY_DOCKER_HOST` for launch, doctor, and cleanup.

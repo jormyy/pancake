@@ -4,7 +4,7 @@ import { readFile, writeFile, readdir } from 'node:fs/promises'
 import path from 'node:path'
 import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { assertTradeProof, beginTradeProof, reserveTradeCapture, tradeProofReceiptName } from './trade-proof.mjs'
+import { assertTradeProof, assertTradeSenderStates, beginTradeProof, reserveTradeCapture, tradeProofReceiptName } from './trade-proof.mjs'
 
 const [dirArg, ...options] = process.argv.slice(2)
 const dir = path.resolve(dirArg)
@@ -53,6 +53,7 @@ const capture = label => {
 }
 const probe = async (label, name, target = { name: `View ${name} stats` }, empty = false, key) => {
   await wait(text => text.includes(name))
+  const sendersBefore = await readSenderControls()
   await command('scroll', JSON.stringify(target))
   if (key) await command('focus', JSON.stringify(target))
   await capture(label + '-before')
@@ -86,7 +87,9 @@ const probe = async (label, name, target = { name: `View ${name} stats` }, empty
   assert.equal(after.overflow, false, label + ' fits the viewport')
   assert.deepEqual(after.nested, [], label + ' has no nested interactive targets')
   await capture(label + '-back')
-  await writeFile(path.join(dir, `trade-player-stats-${width}-${label}-state.json`), JSON.stringify({ attemptId, before, after }, null, 2))
+  const sendersAfter = await readSenderControls()
+  assertTradeSenderStates(sendersBefore, sendersAfter)
+  await writeFile(path.join(dir, `trade-player-stats-${width}-${label}-state.json`), JSON.stringify({ attemptId, before, after, sendersBefore, sendersAfter }, null, 2))
   receipts.push({ kind: 'player', width, label, name, playerUrl: stats.url, stateRestored: true, scrollRestored: true, controlOrderChanged: JSON.stringify(after.controls) !== JSON.stringify(before.controls) })
   console.log(`PASS ${width} ${label}`)
 }
@@ -116,6 +119,8 @@ const exerciseColumnSelection = async label => {
   const name = 'E2E Player003'
   const id = `trade-${fixture.memberId}-player-${fixture.playerIdsByName[name]}`
   const target = { selector: `[data-testid="${id}"]` }
+  const sendersBefore = await readSenderControls(label + '-column-before')
+  if (width < 960) assert.equal(sendersBefore.length, label === 'multi' ? 3 : 2)
   await command('scroll', JSON.stringify(target))
   await capture(label + '-column-selection-before')
   const before = await command('observe')
@@ -127,6 +132,8 @@ const exerciseColumnSelection = async label => {
   assert.equal(added.targets.find(target => target.testID === id)?.selected, 'true')
   const unrelated = state => controlState(state.controls.filter(control => !control.label?.includes(name)))
   assert.deepEqual(unrelated(added), unrelated(before), label + ' Add preserves other draft state')
+  const sendersAdded = await readSenderControls(label + '-column-added')
+  assertTradeSenderStates(sendersBefore, sendersAdded, name)
   await capture(label + '-column-selection-added')
   await click(target)
   await wait(text => text.includes(`Add ${name} to trade`))
@@ -134,14 +141,40 @@ const exerciseColumnSelection = async label => {
   assert.equal(restored.url, before.url, label + ' Remove does not navigate')
   assert.deepEqual(controlState(restored.controls), controlState(before.controls), label + ' Remove restores draft state')
   assert.deepEqual([...restored.selectionLabels].sort(), [...before.selectionLabels].sort())
+  const sendersRestored = await readSenderControls(label + '-column-restored')
+  assertTradeSenderStates(sendersBefore, sendersRestored)
   await capture(label + '-column-selection-restored')
-  await writeFile(path.join(dir, `trade-player-stats-${width}-${label}-column-selection-state.json`), JSON.stringify({ attemptId, before, added, restored }, null, 2))
+  await writeFile(path.join(dir, `trade-player-stats-${width}-${label}-column-selection-state.json`), JSON.stringify({ attemptId, before, added, restored, sendersBefore, sendersAdded, sendersRestored }, null, 2))
   receipts.push({ kind: 'selection', width, label: label + '-column-add-remove', remainingStatePreserved: true, restored: true })
 }
 const tabSender = async name => {
   const label = `Edit assets sent by ${name}`
   if (width < 960) await wait(text => text.includes(`tab "${label}"`))
   if ((await snapshot()).includes(`tab "${label}"`)) await click({ role: 'tab', name: label })
+}
+const readSenderControls = async captureLabel => {
+  const text = await snapshot()
+  const tabs = [...text.matchAll(/- tab "(Edit assets sent by [^"]+)"/g)].map(match => match[1])
+  const read = async sender => {
+    const state = await command('observe')
+    return { sender, url: state.url, controls: state.controls, selectionLabels: state.selectionLabels }
+  }
+  if (!tabs.length) {
+    if (captureLabel) await capture(captureLabel + '-all-senders')
+    return [await read('all')]
+  }
+  const active = tabs.find(tab => text.includes(`tab "${tab}" [selected]`))
+  assert.ok(active, 'A sender tab is selected')
+  const states = []
+  for (const [index, tab] of tabs.entries()) {
+    await click({ role: 'tab', name: tab })
+    await wait(text => text.includes(`tab "${tab}" [selected]`))
+    if (captureLabel) await capture(`${captureLabel}-sender-${index}`)
+    states.push(await read(tab))
+  }
+  await click({ role: 'tab', name: active })
+  await wait(text => text.includes(`tab "${active}" [selected]`))
+  return states
 }
 const review = async () => { await click('Review trade proposal'); await wait(text => text.includes('Valid roster')) }
 const summary = async () => {
@@ -282,6 +315,11 @@ const multi = async () => {
   await add('E2E Player041')
   await summary()
   await probe('multi-overview', 'E2E Player003', { name: 'View E2E Player003 stats', index: 0 })
+  const sendersBefore = await readSenderControls('multi-remove-before')
+  if (width < 960) assert.equal(sendersBefore.length, 3)
+  const completeControls = sendersBefore.flatMap(sender => sender.controls)
+  assert.equal(completeControls.find(control => control.label === 'FAAB sent by E2E Team 1 to E2E Team 2')?.value, '9')
+  assert.equal(completeControls.find(control => control.label === `Route E2E Player003 to ${fixture.thirdTeamName}`)?.selected, 'true')
   await capture('multi-remove-before')
   const before = await command('observe')
   const remove = `Remove E2E Player041 sent by ${fixture.thirdTeamName} from trade`
@@ -294,14 +332,18 @@ const multi = async () => {
   assert.deepEqual(unrelated(after), unrelated(before), 'Summary removal preserves other assets, routes, notes and FAAB')
   assert.deepEqual([...after.selectionLabels].sort(), before.selectionLabels.filter(label => !label.includes('E2E Player041')).sort())
   assert.equal(after.targets.find(target => target.label === 'Add E2E Player041 to trade')?.selected, 'false')
+  const sendersAfter = await readSenderControls('multi-remove-after')
+  assertTradeSenderStates(sendersBefore, sendersAfter, 'E2E Player041')
   await capture('multi-remove-after')
   await add('E2E Player041')
   await wait(text => text.includes(remove))
   const restored = await command('observe')
   assert.deepEqual(controlState(restored.controls), controlState(before.controls), 'Adding back restores the exact prior trade state')
   assert.deepEqual([...restored.selectionLabels].sort(), [...before.selectionLabels].sort())
+  const sendersRestored = await readSenderControls('multi-remove-restored')
+  assertTradeSenderStates(sendersBefore, sendersRestored)
   await capture('multi-remove-restored')
-  await writeFile(path.join(dir, `trade-player-stats-${width}-multi-remove-state.json`), JSON.stringify({ attemptId, before, after, restored }, null, 2))
+  await writeFile(path.join(dir, `trade-player-stats-${width}-multi-remove-state.json`), JSON.stringify({ attemptId, before, after, restored, sendersBefore, sendersAfter, sendersRestored }, null, 2))
   receipts.push({ kind: 'selection', width, label: 'multi-overview-remove', remainingStatePreserved: true, restored: true })
   await review()
   await probe('multi-review', 'E2E Player003')

@@ -8,7 +8,8 @@ import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
 import { createServer } from 'node:http'
 import { requireLocal, stackConfig, refreshAppSources } from './run.mjs'
-import { assertTradeProof, beginTradeProof, reserveTradeCapture, tradeProofReceiptName } from './trade-proof.mjs'
+import { assertTradeProof, assertTradeSenderStates, beginTradeProof, reserveTradeCapture, tradeProofReceiptName } from './trade-proof.mjs'
+import { localFixtureEnv } from './local-fetch.mjs'
 
 test('local endpoint guard rejects hosted, lookalike, and wrong-protocol endpoints', () => {
   assert.equal(requireLocal('http://127.0.0.1:54121').port, '54121')
@@ -16,6 +17,22 @@ test('local endpoint guard rejects hosted, lookalike, and wrong-protocol endpoin
   for (const url of ['https://example.supabase.co', 'http://127.0.0.1.evil.test:54121', 'file:///etc/passwd', 'http://127.0.0.1:80']) {
     assert.throws(() => requireLocal(url), url)
   }
+})
+
+test('fixture transport closes local HTTP connections while preserving request data', async () => {
+  const base = { PATH: process.env.PATH, HOME: os.homedir() }
+  assert.equal(base.NODE_OPTIONS, undefined)
+  const configured = localFixtureEnv(base)
+  assert.match(configured.NODE_OPTIONS, /--import=file:/)
+  assert.equal(base.NODE_OPTIONS, undefined)
+  const source = `globalThis.fetch = async (input, init) => ({ connection: new Headers(init?.headers).get('connection'), key: new Headers(init?.headers).get('apikey'), method: init?.method, body: init?.body });
+await import(${JSON.stringify(new URL('./local-fetch.mjs', import.meta.url).href)});
+const init = { method: 'POST', headers: { apikey: 'fixture-only' }, body: 'fixture body' };
+console.log(JSON.stringify([await fetch('http://127.0.0.1:52001/auth/v1/token', init), await fetch('https://example.com', init)]));`
+  const result = await promisify(execFile)(process.execPath, ['--input-type=module', '-e', source], { env: { ...base, PANCAKE_VERIFY_FIXTURE_LOCAL_TRANSPORT: '1' } })
+  const [local, external] = JSON.parse(result.stdout)
+  assert.deepEqual(local, { connection: 'close', key: 'fixture-only', method: 'POST', body: 'fixture body' })
+  assert.deepEqual(external, { connection: null, key: 'fixture-only', method: 'POST', body: 'fixture body' })
 })
 
 test('isolated config replaces all exposed ports and only the temporary project identity', async () => {
@@ -181,6 +198,24 @@ test('stats and selection captures stay distinct while duplicate viewport captur
   reserveTradeCapture(captures, 390, 'analyzer-column-selection-before')
   reserveTradeCapture(captures, 375, 'analyzer-selection-before')
   assert.throws(() => reserveTradeCapture(captures, 390, 'analyzer-selection-before'), /Duplicate trade proof capture/)
+})
+
+test('complete sender checks catch inactive FAAB and route resets while allowing one removed asset', () => {
+  const before = [
+    { sender: 'You', controls: [{ label: 'FAAB sent by You to Them', value: '9' }, { label: 'Route Player003 to Third', selected: 'true' }], selectionLabels: ['Remove Player003 from trade'] },
+    { sender: 'Third', controls: [{ label: 'Remove Player041 from trade', selected: 'true' }], selectionLabels: ['Remove Player041 from trade'] },
+  ]
+  const after = structuredClone(before)
+  after[1].controls = []
+  after[1].selectionLabels = []
+  assertTradeSenderStates(before, after, 'Player041')
+  const faabReset = structuredClone(after)
+  faabReset[0].controls[0].value = '0'
+  assert.throws(() => assertTradeSenderStates(before, faabReset, 'Player041'), /Every sender/)
+  const routeReset = structuredClone(after)
+  routeReset[0].controls[1].selected = 'false'
+  assert.throws(() => assertTradeSenderStates(before, routeReset, 'Player041'), /Every sender/)
+  assert.throws(() => assertTradeSenderStates(before, after.slice(1), 'Player041'), /Every sender/)
 })
 
 test('new attempts archive prior captures and receipts without touching unrelated evidence', async () => {
