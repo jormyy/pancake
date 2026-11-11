@@ -101,12 +101,13 @@ if (!history.length) await checked(admin.from('roster_transactions').insert({ le
 await writeFile(path.join(run.work, 'dist/verification-news.html'), '<!doctype html><html lang="en"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Verification player news</title><h1>Player practice report</h1><p>The player completes practice and prepares for the next game.</p></html>')
 execFileSync('psql', [env.SUPABASE_DB_URL, '-XqAt', '-v', 'ON_ERROR_STOP=1', '-c', `SELECT private.refresh_player_averages('${fixture.leagueId}', '${fixture.seasonId}', (SELECT version FROM private.screen_refresh_queue WHERE league_season_id = '${fixture.seasonId}'));`], { stdio: ['ignore', 'ignore', 'pipe'] })
 const season = await checked(admin.from('league_seasons').select('season_year').eq('id', fixture.seasonId).single())
+const rookieYear = season.season_year - 1
 const rookieDraft = await checked(admin.from('drafts').select('id').eq('league_season_id', fixture.seasonId).eq('draft_type', 'snake').eq('is_mock', false).maybeSingle())
 if (rookieDraft) {
   const slots = await checked(admin.from('snake_draft_picks').select('id,member_id,round,draft_pick_id').eq('draft_id', rookieDraft.id))
   for (const slot of slots.filter(row => !row.draft_pick_id)) {
-    let pick = await checked(admin.from('draft_picks').select('id').eq('league_id', fixture.leagueId).eq('season_year', season.season_year).eq('round', slot.round).eq('original_owner_id', slot.member_id).maybeSingle())
-    if (!pick) pick = await checked(admin.from('draft_picks').insert({ league_id: fixture.leagueId, season_year: season.season_year, round: slot.round, original_owner_id: slot.member_id, current_owner_id: slot.member_id }).select('id').single())
+    let pick = await checked(admin.from('draft_picks').select('id').eq('league_id', fixture.leagueId).eq('season_year', rookieYear).eq('round', slot.round).eq('original_owner_id', slot.member_id).maybeSingle())
+    if (!pick) pick = await checked(admin.from('draft_picks').insert({ league_id: fixture.leagueId, season_year: rookieYear, round: slot.round, original_owner_id: slot.member_id, current_owner_id: slot.member_id }).select('id').single())
     await checked(admin.from('snake_draft_picks').update({ draft_pick_id: pick.id }).eq('id', slot.id))
   }
   if (slots.every(slot => !slot.draft_pick_id)) {
