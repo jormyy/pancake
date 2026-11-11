@@ -31,27 +31,27 @@ BEGIN
   created := public.create_league(p_name=>'Pick window',p_team_name=>'Owner',p_auction_budget=>200);
   league := (created->>'id')::uuid;
   SELECT id,season_year INTO season,year FROM league_seasons WHERE league_id=league AND is_current;
-  PERFORM pg_temp.assert_pick_window((SELECT count(*)=3*horizon AND min(season_year)=year+1 AND max(season_year)=year+horizon
+  PERFORM pg_temp.assert_pick_window((SELECT count(*)=3*horizon AND min(season_year)=year AND max(season_year)=year+horizon-1
     AND count(DISTINCT season_year)=horizon AND count(DISTINCT round)=3 FROM draft_picks WHERE league_id=league),format('create allocates %s future drafts',horizon));
   FOR i IN 2..4 LOOP
     PERFORM set_config('request.jwt.claim.sub',users[i]::text,true);
     PERFORM public.join_league_by_invite_code(p_invite_code=>created->>'invite_code',p_team_name=>'Team '||i);
   END LOOP;
-  PERFORM pg_temp.assert_pick_window((SELECT count(*)=12*horizon AND count(DISTINCT current_owner_id)=4 AND max(season_year)=year+horizon
+  PERFORM pg_temp.assert_pick_window((SELECT count(*)=12*horizon AND count(DISTINCT current_owner_id)=4 AND max(season_year)=year+horizon-1
     FROM draft_picks WHERE league_id=league),format('join allocates %s future drafts per member',horizon));
   SELECT array_agg(id ORDER BY id) INTO kept FROM draft_picks WHERE league_id=league;
   PERFORM private.roll_setup_league_seasons(make_timestamptz(year,10,2,12,0,0,'America/New_York'));
   SELECT season_year INTO year FROM league_seasons WHERE id=season;
-  PERFORM pg_temp.assert_pick_window((SELECT array_agg(id ORDER BY id)=kept AND count(*)=12*horizon AND min(season_year)=year+1 AND max(season_year)=year+horizon
+  PERFORM pg_temp.assert_pick_window((SELECT array_agg(id ORDER BY id)=kept AND count(*)=12*horizon AND min(season_year)=year AND max(season_year)=year+horizon-1
     FROM draft_picks WHERE league_id=league),format('setup rollover preserves assets and %s future drafts',horizon));
   UPDATE leagues SET status='playoffs' WHERE id=league;
   PERFORM set_config('request.jwt.claim.sub','',true);
   SELECT new_season_id,new_year INTO next_id,next_year FROM public.advance_season_atomic(p_league_id=>league);
   SELECT array_agg(DISTINCT season_year ORDER BY season_year) INTO added_years FROM draft_picks WHERE league_id=league AND NOT id=ANY(kept);
-  PERFORM pg_temp.assert_pick_window(added_years=ARRAY[next_year+horizon],'advance adds exactly one draft class');
-  PERFORM pg_temp.assert_pick_window((SELECT count(*)=12*horizon AND count(DISTINCT season_year)=horizon AND max(season_year)=next_year+horizon
-    FROM draft_picks WHERE league_id=league AND season_year>next_year),format('advance retains %s future drafts',horizon));
-  PERFORM pg_temp.assert_pick_window((SELECT count(*)=12 FROM draft_picks WHERE league_id=league AND season_year=next_year AND NOT is_used),'advance retains current rookie draft assets');
+  PERFORM pg_temp.assert_pick_window(added_years=ARRAY[next_year+horizon-1],'advance adds exactly one draft class');
+  PERFORM pg_temp.assert_pick_window((SELECT count(*)=12*horizon AND count(DISTINCT season_year)=horizon AND max(season_year)=next_year+horizon-1
+    FROM draft_picks WHERE league_id=league AND season_year>=next_year),format('advance retains %s future drafts',horizon));
+  PERFORM pg_temp.assert_pick_window((SELECT count(*)=12 FROM draft_picks WHERE league_id=league AND season_year=next_year-1 AND NOT is_used),'advance retains current rookie draft assets');
   END LOOP;
 END;
 $$;

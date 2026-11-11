@@ -23,7 +23,7 @@ BEGIN
   profile:=public.view_player(fixture.league_id,fixture.member_ids[1],jsonb_build_object('playerId',v_player_id));
   PERFORM pg_temp.check_rules(NOT (profile->'player' ? 'trade_value'),'profile does not show trade calculator values');
   INSERT INTO public.draft_picks(league_id,season_year,round,original_owner_id,current_owner_id)
-    VALUES(fixture.league_id,2028,1,fixture.member_ids[1],fixture.member_ids[1]) RETURNING id INTO v_pick_id;
+    VALUES(fixture.league_id,2027,1,fixture.member_ids[1],fixture.member_ids[1]) RETURNING id INTO v_pick_id;
   INSERT INTO public.trades(league_id,league_season_id,proposer_member_id,recipient_member_id,status)
     VALUES(fixture.league_id,fixture.season_id,fixture.member_ids[1],fixture.member_ids[2],'pending') RETURNING id INTO v_trade_id;
   INSERT INTO public.trade_items(trade_id,side,pick_id,from_member_id,to_member_id)

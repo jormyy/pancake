@@ -29,7 +29,7 @@ BEGIN
   IF (SELECT count(*) FROM snake_draft_picks WHERE draft_id=(result->>'id')::uuid)<>12 THEN
     RAISE EXCEPTION 'Year jump must allocate every current rookie slot';
   END IF;
-  IF (SELECT count(*) FROM draft_picks WHERE league_id=league AND season_year BETWEEN next_year AND next_year+3)<>48 THEN
+  IF (SELECT count(*) FROM draft_picks WHERE league_id=league AND season_year BETWEEN next_year-1 AND next_year+2)<>48 THEN
     RAISE EXCEPTION 'Year jump must restore current and three future pick years';
   END IF;
   IF (SELECT count(*) FROM draft_picks WHERE league_id=league AND season_year BETWEEN 2001 AND 2005)<>60 THEN

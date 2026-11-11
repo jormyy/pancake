@@ -66,7 +66,7 @@ BEGIN
       pg_temp.taxi_id('user-b'),'manager','Synthetic B',now()-interval '1 day');
     IF v_world<>'auction' THEN
       INSERT INTO draft_picks(league_id,season_year,round,original_owner_id,current_owner_id)
-      SELECT pg_temp.taxi_id(v_world||'-league'),public.current_season_year_et(now()),r,m,
+      SELECT pg_temp.taxi_id(v_world||'-league'),public.current_season_year_et(now())-1,r,m,
         pg_temp.taxi_id(v_world||'-a')
       FROM generate_series(1,2) r CROSS JOIN
         unnest(ARRAY[pg_temp.taxi_id(v_world||'-a'),pg_temp.taxi_id(v_world||'-b')]) m;

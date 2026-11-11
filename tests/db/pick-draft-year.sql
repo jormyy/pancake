@@ -55,24 +55,24 @@ BEGIN
   SELECT completion_failure_reason INTO reason FROM trades WHERE id=trade;
   PERFORM pg_temp.assert_pick_year(reason='The 2028 round 1 pick has been used in the draft.','consumed pick notice uses stored pick year');
   INSERT INTO draft_picks(id,league_id,season_year,round,original_owner_id,current_owner_id)
-  VALUES(picks[3],league,2031,1,members[1],members[1]);
+  VALUES(picks[3],league,2030,1,members[1],members[1]);
   reason := NULL;
   BEGIN
     PERFORM public.propose_trade_atomic(league,season,members[1],members[2],'{}','{}',ARRAY[picks[3]],ARRAY[picks[2]]);
   EXCEPTION WHEN raise_exception THEN reason := SQLERRM;
   END;
   PERFORM pg_temp.assert_pick_year(reason='Only the next 3 future draft years can be traded.','retained out-of-window pick cannot be offered');
-  UPDATE draft_picks SET season_year=2030 WHERE id=picks[3];
+  UPDATE draft_picks SET season_year=2029 WHERE id=picks[3];
   trade := public.propose_trade_atomic(league,season,members[1],members[2],'{}','{}',ARRAY[picks[3]],ARRAY[picks[2]]);
   PERFORM pg_temp.assert_pick_year(trade IS NOT NULL,'third future draft remains tradable');
-  UPDATE draft_picks SET season_year=2031 WHERE id=picks[3];
+  UPDATE draft_picks SET season_year=2030 WHERE id=picks[3];
   reason := NULL;
   BEGIN
     PERFORM public.accept_trade_atomic(trade,members[2]);
   EXCEPTION WHEN raise_exception THEN reason := SQLERRM;
   END;
   PERFORM pg_temp.assert_pick_year(reason='Only the next 3 future draft years can be traded.','acceptance checks the current future draft window');
-  UPDATE draft_picks SET season_year=2030 WHERE id=picks[3];
+  UPDATE draft_picks SET season_year=2029 WHERE id=picks[3];
   PERFORM public.accept_trade_atomic(trade,members[2]);
   UPDATE trades SET veto_window_expires_at=now()-interval '1 second' WHERE id=trade;
   PERFORM public.complete_accepted_trade_atomic(trade);

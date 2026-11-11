@@ -48,7 +48,7 @@ BEGIN
   INSERT INTO nba_games(nba_game_id,season_year,week_number,game_date,home_team,away_team,status)
   VALUES('0029999070',20026,1,date '2026-10-20','BOS','NYK','Scheduled');
   INSERT INTO draft_picks(league_id,season_year,round,original_owner_id,current_owner_id)
-  SELECT f.league,20026,r,m,m FROM unnest(ARRAY[f.member,f.other_member]) m CROSS JOIN generate_series(1,2) r;
+  SELECT f.league,20025,r,m,m FROM unnest(ARRAY[f.member,f.other_member]) m CROSS JOIN generate_series(1,2) r;
   FOR i IN 1..4 LOOP
     INSERT INTO players(first_name,last_name,position,eligible_positions,years_exp,nba_draft_number)
     VALUES('Synthetic','Backstop ' || i,'PG',ARRAY['PG'],0,i);
