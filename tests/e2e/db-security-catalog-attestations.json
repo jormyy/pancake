@@ -2708,7 +2708,7 @@
     },
     {
       "filename": "20261214010900_draft_pick_calendar_years.sql",
-      "sha256": "8c83c928a8c81b9bec85fd5d2ca08ba05a9d39aa7a2706a09f042aa2383631e1"
+      "sha256": "30c52f2fbed2453c26c64f5d6385e0ae252ad6f3a82631c4ea0b4b48af073dd6"
     }
   ],
   "preMigration": {
