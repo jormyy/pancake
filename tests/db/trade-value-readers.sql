@@ -2,7 +2,7 @@ BEGIN;
 \ir rules-support.sql
 \ir trade-values-fixture.sql
 DO $$
-DECLARE fixture record; v_player_id uuid:=gen_random_uuid(); value_row record; profile jsonb; v_pick_id uuid; v_trade_id uuid; v_draft_id uuid; inputs jsonb;
+DECLARE fixture record; v_player_id uuid:=gen_random_uuid(); value_row record; profile jsonb; v_pick_id uuid; v_trade_id uuid; v_draft_id uuid; inputs jsonb; v_legacy_rank integer;
 BEGIN
   SELECT * INTO fixture FROM pg_temp.rules_fixture(2,2027,'active');
   INSERT INTO public.players(id,first_name,last_name,nba_team,position,eligible_positions)
@@ -14,11 +14,12 @@ BEGIN
     ON CONFLICT(draft_year,round,tier) DO UPDATE SET trade_value=EXCLUDED.trade_value;
   PERFORM pg_temp.check_rules(EXISTS(SELECT FROM public.dynasty_rankings WHERE player_id=v_player_id
     AND source='onenumberhoops.com'),'fixture source player is matched');
+  SELECT COALESCE(max(source_rank),0)+1 INTO v_legacy_rank FROM public.dynasty_rankings WHERE source='hashtagbasketball.com';
   INSERT INTO public.dynasty_rankings(source,source_rank,source_player_name,player_id,fetched_at)
-    VALUES('hashtagbasketball.com',9001,'Legacy Wembanyama',v_player_id,now()+interval '1 day');
+    VALUES('hashtagbasketball.com',v_legacy_rank,'Legacy Wembanyama',v_player_id,now()+interval '1 day');
   PERFORM set_config('request.jwt.claim.sub',fixture.user_ids[1]::text,true);
   SELECT * INTO value_row FROM public.get_dynasty_forecast_inputs(fixture.league_id,fixture.member_ids[1],2027,ARRAY[v_player_id],'',1,0);
-  PERFORM pg_temp.check_rules(value_row.ranking_source='hashtagbasketball.com' AND value_row.five_year_rank=9001 AND value_row.trade_value IS NULL,
+  PERFORM pg_temp.check_rules(value_row.ranking_source='hashtagbasketball.com' AND value_row.five_year_rank=v_legacy_rank AND value_row.trade_value IS NULL,
     'ranking reader uses Hashtag while both sources exist');
   profile:=public.view_player(fixture.league_id,fixture.member_ids[1],jsonb_build_object('playerId',v_player_id));
   PERFORM pg_temp.check_rules(NOT (profile->'player' ? 'trade_value'),'profile does not show trade calculator values');
@@ -48,7 +49,7 @@ BEGIN
   PERFORM pg_temp.check_rules((profile->'trade'->'routedItems'->0->>'tradeValue')::numeric=750.1,'known pick slot uses the stored early tier');
   DELETE FROM public.dynasty_rankings ranking WHERE ranking.source='onenumberhoops.com' AND ranking.player_id=v_player_id;
   SELECT * INTO value_row FROM public.get_dynasty_forecast_inputs(fixture.league_id,fixture.member_ids[1],2027,ARRAY[v_player_id],'',1,0);
-  PERFORM pg_temp.check_rules(value_row.ranking_source='hashtagbasketball.com' AND value_row.five_year_rank=9001
+  PERFORM pg_temp.check_rules(value_row.ranking_source='hashtagbasketball.com' AND value_row.five_year_rank=v_legacy_rank
     AND value_row.trade_value IS NULL,'removing trade values leaves the Hashtag ranking intact');
 END;
 $$;
