@@ -84,14 +84,12 @@ BEGIN
   VALUES (v_league_id, v_season_year, true)
   RETURNING id INTO v_season_id;
 
-  -- Waiver claims process only for members with a waiver spot; joiners line
-  -- up behind the commissioner.
   INSERT INTO public.waiver_priorities (league_id, league_season_id, member_id, priority)
   VALUES (v_league_id, v_season_id, v_member_id, 1);
 
   INSERT INTO public.draft_picks (league_id, season_year, round, original_owner_id, current_owner_id)
   SELECT v_league_id, year_value, round_value, v_member_id, v_member_id
-    FROM generate_series(v_season_year + 1, v_season_year + v_future_pick_years) AS year_value
+    FROM generate_series(v_season_year, v_season_year + v_future_pick_years - 1) AS year_value
    CROSS JOIN generate_series(1, 3) AS round_value;
 
   __request_result := jsonb_build_object(

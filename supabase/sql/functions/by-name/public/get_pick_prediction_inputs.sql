@@ -26,11 +26,11 @@ BEGIN
       WHERE member.league_id=p_league_id),
     'games',(SELECT COALESCE(jsonb_agg(jsonb_build_object('home',home_member_id,'away',away_member_id) ORDER BY id),'[]'::jsonb)
       FROM public.matchups WHERE league_season_id=season.id AND matchup_type='regular_season' AND NOT is_finalized AND NOT is_voided),
-    'picks',(SELECT COALESCE(jsonb_agg(jsonb_build_object('id',pick.id,'draftYear',pick.season_year-1,'round',pick.round,
+    'picks',(SELECT COALESCE(jsonb_agg(jsonb_build_object('id',pick.id,'draftYear',pick.season_year,'round',pick.round,
       'originalOwnerId',pick.original_owner_id,'slot',slot.pick_in_round,
       'bands',(SELECT jsonb_object_agg(value.tier,value.trade_value) FROM bands value
         WHERE value.round=pick.round AND value.draft_year=(SELECT band.draft_year FROM bands band
-          WHERE band.round=pick.round ORDER BY abs(band.draft_year-(pick.season_year-1)),band.draft_year LIMIT 1))) ORDER BY pick.id),'[]'::jsonb) FROM public.draft_picks pick
+          WHERE band.round=pick.round ORDER BY abs(band.draft_year-(pick.season_year)),band.draft_year LIMIT 1))) ORDER BY pick.id),'[]'::jsonb) FROM public.draft_picks pick
       LEFT JOIN LATERAL (SELECT pick_in_round FROM public.snake_draft_picks WHERE draft_pick_id=pick.id ORDER BY picked_at DESC NULLS LAST,id LIMIT 1) slot ON true
       WHERE pick.league_id=p_league_id AND pick.round BETWEEN 1 AND 3)) INTO result;
   RETURN result;

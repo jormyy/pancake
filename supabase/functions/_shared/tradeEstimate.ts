@@ -83,7 +83,7 @@ export function analyzeTradeEstimate(input: TradeEstimateInputs, observedAt: num
     if (term.pickId) {
       const pick = input.picks.find(pick => pick.id === term.pickId)
       if (!pick) throw new Error('A selected pick is missing from the frozen valuation inputs.')
-      return { ...route, asset: { kind: 'pick', id: pick.id, label: `${pick.seasonYear - 1} Round ${pick.round} · ${pick.originalTeamName}`,
+      return { ...route, asset: { kind: 'pick', id: pick.id, label: `${pick.seasonYear} Round ${pick.round} · ${pick.originalTeamName}`,
         seasonYear: pick.seasonYear, round: pick.round, slot: pick.slot, teams: input.teams,
         valueBands: pick.valueBands,
         sources: [{ name: 'league draft picks', fetchedAt: null }] } }
