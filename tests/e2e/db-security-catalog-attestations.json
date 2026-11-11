@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261214010900",
+  "candidateVersion": "20261214011000",
   "common": {
     "functions": [
       {
@@ -2709,6 +2709,10 @@
     {
       "filename": "20261214010900_draft_pick_calendar_years.sql",
       "sha256": "30c52f2fbed2453c26c64f5d6385e0ae252ad6f3a82631c4ea0b4b48af073dd6"
+    },
+    {
+      "filename": "20261214011000_compact_trade_activity.sql",
+      "sha256": "5da14276b6fcaa824bf37bfa030ab53dd11824364382d4699c75c0f1bb9af018"
     }
   ],
   "preMigration": {

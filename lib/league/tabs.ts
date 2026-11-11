@@ -8,7 +8,7 @@ export const LEAGUE_TABS: readonly { key: LeagueSection; label: string }[] = [
     { key: 'schedule', label: 'Schedule' },
     { key: 'seasons', label: 'History' },
     { key: 'draft', label: 'Draft' },
-    { key: 'bracket', label: 'Bracket' },
+    { key: 'bracket', label: 'Playoffs' },
     { key: 'settings', label: 'Settings' },
 ]
 
@@ -28,6 +28,7 @@ const LEAGUE_TAB_ALIASES: Record<string, LeagueSection> = {
     'mock-rooms': 'draft',
     settings: 'settings',
     bracket: 'bracket',
+    playoffs: 'bracket',
 }
 
 export function parseLeagueTab(tab: unknown): LeagueSection {

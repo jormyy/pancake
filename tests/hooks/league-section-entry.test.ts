@@ -27,14 +27,17 @@ it('opens Standings and returns there on a fresh League entry', async () => {
     await act(async () => screen.update(React.createElement(Controller)))
     expect(state.tab).toBe('results')
 })
-it.each(['results', 'history', 'picks', 'draft', 'settings'])('opens the direct League section %s', async tab => {
+it.each(['results', 'history', 'picks', 'draft', 'settings', 'bracket'])('opens the direct League section %s', async tab => {
     boundary.params = { tab }
     await act(async () => { screen = create(React.createElement(Controller)) })
     expect(state.tab).toBe(tab)
 })
-it('opens the Bracket section without replacing the Standings selection', async () => {
+it('opens Playoffs inside League without pushing a modal', async () => {
     await act(async () => { screen = create(React.createElement(Controller)) })
     await act(async () => state.handleTabChange('bracket'))
-    expect(boundary.push).toHaveBeenCalledWith('/(modals)/bracket')
-    expect(state.tab).toBe('results')
+    expect(boundary.push).not.toHaveBeenCalled()
+    expect(boundary.setParams).toHaveBeenCalledWith({ tab: 'bracket' })
+    expect(state.tab).toBe('bracket')
+    await act(async () => state.openBracket())
+    expect(boundary.push).not.toHaveBeenCalled()
 })

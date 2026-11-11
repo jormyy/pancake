@@ -34,9 +34,10 @@ type MultiTeamTradeOverviewProps = {
     columns?: boolean
     onRemoveItem?: (key: string) => void
     pickContext?: TradePickContext
+    showPickDirection?: boolean
 }
 
-export function MultiTeamTradeOverview({ participants, items, compact = false, columns = false, onRemoveItem, pickContext }: MultiTeamTradeOverviewProps) {
+export function MultiTeamTradeOverview({ participants, items, compact = false, columns = false, onRemoveItem, pickContext, showPickDirection = true }: MultiTeamTradeOverviewProps) {
     const { incomingByMember, participantLabels } = useMemo(() => {
         const labels = new Map(participants.map((participant) => [participant.memberId, participant.label]))
         const incoming = new Map<string, TradeFlowItem[]>()
@@ -92,7 +93,7 @@ export function MultiTeamTradeOverview({ participants, items, compact = false, c
                                         {item.player ? <TradePlayerLink {...item.player} stats={[typeof item.player.stats === 'string' ? item.player.stats : null, `From ${participantLabels.get(item.fromMemberId) ?? 'Unknown team'}`, item.detail].filter(Boolean).join(' · ')} /> : <>
                                         <MaterialIcons name="arrow-forward" size={16} color={colors.primary} />
                                         <View style={styles.assetCopy}>
-                                            {item.pick ? <TradePickLabel pick={item.pick} context={pickContext} /> : <Text style={styles.assetLabel} numberOfLines={2}>{item.label}</Text>}
+                                            {item.pick ? <TradePickLabel pick={item.pick} context={pickContext} showDirection={showPickDirection} /> : <Text style={styles.assetLabel} numberOfLines={2}>{item.label}</Text>}
                                             {!item.pick ? (
                                             <Text style={styles.assetSource} numberOfLines={1}>
                                                 From {participantLabels.get(item.fromMemberId) ?? 'Unknown team'}
@@ -105,7 +106,7 @@ export function MultiTeamTradeOverview({ participants, items, compact = false, c
                                             <Pressable style={styles.removeAsset}
                                                 onPress={() => onRemoveItem(item.key)} accessibilityRole="button"
                                                 accessibilityState={{ selected: true }}
-                                                accessibilityLabel={`Remove ${item.pick ? tradePickLabel(item.pick, pickContext) : item.label} sent by ${participantLabels.get(item.fromMemberId) ?? 'Unknown team'} from trade`}>
+                                                accessibilityLabel={`Remove ${item.pick ? tradePickLabel(item.pick, pickContext, showPickDirection) : item.label} sent by ${participantLabels.get(item.fromMemberId) ?? 'Unknown team'} from trade`}>
                                                 <MaterialIcons name="close" size={20} color={colors.textSecondary} />
                                             </Pressable>
                                         ) : null}

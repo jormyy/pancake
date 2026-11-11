@@ -1,4 +1,4 @@
-import type { TradePickItem } from '@/lib/trades'
+import type { TradeItem, TradePickItem } from '@/lib/trades'
 
 export { TRANSACTION_LABELS, activityEventCategory } from '@/lib/shared/transaction-labels'
 
@@ -22,6 +22,8 @@ export type TransactionRow = {
     isSystem?: boolean
     title?: string
     body?: string | null
-    tradePlayers?: { kind: 'player'; playerId: string; playerName: string; tradeValue: number | null; fromMemberId: string; toMemberId: string; fromTeamName: string; toTeamName: string }[]
+    participantTeamNames?: string[]
+    tradePlayers?: (Partial<Extract<TradeItem, { kind: 'player' }>> & { kind: 'player'; playerId: string; playerName: string; tradeValue: number | null; fromMemberId: string; toMemberId: string; fromTeamName: string; toTeamName: string })[]
+    tradeFaab?: (Extract<TradeItem, { kind: 'faab' }> & { fromMemberId: string; toMemberId: string; fromTeamName: string; toTeamName: string })[]
     tradePicks?: (TradePickItem & { fromTeamName: string; toTeamName: string })[]
 }

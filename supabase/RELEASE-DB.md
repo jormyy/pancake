@@ -247,10 +247,17 @@ The [trade curve report](../docs/trade-curve.md) records the real trades, roster
 ## Release order for this release
 
 The supplied production head is `20261214010800`, with 786 migrations.
-The candidate adds `20261214010900_draft_pick_calendar_years.sql`, for 787 migrations.
-It stores draft calendar years and repairs only the approved affected league.
+The candidate adds `20261214010900_draft_pick_calendar_years.sql` and `20261214011000_compact_trade_activity.sql`, for 788 migrations.
+The draft-year migration stores draft calendar years and repairs only the approved affected league.
 The guard requires the exact recorded pick state and refuses drift.
 The tested external recovery SQL accompanies the release inputs.
+
+Apply the compact trade Activity migration after the draft-year migration and before releasing its matching frontend.
+It hides duplicate trade transfer rows before paging and adds player identity and FAAB fields to trade cards.
+Trade-planned drops stay visible, and stored transaction history stays unchanged.
+The release and security attestations regenerate from the local database through this migration.
+The function catalog remains unchanged because function signatures, owners, and grants stay unchanged.
+This candidate does not verify or change production state.
 
 Use the approved hand release for this candidate.
 Stamp and deploy the compatible `api` Edge first, verify its labels on the old data, then run the guarded database dry run and push.

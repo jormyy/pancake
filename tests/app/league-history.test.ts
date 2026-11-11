@@ -32,6 +32,7 @@ vi.mock('@/components/ui/ScreenStatusOverlay', () => ({
 vi.mock('@/components/ui/DeferredContent', () => ({ DeferredContent: ({ ready, children }: { ready: boolean; children: React.ReactNode }) => ready ? children : null }))
 vi.mock('@/hooks/use-league-screen-state', () => ({ useLeagueScreenState: () => ({ ...mocks.state, retryCurrentTab: mocks.refresh }) }))
 vi.mock('@/hooks/use-screen-view', () => ({ useScreenView: () => ({ data: undefined }) }))
+vi.mock('@/components/league/LeaguePlayoffs', () => ({ LeaguePlayoffs: 'LeaguePlayoffs' }))
 vi.mock('@/components/league/LeagueActivityFeed', () => ({ ActivityFeed: 'ActivityFeed' }))
 vi.mock('@/components/league/LeagueStandings', () => ({ StandingsTable: 'StandingsTable' }))
 vi.mock('@/components/league/LeagueSchedule', () => ({ LeagueSchedule: 'LeagueSchedule' }))
@@ -58,7 +59,7 @@ const text = () => screen!.root.findAllByType(host('Text')).map(node => node.chi
 
 beforeEach(() => {
     mocks.refresh.mockClear()
-    Object.assign(mocks.state, { seasons: [], isTabLoaded: true, isTabLoading: false, isTabRefreshing: false, isOnline: true, tabErr: null })
+    Object.assign(mocks.state, { tab: 'seasons', seasons: [], isTabLoaded: true, isTabLoading: false, isTabRefreshing: false, isOnline: true, tabErr: null })
 })
 
 afterEach(async () => {
@@ -123,6 +124,19 @@ describe('League History', () => {
         const options = screen!.root.findByType(host('PageHeader')).props.tabs.props.options
         expect(options).toContainEqual({ value: 'seasons', label: 'History' })
         expect(options).toContainEqual({ value: 'history', label: 'Activity' })
+    })
+
+    it('renders Playoffs under the same League header and tab panel', async () => {
+        mocks.state.tab = 'bracket'
+        await act(async () => { screen = create(React.createElement(LeagueScreen)) })
+        const page = screen!.root.findByType(host('Page'))
+        expect(page.props.title).toBe('League')
+        const tabs = page.findByType(host('PageHeader')).props.tabs
+        expect(tabs.props.value).toBe('bracket')
+        expect(tabs.props.options).toContainEqual({ value: 'bracket', label: 'Playoffs' })
+        const panel = page.findByProps({ role: 'tabpanel' })
+        expect(panel.props['aria-label']).toBe('Playoffs league section')
+        expect(panel.findByType(host('LeaguePlayoffs')).props.playoffEntrants).toBeUndefined()
     })
 
     it('shows a retry after a failed load and preserves saved history after a failed refresh', async () => {
