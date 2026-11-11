@@ -143,7 +143,7 @@ export async function auditWebPanelActions({ check, env, season, target, page, p
       } else {
         await db(fixture.admin.from('leagues').update({ status: 'offseason' }).eq('id', fixture.league.id))
         await db(fixture.admin.from('draft_picks').insert([fixture.proposer, fixture.recipient].map((member) => ({ league_id: fixture.league.id,
-          season_year: fixture.currentSeason.season_year, round: 1, original_owner_id: member.id, current_owner_id: fixture.proposer.id }))))
+          season_year: fixture.currentSeason.season_year - 1, round: 1, original_owner_id: member.id, current_owner_id: fixture.proposer.id }))))
         const draft = await db(fixture.admin.rpc('start_rookie_draft_atomic', { p_league_id: fixture.league.id, p_rounds: 1, p_pick_timer_seconds: 3600 }))
         await db(fixture.admin.rpc('make_snake_pick_atomic', { p_draft_id: draft.id, p_member_id: fixture.proposer.id, p_player_id: incoming.id, p_to_taxi: true }))
         await db(fixture.admin.rpc('stop_draft_atomic', { p_draft_id: draft.id, p_actor_user_id: fixture.users[0].id }))
@@ -188,7 +188,7 @@ export async function auditWebPanelActions({ check, env, season, target, page, p
     await db(fixture.admin.from('players').update({ injury_status: 'Out', years_exp: 0, nba_draft_number: 1 }).eq('id', taxiPlayer.id))
     await db(fixture.admin.from('leagues').update({ status: 'offseason', taxi_slots: 1, allow_inactive_trades: true }).eq('id', fixture.league.id))
     await db(fixture.admin.from('draft_picks').insert([fixture.proposer, fixture.recipient].map((member) => ({ league_id: fixture.league.id,
-      season_year: fixture.currentSeason.season_year, round: 1, original_owner_id: member.id, current_owner_id: fixture.proposer.id }))))
+      season_year: fixture.currentSeason.season_year - 1, round: 1, original_owner_id: member.id, current_owner_id: fixture.proposer.id }))))
     const draft = await db(fixture.admin.rpc('start_rookie_draft_atomic', { p_league_id: fixture.league.id, p_rounds: 1, p_pick_timer_seconds: 3600 }))
     await db(fixture.admin.rpc('make_snake_pick_atomic', { p_draft_id: draft.id, p_member_id: fixture.proposer.id, p_player_id: taxiPlayer.id, p_to_taxi: true }))
     await db(fixture.admin.rpc('stop_draft_atomic', { p_draft_id: draft.id, p_actor_user_id: fixture.users[0].id }))

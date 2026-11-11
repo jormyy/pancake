@@ -5,6 +5,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { requireLocal } from './run.mjs'
 import { preparePickYearFixture } from './pick-year-fixture.mjs'
+import { localFixtureEnv } from './local-fetch.mjs'
 
 const [dirArg, action, argument] = process.argv.slice(2)
 assert.ok(dirArg && action, 'Pass the owned evidence directory and a pick-year action')
@@ -162,6 +163,16 @@ if (action === 'prepare') {
   await writeFile(path.join(dir, 'pick-years-edge.log'), (deno.stdout ?? '') + (deno.stderr ?? ''))
   assert.equal(deno.status, 0, 'Frozen pick valuation tests failed; inspect the owned log')
   await save('pick-years-check-receipt.json', { recipes: receipts, edgeTests: 'passed' })
+} else if (action === 'harness') {
+  requireLocal(env.E2E_API_BASE_URL)
+  const configured = localFixtureEnv({ ...env, PANCAKE_PICK_WINDOW_DB_TESTS: '1', VITEST_MAX_WORKERS: '1' })
+  const result = execute('env', [...Object.entries(configured).map(([key, value]) => `${key}=${value}`),
+    process.execPath, path.join(repo, 'node_modules/vitest/vitest.mjs'), 'run', 'tests/e2e/pick-window-harness.test.ts'])
+  const output = (result.stdout ?? '') + (result.stderr ?? '')
+  await writeFile(path.join(dir, 'pick-years-harness.log'), output)
+  assert.equal(result.status, 0, 'Live future-pick harness failed; inspect the owned log')
+  assert.match(output.replace(/\x1b\[[0-9;]*m/g, ''), /1 passed/)
+  console.log('PASS live future-pick generation, chain, invariant and lifecycle harness')
 } else if (action === 'catalog') {
   for (const [file, name] of [['db-security-catalog.sql', 'pick-years-security-catalog.json'], ['release-schema-history.sql', 'pick-years-schema-history.json']]) {
     await save(name, JSON.parse(query(await readFile(path.join(repo, 'tests/e2e', file), 'utf8'))))
@@ -230,5 +241,5 @@ if (action === 'prepare') {
   }
   await save(`pick-years-ui-${argument}-receipt.json`, { engine: 'WebKit', head: run.sha, receipts })
 } else {
-  throw new Error('Use prepare, observe, apply, rollback, check, catalog, attest or drive')
+  throw new Error('Use prepare, observe, apply, rollback, check, harness, catalog, attest or drive')
 }

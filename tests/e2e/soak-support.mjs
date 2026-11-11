@@ -516,10 +516,10 @@ export const setupFuturePickChain = async (supabase, leagueId) => {
   })
   if (members.length < 4) throw new Error('Future-pick chain requires at least four league members')
 
-  let targetYear = currentSeason.season_year + 3
+  let targetYear = currentSeason.season_year + 2
   let targetPick = null
   let member1 = null
-  for (const year of Array.from({ length: 3 }, (_, index) => currentSeason.season_year + 3 - index)) {
+  for (const year of Array.from({ length: 3 }, (_, index) => currentSeason.season_year + 2 - index)) {
     const { data: candidatePicks, error: candidateError } = await withSupabaseRetry('draft_picks target pick lookup', () => supabase
         .from('draft_picks')
         .select('id, current_owner_id, original_owner_id, season_year, round')
@@ -592,7 +592,7 @@ export const assertFuturePickMaterializedInRookieDraft = async (supabase, env, l
     'id, season_year',
     { league_id: leagueId, is_current: true },
   )
-  if (currentSeason.season_year < scenario.targetYear) return null
+  if (currentSeason.season_year - 1 < scenario.targetYear) return null
 
   const { draft } = await backendJson(env, '/e2e/start-rookie-draft', { leagueId })
   const { data: slot, error } = await supabase

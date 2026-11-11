@@ -197,7 +197,7 @@ const setupBrowserRookieDraftFixture = async (env, season) => {
     for (let round = 1; round <= 3; round += 1) {
       pickRows.push({
         league_id: league.id,
-        season_year: currentSeason.season_year,
+        season_year: currentSeason.season_year - 1,
         round,
         original_owner_id: member.id,
         current_owner_id: member.id,

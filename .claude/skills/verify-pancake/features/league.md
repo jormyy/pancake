@@ -69,6 +69,7 @@ It leaves derived caches expired for safe regeneration.
 `check` runs the calendar-boundary, generation, rollover, rookie, trade-window, valuation and related recipe tests against this owned stack.
 Its external execution copies replace the old fixed API port with this run's loopback endpoint and resolve recipe includes to the checkout.
 It also runs the focused frozen-valuation Edge tests.
+Run `node tools/verify/pick-years.mjs "$EVIDENCE" harness` for the opt-in database-backed future-pick chain, invariant and lifecycle test; its local API configuration comes only from this generated run.
 
 `drive after` signs in through visible controls in WebKit at 390×844, 375×812 and 1440×1000.
 It selects the fixture league, opens Picks, selects All, and requires the full 2027–2031 window.
