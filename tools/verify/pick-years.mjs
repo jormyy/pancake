@@ -183,6 +183,11 @@ if (action === 'prepare') {
     'node', 'scripts/regenerate-release-history-attestations.mjs'])
   await writeFile(path.join(dir, 'pick-years-attest.log'), (result.stdout ?? '') + (result.stderr ?? ''))
   assert.equal(result.status, 0, 'Local attestation refresh failed; inspect the owned log')
+  for (const command of ['--write-catalog-manifest', '--check-catalog']) {
+    const catalog = execute('env', [`SUPABASE_DB_URL=${database.href}`, 'node', 'scripts/check-db-function-sources.mjs', command])
+    await writeFile(path.join(dir, `pick-years-catalog-${command.slice(2)}.log`), (catalog.stdout ?? '') + (catalog.stderr ?? ''))
+    assert.equal(catalog.status, 0, 'Local function catalog attestation failed; inspect the owned log')
+  }
   console.log('Regenerated required release attestations from the owned local database')
 } else if (action === 'drive') {
   assert.ok(['before', 'after'].includes(argument))
