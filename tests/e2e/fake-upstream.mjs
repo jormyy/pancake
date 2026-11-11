@@ -1,5 +1,6 @@
 import http from 'node:http'
 import { seasonWeekRows, seasonYearForDate } from './harness/season-calendar.mjs'
+import { fakePlayerSourceResponse } from './fake-player-sources.mjs'
 
 const json = (res, status, body) => {
   const payload = JSON.stringify(body)
@@ -142,6 +143,8 @@ export function createFakeUpstreamServer({ seasonYear = 2027, calendarWeeks = 26
       if (req.method === 'GET' && (url.pathname.includes('/liveData/') || url.pathname.includes('/staticData/'))) {
         state.hits.nbaCdn += 1
       }
+      const playerSource = req.method === 'GET' && fakePlayerSourceResponse(url, state)
+      if (playerSource) return json(res, 200, playerSource)
 
       if (req.method === 'GET' && url.pathname.endsWith('/liveData/scoreboard/todaysScoreboard_00.json')) {
         const today = state.now.slice(0, 10)
@@ -192,21 +195,6 @@ export function createFakeUpstreamServer({ seasonYear = 2027, calendarWeeks = 26
             }],
           }))
         return json(res, 200, { leagueSchedule: { seasonYear: `${state.seasonYear - 1}-${String(state.seasonYear % 100).padStart(2, '0')}`, gameDates } })
-      }
-
-      if (req.method === 'GET' && url.pathname.endsWith('/staticData/playerIndex.json')) {
-        return json(res, 200, {
-          resultSets: [{
-            name: 'PlayerIndex',
-            headers: ['PERSON_ID', 'PLAYER_FIRST_NAME', 'PLAYER_LAST_NAME', 'ROSTER_STATUS'],
-            rowSet: [...state.players.values()].map((player) => [
-              Number(player.player_id),
-              player.first_name,
-              player.last_name,
-              player.active ? 1 : 0,
-            ]),
-          }],
-        })
       }
 
       if (req.method === 'GET' && url.pathname === '/v1/players/nba') {

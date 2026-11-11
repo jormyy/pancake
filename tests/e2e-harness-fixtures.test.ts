@@ -79,6 +79,45 @@ const fakeRequest = async (method: string, url: string, body: unknown = {}) => {
 }
 const schedule = async () => (await fakeRequest('GET', '/staticData/scheduleLeagueV2_1.json')).body as unknown as Schedule
 
+describe('fake primary player sources', () => {
+    it('serves complete matching ESPN and NBA rosters without the dormant fallback', async () => {
+        createFakeUpstreamServer()
+        const teams = await fakeRequest('GET', '/espn/teams')
+        expect(teams.status).toBe(200)
+        const entries = (teams.body as { sports: { leagues: { teams: { team: { id: string; abbreviation: string } }[] }[] }[] }).sports[0].leagues[0].teams
+        expect(entries).toHaveLength(30)
+        const ids: string[] = []
+        for (const { team } of entries) {
+            const response = await fakeRequest('GET', `/espn/teams/${team.id}/roster`)
+            expect(response.status).toBe(200)
+            const athletes = (response.body as { athletes: { id: string; team: { abbreviation: string } }[] }).athletes
+            expect(athletes.length).toBeGreaterThanOrEqual(12)
+            expect(athletes.every(athlete => athlete.team.abbreviation === team.abbreviation)).toBe(true)
+            ids.push(...athletes.map(athlete => athlete.id))
+        }
+        expect(ids).toHaveLength(365)
+        expect(new Set(ids).size).toBe(ids.length)
+        const index = (await fakeRequest('GET', '/staticData/playerIndex.json')).body as { resultSets: { headers: string[]; rowSet: unknown[][] }[] }
+        expect(index.resultSets[0].headers).toContain('TEAM_ABBREVIATION')
+        expect(new Set(index.resultSets[0].rowSet.map(row => String(row[0])))).toEqual(new Set(ids))
+        expect((await fakeRequest('GET', '/espn-search?query=Ari%20Glass')).body.items).toEqual([{ id: '1001', displayName: 'Ari Glass', type: 'player', league: 'nba' }])
+        expect((await fakeRequest('GET', '/espn/news')).body.articles).toEqual([])
+    })
+
+    it('keeps biography, injuries and career seasons coherent through rollover', async () => {
+        createFakeUpstreamServer()
+        const biography = (await fakeRequest('GET', '/espn-career/athletes/1001')).body as { athlete: { id: string; displayExperience: string } }
+        expect(biography.athlete).toMatchObject({ id: '1001', displayExperience: '5th Season' })
+        await fakeRequest('POST', '/admin/injury', { playerId: '1001', injuryStatus: 'Questionable' })
+        const injuries = JSON.stringify((await fakeRequest('GET', '/espn/injuries')).body)
+        expect(injuries).toContain('Questionable')
+        await fakeRequest('POST', '/admin/advance-season')
+        const career = (await fakeRequest('GET', '/espn-career/athletes/1001/stats?seasontype=2')).body as { categories: { statistics: { season: { year: number } }[] }[] }
+        expect(career.categories[0].statistics[0].season.year).toBe(2027)
+        expect((await fakeRequest('GET', '/espn-career/athletes/999999999/stats')).status).toBe(404)
+    })
+})
+
 describe('fake NBA season calendar', () => {
     it('covers all regular and playoff weeks, including the next calendar year', async () => {
         createFakeUpstreamServer()
