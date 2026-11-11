@@ -1756,7 +1756,12 @@ DECLARE
 BEGIN
   PERFORM pg_advisory_xact_lock(hashtextextended('draft-pick-calendar-years:'||v_league::text,0));
   PERFORM 1 FROM public.leagues WHERE id=v_league FOR UPDATE;
-  IF NOT FOUND THEN RETURN; END IF;
+  IF NOT FOUND THEN
+    IF EXISTS(SELECT 1 FROM public.leagues) THEN
+      RAISE EXCEPTION 'Draft-pick calendar repair target missing from populated database';
+    END IF;
+    RETURN;
+  END IF;
   IF EXISTS(SELECT 1 FROM private.draft_pick_calendar_repairs WHERE league_id=v_league) THEN
     IF NOT EXISTS(SELECT 1 FROM private.draft_pick_calendar_repairs
       WHERE league_id=v_league AND before_sha256=v_before AND after_sha256=v_after AND pick_count=150) THEN
