@@ -3,7 +3,7 @@ import { maskSqlNonCode } from '../scripts/check-db-function-sources.mjs'
 import { PLAYER_REFERENCE_TABLES, deletePlayersWithReferences } from './e2e/harness-cleanup.mjs'
 import { createDisposableLeagueFromSeedUsers, ensureRosterFixture, ensureSyntheticSeasonWeeks } from './e2e/soak-fixtures.mjs'
 import { createFakeUpstreamServer } from './e2e/fake-upstream.mjs'
-import { backendAuthedJson } from './e2e/soak-network.mjs'
+import { backendAuthedJson, backendJson } from './e2e/soak-network.mjs'
 import { assertSeasonResetScenario, assertWeeklyScoringFinalizationScenario } from './e2e/soak-scoring-reset.mjs'
 import { ensureHistoryFixtureForSeason } from './e2e/soak-support.mjs'
 import { completeSoakSeason, prepareSoakSeason, readSoakSeason, rolloverSoakSeason } from './e2e/harness/season-loop.mjs'
@@ -15,6 +15,19 @@ import { createScenarioResourceOwner } from './e2e/scenario-resource-owner.mjs'
 afterEach(() => { vi.unstubAllGlobals(); boundaryQueries.read.mockReset() })
 
 describe('trade request identity', () => {
+    it('identifies backend tick and non-trade mutations at the HTTP boundary', async () => {
+        const fetch = vi.fn(async (_url: unknown, _options: { headers: Record<string, string> }) => ({ ok: true, json: async () => ({ ok: true }) }))
+        vi.stubGlobal('fetch', fetch)
+        const env = { apiBaseUrl: 'http://fixture.invalid/api', e2eAdminSecret: 'synthetic' }
+        await backendJson(env, '/e2e/sync-schedule')
+        await backendJson(env, '/e2e/sync-schedule')
+        await backendAuthedJson(env, '/leagues/create', 'fixture-token', { requestId: 'a52634f1-0ba6-4c68-bc24-14ef371c423c' })
+        const ids = fetch.mock.calls.map(([, options]) => options.headers['x-request-id'])
+        expect(ids[0]).toMatch(/^[0-9a-f-]{36}$/)
+        expect(ids[1]).toMatch(/^[0-9a-f-]{36}$/)
+        expect(ids[1]).not.toBe(ids[0])
+        expect(ids[2]).toBe('a52634f1-0ba6-4c68-bc24-14ef371c423c')
+    })
     it('sends a new request ID for trade actions and keeps caller IDs for retries', async () => {
         const fetch = vi.fn(async (_url: unknown, _options: { body: string }) => ({ ok: true, json: async () => ({ ok: true }) }))
         vi.stubGlobal('fetch', fetch)

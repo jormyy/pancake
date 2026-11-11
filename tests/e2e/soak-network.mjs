@@ -19,11 +19,13 @@ export const backendUrl = (env, pathname) => {
 }
 
 export const backendJson = async (env, pathname, body = {}) => {
+  const requestId = body.requestId ?? randomUUID()
   const response = await fetch(backendUrl(env, pathname), {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
       'x-e2e-secret': env.e2eAdminSecret,
+      'x-request-id': requestId,
     },
     body: JSON.stringify(body),
   })
@@ -43,13 +45,15 @@ export const backendGetJson = async (env, pathname) => {
 }
 
 export const backendAuthedJson = async (env, pathname, token, body = {}) => {
+  const requestId = body.requestId ?? randomUUID()
   const response = await fetch(backendUrl(env, pathname), {
     method: 'POST',
     headers: {
       authorization: `Bearer ${token}`,
+      'x-request-id': requestId,
       'content-type': 'application/json',
     },
-    body: JSON.stringify(pathname.startsWith('/trades/') ? { requestId: randomUUID(), ...body } : body),
+    body: JSON.stringify(pathname.startsWith('/trades/') ? { requestId, ...body } : body),
   })
   if (!response.ok) {
     const text = await response.text().catch(() => '')
