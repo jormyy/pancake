@@ -140,3 +140,8 @@ This explicit setting supplies Docker access without reading any private configu
 It retains this run's database, configuration, and recorded services.
 It stamps the current source revision, reapplies idempotent enrichment, and runs doctor before and after the build.
 Restart only this run's WebKit control with `node tools/verify/run.mjs webkit "$EVIDENCE"`, then rerun the journey.
+
+The `dynasty-pick-calendar-years` journey uses `pick-years.mjs EVIDENCE prepare FILTERED_BEFORE`, then `apply`, `rollback REVIEWED_SQL`, `check` and `drive after`.
+Its fixture helper recreates only sanitized pick identities with synthetic users.
+The before-snapshot and reverse SQL remain external evidence inputs, never repository fixtures or credentials.
+The League feature map specifies exact prerequisites, proof files and fresh-install versus ordered-upgrade behavior.

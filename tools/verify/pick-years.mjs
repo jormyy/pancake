@@ -93,10 +93,12 @@ if (action === 'prepare') {
   console.log('Saved filtered local pick-year state')
 } else if (action === 'apply') {
   const before = await json('pick-years-before.json')
+  const source = await readFile(migration, 'utf8')
+  const registered = query("SELECT EXISTS(SELECT 1 FROM supabase_migrations.schema_migrations WHERE version='20261214010900')") === 't'
   const drift = before.picks.find(pick => pick.original_owner_id === pick.current_owner_id && !(before.blocks ?? []).some(block => block.pick_id === pick.id))
   query(`UPDATE public.draft_picks SET season_year=season_year+100 WHERE id='${drift.id}' AND league_id='${league}'`)
   try {
-    const refused = execute('supabase', ['migration', 'up', '--db-url', database.href], undefined)
+    const refused = execute('psql', [database.href, '-XqAt', '-v', 'ON_ERROR_STOP=1', '-f', '-'], source)
     await writeFile(path.join(dir, 'pick-years-refused.log'), (refused.stdout ?? '') + (refused.stderr ?? ''))
     assert.notEqual(refused.status, 0)
     assert.match((refused.stdout ?? '') + (refused.stderr ?? ''), /before-state mismatch/)
@@ -105,7 +107,9 @@ if (action === 'prepare') {
     query(`UPDATE public.draft_picks SET season_year=season_year-100 WHERE id='${drift.id}' AND league_id='${league}'`)
   }
   assert.deepEqual(state().picks, before.picks)
-  const applied = execute('supabase', ['migration', 'up', '--db-url', database.href], undefined)
+  const applied = registered
+    ? execute('psql', [database.href, '-XqAt', '-v', 'ON_ERROR_STOP=1', '-f', '-'], source)
+    : execute('supabase', ['migration', 'up', '--db-url', database.href], undefined)
   await writeFile(path.join(dir, 'pick-years-apply.log'), (applied.stdout ?? '') + (applied.stderr ?? ''))
   assert.equal(applied.status, 0, 'Migration application failed; inspect the owned log')
   const after = state()
@@ -117,7 +121,7 @@ if (action === 'prepare') {
   const repeated = state()
   assert.deepEqual(repeated, after)
   await save('pick-years-repeat.json', repeated)
-  await save('pick-years-migration-receipt.json', { driftRefused: true, picksShifted: 150, tradedOwnersPreserved: 7,
+  await save('pick-years-migration-receipt.json', { mode: registered ? 'fresh-install repair replay' : 'ordered upgrade', driftRefused: true, picksShifted: 150, tradedOwnersPreserved: 7,
     numericReferencesShifted: copies(before).length, allOtherPickColumnsPreserved: true, otherLeagueUnchanged: true, repeatUnchanged: true })
   console.log('PASS drift refusal, 150 exact shifts, reference reconciliation, seven traded owners and repeat no-op')
 } else if (action === 'rollback') {

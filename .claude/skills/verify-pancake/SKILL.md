@@ -166,3 +166,12 @@ test -s "$EVIDENCE/trade-player-stats-all-receipt.json"
 test -s "$EVIDENCE/webkit-trade-player-stats-375-propose-name-back.png"
 test -s "$EVIDENCE/webkit-trade-player-stats-1440-accept-roster-plan-back.png"
 ```
+
+## Dynasty pick calendar-year repair
+
+Use the `dynasty-pick-calendar-years` journey in [League](features/league.md) for the guarded data repair.
+The normal launch applies the current schema, then `pick-years.mjs prepare` creates the legacy wrong-year fixture.
+Provide the approved filtered before-snapshot and reviewed external rollback file explicitly.
+`apply` handles both an ordered upgrade and a current-schema fresh fixture; it never targets a hosted database.
+Run its reconciliation, drift refusal, repeat, rollback and focused recipe checks before the visible Picks journey.
+Keep data snapshots, migration receipts and both All/Traded screenshots after cleanup.
