@@ -254,6 +254,9 @@ The tested external recovery SQL accompanies the release inputs.
 
 Use the approved hand release for this candidate.
 Stamp and deploy the compatible `api` Edge first, verify its labels on the old data, then run the guarded database dry run and push.
+The `refresh-views` function independently bundles the trade formatter through `api/tradeEstimates.ts`.
+After `api`, deploy `refresh-views` from the same stamped candidate before the database change; drain its old workers first.
+An API-only update leaves that worker able to publish old-convention labels from calendar-year inputs.
 After reconciliation, merge the frontend through the supervisor.
 The previous production Edge was never stamped, so the release runner cannot verify its predecessor; leave that runner guard unchanged.
 The earlier database-first recipes below describe historical releases.
@@ -270,7 +273,7 @@ Prepare focused checks, final quality and test receipts, local migration and HTT
 The supervisor dropped the twenty-season replay and runner rehearsal for this promotion.
 Keep a full database backup and the trusted `62d064dd` source available before deployment.
 Stamp the candidate from its complete deployment inputs in a separate source export, then deploy only `api`; do not commit generated release metadata.
-Redeploying the prior `api` on old data is the Edge-only rollback; after database migration, coordinate the tested SQL recovery before restoring legacy Edge formatting.
+Redeploying the prior `api` and `refresh-views` on old data is the Edge-only rollback; after database migration, coordinate the tested SQL recovery before restoring legacy Edge formatting.
 
 Before promotion, capture the scoped read-only pick and frozen-reference reconciliation.
 After the guarded migration, require all 150 pick IDs, rounds and owners unchanged, each year reduced by one, consistent numeric references and unchanged saved labels and values.
