@@ -37,13 +37,6 @@ Preconditions:
 - **History.** Select History and require the `pastSeasonYear` from `fixture.json`. Open it and compare final positions and statistics with `fixture.json.history`. Require Team 2 as champion, Team 1 as runner-up, two games, and 420 total points.
 - **Widths.** At 375×812 scroll the section row and confirm every section remains reachable.
 
-## Gotchas
-
-- Activity shows transactions. History shows completed Pancake seasons.
-- Require `completedPastSeason: true` and the matching final matchup before testing History.
-- No playoff fixture means bracket population remains unverified.
-- Do not count imported non-Pancake seasons as eligible history.
-
 ### Dynasty pick calendar years
 
 Use a disposable stack and the filtered before-snapshot supplied for the approved repair.
@@ -94,3 +87,22 @@ After they match, run `node tools/verify/pick-years.mjs "$EVIDENCE" attest` on t
 A missing filtered snapshot or reviewed rollback is a failed precondition, not a skipped proof.
 The fixed repair accepts only its recorded league and exact before-state; do not weaken its guard to fit another fixture.
 Production application, live reconciliation and release remain supervisor actions.
+
+## Gotchas
+
+- Activity shows transactions. History shows completed Pancake seasons.
+- Require `completedPastSeason: true` and the matching final matchup before testing History.
+- No playoff fixture means bracket population remains unverified.
+- Do not count imported non-Pancake seasons as eligible history.
+
+
+After the pick-year journey, run normal cleanup and require the proof files to remain:
+
+```sh
+tools/verify/cleanup.sh "$EVIDENCE"
+test -s "$EVIDENCE/pick-years-migration-receipt.json"
+test -s "$EVIDENCE/pick-years-repeat.json"
+test -s "$EVIDENCE/pick-years-rollback.json"
+test -s "$EVIDENCE/pick-years-ui-after-receipt.json"
+test -s "$EVIDENCE/webkit-pick-years-after-375-traded.png"
+```
