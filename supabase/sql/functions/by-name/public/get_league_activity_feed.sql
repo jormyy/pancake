@@ -89,6 +89,13 @@ BEGIN
     LEFT JOIN players AS player ON player.id = tx.player_id
     WHERE tx.league_id = p_league_id
       AND tx.transaction_type IN ('fa_add', 'fa_drop', 'waiver_add', 'waiver_drop', 'trade_in', 'trade_out', 'draft_won', 'carry_over')
+      AND NOT (tx.transaction_type IN ('trade_in', 'trade_out') AND EXISTS (
+        SELECT 1 FROM public.trades AS completed_trade
+        WHERE completed_trade.id = tx.related_trade_id
+          AND completed_trade.league_id = tx.league_id
+          AND completed_trade.status = 'completed'
+          AND completed_trade.completed_at IS NOT NULL
+      ))
 
     UNION ALL
 

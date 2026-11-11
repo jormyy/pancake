@@ -3,6 +3,8 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { expect, it, vi } from 'vitest'
 import { colors, controlSize } from '@/constants/tokens'
 import { ActivityFeed } from '@/components/league/LeagueActivityFeed'
+vi.mock('@/lib/trades', () => ({}))
+vi.mock('@/components/trades/SavedTradeEstimate', () => ({ SavedTradeEstimate: () => null }))
 vi.mock('@/hooks/use-league-timezone', () => ({ useLeagueTimezone: () => 'America/Los_Angeles' }))
 
 const { push } = vi.hoisted(() => ({ push: vi.fn() }))
@@ -71,9 +73,8 @@ it.each(['trade_completed', 'commissioner_announcement'])('links grouped players
         const links = row.root.findAllByType('Pressable' as React.ElementType)
         expect(links.map(link => link.props.accessibilityLabel)).toEqual(transactionType === 'trade_completed' ? ['View High stats', 'View Low stats'] : [])
         if (transactionType === 'trade_completed') {
-            expect(row.root.findAllByType('PlayerRowContent' as React.ElementType)).toHaveLength(0)
-            expect(links.map(link => link.findByType('Text' as React.ElementType).props.children.join(''))).toEqual(['High · E2E Team 2 → E2E Team 1', 'Low · E2E Team 1 → E2E Team 2'])
-            expect(links.map(link => link.findByType('Text' as React.ElementType).props.numberOfLines)).toEqual([undefined, undefined])
+            expect(row.root.findAllByType('PlayerRowContent' as React.ElementType)).toHaveLength(2)
+            expect(links.map(link => link.findByType('PlayerRowContent' as React.ElementType).props.name)).toEqual(['High', 'Low'])
             expect(links[0].props.accessibilityRole).toBe('button')
             expect(links[0].props.style).toContainEqual(expect.objectContaining({ minHeight: controlSize.minTouch }))
             await act(async () => links[0].props.onFocus())
