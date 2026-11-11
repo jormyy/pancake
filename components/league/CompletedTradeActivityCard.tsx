@@ -38,10 +38,10 @@ export function CompletedTradeActivityCard({ item, myMemberId, padX }: { item: T
                         <Text style={styles.fallback}>{item.body ?? 'Trade asset details are unavailable.'}</Text>
                     </View>
                 ) : participants.length > 2 ? (
-                    <MultiTeamTradeOverview compact participants={participants} pickContext={pickContext} showPickDirection={false}
+                    <MultiTeamTradeOverview compact participants={participants} pickContext={pickContext} showPickDirection={false} pickOrder="year-round"
                         items={assets.map(tradeFlowItem).filter((asset): asset is TradeFlowItem => asset !== null)} />
                 ) : participants.map(team => (
-                    <AssetList key={team.memberId} label={`${team.label} receives`} stacked showContext={false}
+                    <AssetList key={team.memberId} label={`${team.label} receives`} stacked showContext={false} pickOrder="year-round"
                         items={assets.filter(asset => asset.toMemberId === team.memberId)} pickContext={pickContext} />
                 ))}
             </View>
