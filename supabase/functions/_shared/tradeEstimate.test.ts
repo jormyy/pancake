@@ -26,7 +26,7 @@ Deno.test('known pick positions use imported bands and the frozen official team 
   const input = fixture()
   input.terms = [{ fromMemberId: 'a', toMemberId: 'b', playerId: null, pickId: 'pick', faabAmount: 0 }]
   input.picks = [{ id: 'pick', seasonYear: 2027, round: 1, slot: 1, ownerId: 'a', originalOwnerId: 'c', originalTeamName: 'Original', valueBands: { early: 716, mid: 557, late: 397 } }]
-  assert.equal(analyzeTradeEstimate(input, observedAt).assets[0].label, '2026 Round 1 · Original')
+  assert.equal(analyzeTradeEstimate(input, observedAt).assets[0].label, '2027 Round 1 · Original')
   assert.equal(analyzeTradeEstimate(input, observedAt).assets[0].values.overall, 716)
   input.picks[0].slot = null
   const unknown = analyzeTradeEstimate(input, observedAt).assets[0]
