@@ -1,4 +1,4 @@
-import { orderTradeAssets } from '@/lib/trade-assets'
+import { orderTradeAssets, type TradePickOrder } from '@/lib/trade-assets'
 import { useLeagueTimezone } from '@/hooks/use-league-timezone'
 import { formatLeagueDateTime } from '@/lib/timezone'
 import { PendingMutationBadge } from '@/components/PendingMutationBadge'
@@ -145,14 +145,14 @@ function TradeItemLine({ item, showContext = true, pickContext, onOpen }: { item
     )
 }
 
-export function AssetList({ items, label, showContext = true, stacked = false, pickContext, onOpen }: { items: TradeItem[]; label: string; showContext?: boolean; stacked?: boolean; pickContext?: TradePickContext; onOpen?: () => void }) {
+export function AssetList({ items, label, showContext = true, stacked = false, pickContext, pickOrder = 'round-year', onOpen }: { items: TradeItem[]; label: string; showContext?: boolean; stacked?: boolean; pickContext?: TradePickContext; pickOrder?: TradePickOrder; onOpen?: () => void }) {
     return (
         <View style={[styles.assetBlock, stacked && styles.stackedAssetBlock]}>
             <Text style={styles.assetLabel} numberOfLines={1}>{label}</Text>
             {items.length === 0 ? (
                 <Text style={styles.assetEmpty}>Nothing</Text>
             ) : (
-                orderTradeAssets(items).map((item, index) => (
+                orderTradeAssets(items, pickOrder).map((item, index) => (
                     <TradeItemLine key={tradeItemKey(item, index)} item={item} showContext={showContext} pickContext={pickContext} onOpen={onOpen} />
                 ))
             )}

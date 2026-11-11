@@ -1,4 +1,4 @@
-import { orderTradeAssets } from '@/lib/trade-assets'
+import { orderTradeAssets, type TradePickOrder } from '@/lib/trade-assets'
 import { TradePlayerLink, type TradePlayerLinkProps } from '@/components/trades/TradePlayerLink'
 import { TradePickLabel } from '@/components/trades/TradePickLabel'
 import { tradePickLabel, type TradePickContext } from '@/lib/trade-pick-label'
@@ -35,19 +35,20 @@ type MultiTeamTradeOverviewProps = {
     onRemoveItem?: (key: string) => void
     pickContext?: TradePickContext
     showPickDirection?: boolean
+    pickOrder?: TradePickOrder
 }
 
-export function MultiTeamTradeOverview({ participants, items, compact = false, columns = false, onRemoveItem, pickContext, showPickDirection = true }: MultiTeamTradeOverviewProps) {
+export function MultiTeamTradeOverview({ participants, items, compact = false, columns = false, onRemoveItem, pickContext, showPickDirection = true, pickOrder = 'round-year' }: MultiTeamTradeOverviewProps) {
     const { incomingByMember, participantLabels } = useMemo(() => {
         const labels = new Map(participants.map((participant) => [participant.memberId, participant.label]))
         const incoming = new Map<string, TradeFlowItem[]>()
-        for (const item of orderTradeAssets(items, item => item.pick ?? { kind: item.player ? 'player' : 'faab', tradeValue: item.tradeValue, playerName: item.label, playerId: item.playerId })) {
+        for (const item of orderTradeAssets(items, item => item.pick ?? { kind: item.player ? 'player' : 'faab', tradeValue: item.tradeValue, playerName: item.label, playerId: item.playerId }, pickOrder)) {
             const bucket = incoming.get(item.toMemberId)
             if (bucket) bucket.push(item)
             else incoming.set(item.toMemberId, [item])
         }
         return { incomingByMember: incoming, participantLabels: labels }
-    }, [items, participants])
+    }, [items, participants, pickOrder])
 
     return (
         <View style={[styles.container, compact && styles.containerCompact]}>

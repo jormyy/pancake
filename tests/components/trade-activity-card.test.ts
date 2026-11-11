@@ -1,6 +1,8 @@
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, expect, it, vi } from 'vitest'
+import { TradeCard } from '@/components/trades/TradeCard'
+import { trade } from '../helpers/fixtures'
 import { ActivityFeed } from '@/components/league/LeagueActivityFeed'
 import { tradePlayerDetailRoute } from '@/components/player/navigation'
 import { playerHeadshotUrl } from '@/lib/format'
@@ -40,6 +42,7 @@ const item: TransactionRow = {
         { kind: 'pick', pickId: 'r2', seasonYear: 2027, round: 2, originalTeamName: 'Foxes', fromMemberId: 'b', toMemberId: 'a', fromTeamName: 'Foxes', toTeamName: 'Owls' },
         { kind: 'pick', pickId: 'r1-later', seasonYear: 2029, round: 1, originalTeamName: 'Foxes', fromMemberId: 'b', toMemberId: 'a', fromTeamName: 'Foxes', toTeamName: 'Owls' },
         { kind: 'pick', pickId: 'r1', seasonYear: 2028, round: 1, originalTeamName: 'Foxes', fromMemberId: 'b', toMemberId: 'a', fromTeamName: 'Foxes', toTeamName: 'Owls' },
+        { kind: 'pick', pickId: 'earliest', seasonYear: 2027, round: 1, originalTeamName: 'Foxes', fromMemberId: 'b', toMemberId: 'a', fromTeamName: 'Foxes', toTeamName: 'Owls' },
         { kind: 'pick', pickId: 'other', seasonYear: 2028, round: 1, originalTeamName: 'Owls', fromMemberId: 'a', toMemberId: 'b', fromTeamName: 'Owls', toTeamName: 'Foxes' },
     ],
 }
@@ -59,7 +62,13 @@ async function renderRow(event = item, myMemberId?: string) {
     return row
 }
 
-it('shows one compact trade with both receiving teams, headshots, and shared asset order', async () => {
+function renderedAssets(tree: ReactTestRenderer) {
+    return tree.root.findAll(node => node.type === ('Text' as React.ElementType)
+        && (node.props.testID === 'player-name-line' || /^\d{4} Round /.test(node.props.accessibilityLabel ?? '')))
+        .map(node => React.Children.toArray(node.props.children).join(''))
+}
+
+it('shows a two-team trade with players first and picks ordered by year then round', async () => {
     const row = await renderRow()
     expect(row.root.findAllByProps({ testID: 'trade-activity-completed' })).toHaveLength(1)
     const texts = row.root.findAllByType('Text' as React.ElementType).map(node => node.props.children)
@@ -73,16 +82,16 @@ it('shows one compact trade with both receiving teams, headshots, and shared ass
     const assetText = JSON.stringify(row.toJSON())
     expect(assetText).not.toContain(' — from ')
     expect(assetText).toContain('2028 Round 1 (orig. Foxes)')
-    expect(assetText.indexOf('High')).toBeLessThan(assetText.indexOf('Low'))
-    expect(assetText.indexOf('Low')).toBeLessThan(assetText.indexOf('2028 Round 1'))
-    expect(assetText.indexOf('2028 Round 1')).toBeLessThan(assetText.indexOf('2029 Round 1'))
-    expect(assetText.indexOf('2029 Round 1')).toBeLessThan(assetText.indexOf('2027 Round 2'))
+    expect(renderedAssets(row)).toEqual([
+        'High', 'Low', '2027 Round 1 (orig. Foxes)', '2027 Round 2 (orig. Foxes)',
+        '2028 Round 1 (orig. Foxes)', '2029 Round 1 (orig. Foxes)', '2028 Round 1 (orig. Owls)',
+    ])
     expect(row.root.findAllByType('Text' as React.ElementType).map(node => React.Children.toArray(node.props.children).join(''))).toContain('R1')
     await act(async () => links[0].props.onPress())
     expect(navigation.push).toHaveBeenCalledExactlyOnceWith(tradePlayerDetailRoute({ playerId: 'high', name: 'High', nbaId: '456', team: 'DEN', positions: ['C'] }))
 })
 
-it('shows every receiving team with accepted-card pick labels in a three-team completed trade', async () => {
+it('shows a three-team trade with players first and picks ordered by year then round', async () => {
     const row = await renderRow({ ...item, participantTeamNames: ['Owls', 'Foxes', 'Bears'], tradePlayers: [
         ...item.tradePlayers!,
         { ...item.tradePlayers![0], playerId: 'third', playerName: 'Third', fromMemberId: 'a', toMemberId: 'c', fromTeamName: 'Owls', toTeamName: 'Bears' },
@@ -93,6 +102,11 @@ it('shows every receiving team with accepted-card pick labels in a three-team co
     const labels = row.root.findAllByType('Text' as React.ElementType).map(node => node.props.accessibilityLabel).filter(Boolean)
     expect(labels).toContain('2028 Round 1 (orig. Bears)')
     expect(labels.every(label => !label.includes(' — from '))).toBe(true)
+    expect(renderedAssets(row)).toEqual([
+        'High', 'Low', '2027 Round 1 (orig. Foxes)', '2027 Round 2 (orig. Foxes)',
+        '2028 Round 1 (orig. Foxes)', '2028 Round 1 (orig. Bears)', '2029 Round 1 (orig. Foxes)',
+        '2028 Round 1 (orig. Owls)', 'Third',
+    ])
     const text = JSON.stringify(row.toJSON())
     for (const team of ['Owls', 'Foxes', 'Bears']) expect(text).toContain(team)
     expect(text.match(/gets/g)).toHaveLength(3)
@@ -120,4 +134,24 @@ it('keeps legacy trades honest when asset details are missing', async () => {
     expect(text).toContain('Foxes')
     expect(text).toContain('Trade asset details are unavailable.')
     expect(text).not.toContain('Nothing')
+})
+
+
+it('keeps Trades tab cards ordered by round then year', async () => {
+    const offer = trade({ proposerMemberId: 'b', proposerTeamName: 'Foxes', recipientMemberId: 'a', recipientTeamName: 'Owls',
+        routedItems: [
+            ...item.tradePlayers!.map(player => ({ ...player, position: player.position ?? null, nbaTeam: player.nbaTeam ?? null })),
+            ...item.tradePicks!.map(pick => ({ ...pick, fromMemberId: pick.fromMemberId!, toMemberId: pick.toMemberId! })),
+        ],
+    })
+    let card!: ReactTestRenderer
+    await act(async () => { card = create(React.createElement(TradeCard, {
+        trade: offer, myMemberId: 'a', tab: 'history', acting: false,
+        onAccept: vi.fn(), onReject: vi.fn(), onVeto: vi.fn(), onWithdraw: vi.fn(), onAnalyze: vi.fn(),
+    })) })
+    trees.push(card)
+    expect(renderedAssets(card)).toEqual([
+        'High', 'Low', '2027 Round 1 (orig. Foxes)', '2028 Round 1 (orig. Foxes)',
+        '2029 Round 1 (orig. Foxes)', '2027 Round 2 (orig. Foxes)', '2028 Round 1 (orig. Owls)',
+    ])
 })

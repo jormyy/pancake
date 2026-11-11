@@ -36,6 +36,25 @@ describe('trade asset display order', () => {
         expect(orderTradeAssets([...players].reverse()).map(player => player.playerId)).toEqual(expected)
     })
 
+    it.each(['direct', 'wrapped'])('opts %s assets into year-first picks without changing player order or inputs', shape => {
+        const items = Object.freeze([
+            { kind: 'pick', playerId: '2028-r1', seasonYear: 2028, round: 1 },
+            { kind: 'player', playerId: 'low', playerName: 'Low', tradeValue: 100 },
+            { kind: 'pick', playerId: '2027-r2', seasonYear: 2027, round: 2 },
+            { kind: 'player', playerId: 'tie-b', playerName: 'Alpha', tradeValue: 800 },
+            { kind: 'pick', playerId: '2029-r1', seasonYear: 2029, round: 1 },
+            { kind: 'player', playerId: 'high', playerName: 'High', tradeValue: 900 },
+            { kind: 'pick', playerId: '2027-r1', seasonYear: 2027, round: 1 },
+            { kind: 'player', playerId: 'tie-a', playerName: 'Alpha', tradeValue: 800 },
+        ].map(item => Object.freeze(item)))
+        const before = structuredClone(items)
+        const ordered = shape === 'direct' ? orderTradeAssets(items, 'year-round')
+            : orderTradeAssets(items.map(asset => ({ asset })), item => item.asset, 'year-round').map(item => item.asset)
+        expect(ordered.map(item => item.playerId)).toEqual(['high', 'tie-a', 'tie-b', 'low', '2027-r1', '2027-r2', '2028-r1', '2029-r1'])
+        expect(items).toEqual(before)
+        expect(ordered.every(item => items.includes(item))).toBe(true)
+    })
+
     it('does not change the array or its assets', () => {
         const frozen = Object.freeze(assets.map(asset => Object.freeze({ ...asset })))
         const before = structuredClone(frozen)

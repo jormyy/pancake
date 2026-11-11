@@ -81,7 +81,7 @@ it('uses the same component for submitted summaries, multi-team review, and acti
     const labels = screen.root.findAllByType(TradePickLabel).map(node => tradePickLabel(node.props.pick, node.props.context, node.props.showDirection))
     expect(labels).toHaveLength(6)
     expect(labels.slice(0, 2)).toEqual(labels.slice(2, 4))
-    expect(labels.slice(4)).toEqual(picks.map(pick => tradePickLabel(pick, context, false)))
+    expect(labels.slice(4)).toEqual(["2028 Round 2 (orig. Mike's Minions)", "2029 Round 1 (orig. Mike's Minions)"])
     expect(labels[0]).toBe("2029 Round 1 (orig. Mike's Minions) — from Mike's Minions → to You")
 })
 
