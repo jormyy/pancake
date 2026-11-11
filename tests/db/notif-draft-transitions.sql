@@ -85,7 +85,7 @@ BEGIN
   SELECT count(*) INTO auto_count FROM notification_outbox WHERE data->>'draftId'=d::text;
   PERFORM * FROM private.draft_timer_complete_opening_night(100,'2026-10-20 13:00:01+00');
   IF (SELECT count(*) FROM notification_outbox WHERE data->>'draftId'=d::text) <> auto_count THEN RAISE EXCEPTION 'backstop retry duplicated events'; END IF;
-  UPDATE notification_outbox SET available_at=now() WHERE data->>'draftId'=d::text;
+  UPDATE notification_outbox SET available_at='-infinity'::timestamptz WHERE data->>'draftId'=d::text;
   PERFORM * FROM claim_notification_outbox_atomic(200,60);
   IF EXISTS (SELECT 1 FROM notification_outbox WHERE data->>'draftId'=d::text AND event_type IN ('draft_on_clock','draft_coming_soon','draft_timer_expiring') AND suppression_reason IS DISTINCT FROM 'stale') THEN
     RAISE EXCEPTION 'already-made backstop picks can still send clock alerts';

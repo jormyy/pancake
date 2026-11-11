@@ -150,7 +150,7 @@ if (action === 'prepare') {
       'psql', database.href, '-XqAt', '-v', 'ON_ERROR_STOP=1', '-f', '-'], sql)
     await writeFile(path.join(dir, `pick-years-recipe-${name}.log`), (result.stdout ?? '') + (result.stderr ?? ''))
     assert.equal(result.status, 0, `Recipe ${name} failed; inspect its owned log`)
-    receipts.push({ recipe: name, exit: 0, ownedApiSubstitution: original !== sql })
+    receipts.push({ recipe: name, exit: 0, ownedExecutionCopyAdjusted: original !== sql })
     console.log(`PASS ${name}`)
   }
   const deno = execute('deno', ['test', '--no-lock', '--allow-read', 'supabase/functions/_shared/tradeEstimate.test.ts'])
