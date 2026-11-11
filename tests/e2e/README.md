@@ -126,13 +126,7 @@ The release command requires twenty seasons and enables mandatory slices.
 The harness starts fake providers, but the running Edge functions must point to those endpoints.
 Use the [isolated local stack recipe](../../docs/verification.md#local-stack) for environment and migration preparation.
 The release gate needs a valid pre-upgrade baseline and the approved pending migration range.
-A fully migrated stack cannot prove the migration step.
-For a single-league repair guarded by an exact snapshot, set `E2E_MIDLIFE_MIGRATION_AFTER_SEASON=0`.
-The harness applies the actual pending migration before pick-chain preparation and season1, while the guarded state is intact.
-It still requires the exact pre-upgrade ledger and a nonempty pending delta.
-Capture candidate Edge compatibility with that old database separately before the replay.
-All twenty simulated seasons then exercise the repaired schema; this mode does not claim pre-upgrade simulated seasons.
-Retain the migration report, old-database HTTP evidence and the source-bound replay report together.
+A fully migrated stack cannot prove the mid-life migration step.
 
 `tests/e2e/backend-scenario-manifest.mjs` defines backend slices.
 `tests/e2e/soak-shards.mjs` assigns coverage across release shards.

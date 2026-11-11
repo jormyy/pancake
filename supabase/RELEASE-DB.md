@@ -252,10 +252,12 @@ It stores draft calendar years and repairs only the approved affected league.
 The guard requires the exact recorded pick state and refuses drift.
 The tested external recovery SQL accompanies the release inputs.
 
-Use `scripts/release/release.mjs` for this release.
-Its order is compatible Edge first, database dry run and push, then squash merge and frontend verification.
+Use the approved hand release for this candidate.
+Stamp and deploy the compatible `api` Edge first, verify its labels on the old data, then run the guarded database dry run and push.
+After reconciliation, merge the frontend through the supervisor.
+The previous production Edge was never stamped, so the release runner cannot verify its predecessor; leave that runner guard unchanged.
 The earlier database-first recipes below describe historical releases.
-The release replay must prove candidate Edge compatibility with the pre-migration database.
+Real HTTP compatibility checks must prove candidate Edge labels on both pre-migration and calendar-year inputs.
 Pause estimate traffic, workers and every draft-pick producer before the final before-state reconciliation.
 Drain league creation and join, future-pick-window changes, draft initialization and completion, season rollover and reset, and direct pick or trade mutations.
 Retain this global pause until the database, matching Edge and frontend are live and the after-state reconciliation passes.
@@ -264,12 +266,11 @@ The new quote and history guards reject delayed inputs containing the old pick y
 New inputs and repaired frozen inputs declare their calendar convention.
 Candidate Edge retains legacy labels when that declaration is absent, so it works before the database switch.
 
-Prepare full comprehensive-check and test receipts, replay evidence, reviewed release notes, recovery SQL and the exact PR head before running the release command.
-Run its dry rehearsal on the private `pt4bafablerelease` stack using ports 59400 through 59499.
-The dry run suppresses database pushes, Edge deployments and GitHub merges.
-It still requires real local health, database backups, smoke checks and evidence.
-The live backup requires the previous Edge commit and digest to reproduce from trusted source.
-Do not bypass a missing or placeholder previous identity.
+Prepare focused checks, final quality and test receipts, local migration and HTTP compatibility evidence, reviewed release notes, recovery SQL and the exact PR head before the hand release.
+The supervisor dropped the twenty-season replay and runner rehearsal for this promotion.
+Keep a full database backup and the trusted `62d064dd` source available before deployment.
+Stamp the candidate from its complete deployment inputs in a separate source export, then deploy only `api`; do not commit generated release metadata.
+Redeploying the prior `api` on old data is the Edge-only rollback; after database migration, coordinate the tested SQL recovery before restoring legacy Edge formatting.
 
 Before promotion, capture the scoped read-only pick and frozen-reference reconciliation.
 After the guarded migration, require all 150 pick IDs, rounds and owners unchanged, each year reduced by one, consistent numeric references and unchanged saved labels and values.

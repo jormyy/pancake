@@ -393,9 +393,9 @@ export const writeCoverageReport = async ({ status, startedAt, finishedAt, seaso
     },
     {
       id: 'long.migration', requiredForRelease: true,
-      requirement: 'D.LONG.5 ordered migration boundary',
+      requirement: 'D.LONG.5 mid-life migration',
       status: midlifeMigrationStatus,
-      evidence: args.midlifeMigration ? 'Migration mode compares the database migration ledger before and after `supabase db push`, requires the expected strictly advancing version, and records tests/artifacts/season-<N>/midlife-migration.json.' : 'Enable E2E_ENABLE_MIDLIFE_MIGRATION=1 with a base-revision database and E2E_MIDLIFE_EXPECTED_VERSION.',
+      evidence: args.midlifeMigration ? 'Mid-life migration mode compares the database migration ledger before and after `supabase db push`, requires the expected strictly advancing version, and records tests/artifacts/season-<N>/midlife-migration.json.' : 'Enable E2E_ENABLE_MIDLIFE_MIGRATION=1 with a base-revision database and E2E_MIDLIFE_EXPECTED_VERSION.',
     },
     {
       id: 'long.runtime', requiredForRelease: true,

@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto'
 import { browserArtifactPath } from './browser-artifacts.mjs'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { readFileSync } from 'node:fs'
@@ -51,7 +50,7 @@ const postDraftLifecycle = async (env, user, password, draftId, action) => {
   if (error || !data.session?.access_token) throw new Error(`D.X.4 ${action} sign-in failed: ${error?.message ?? 'missing access token'}`)
   const response = await fetch(joinUrl(env.apiBaseUrl, `draft/${draftId}/${action}`), {
     method: 'POST',
-    headers: { Authorization: `Bearer ${data.session.access_token}`, 'Content-Type': 'application/json', 'x-request-id': randomUUID() },
+    headers: { Authorization: `Bearer ${data.session.access_token}`, 'Content-Type': 'application/json' },
     body: '{}',
   })
   const body = await response.json().catch(() => null)

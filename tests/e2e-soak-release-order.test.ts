@@ -9,14 +9,6 @@ import { validatePerfDrift } from './e2e/soak-support.mjs'
 
 describe('release soak deployment order', () => {
 
-  it('keeps every replay season on the release runtime after a pre-season data repair', () => {
-    expect(planSoakShards(20, 4).map(shard => soakRuntimeForShard(shard, 0)))
-      .toEqual(['release', 'release', 'release', 'release'])
-    expect(() => soakRuntimeForShard(planSoakShards(20, 4)[0], -1)).toThrow('migration boundary')
-    const args = { push: true, browserTradeMultiTeam: true }
-    expect(soakBrowserArgs(args, 1, 0)).toBe(args)
-  })
-
   it('rejects release Edge and frontend on the deployed schema in every later shard', () => {
     const shards = planSoakShards(20, 4)
     expect(shards.map((shard) => soakRuntimeForShard(shard, 5))).toEqual(['deployed', 'release', 'release', 'release'])

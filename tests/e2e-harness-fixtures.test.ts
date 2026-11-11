@@ -1,11 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ensureSweepDrafts } from './e2e/browser-smoke.mjs'
-import { sourceYearsExperience } from '../supabase/functions/_shared/playerSourceDetails'
 import { maskSqlNonCode } from '../scripts/check-db-function-sources.mjs'
 import { PLAYER_REFERENCE_TABLES, deletePlayersWithReferences } from './e2e/harness-cleanup.mjs'
 import { createDisposableLeagueFromSeedUsers, ensureRosterFixture, ensureSyntheticSeasonWeeks } from './e2e/soak-fixtures.mjs'
 import { createFakeUpstreamServer } from './e2e/fake-upstream.mjs'
-import { backendAuthedJson, backendJson } from './e2e/soak-network.mjs'
+import { backendAuthedJson } from './e2e/soak-network.mjs'
 import { assertSeasonResetScenario, assertWeeklyScoringFinalizationScenario } from './e2e/soak-scoring-reset.mjs'
 import { ensureHistoryFixtureForSeason } from './e2e/soak-support.mjs'
 import { completeSoakSeason, prepareSoakSeason, readSoakSeason, rolloverSoakSeason } from './e2e/harness/season-loop.mjs'
@@ -17,19 +16,6 @@ import { createScenarioResourceOwner } from './e2e/scenario-resource-owner.mjs'
 afterEach(() => { vi.unstubAllGlobals(); boundaryQueries.read.mockReset() })
 
 describe('trade request identity', () => {
-    it('identifies backend tick and non-trade mutations at the HTTP boundary', async () => {
-        const fetch = vi.fn(async (_url: unknown, _options: { headers: Record<string, string> }) => ({ ok: true, json: async () => ({ ok: true }) }))
-        vi.stubGlobal('fetch', fetch)
-        const env = { apiBaseUrl: 'http://fixture.invalid/api', e2eAdminSecret: 'synthetic' }
-        await backendJson(env, '/e2e/sync-schedule')
-        await backendJson(env, '/e2e/sync-schedule')
-        await backendAuthedJson(env, '/leagues/create', 'fixture-token', { requestId: 'a52634f1-0ba6-4c68-bc24-14ef371c423c' })
-        const ids = fetch.mock.calls.map(([, options]) => options.headers['x-request-id'])
-        expect(ids[0]).toMatch(/^[0-9a-f-]{36}$/)
-        expect(ids[1]).toMatch(/^[0-9a-f-]{36}$/)
-        expect(ids[1]).not.toBe(ids[0])
-        expect(ids[2]).toBe('a52634f1-0ba6-4c68-bc24-14ef371c423c')
-    })
     it('sends a new request ID for trade actions and keeps caller IDs for retries', async () => {
         const fetch = vi.fn(async (_url: unknown, _options: { body: string }) => ({ ok: true, json: async () => ({ ok: true }) }))
         vi.stubGlobal('fetch', fetch)
@@ -80,67 +66,6 @@ const fakeRequest = async (method: string, url: string, body: unknown = {}) => {
     return { status, body: JSON.parse(text) as Record<string, unknown> }
 }
 const schedule = async () => (await fakeRequest('GET', '/staticData/scheduleLeagueV2_1.json')).body as unknown as Schedule
-
-describe('fake primary player sources', () => {
-    it('serves complete matching ESPN and NBA rosters without the dormant fallback', async () => {
-        createFakeUpstreamServer()
-        const teams = await fakeRequest('GET', '/espn/teams')
-        expect(teams.status).toBe(200)
-        const entries = (teams.body as { sports: { leagues: { teams: { team: { id: string; abbreviation: string } }[] }[] }[] }).sports[0].leagues[0].teams
-        expect(entries).toHaveLength(30)
-        const ids: string[] = []
-        const names: string[] = []
-        for (const { team } of entries) {
-            const response = await fakeRequest('GET', `/espn/teams/${team.id}/roster`)
-            expect(response.status).toBe(200)
-            const athletes = (response.body as { athletes: { id: string; fullName: string; team: { abbreviation: string } }[] }).athletes
-            expect(athletes.length).toBeGreaterThanOrEqual(12)
-            expect(athletes.every(athlete => athlete.team.abbreviation === team.abbreviation)).toBe(true)
-            ids.push(...athletes.map(athlete => athlete.id))
-            names.push(...athletes.map(athlete => athlete.fullName.toLowerCase().replace(/[^a-z]/g, '')))
-        }
-        expect(ids).toHaveLength(365)
-        expect(new Set(ids).size).toBe(ids.length)
-        expect(new Set(names).size).toBe(names.length)
-        const index = (await fakeRequest('GET', '/staticData/playerIndex.json')).body as { resultSets: { headers: string[]; rowSet: unknown[][] }[] }
-        expect(index.resultSets[0].headers).toContain('TEAM_ABBREVIATION')
-        expect(new Set(index.resultSets[0].rowSet.map(row => String(row[0])))).toEqual(new Set(ids))
-        expect((await fakeRequest('GET', '/espn-search?query=Ari%20Glass')).body.items).toEqual([{ id: '1001', displayName: 'Ari Glass', type: 'player', league: 'nba' }])
-        expect((await fakeRequest('GET', '/espn/news')).body.articles).toEqual([])
-    })
-
-    it('keeps rollover rookies distinct through twenty seasons', async () => {
-        createFakeUpstreamServer()
-        for (let season = 0; season < 20; season++) {
-            await fakeRequest('POST', '/admin/advance-season')
-            const response = await fakeRequest('GET', '/espn/teams/29/roster')
-            const athletes = (response.body as { athletes: { fullName: string }[] }).athletes
-            const names = athletes.map(player => player.fullName.toLowerCase().replace(/[^a-z]/g, ''))
-            expect(new Set(names).size).toBe(names.length)
-        }
-    })
-
-    it('keeps biography, injuries and career seasons coherent through rollover', async () => {
-        createFakeUpstreamServer()
-        const biography = (await fakeRequest('GET', '/espn-career/athletes/1001')).body as { athlete: { id: string; displayExperience: string; dateOfBirth: string } }
-        const roster = (await fakeRequest('GET', '/espn/teams/2/roster')).body as { athletes: { id: string; experience: { years: number } }[] }
-        expect(sourceYearsExperience(roster.athletes.find(player => player.id === '1001')!, 2027)).toBe(4)
-        expect(biography.athlete).toMatchObject({ id: '1001', displayExperience: '5th Season' })
-        await fakeRequest('POST', '/admin/injury', { playerId: '1001', injuryStatus: 'Questionable' })
-        const injuries = JSON.stringify((await fakeRequest('GET', '/espn/injuries')).body)
-        expect(injuries).toContain('Questionable')
-        await fakeRequest('POST', '/admin/advance-season')
-        const nextRoster = (await fakeRequest('GET', '/espn/teams/2/roster')).body as typeof roster
-        expect(sourceYearsExperience(nextRoster.athletes.find(player => player.id === '1001')!, 2028)).toBe(5)
-        const nextBiography = (await fakeRequest('GET', '/espn-career/athletes/1001')).body as typeof biography
-        expect(nextBiography.athlete.dateOfBirth).toBe(biography.athlete.dateOfBirth)
-        const rookieRoster = (await fakeRequest('GET', '/espn/teams/14/roster')).body as typeof roster
-        expect(sourceYearsExperience(rookieRoster.athletes.find(player => player.id === '1003')!, 2028)).toBe(1)
-        const career = (await fakeRequest('GET', '/espn-career/athletes/1001/stats?seasontype=2')).body as { categories: { statistics: { season: { year: number } }[] }[] }
-        expect(career.categories[0].statistics[0].season.year).toBe(2027)
-        expect((await fakeRequest('GET', '/espn-career/athletes/999999999/stats')).status).toBe(404)
-    })
-})
 
 describe('fake NBA season calendar', () => {
     it('covers all regular and playoff weeks, including the next calendar year', async () => {
@@ -911,7 +836,6 @@ describe('dynasty ranking seed fixtures', () => {
         expect(rows[1].source_team).toBeNull()
     })
 })
-
 
 it('prepares rookie sweep assets in the draft calendar year before the future bank', async () => {
     const inserted: Record<string, unknown>[] = []

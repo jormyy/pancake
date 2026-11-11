@@ -1,6 +1,5 @@
 import http from 'node:http'
 import { seasonWeekRows, seasonYearForDate } from './harness/season-calendar.mjs'
-import { fakePlayerSourceResponse } from './fake-player-sources.mjs'
 
 const json = (res, status, body) => {
   const payload = JSON.stringify(body)
@@ -119,15 +118,14 @@ export function createFakeUpstreamServer({ seasonYear = 2027, calendarWeeks = 26
       if (typeof player.age === 'number') player.age += 1
     }
     const rookieId = String(state.nextRookieId++)
-    const rookieName = `Season${String.fromCharCode(65 + Math.floor((Number(rookieId) - 900001) / 26), 65 + (Number(rookieId) - 900001) % 26)}`
     state.players.set(rookieId, {
       player_id: rookieId,
       first_name: 'Rookie',
-      last_name: rookieName,
-      full_name: `Rookie ${rookieName}`,
+      last_name: String(state.seasonYear),
+      full_name: `Rookie ${state.seasonYear}`,
       team: 'UTA',
       position: 'G',
-      age: Math.max(19, state.seasonYear - 2025),
+      age: 19,
       status: 'Active',
       injury_status: null,
       injury_notes: null,
@@ -144,8 +142,6 @@ export function createFakeUpstreamServer({ seasonYear = 2027, calendarWeeks = 26
       if (req.method === 'GET' && (url.pathname.includes('/liveData/') || url.pathname.includes('/staticData/'))) {
         state.hits.nbaCdn += 1
       }
-      const playerSource = req.method === 'GET' && fakePlayerSourceResponse(url, state)
-      if (playerSource) return json(res, 200, playerSource)
 
       if (req.method === 'GET' && url.pathname.endsWith('/liveData/scoreboard/todaysScoreboard_00.json')) {
         const today = state.now.slice(0, 10)
@@ -196,6 +192,21 @@ export function createFakeUpstreamServer({ seasonYear = 2027, calendarWeeks = 26
             }],
           }))
         return json(res, 200, { leagueSchedule: { seasonYear: `${state.seasonYear - 1}-${String(state.seasonYear % 100).padStart(2, '0')}`, gameDates } })
+      }
+
+      if (req.method === 'GET' && url.pathname.endsWith('/staticData/playerIndex.json')) {
+        return json(res, 200, {
+          resultSets: [{
+            name: 'PlayerIndex',
+            headers: ['PERSON_ID', 'PLAYER_FIRST_NAME', 'PLAYER_LAST_NAME', 'ROSTER_STATUS'],
+            rowSet: [...state.players.values()].map((player) => [
+              Number(player.player_id),
+              player.first_name,
+              player.last_name,
+              player.active ? 1 : 0,
+            ]),
+          }],
+        })
       }
 
       if (req.method === 'GET' && url.pathname === '/v1/players/nba') {

@@ -12,7 +12,7 @@ import { validateAppliedMigrationDelta } from './release-soak-migration-plan.mjs
 export const soakRuntimeForSeason = (season, deployedSeasons) => season <= deployedSeasons ? 'deployed' : 'release'
 
 export const soakRuntimeForShard = (shard, deployedSeasons) => {
-  if (!Number.isInteger(deployedSeasons) || deployedSeasons < 0 ||
+  if (!Number.isInteger(deployedSeasons) || deployedSeasons < 1 ||
       soakRuntimeForSeason(shard.firstSeason, deployedSeasons) !== soakRuntimeForSeason(shard.lastSeason, deployedSeasons)) {
     throw new Error('A soak shard must stay entirely before or after the migration boundary')
   }

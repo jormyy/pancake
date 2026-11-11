@@ -1,4 +1,3 @@
-import { backendJson } from './soak-network.mjs'
 import { browserArtifactPath } from './browser-artifacts.mjs'
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
@@ -26,6 +25,26 @@ const parseEvalJson = (output) => {
 
 const listSessions = () => listBrowserSessions({ cwd: ROOT })
 
+const backendUrl = (env, pathname) => {
+  const base = env.apiBaseUrl.endsWith('/') ? env.apiBaseUrl : `${env.apiBaseUrl}/`
+  return new URL(pathname.replace(/^\/+/, ''), base).toString()
+}
+
+const backendJson = async (env, pathname, body = {}) => {
+  const response = await fetch(backendUrl(env, pathname), {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-e2e-secret': env.e2eAdminSecret,
+    },
+    body: JSON.stringify(body),
+  })
+  if (!response.ok) {
+    const text = await response.text().catch(() => '')
+    throw new Error(`${pathname} returned ${response.status}${text ? `: ${text}` : ''}`)
+  }
+  return response.json()
+}
 
 const createConfirmedUser = async (admin, user) => {
   const { data, error } = await admin.auth.admin.createUser({

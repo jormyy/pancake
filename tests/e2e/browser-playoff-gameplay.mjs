@@ -1,4 +1,3 @@
-import { backendAuthedJson } from './soak-network.mjs'
 import { browserArtifactPath } from './browser-artifacts.mjs'
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
@@ -46,6 +45,26 @@ const assertPageText = async (session, required, label) => {
   return parsed
 }
 
+const backendUrl = (env, pathname) => {
+  const base = env.apiBaseUrl.endsWith('/') ? env.apiBaseUrl : `${env.apiBaseUrl}/`
+  return new URL(pathname.replace(/^\/+/, ''), base).toString()
+}
+
+const backendAuthedJson = async (env, pathname, token, body = {}) => {
+  const response = await fetch(backendUrl(env, pathname), {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${token}`,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  })
+  if (!response.ok) {
+    const text = await response.text().catch(() => '')
+    throw new Error(`${pathname} returned ${response.status}${text ? `: ${text}` : ''}`)
+  }
+  return response.json()
+}
 
 const createConfirmedUser = async (admin, user) => {
   const { data, error } = await admin.auth.admin.createUser({
