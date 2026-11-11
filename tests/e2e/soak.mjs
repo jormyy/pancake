@@ -172,8 +172,8 @@ const main = async () => {
   if (args.seasonReset && !env.e2eAdminSecret) {
     throw new Error('E2E_ENABLE_SEASON_RESET=1 requires E2E_ADMIN_SECRET and a Supabase Edge API configured with E2E_ADMIN_SECRET')
   }
-  if (args.midlifeMigration && (!Number.isInteger(MIDLIFE_MIGRATION_AFTER_SEASON) || MIDLIFE_MIGRATION_AFTER_SEASON < 1)) {
-    throw new Error('E2E_ENABLE_MIDLIFE_MIGRATION=1 requires a positive integer E2E_MIDLIFE_MIGRATION_AFTER_SEASON')
+  if (args.midlifeMigration && (!Number.isInteger(MIDLIFE_MIGRATION_AFTER_SEASON) || MIDLIFE_MIGRATION_AFTER_SEASON < 0)) {
+    throw new Error('E2E_ENABLE_MIDLIFE_MIGRATION=1 requires a non-negative integer E2E_MIDLIFE_MIGRATION_AFTER_SEASON')
   }
   if (args.midlifeMigration && args.seasons <= MIDLIFE_MIGRATION_AFTER_SEASON) {
     throw new Error(`E2E_ENABLE_MIDLIFE_MIGRATION=1 requires --seasons>${MIDLIFE_MIGRATION_AFTER_SEASON}`)
@@ -345,6 +345,9 @@ const main = async () => {
       return
     }
     notes.push('Schema preflight passed: post-refactor RPCs and required columns are present.')
+    const preSeasonMigration = args.midlifeMigration && MIDLIFE_MIGRATION_AFTER_SEASON === 0 && shard.firstSeason === 1
+      ? process.env.E2E_SOAK_RUNTIME ? readPreparedMigration(1) : await applyMidlifeMigration(1)
+      : null
     const scenarios = { ...(checkpoint?.scenarios ?? {}) }
     if (args.history && !scenarios.historyFixtures) {
       scenarios.historyFixtures = []
@@ -382,10 +385,10 @@ const main = async () => {
         const upstreamHitsAtSeasonStart = { ...fake.state.hits }
         let midlifeMigrationReport = null
         if (args.midlifeMigration && season === MIDLIFE_MIGRATION_AFTER_SEASON + 1) {
-          midlifeMigrationReport = process.env.E2E_SOAK_RUNTIME
+          midlifeMigrationReport = preSeasonMigration ?? (process.env.E2E_SOAK_RUNTIME
             ? readPreparedMigration(season)
-            : await applyMidlifeMigration(season)
-          notes.push(`D.LONG.5 mid-life migration ${midlifeMigrationReport.status.toLowerCase()} before season ${season}.`)
+            : await applyMidlifeMigration(season))
+          notes.push(`D.LONG.5 ${preSeasonMigration ? 'pre-season' : 'mid-life'} migration ${midlifeMigrationReport.status.toLowerCase()} before season ${season}.`)
         }
 
         const seasonStartedMs = nowMs()
