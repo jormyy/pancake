@@ -1873,9 +1873,9 @@ BEGIN
 END;
 $repair$;
 
-CREATE TRIGGER guard_trade_pick_years BEFORE INSERT OR UPDATE OF inputs ON public.trade_estimate_quotes
+CREATE TRIGGER guard_trade_pick_years BEFORE INSERT OR UPDATE OF inputs,league_id ON public.trade_estimate_quotes
 FOR EACH ROW EXECUTE FUNCTION private.guard_trade_pick_years();
-CREATE TRIGGER guard_trade_pick_years BEFORE INSERT OR UPDATE OF snapshot ON public.trade_estimate_history
+CREATE TRIGGER guard_trade_pick_years BEFORE INSERT OR UPDATE OF snapshot,trade_id ON public.trade_estimate_history
 FOR EACH ROW EXECUTE FUNCTION private.guard_trade_pick_years();
 
 COMMIT;
