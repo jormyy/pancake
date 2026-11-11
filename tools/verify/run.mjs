@@ -83,9 +83,9 @@ async function background(run, label, command, args, cwd, env) {
   closeSync(fd)
 }
 
-async function waitFor(url) {
+async function waitFor(url, headers) {
   for (let attempt = 0; attempt < 120; attempt++) {
-    try { if ((await fetch(url, { signal: AbortSignal.timeout(3000) })).ok) return } catch {}
+    try { if ((await fetch(url, { headers, signal: AbortSignal.timeout(3000) })).ok) return } catch {}
     await pause(1000)
   }
   throw new Error(`Readiness timeout: ${url}`)
@@ -229,16 +229,40 @@ export async function refreshAppSources(source, work, files) {
   }
 }
 
+async function stopFunctions(run) {
+  for (const child of run.processes.filter(child => child.label === 'functions')) {
+    if (!child.birth || birth(child.pid) !== child.birth) continue
+    process.kill(-child.pid, 'SIGTERM')
+    for (let attempt = 0; attempt < 100 && birth(child.pid) === child.birth; attempt++) await pause(100)
+    assert.notEqual(birth(child.pid), child.birth, 'Previous task-owned function process did not stop')
+  }
+  run.processes = run.processes.filter(child => child.label !== 'functions')
+  await save(path.join(run.dir, 'run.json'), run)
+}
+
+async function serveFunctions(run, env) {
+  const config = await readFile(path.join(run.work, 'supabase/config.toml'), 'utf8')
+  assert.ok(config.includes(`project_id = "${run.id}"`))
+  await background(run, 'functions', 'supabase', ['functions', 'serve', '--workdir', run.work, '--env-file', path.join(run.dir, 'functions.env')], repo, env)
+  await waitFor(`${env.E2E_API_BASE_URL}/health`, { apikey: env.E2E_SUPABASE_PUBLISHABLE_KEY })
+}
+
 async function rebuild(run) {
+  const env = await json(path.join(run.dir, 'local-env.json'))
+  if (run.processes.some(child => child.label === 'functions' && birth(child.pid) !== child.birth)) {
+    await stopFunctions(run)
+    await serveFunctions(run, env)
+  }
   await doctor(run)
   assert.equal(run.work, path.join(run.dir, 'work'))
   const files = output('git', ['ls-files', '--cached', '--others', '--exclude-standard', '-z', 'app', 'components', 'constants', 'contexts', 'hooks', 'lib', 'types', 'core', 'public', 'scripts', 'supabase/functions']).split('\0').filter(Boolean)
+  await stopFunctions(run)
   await refreshAppSources(repo, run.work, files)
-  const env = await json(path.join(run.dir, 'local-env.json'))
   run.sha = output('git', ['rev-parse', 'HEAD'])
   env.PANCAKE_RELEASE_SHA = run.sha
   await save(path.join(run.dir, 'local-env.json'), env)
   await save(path.join(run.dir, 'run.json'), run)
+  await serveFunctions(run, env)
   await rm(path.join(run.work, 'core/cjs'), { recursive: true, force: true })
   await command('node', [path.join(repo, 'node_modules/typescript/bin/tsc'), '-p', path.join(run.work, 'core/tsconfig.cjs.json')], run.work, env, path.join(run.dir, 'core-build.log'))
   await command('npm', ['run', 'build:web:release'], run.work, env, path.join(run.dir, 'rebuild.log'))

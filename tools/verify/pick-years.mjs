@@ -170,6 +170,13 @@ if (action === 'prepare') {
   console.log('Regenerated required release attestations from the owned local database')
 } else if (action === 'drive') {
   assert.ok(['before', 'after'].includes(argument))
+  if (argument === 'after') {
+    const head = execute('git', ['rev-parse', 'HEAD']).stdout.trim()
+    assert.equal(run.sha, head, 'Rebuild the current head before final UI proof')
+    for (const file of ['lib/trades.ts', 'supabase/functions/_shared/tradeEstimate.ts']) {
+      assert.equal(await readFile(path.join(run.work, file), 'utf8'), await readFile(path.join(repo, file), 'utf8'), `Refresh ${file} before proof`)
+    }
+  }
   const fixture = await json('pick-year-fixture.json')
   const { port } = await json('webkit-port.json')
   const command = async (command, ...values) => {
