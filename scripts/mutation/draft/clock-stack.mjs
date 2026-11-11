@@ -118,7 +118,7 @@ export async function fixture(year = 2027) {
   sql(`BEGIN; INSERT INTO leagues(id,name,slug,commissioner_id,status,roster_size,playoff_entrants,playoff_round_lengths,playoff_start_week) VALUES(${quote(league)},'Synthetic clock draft',${quote(league)},${quote(users[0].id)},'offseason',15,2,ARRAY[1],24);
     INSERT INTO league_seasons(id,league_id,season_year,is_current,skipped_weeks) VALUES(${quote(season)},${quote(league)},${year},true,ARRAY[1]);
     ${members.map((m,i)=>`INSERT INTO league_members(id,league_id,user_id,role) VALUES(${quote(m)},${quote(league)},${quote(users[i].id)},'${i?'manager':'commissioner'}');`).join('')}
-    INSERT INTO draft_picks(league_id,season_year,round,original_owner_id,current_owner_id) SELECT ${quote(league)},${year},r,m,m FROM unnest(ARRAY[${members.map(quote).join(',')}]::uuid[])m CROSS JOIN generate_series(1,3)r;
+    INSERT INTO draft_picks(league_id,season_year,round,original_owner_id,current_owner_id) SELECT ${quote(league)},${year - 1},r,m,m FROM unnest(ARRAY[${members.map(quote).join(',')}]::uuid[])m CROSS JOIN generate_series(1,3)r;
     ${players.map((p,i)=>`INSERT INTO players(id,first_name,last_name,position,eligible_positions,years_exp,nba_draft_number) VALUES(${quote(p)},'Synthetic clock',${quote(p)},'PG',ARRAY['PG'],0,${i+1});`).join('')} COMMIT;`)
   const client = createClient(keys.API_URL, keys.ANON_KEY, { auth: { persistSession: false, autoRefreshToken: false } })
   const signed = await client.auth.signInWithPassword({ email: users[0].email, password }); assert.ifError(signed.error)
