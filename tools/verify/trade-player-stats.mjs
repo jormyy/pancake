@@ -119,7 +119,7 @@ const exerciseColumnSelection = async label => {
   const name = 'E2E Player003'
   const id = `trade-${fixture.memberId}-player-${fixture.playerIdsByName[name]}`
   const target = { selector: `[data-testid="${id}"]` }
-  const sendersBefore = await readSenderControls(label + '-column-before')
+  const sendersBefore = await readSenderControls(label + '-column-before', width < 960 ? label === 'multi' ? 3 : 2 : undefined)
   if (width < 960) assert.equal(sendersBefore.length, label === 'multi' ? 3 : 2)
   await command('scroll', JSON.stringify(target))
   await capture(label + '-column-selection-before')
@@ -152,8 +152,9 @@ const tabSender = async name => {
   if (width < 960) await wait(text => text.includes(`tab "${label}"`))
   if ((await snapshot()).includes(`tab "${label}"`)) await click({ role: 'tab', name: label })
 }
-const readSenderControls = async captureLabel => {
-  const text = await snapshot()
+const readSenderControls = async (captureLabel, expectedCount) => {
+  let text = await snapshot()
+  if (expectedCount) text = await wait(text => [...text.matchAll(/- tab "(Edit assets sent by [^"]+)"/g)].length === expectedCount)
   const tabs = [...text.matchAll(/- tab "(Edit assets sent by [^"]+)"/g)].map(match => match[1])
   const read = async sender => {
     const state = await command('observe')
@@ -315,7 +316,7 @@ const multi = async () => {
   await add('E2E Player041')
   await summary()
   await probe('multi-overview', 'E2E Player003', { name: 'View E2E Player003 stats', index: 0 })
-  const sendersBefore = await readSenderControls('multi-remove-before')
+  const sendersBefore = await readSenderControls('multi-remove-before', width < 960 ? 3 : undefined)
   if (width < 960) assert.equal(sendersBefore.length, 3)
   const completeControls = sendersBefore.flatMap(sender => sender.controls)
   assert.equal(completeControls.find(control => control.label === 'FAAB sent by E2E Team 1 to E2E Team 2')?.value, '9')
