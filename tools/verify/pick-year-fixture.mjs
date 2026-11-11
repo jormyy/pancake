@@ -68,13 +68,13 @@ export function preparePickYearFixture(snapshot, seed, query) {
   }
   const memberValues = owners.map((id, index) => `(${literal(id)},${literal(targetLeagueId)},${literal(seed.users[index].id)},${literal(index === 0 ? 'commissioner' : 'manager')}::public.league_member_role,${literal(ownerNames[id])})`).join(',\n')
   const transfers = transferred.map(pick => `
-    trade_id := public.propose_trade_atomic(${literal(targetLeagueId)},${literal(seasonId)},
+    v_trade_id := public.propose_trade_atomic(${literal(targetLeagueId)},${literal(seasonId)},
       ${literal(pick.original_owner_id)},${literal(pick.current_owner_id)},'{}'::uuid[],'{}'::uuid[],
       ARRAY[${literal(pick.id)}::uuid],'{}'::uuid[],'Pick year verification',NULL,0,1);
-    trade_ids := array_append(trade_ids,trade_id);
-    PERFORM public.accept_trade_atomic(trade_id,${literal(pick.current_owner_id)});
-    PERFORM public.complete_accepted_trade_atomic(trade_id);
-    IF (SELECT status FROM public.trades WHERE id=trade_id) IS DISTINCT FROM 'completed'::public.trade_status THEN
+    trade_ids := array_append(trade_ids,v_trade_id);
+    PERFORM public.accept_trade_atomic(v_trade_id,${literal(pick.current_owner_id)});
+    PERFORM public.complete_accepted_trade_atomic(v_trade_id);
+    IF (SELECT status FROM public.trades WHERE id=v_trade_id) IS DISTINCT FROM 'completed'::public.trade_status THEN
       RAISE EXCEPTION 'Pick year fixture trade did not complete';
     END IF;`).join('\n')
   const sql = `BEGIN;
@@ -86,7 +86,7 @@ export function preparePickYearFixture(snapshot, seed, query) {
       expected jsonb := ${literal(JSON.stringify(snapshot.picks))}::jsonb;
       frozen_inputs jsonb := ${literal(JSON.stringify(inputs))}::jsonb;
       frozen_analysis jsonb := ${literal(JSON.stringify(analysis))}::jsonb;
-      trade_id uuid;
+      v_trade_id uuid;
       trade_ids uuid[] := '{}';
       frozen_quote jsonb;
     BEGIN
