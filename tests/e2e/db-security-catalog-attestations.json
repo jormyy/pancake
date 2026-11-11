@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261214010800",
+  "candidateVersion": "20261214010900",
   "common": {
     "functions": [
       {
@@ -2705,6 +2705,10 @@
     {
       "filename": "20261214010800_trade_display_dynasty_values.sql",
       "sha256": "a7d505b3431fe9ec0099899b6c7b8ef95170334df70b42b9d8ec7dbee8df2c6f"
+    },
+    {
+      "filename": "20261214010900_draft_pick_calendar_years.sql",
+      "sha256": "e61a95e475ff9c1529ad7b84151abb1f9890fe29cfae58e24948c1e69d522b41"
     }
   ],
   "preMigration": {

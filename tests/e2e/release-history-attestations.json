@@ -3637,6 +3637,13 @@
       "statementCount": 5,
       "statementsSha256": "e1af25561e5f1c3376f06eed7da804d891d80e5ab81b12f2dbd46890f24e8af3",
       "sha256": "a7d505b3431fe9ec0099899b6c7b8ef95170334df70b42b9d8ec7dbee8df2c6f"
+    },
+    {
+      "name": "draft_pick_calendar_years",
+      "version": "20261214010900",
+      "statementCount": 22,
+      "statementsSha256": "9055dc17edfa435b3d31f422af6ceaa7a7f0a48e0568bbf806ecd0809c128dc8",
+      "sha256": "e61a95e475ff9c1529ad7b84151abb1f9890fe29cfae58e24948c1e69d522b41"
     }
   ]
 }
