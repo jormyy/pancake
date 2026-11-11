@@ -1,6 +1,5 @@
 import { ListHeader } from '@/components/ui/ListHeader'
 import { RookiePickRow, rookiePickRowStyles } from '@/components/league/draft-room/RookiePickRow'
-import { draftYear } from '@/lib/picks'
 import { PlayerRowContent } from '@/components/player/PlayerRowContent'
 import {
     View,
@@ -133,7 +132,7 @@ export default function RookieDraftRoomScreen() {
     const canUsePauseControl = !canCommissionerPick
     const pickTimerExpired =
         draft.status === 'in_progress' && !!nextPick?.timerExpiresAt && secondsLeft === 0
-    const draftTitle = `${draft.seasonYear == null ? '' : `${draftYear(draft.seasonYear)} `}${draft.isMock ? 'Mock Rookie Draft' : 'Rookie Draft'}`
+    const draftTitle = `${draft.seasonYear == null ? '' : `${draft.seasonYear - 1} `}${draft.isMock ? 'Mock Rookie Draft' : 'Rookie Draft'}`
 
     const isPending = draft.status === 'pending'
     const totalPicks = picks.length

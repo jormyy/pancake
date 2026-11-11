@@ -16,7 +16,7 @@ const mocks = vi.hoisted(() => ({
     nextMember: null as string | null,
     overflow: null as { newPlayerName: string } | null,
     trimOverflow: null as { excess: number; dropList: never[] } | null,
-    isCommissioner: false,
+    isCommissioner: false, seasonYear: undefined as number | undefined, isMock: false,
 }))
 vi.mock('react-native', () => ({
     Platform: { OS: 'web' }, View: 'View', Text: 'Text', TextInput: 'TextInput',
@@ -30,7 +30,7 @@ vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => ({
     current: { id: 'member' }, currentLeague: { id: 'league', roster_size: 1 }, isCommissioner: mocks.isCommissioner,
 }) }))
 vi.mock('@/hooks/useRookieDraftRoomController', () => ({ useRookieDraftRoomController: () => ({
-    state: mocks.hasState ? { draft: { id: 'draft', leagueId: 'league', status: mocks.overflow || mocks.nextMember ? 'in_progress' : 'completed', isMock: false }, picks: [], orders: [],
+    state: mocks.hasState ? { draft: { id: 'draft', leagueId: 'league', status: mocks.overflow || mocks.nextMember ? 'in_progress' : 'completed', isMock: mocks.isMock, seasonYear: mocks.seasonYear }, picks: [], orders: [],
         nextPick: mocks.nextMember ? { memberId: mocks.nextMember, teamName: 'Team on the clock', round: 1 } : null } : null,
     actionsReady: true,
     loading: mocks.loading, loadError: mocks.loadError, prospectsLoadError: mocks.prospectsLoadError,
@@ -65,7 +65,7 @@ let screen: ReactTestRenderer
 beforeEach(() => {
     vi.clearAllMocks(); mocks.overflow = null; mocks.trimOverflow = null; mocks.nextMember = null
     mocks.hasState = true; mocks.loading = false; mocks.loadError = null; mocks.prospectsLoadError = null
-    mocks.isCommissioner = false
+    mocks.isCommissioner = false; mocks.seasonYear = undefined; mocks.isMock = false
 })
 afterEach(async () => { await act(async () => screen?.unmount()) })
 
@@ -179,4 +179,11 @@ it.each([['rookie', RookieDraftRoomScreen], ['auction', DraftRoomScreen]] as con
         expect(root.index).toBe(0)
     }
     expect(mocks.replace).not.toHaveBeenCalled()
+})
+
+it.each([false, true])("titles a rookie room with the draft calendar year, mock %s", async (isMock) => {
+    mocks.seasonYear = 2028
+    mocks.isMock = isMock
+    await act(async () => { screen = create(React.createElement(RookieDraftRoomScreen)) })
+    expect(screen.root.findByType('DraftScreenHeader' as React.ElementType).props.title).toBe(isMock ? '2027 Mock Rookie Draft' : '2027 Rookie Draft')
 })
