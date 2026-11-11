@@ -64,7 +64,7 @@ try {
     await page.goto(`${origin}/trades?tab=analyzer`, { waitUntil: 'networkidle' })
     await page.getByRole('button', { name: /^Analyze with / }).first().click()
     await page.waitForTimeout(1500)
-    const player = page.getByRole('button', { name: /^Select .* for trade$/ }).filter({ hasText: 'Jeremiah Fears' }).first()
+    const player = page.getByRole('button', { name: 'Add Jeremiah Fears to trade', exact: true })
     if (await player.count()) await player.scrollIntoViewIfNeeded()
     await capture('trade-players')
     const pick = page.getByRole('button', { name: /^Select .*Round .*pick via .* for trade$/ }).first()

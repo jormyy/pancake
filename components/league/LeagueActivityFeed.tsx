@@ -1,5 +1,6 @@
 import { formatLeagueDateTime } from '@/lib/timezone'
 import { useLeagueTimezone } from '@/hooks/use-league-timezone'
+import { TradePlayerLink } from '@/components/trades/TradePlayerLink'
 import { PlayerRowContent } from '@/components/player/PlayerRowContent'
 import { TradePickLabel } from '@/components/trades/TradePickLabel'
 import { orderTradeAssets } from '@/lib/trade-assets'
@@ -25,7 +26,7 @@ function ActivityRow({ item, isMe, myMemberId, padX = spacing.lg }: { item: Tran
     const avatarSize = controlSize.avatar.md
     if (item.isSystem) {
         return (
-            <View style={[styles.txRow, { paddingHorizontal: padX }, isMe && styles.txRowMe]}>
+            <View testID={item.transactionType === 'trade_completed' ? `trade-activity-${item.id}` : undefined} style={[styles.txRow, { paddingHorizontal: padX }, isMe && styles.txRowMe]}>
                 <Avatar
                     name={item.title ?? item.playerName}
                     color={alpha(color, 0.22)}
@@ -38,7 +39,11 @@ function ActivityRow({ item, isMe, myMemberId, padX = spacing.lg }: { item: Tran
                         {item.body ?? item.teamName}
                         {isMe ? <Text style={styles.meTag}> (you)</Text> : null}
                     </Text>
-                    {orderTradeAssets(item.tradePlayers ?? []).map(player => <Text key={player.playerId} style={styles.txTeam}>{player.playerName} · {player.fromTeamName} → {player.toTeamName}</Text>)}
+                    {orderTradeAssets(item.tradePlayers ?? []).map(player => item.transactionType === 'trade_completed'
+                        ? <TradePlayerLink key={player.playerId} playerId={player.playerId} name={player.playerName}>
+                            <Text style={styles.txTeam}>{player.playerName} · {player.fromTeamName} → {player.toTeamName}</Text>
+                        </TradePlayerLink>
+                        : <Text key={player.playerId} style={styles.txTeam}>{player.playerName} · {player.fromTeamName} → {player.toTeamName}</Text>)}
                     {orderTradeAssets(item.tradePicks ?? []).map(pick => <TradePickLabel key={pick.pickId} pick={pick} context={{
                         viewerMemberId: myMemberId ?? '',
                         memberNames: { [pick.fromMemberId ?? '']: pick.fromTeamName, [pick.toMemberId ?? '']: pick.toTeamName },
@@ -52,10 +57,14 @@ function ActivityRow({ item, isMe, myMemberId, padX = spacing.lg }: { item: Tran
         )
     }
 
+    const playerProps = { name: item.playerName, nbaId: item.nbaId, team: item.nbaTeam, positions: item.eligiblePositions,
+        yearsExp: item.yearsExp, careerGames: item.careerGames, injuryStatus: item.injuryStatus,
+        stats: `${item.teamName}${isMe ? ' (you)' : ''}` }
     return (
         <View style={[styles.txRow, { paddingHorizontal: padX }, isMe && styles.txRowMe]}>
-            <PlayerRowContent name={item.playerName} nbaId={item.nbaId} team={item.nbaTeam} positions={item.eligiblePositions} playerId={item.playerId} yearsExp={item.yearsExp} careerGames={item.careerGames} injuryStatus={item.injuryStatus}
-                stats={`${item.teamName}${isMe ? ' (you)' : ''}`} />
+            {(item.transactionType === 'trade_in' || item.transactionType === 'trade_out') && item.playerId
+                ? <TradePlayerLink {...playerProps} playerId={item.playerId} />
+                : <PlayerRowContent {...playerProps} playerId={item.playerId} />}
             <View style={styles.txRight}>
                 <Badge label={label} color={color} variant="soft" />
                 <Text style={styles.txTime}>{formatLeagueDateTime(item.occurredAt, timezone)}</Text>

@@ -188,3 +188,14 @@ it('orders draft incoming players by value and stable keys without reordering ex
     expect(incoming.map(item => item.kind === 'player' ? item.playerId : '')).toEqual(players.map(player => player.id))
     expect(existing.map(row => row.players.id)).toEqual(['existing-z', 'existing-a'])
 })
+
+it('keeps lock explanations and roster choices outside the player stats target', async () => {
+    const player = rosterPlayer({ assetLocks: [{ assetKind: 'player', assetId: 'player-a', sourceKind: 'trade', sourceId: 'offer', reason: 'Pending trade' }] })
+    await act(async () => { renderer = create(React.createElement(TradeRosterPlanEditor, {
+        incoming: [], roster: [player], value: emptyPlan, onChange: vi.fn(), unavailableMoves: { 'player-a': 'Pending trade' },
+    })) })
+    const targets = renderer!.root.findAllByType('Pressable' as React.ElementType)
+    expect(targets.some(target => target.props.accessibilityLabel === 'Locked by a pending trade')).toBe(true)
+    for (const target of targets) expect(target.findAllByType('Pressable' as React.ElementType)).toHaveLength(1)
+    expect(targets.find(target => target.props.accessibilityLabel === 'Open Player A')?.props.onPress).toBeTypeOf('function')
+})

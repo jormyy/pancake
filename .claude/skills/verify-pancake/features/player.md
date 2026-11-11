@@ -9,12 +9,14 @@ Player pages show statistics, projections, games, news, league history, and avai
 - `player-games` expands recent game statistics.
 - `player-actions` offers legal claim, drop, or trade actions.
 - `player-history` expands league history and news.
+- `trade-player-stats` opens profiles from all trade views and restores trade state on Back.
 
 ## How to get to it (user POV)
 
 - Open a player from Home, Roster, or Players.
 - Follow the quick-view action to the full player page.
 - Open a saved `/player/<id>` link.
+- Tap a trade player name, photo, or row.
 
 ## Driving it with agent-browser
 
@@ -28,6 +30,14 @@ Preconditions:
 - **Actions.** On a free player, choose Claim and require the same player in Waiver Claim. On a rostered player, inspect only the actions legal for the current manager.
 - **Deep link.** Copy the observed player URL, reopen it, and require the same player page after reload.
 - **Widths.** Capture statistics and actions at both widths; check the final table column and bottom action.
+
+`trade-player-stats` opens the existing player page from trade rows, photos, and names.
+Run the journey documented in [Trades](trades.md).
+Require `/player/<id>`, the same player's header, and the no-stat empty state.
+Back must restore selections, picks, notes, FAAB, routes, roster plan, and scroll.
+Add/Remove must change selection without leaving the trade view.
+The automated WebKit result does not prove physical iOS Safari or installed PWA behavior.
+
 
 ## Gotchas
 

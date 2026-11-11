@@ -40,3 +40,29 @@ export function playerDetailRoute(player: PlayerRow, pickupPossible = false) {
         },
     }
 }
+
+export type TradePlayerIdentity = {
+    playerId: string
+    name: string
+    nbaId?: string | null
+    team?: string | null
+    positions?: readonly string[] | null
+    injuryStatus?: string | null
+    yearsExp?: number | null
+    careerGames?: number | null
+}
+
+export function tradePlayerDetailRoute(player: TradePlayerIdentity) {
+    return {
+        pathname: '/player/[id]' as const,
+        params: {
+            id: player.playerId,
+            playerHeader: JSON.stringify({
+                id: player.playerId, display_name: player.name, nba_id: player.nbaId,
+                nba_team: player.team, eligible_positions: player.positions ?? [],
+                position: player.positions?.[0], injury_status: player.injuryStatus,
+                years_exp: player.yearsExp, career_regular_season_games: player.careerGames,
+            }),
+        },
+    }
+}

@@ -4,7 +4,8 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { TradeAnalysisSummary } from '@/components/trades/TradeAnalysisSummary'
 import type { DynastyTradeAnalysis } from '@pancake/core'
 
-vi.mock('react-native', () => ({ Platform: { OS: 'web' }, View: 'View', Text: 'Text', ActivityIndicator: 'ActivityIndicator', StyleSheet: { create: (value: unknown) => value } }))
+vi.mock('expo-router', () => ({ useRouter: () => ({ push: vi.fn() }) }))
+vi.mock('react-native', () => ({ Platform: { OS: 'web' }, Pressable: 'Pressable', View: 'View', Text: 'Text', ActivityIndicator: 'ActivityIndicator', StyleSheet: { create: (value: unknown) => value } }))
 vi.mock('@/components/player/PlayerRowContent', () => ({ PlayerRowContent: 'PlayerRowContent' }))
 vi.mock('@/components/ui/DeferredContent', () => ({ DeferredContent: ({ ready, children }: { ready: boolean; children: React.ReactNode }) => ready ? children : null }))
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true

@@ -56,6 +56,17 @@ await checked(admin.from('matchups').insert({ ...scope, week_number: week.week_n
 const gameDays = [today, new Date(Date.parse(today + 'T12:00:00Z') + 86400000).toISOString().slice(0, 10)]
 await checked(admin.from('nba_games').insert(gameDays.flatMap((game_date, index) => ['ATL', 'CHI', 'DEN', 'LAL'].map((home_team, i) => ({ season_year: season.season_year, week_number: week.week_number, game_date, home_team, away_team: ['BOS', 'DAL', 'GSW', 'MIA'][i], status: 'Scheduled', game_time: new Date(Date.parse(endOfETDayUTC(game_date)) - 1).toISOString(), nba_game_id: `verify-${index}-${i}` })))))
 await checked(admin.rpc('propose_trade_atomic', { p_league_id: state.leagueId, p_league_season_id: season.id, p_proposer_member_id: me.id, p_recipient_member_id: other.id, p_offer_player_ids: [players[0].id], p_request_player_ids: [players[20].id], p_offer_pick_ids: [], p_request_pick_ids: [] }))
+const sentTrade = await checked(admin.from('trades').select('id').eq('league_id', state.leagueId).eq('status', 'pending').single())
+const completedTradeId = await checked(admin.rpc('propose_trade_atomic', { p_league_id: state.leagueId, p_league_season_id: season.id, p_proposer_member_id: me.id, p_recipient_member_id: other.id, p_offer_player_ids: [players[10].id], p_request_player_ids: [players[30].id], p_offer_pick_ids: [], p_request_pick_ids: [] }))
+await checked(admin.from('leagues').update({ trade_veto_mode: 'disabled', waiver_mode: 'faab' }).eq('id', state.leagueId))
+await checked(admin.rpc('accept_trade_atomic', { p_trade_id: completedTradeId, p_accepting_member_id: other.id }))
+await checked(admin.rpc('process_due_accepted_trades_atomic', { p_limit: 200 }))
+const completedTrade = await checked(admin.from('trades').select('id,status').eq('id', completedTradeId).single())
+assert.equal(completedTrade.status, 'completed', 'History fixture must complete through the trade rules')
+const receivedTradeId = await checked(admin.rpc('propose_trade_atomic', { p_league_id: state.leagueId, p_league_season_id: season.id, p_proposer_member_id: other.id, p_recipient_member_id: me.id, p_offer_player_ids: [players[21].id], p_request_player_ids: [players[1].id], p_offer_pick_ids: [], p_request_pick_ids: [] }))
+const noStats = players[2]
+const noStatsCount = await checked(admin.from('player_game_stats').select('id').eq('player_id', noStats.id))
+assert.equal(noStatsCount.length, 0, 'No-stat player fixture must have no statistics')
 await checked(admin.from('waiver_claims').insert({ ...scope, member_id: me.id, player_id: players[50].id, priority_at_submission: 1, process_date: gameDays[1], bid_amount: 3, status: 'pending' }))
 const pastSeasonId = randomUUID()
 const pastSeasonYear = season.season_year - 1
@@ -72,6 +83,6 @@ assert.equal(history.seasons.length, 1)
 assert.equal(history.seasons[0].id, pastSeasonId)
 assert.equal(history.seasons[0].champion.memberId, other.id)
 assert.deepEqual(history.seasons[0].stats, { teams: members.length, games: 2, pointsFor: 420 })
-const fixture = { leagueId: state.leagueId, seasonId: season.id, memberId: me.id, otherMemberId: other.id, currentWeek: week.week_number, today, benchPlayerId: players[7].id, benchPlayerName: players[7].display_name, freePlayerId: players[51].id, completedPastSeason: true, pastSeasonId, pastSeasonYear, history: history.seasons[0], counts: { members: members.length, activePerTeam: 14, irPerTeam: 1, taxiPerTeam: 1, pendingTrades: 1, pendingWaivers: 1 } }
+const fixture = { sentTradeId: sentTrade.id, receivedTradeId, completedTradeId, noStatsPlayerId: noStats.id, noStatsPlayerName: noStats.display_name, proposerTeamName: me.team_name, recipientTeamName: other.team_name, leagueId: state.leagueId, seasonId: season.id, memberId: me.id, otherMemberId: other.id, currentWeek: week.week_number, today, benchPlayerId: players[7].id, benchPlayerName: players[7].display_name, freePlayerId: players[51].id, completedPastSeason: true, pastSeasonId, pastSeasonYear, history: history.seasons[0], counts: { members: members.length, activePerTeam: 14, irPerTeam: 1, taxiPerTeam: 1, pendingTrades: 2, pendingWaivers: 1 } }
 await writeFile(path.join(dir, 'fixture.json'), JSON.stringify(fixture, null, 2) + '\n')
 console.log('Seeded active league, current matchup, starters, bench, IR, taxi, waivers, pending trade, and completed season history.')

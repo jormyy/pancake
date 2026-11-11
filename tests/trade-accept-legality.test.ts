@@ -7,6 +7,7 @@ import { trade, rosterPlayer } from './helpers/fixtures'
 import type { TradeRosterPreview } from '@/lib/trades'
 
 const mocks = vi.hoisted(() => ({ read: vi.fn(), roster: vi.fn(), accept: vi.fn(), withdraw: vi.fn(), confirm: vi.fn() }))
+vi.mock('@react-navigation/native', () => ({ useIsFocused: () => true }))
 vi.mock('react-native-safe-area-context', () => ({ SafeAreaView: 'SafeAreaView' }))
 vi.mock('@/components/ui', () => ({ Button: 'Button', ErrorBanner: 'ErrorBanner', PageHeader: ({ title, actions }: { title: string; actions: React.ReactNode }) => React.createElement('View', null, title, actions) }))
 vi.mock('@/lib/roster', () => ({ getRoster: mocks.roster }))

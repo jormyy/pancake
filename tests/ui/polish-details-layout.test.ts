@@ -12,6 +12,7 @@ import type { DynastyTradeAnalysis } from '@pancake/core'
 import { rosterPlayer } from '@/tests/helpers/fixtures'
 vi.mock('@/hooks/use-league-timezone', () => ({ useLeagueTimezone: () => 'America/Los_Angeles' }))
 
+vi.mock('expo-router', () => ({ useRouter: () => ({ push: vi.fn() }) }))
 vi.mock('react-native', async () => ({ ...await vi.importActual('react-native-web') }))
 vi.mock('@/hooks/use-browser-read-activity', () => ({ useBrowserReadActivity: () => ({ active: false, revision: 0 }) }))
 vi.mock('@/components/ui/DeferredContent', () => ({ DeferredContent: ({ children }: React.PropsWithChildren) => children }))

@@ -5,7 +5,8 @@ import { PendingTradeRosterPlan } from '@/components/trades/PendingTradeRosterPl
 import { trade } from '../../helpers/fixtures'
 import type { TradeRosterPreview } from '@/lib/trades'
 
-const reads = vi.hoisted(() => ({ roster: vi.fn(), preview: vi.fn() }))
+const reads = vi.hoisted(() => ({ roster: vi.fn(), preview: vi.fn(), focused: true }))
+vi.mock('@react-navigation/native', () => ({ useIsFocused: () => reads.focused }))
 vi.mock('@/lib/supabase', () => ({ supabase: {} }))
 vi.mock('@/lib/roster', () => ({ getRoster: reads.roster }))
 vi.mock('@/lib/trade-legality', () => ({ previewTradeLegality: reads.preview }))
@@ -14,7 +15,7 @@ vi.mock('react-native', () => ({ Text: 'Text', Pressable: 'Pressable', View: 'Vi
 vi.mock('react-native-safe-area-context', () => ({ SafeAreaView: 'SafeAreaView' }))
 vi.mock('@/components/ui', () => ({ Button: 'Button', ErrorBanner: 'ErrorBanner', PageHeader: ({ actions }: { actions: React.ReactNode }) => React.createElement('View', null, actions) }))
 vi.mock('@/components/trades/TradeCard', () => ({ TradeCard: 'TradeCard' }))
-vi.mock('@/components/trades/TradeRosterPlanEditor', () => ({ TradeRosterPlanEditor: () => null }))
+vi.mock('@/components/trades/TradeRosterPlanEditor', () => ({ TradeRosterPlanEditor: 'TradeRosterPlanEditor' }))
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 let screen: ReactTestRenderer
 const teams: TradeRosterPreview[] = [{ memberId: 'member', teamName: 'Matthew', limits: { active: 20, ir: 2, taxi: 3 }, roster: [], drops: [], moves: [], error: null }]
@@ -22,7 +23,7 @@ const text = () => screen.root.findAllByType('Text' as React.ElementType).map(no
 const confirmDisabled = () => screen.root.findByProps({ testID: 'trade-confirm-accept' }).props.disabled
 const render = (value = trade()) => React.createElement(PendingTradeRosterPlan, { trade: value, memberId: 'member', onCancel: vi.fn(), onConfirmed: vi.fn() })
 const settle = async () => { await act(async () => { await vi.advanceTimersByTimeAsync(150) }) }
-beforeEach(() => { vi.useFakeTimers(); reads.roster.mockReset().mockResolvedValue([]); reads.preview.mockReset().mockResolvedValue(teams) })
+beforeEach(() => { vi.useFakeTimers(); reads.focused = true; reads.roster.mockReset().mockResolvedValue([]); reads.preview.mockReset().mockResolvedValue(teams) })
 afterEach(async () => { await act(async () => screen?.unmount()); vi.useRealTimers() })
 
 it('blocks acceptance during replacement reads and a failed refresh', async () => {
@@ -74,4 +75,19 @@ it('blocks changed terms and rejects a previous offer response', async () => {
     await settle()
     expect(text()).toContain('Checking roster…')
     expect(confirmDisabled()).toBe(true)
+})
+
+it('hides review while stats has focus and restores the chosen plan', async () => {
+    const offer = trade()
+    await act(async () => { screen = create(render(offer)) })
+    await settle()
+    const plan = { taxiPlayerIds: [], irPlayerIds: [], dropPlayerIds: ['player'] }
+    await act(async () => screen.root.findByType('TradeRosterPlanEditor' as React.ElementType).props.onChange(plan))
+    reads.focused = false
+    await act(async () => screen.update(render(offer)))
+    expect(screen.root.findByType('Modal' as React.ElementType).props.visible).toBe(false)
+    reads.focused = true
+    await act(async () => screen.update(render(offer)))
+    expect(screen.root.findByType('Modal' as React.ElementType).props.visible).toBe(true)
+    expect(screen.root.findByType('TradeRosterPlanEditor' as React.ElementType).props.value).toEqual(plan)
 })

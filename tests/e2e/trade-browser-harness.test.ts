@@ -44,7 +44,7 @@ it('opens the compact summary when its control is present', async () => {
 it.each([
     [null, 44],
     ['Remove Player A sent by You from trade', 0],
-    ['Remove Player A for trade', 44],
+    ['Remove Player A from trade', 44],
 ] as const)('rejects a missing or hidden routed asset: %s at width %s', async (label, width) => {
     showSummary(label, width, 'DEAL OVERVIEW')
     await expect(clickTestId('trades', 'trade-deal-summary', 'Expanded summary')).rejects.toThrow('overview panel is missing')

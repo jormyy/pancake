@@ -463,7 +463,7 @@ try {
                 await open(`/propose-trade?recipientMemberId=${fixture.members[1].id}`)
                 await settle()
                 const offered = await page
-                    .locator('[role="button"][aria-label^="Select "][aria-label$=" for trade"]')
+                    .locator('[role="button"][aria-label^="Add "][aria-label$=" to trade"]')
                     .first()
                     .getAttribute('aria-label')
                 await measure('compose-select', 'action', () => button(offered))
@@ -473,7 +473,7 @@ try {
                 await click(`[aria-label="Edit assets sent by ${fixture.users[1].teamName}"]`)
                 await settle()
                 const requested = await page
-                    .locator('[role="button"][aria-label^="Select "][aria-label$=" for trade"]')
+                    .locator('[role="button"][aria-label^="Add "][aria-label$=" to trade"]')
                     .first()
                     .getAttribute('aria-label')
                 await measure('compose-request', 'action', () => button(requested))

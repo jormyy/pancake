@@ -1,6 +1,6 @@
 import { SectionBand } from '@/components/ui/SectionBand'
 import { pickLabel } from '@/lib/picks'
-import { PlayerRowContent } from '@/components/player/PlayerRowContent'
+import { TradePlayerLink } from '@/components/trades/TradePlayerLink'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { memo, useState } from 'react'
 import { PendingTradeRosterPlan } from './PendingTradeRosterPlan'
@@ -57,7 +57,7 @@ export const TradeBlockListingRow = memo(function TradeBlockListingRow({
     return (
         <View style={[styles.blockRow, !tile && styles.compactBlockRow, tile && styles.tile]}>
             {block.asset.kind === 'player' ? <View style={styles.blockInfo}>
-                <PlayerRowContent compact name={label} nbaId={block.asset.nbaId} team={block.asset.nbaTeam} positions={positions}
+                <TradePlayerLink compact name={label} nbaId={block.asset.nbaId} team={block.asset.nbaTeam} positions={positions}
                     playerId={block.asset.playerId} yearsExp={block.asset.yearsExp} careerGames={block.asset.careerGames} injuryStatus={block.asset.injuryStatus} onTaxi={block.rosterLocation === 'taxi'}
                     metadata={<Text style={styles.blockMeta}>{block.teamName}{block.rosterLocation ? ` · ${block.rosterLocation === 'active' ? 'Active' : block.rosterLocation.toUpperCase()}` : ''}</Text>} stats={playerSeasonContextText(block.asset)} />
                 {mine ? <TradeBlockNoteEditor item={block} label={label}
@@ -115,7 +115,7 @@ export const TradeBlockPlayerRow = memo(function TradeBlockPlayerRow({
     })
     return (
         <View style={[styles.blockRow, !tile && styles.compactBlockRow, tile && styles.tile]}>
-            <PlayerRowContent compact name={player.display_name} nbaId={player.nba_id} team={player.nba_team} positions={positions}
+            <TradePlayerLink compact playerId={player.id} name={player.display_name} nbaId={player.nba_id} team={player.nba_team} positions={positions}
                 birthdate={player.birthdate} yearsExp={player.years_exp} careerGames={player.career_regular_season_games} injuryStatus={player.injury_status} onTaxi={item.player.is_on_taxi}
                 metadata={<Text style={styles.blockMeta}>{item.player.is_on_ir ? 'IR' : item.player.is_on_taxi ? 'TAXI' : 'Active'}</Text>} stats={context} />
             <Pressable style={[styles.blockAction, listed && styles.blockActionDisabled]}

@@ -3,16 +3,21 @@ import assert from 'node:assert/strict'
 import { spawn, execFileSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { createServer } from 'node:net'
-import { mkdir, readFile, writeFile, cp, symlink, chmod, access, readdir } from 'node:fs/promises'
+import { mkdir, readFile, writeFile, cp, symlink, chmod, access, readdir, rm } from 'node:fs/promises'
 import { openSync, closeSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { readPwaRelease } from '../../tests/e2e/pwa-update-release.mjs'
+import { localFixtureEnv } from './local-fetch.mjs'
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const [action, target] = process.argv.slice(2)
 const cleanEnv = { PATH: process.env.PATH, HOME: os.homedir(), TMPDIR: os.tmpdir(), LANG: 'en_US.UTF-8', EXPO_NO_DOTENV: '1', CI: '1', VERCEL_ENV: 'development' }
+if (process.env.PANCAKE_VERIFY_DOCKER_HOST) {
+  assert.match(process.env.PANCAKE_VERIFY_DOCKER_HOST, /^unix:\/\/.+\.sock$/)
+  cleanEnv.DOCKER_HOST = process.env.PANCAKE_VERIFY_DOCKER_HOST
+}
 const json = async file => JSON.parse(await readFile(file, 'utf8'))
 const save = (file, value) => writeFile(file, JSON.stringify(value, null, 2) + '\n', { mode: 0o600 })
 const output = (command, args, cwd = repo) => execFileSync(command, args, { cwd, env: cleanEnv, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim()
@@ -132,6 +137,23 @@ async function cleanup(run) {
   console.log(`CLEANED evidence preserved: ${run.dir}`)
 }
 
+async function startWebkit(run) {
+  for (const child of run.processes.filter(child => child.label === 'webkit')) {
+    if (!child.birth || birth(child.pid) !== child.birth) continue
+    process.kill(-child.pid, 'SIGTERM')
+    for (let attempt = 0; attempt < 100 && birth(child.pid) === child.birth; attempt++) await pause(100)
+    assert.notEqual(birth(child.pid), child.birth, 'Previous task-owned WebKit process did not stop')
+  }
+  run.processes = run.processes.filter(child => child.label !== 'webkit')
+  await rm(path.join(run.dir, 'webkit-port.json'), { force: true })
+  await background(run, 'webkit', 'node', [fileURLToPath(new URL('./webkit.mjs', import.meta.url)), run.dir, 'serve'], repo, cleanEnv)
+  for (let attempt = 0; attempt < 300; attempt++) {
+    if (await access(path.join(run.dir, 'webkit-port.json')).then(() => true, () => false)) { console.log('WebKit ready'); return }
+    await pause(100)
+  }
+  throw new Error('WebKit startup timed out; inspect webkit.log and run cleanup')
+}
+
 async function launch() {
   assert.equal(Number(process.versions.node.split('.')[0]), 22, 'Put Node 22 on PATH before launch')
   await access(path.join(repo, 'node_modules/.bin/expo'))
@@ -144,6 +166,8 @@ async function launch() {
     await mkdir(path.dirname(dir), { recursive: true })
     await mkdir(dir, { mode: 0o700 })
   })
+  cleanEnv.TMPDIR = path.join(dir, 'runtime-temp')
+  await mkdir(cleanEnv.TMPDIR)
   const base = await freeBlock()
   const run = { id, dir, repo, work: path.join(dir, 'work'), sha: output('git', ['rev-parse', 'HEAD']), ports: { api: base, db: base + 1, frontend: base + 10 }, url: `http://127.0.0.1:${base + 10}`, processes: [], stackStarted: false, browserStarted: false }
   await save(path.join(dir, 'run.json'), run)
@@ -177,12 +201,12 @@ async function launch() {
     await writeFile(path.join(dir, 'functions.env'), `E2E_ADMIN_SECRET=${env.E2E_ADMIN_SECRET}\nPANCAKE_EDGE_INTERNAL_TOKEN=${env.PANCAKE_EDGE_INTERNAL_TOKEN}\n`, { mode: 0o600 })
     output('psql', [env.SUPABASE_DB_URL, '-X', '-v', 'ON_ERROR_STOP=1', '-c', "select cron.unschedule(jobid) from cron.job;"])
     await background(run, 'functions', 'supabase', ['functions', 'serve', '--workdir', run.work, '--env-file', path.join(dir, 'functions.env')], repo, env)
-    await command('npm', ['run', 'e2e:seed'], run.work, env, path.join(dir, 'seed.log'))
+    await command('npm', ['run', 'e2e:seed'], run.work, localFixtureEnv(env), path.join(dir, 'seed.log'))
     await chmod(path.join(run.work, 'tests/e2e-state.json'), 0o600)
-    await command('node', [path.join(run.work, 'tools/verify/fixture.mjs'), dir], run.work, env, path.join(dir, 'fixture.log'))
+    await command('node', [path.join(run.work, 'tools/verify/fixture.mjs'), dir], run.work, localFixtureEnv(env), path.join(dir, 'fixture.log'))
     console.log('Seed ready. Building the local web app.')
     await command('npm', ['run', 'build:web:release'], run.work, env, path.join(dir, 'build.log'))
-    await command('node', [path.join(run.work, 'tools/verify/enrich.mjs'), dir], run.work, env, path.join(dir, 'enrich.log'))
+    await command('node', [path.join(run.work, 'tools/verify/enrich.mjs'), dir], run.work, localFixtureEnv(env), path.join(dir, 'enrich.log'))
     await command('node', [path.join(run.work, 'scripts/stamp-release-provenance.mjs')], run.work, env, path.join(dir, 'build.log'))
     await background(run, 'web', 'node', [path.join(repo, 'tests/e2e/static-web-server.mjs'), `--root=${path.join(run.work, 'dist')}`, `--port=${run.ports.frontend}`, '--host=127.0.0.1'], run.work, env)
     await waitFor(`${run.url}/sign-in`)
@@ -191,6 +215,36 @@ async function launch() {
     await doctor(run)
     console.log(`READY ${run.url} credentials: ${path.join(run.work, 'tests/e2e-state.json')} evidence: ${dir}`)
   } catch (error) { await cleanup(run); throw error }
+}
+
+export async function refreshAppSources(source, work, files) {
+  for (const root of ['app', 'components', 'constants', 'contexts', 'hooks', 'lib', 'types', 'core', 'public', 'scripts']) {
+    await rm(path.join(work, root), { recursive: true, force: true })
+  }
+  for (const file of files) {
+    if (/(^|\/)(\.env[^/]*|\.temp|\.branches)(\/|$)/.test(file) || /\.(pem|key)$/.test(file)) continue
+    try { await access(path.join(source, file)) } catch (error) { if (error.code === 'ENOENT') continue; throw error }
+    await mkdir(path.dirname(path.join(work, file)), { recursive: true })
+    await cp(path.join(source, file), path.join(work, file))
+  }
+}
+
+async function rebuild(run) {
+  await doctor(run)
+  assert.equal(run.work, path.join(run.dir, 'work'))
+  const files = output('git', ['ls-files', '--cached', '--others', '--exclude-standard', '-z', 'app', 'components', 'constants', 'contexts', 'hooks', 'lib', 'types', 'core', 'public', 'scripts']).split('\0').filter(Boolean)
+  await refreshAppSources(repo, run.work, files)
+  const env = await json(path.join(run.dir, 'local-env.json'))
+  run.sha = output('git', ['rev-parse', 'HEAD'])
+  env.PANCAKE_RELEASE_SHA = run.sha
+  await save(path.join(run.dir, 'local-env.json'), env)
+  await save(path.join(run.dir, 'run.json'), run)
+  await rm(path.join(run.work, 'core/cjs'), { recursive: true, force: true })
+  await command('node', [path.join(repo, 'node_modules/typescript/bin/tsc'), '-p', path.join(run.work, 'core/tsconfig.cjs.json')], run.work, env, path.join(run.dir, 'core-build.log'))
+  await command('npm', ['run', 'build:web:release'], run.work, env, path.join(run.dir, 'rebuild.log'))
+  await command('node', [path.join(repo, 'tools/verify/enrich.mjs'), run.dir], run.work, localFixtureEnv(env), path.join(run.dir, 'enrich.log'))
+  await command('node', [path.join(run.work, 'scripts/stamp-release-provenance.mjs')], run.work, env, path.join(run.dir, 'rebuild.log'))
+  await doctor(run)
 }
 
 async function doctor(run) {
@@ -220,6 +274,6 @@ async function doctor(run) {
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const main = action === 'launch' ? launch() : action === 'doctor' ? readRun(target).then(doctor) : action === 'cleanup' ? readRun(target).then(cleanup) : Promise.reject(new Error('Usage: launch.sh [new-evidence-directory] | doctor.sh EVIDENCE | cleanup.sh EVIDENCE'))
+  const main = action === 'launch' ? launch() : action === 'doctor' ? readRun(target).then(doctor) : action === 'cleanup' ? readRun(target).then(cleanup) : action === 'rebuild' ? readRun(target).then(rebuild) : action === 'webkit' ? readRun(target).then(startWebkit) : action === 'trade-player-stats' ? readRun(target).then(run => command('node', [fileURLToPath(new URL('./trade-player-stats.mjs', import.meta.url)), run.dir], repo, cleanEnv, path.join(run.dir, 'trade-player-stats.log'))) : Promise.reject(new Error('Usage: launch.sh [new-evidence-directory] | doctor.sh EVIDENCE | cleanup.sh EVIDENCE | run.mjs webkit EVIDENCE | run.mjs trade-player-stats EVIDENCE'))
   main.catch(error => { console.error(error.message); process.exitCode = 1 })
 }

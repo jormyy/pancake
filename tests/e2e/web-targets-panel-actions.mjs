@@ -266,7 +266,7 @@ export async function auditWebPanelActions({ check, env, season, target, page, p
     assert.equal(new URL(page.url()).searchParams.get('requestPlayerId'), fixture.proposerPlayer.id)
     const sender = page.getByTestId(`trade-sender-${fixture.proposer.id}`)
     if (target.mobile) await press(sender)
-    await page.getByRole('button', { name: `Remove ${fixture.proposerPlayer.display_name} for trade`, exact: true }).waitFor()
+    await page.getByRole('button', { name: `Remove ${fixture.proposerPlayer.display_name} from trade`, exact: true }).waitFor()
     await signIn(fixture)
     await open('/trades')
     await press(page.getByRole('tab', { name: 'Block', exact: true }))

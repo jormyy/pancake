@@ -78,7 +78,7 @@ try {
     await page.waitForTimeout(1200)
 
 
-    const select = page.getByRole('button', { name: /^Select .* for trade$/ }).filter({ hasNotText: 'Round' })
+    const select = page.getByRole('button', { name: /^Add .* to trade$/ })
     const captureAnalysis = async name => {
         for (const theme of ['light', 'dark']) {
             await page.evaluate(theme => document.documentElement.setAttribute('data-theme', theme), theme)

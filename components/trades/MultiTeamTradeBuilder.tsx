@@ -134,7 +134,7 @@ export function MultiTeamTradeBuilder({
             playerId: item.kind === 'player' ? item.playerId : undefined,
             pick: item.kind === 'pick' && pick ? { ...pick, fromMemberId: item.fromMemberId, toMemberId: item.toMemberId } : undefined,
             player: item.kind === 'player' ? {
-                name: label, nbaId: player?.players.nba_id, team: player?.players.nba_team,
+                playerId: item.playerId, name: label, nbaId: player?.players.nba_id, team: player?.players.nba_team,
                 positions: player?.players.eligible_positions ?? (player?.players.position ? [player.players.position] : []),
                 birthdate: player?.players.birthdate, yearsExp: player?.players.years_exp, careerGames: player?.players.career_regular_season_games, injuryStatus: player?.players.injury_status,
                 stats: playerSeasonContextText({ avgFantasyPoints: avgMap.get(item.playerId), avgMinutesPlayed: avgStatsMap.get(item.playerId)?.avg_minutes_played }),
@@ -231,7 +231,11 @@ export function MultiTeamTradeBuilder({
             onLayout={(event) => setContentWidth(event.nativeEvent.layout.width)}
         >
             {useColumns ? (
-                <MultiTeamTradeOverview pickContext={pickContext} participants={overviewParticipants} items={overviewItems} columns onRemoveItem={removeItem} />
+                <>
+                    <MultiTeamTradeOverview pickContext={pickContext} participants={overviewParticipants} items={overviewItems} columns onRemoveItem={removeItem} />
+                    {onAnalyze ? <View style={styles.summaryRow}><Button title="Analyze" variant="secondary" size="sm" onPress={onAnalyze} disabled={items.length === 0}
+                        accessibilityLabel="Analyze trade proposal" /></View> : null}
+                </>
             ) : (
                 <>
                     <View style={styles.summaryRow}>
