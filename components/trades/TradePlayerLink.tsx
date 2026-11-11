@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Pressable, StyleSheet } from 'react-native'
 import { useRouter } from 'expo-router'
 import { PlayerRowContent, type PlayerRowContentProps } from '@/components/player/PlayerRowContent'
@@ -10,7 +10,7 @@ export function useTradePlayerNavigation() {
     return (player: TradePlayerIdentity) => router.push(tradePlayerDetailRoute(player))
 }
 
-export type TradePlayerLinkProps = Omit<PlayerRowContentProps, 'playerId' | 'locks'> & TradePlayerIdentity
+export type TradePlayerLinkProps = Omit<PlayerRowContentProps, 'playerId' | 'locks'> & TradePlayerIdentity & { children?: ReactNode }
 
 export function TradePlayerLink(props: TradePlayerLinkProps) {
     const openPlayer = useTradePlayerNavigation()
@@ -19,7 +19,7 @@ export function TradePlayerLink(props: TradePlayerLinkProps) {
         onPress={() => openPlayer(props)}
         onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
         accessibilityRole="button" accessibilityLabel={`View ${props.name} stats`}>
-        <PlayerRowContent {...props} />
+        {props.children ?? <PlayerRowContent {...props} />}
     </Pressable>
 }
 

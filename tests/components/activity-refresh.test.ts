@@ -1,6 +1,7 @@
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { expect, it, vi } from 'vitest'
+import { colors, controlSize } from '@/constants/tokens'
 import { ActivityFeed } from '@/components/league/LeagueActivityFeed'
 vi.mock('@/hooks/use-league-timezone', () => ({ useLeagueTimezone: () => 'America/Los_Angeles' }))
 
@@ -70,6 +71,15 @@ it.each(['trade_completed', 'commissioner_announcement'])('links grouped players
         const links = row.root.findAllByType('Pressable' as React.ElementType)
         expect(links.map(link => link.props.accessibilityLabel)).toEqual(transactionType === 'trade_completed' ? ['View High stats', 'View Low stats'] : [])
         if (transactionType === 'trade_completed') {
+            expect(row.root.findAllByType('PlayerRowContent' as React.ElementType)).toHaveLength(0)
+            expect(links.map(link => link.findByType('Text' as React.ElementType).props.children.join(''))).toEqual(['High · B → A', 'Low · A → B'])
+            expect(links[0].findByType('Text' as React.ElementType).props.numberOfLines).toBe(1)
+            expect(links[0].props.accessibilityRole).toBe('button')
+            expect(links[0].props.style).toContainEqual(expect.objectContaining({ minHeight: controlSize.minTouch }))
+            await act(async () => links[0].props.onFocus())
+            expect(links[0].props.style).toContainEqual(expect.objectContaining({ outlineWidth: 2, outlineColor: colors.primaryDark }))
+            await act(async () => links[0].props.onBlur())
+            expect(links[0].props.style).not.toContainEqual(expect.objectContaining({ outlineWidth: 2 }))
             await act(async () => links[0].props.onPress())
             expect(push).toHaveBeenCalledWith(expect.objectContaining({ pathname: '/player/[id]', params: expect.objectContaining({ id: 'high' }) }))
         }
