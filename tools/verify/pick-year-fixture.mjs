@@ -101,7 +101,8 @@ export function preparePickYearFixture(snapshot, seed, query) {
       VALUES(${literal(seasonId)},${literal(targetLeagueId)},2027,true);
       INSERT INTO public.league_members(id,league_id,user_id,role,team_name) VALUES ${memberValues};
       INSERT INTO public.faab_balances(league_id,league_season_id,member_id,balance)
-      SELECT ${literal(targetLeagueId)},${literal(seasonId)},id,100 FROM public.league_members WHERE league_id=${literal(targetLeagueId)};
+      SELECT ${literal(targetLeagueId)},${literal(seasonId)},id,100 FROM public.league_members WHERE league_id=${literal(targetLeagueId)}
+      ON CONFLICT(league_id,league_season_id,member_id) DO UPDATE SET balance=EXCLUDED.balance;
       INSERT INTO public.draft_picks(id,league_id,season_year,round,original_owner_id,current_owner_id,is_used,used_at,rookie_draft_id,created_at)
       SELECT (pick->>'id')::uuid,${literal(targetLeagueId)},(pick->>'season_year')::int,(pick->>'round')::int,
         (pick->>'original_owner_id')::uuid,(pick->>'original_owner_id')::uuid,false,NULL,NULL,(pick->>'created_at')::timestamptz
