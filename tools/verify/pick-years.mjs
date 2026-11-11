@@ -143,7 +143,7 @@ if (action === 'prepare') {
   await save('pick-years-restored-candidate.json', state())
   console.log('PASS rollback restored all pick and frozen-reference state; candidate reapplied')
 } else if (action === 'check') {
-  const recipes = ['dynasty-pick-calendar-years', 'future-pick-settings', 'pick-window', 'rollover-year-gap', 'pick-draft-year',
+  const recipes = ['dynasty-pick-calendar-years', 'pick-year-writer-fence', 'trade-estimate-snapshots', 'trade-estimate-work', 'trade-historical-revaluation', 'future-pick-settings', 'pick-window', 'rollover-year-gap', 'pick-draft-year',
     'picks-lifecycle', 'linear-draft-order', 'taxi-acquisition-policy', 'server-retired-picks', 'server-stopped-rookie-overflow',
     'trade-value-readers', 'future-pick-cleanup', 'forever-two-seasons', 'notif-draft-transitions', 'three-season-simulation', 'dynasty-rules']
   const receipts = []

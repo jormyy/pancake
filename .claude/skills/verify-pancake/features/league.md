@@ -63,6 +63,8 @@ It then changes one local pick year and requires the exact-state guard to refuse
 It restores that fixture drift, applies the pending migration or replays its repair on a fresh install, and checks every row.
 Require 150 shifts by exactly one year, seven unchanged traded owners, identical other pick columns, identical trade/block identities, corrected numeric pick references and unchanged root season years and saved labels.
 A second execution must produce identical state and the same receipt timestamp.
+Quote and history table locks drain existing writers during cutover. Permanent write guards lock referenced picks and reject delayed quote/history inputs whose pick years no longer match storage.
+The writer-fence recipe retains pre-repair inputs, shifts a local pick, rejects delayed save and direct quote/history writes, and accepts refreshed inputs.
 `rollback` tests the reviewed external reverse SQL, requires restored picks and frozen references, then reapplies the candidate.
 It leaves derived caches expired for safe regeneration.
 
