@@ -4,7 +4,7 @@ import { analyzeTradeEstimate, type TradeEstimateInputs } from './tradeEstimate.
 const observedAt = Date.parse('2025-02-10T12:00:00Z')
 function fixture(): TradeEstimateInputs {
   return {
-    leagueId: 'league', seasonId: 'season', seasonYear: 2025, teams: 10, rosterSize: 20, scoringSettings: { points: 1 }, faabBudget: 100,
+    pickYearConvention: 'calendar', leagueId: 'league', seasonId: 'season', seasonYear: 2025, teams: 10, rosterSize: 20, scoringSettings: { points: 1 }, faabBudget: 100,
     terms: [
       { fromMemberId: 'a', toMemberId: 'b', playerId: null, pickId: null, faabAmount: 10 },
       { fromMemberId: 'b', toMemberId: 'a', playerId: null, pickId: null, faabAmount: 20 },
@@ -26,12 +26,22 @@ Deno.test('known pick positions use imported bands and the frozen official team 
   const input = fixture()
   input.terms = [{ fromMemberId: 'a', toMemberId: 'b', playerId: null, pickId: 'pick', faabAmount: 0 }]
   input.picks = [{ id: 'pick', seasonYear: 2027, round: 1, slot: 1, ownerId: 'a', originalOwnerId: 'c', originalTeamName: 'Original', valueBands: { early: 716, mid: 557, late: 397 } }]
-  assert.equal(analyzeTradeEstimate(input, observedAt).assets[0].label, '2026 Round 1 · Original')
+  assert.equal(analyzeTradeEstimate(input, observedAt).assets[0].label, '2027 Round 1 · Original')
   assert.equal(analyzeTradeEstimate(input, observedAt).assets[0].values.overall, 716)
   input.picks[0].slot = null
   const unknown = analyzeTradeEstimate(input, observedAt).assets[0]
   assert.equal(unknown.values.overall, 557)
   assert.deepEqual(unknown.ranges.overall, { low: 397, high: 716 })
+})
+
+Deno.test('candidate Edge preserves calendar labels with legacy database inputs', () => {
+  const input = fixture()
+  Reflect.deleteProperty(input, 'pickYearConvention')
+  input.terms = [{ fromMemberId: 'a', toMemberId: 'b', playerId: null, pickId: 'pick', faabAmount: 0 }]
+  input.picks = [{ id: 'pick', seasonYear: 2028, round: 1, slot: 1, ownerId: 'a', originalOwnerId: 'c', originalTeamName: 'Original', valueBands: { early: 716, mid: 557, late: 397 } }]
+  const result = analyzeTradeEstimate(input, observedAt)
+  assert.equal(result.assets[0].label, '2027 Round 1 · Original')
+  assert.equal(result.assets[0].values.overall, 716)
 })
 
 Deno.test('missing imported values contribute zero without an old formula fallback', () => {

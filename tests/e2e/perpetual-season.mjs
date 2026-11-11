@@ -274,7 +274,7 @@ async function createLeague({ name, users, memberCount, playoffStartWeek, baseYe
   // draft backstop consumes these at each new season's week 1.
   const pickRows = []
   for (const member of members) {
-    for (let year = baseYear + 1; year <= baseYear + 3; year += 1) {
+    for (let year = baseYear; year <= baseYear + 2; year += 1) {
       for (let round = 1; round <= 3; round += 1) {
         pickRows.push({
           league_id: league.id,

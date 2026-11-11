@@ -48,7 +48,7 @@ BEGIN
   INSERT INTO nba_games(nba_game_id,season_year,week_number,game_date,home_team,away_team,status)
   VALUES('0029999070',20026,1,date '2026-10-20','BOS','NYK','Scheduled');
   INSERT INTO draft_picks(league_id,season_year,round,original_owner_id,current_owner_id)
-  SELECT f.league,20026,r,m,m FROM unnest(ARRAY[f.member,f.other_member]) m CROSS JOIN generate_series(1,2) r;
+  SELECT f.league,20025,r,m,m FROM unnest(ARRAY[f.member,f.other_member]) m CROSS JOIN generate_series(1,2) r;
   FOR i IN 1..4 LOOP
     INSERT INTO players(first_name,last_name,position,eligible_positions,years_exp,nba_draft_number)
     VALUES('Synthetic','Backstop ' || i,'PG',ARRAY['PG'],0,i);
@@ -85,7 +85,7 @@ BEGIN
   SELECT count(*) INTO auto_count FROM notification_outbox WHERE data->>'draftId'=d::text;
   PERFORM * FROM private.draft_timer_complete_opening_night(100,'2026-10-20 13:00:01+00');
   IF (SELECT count(*) FROM notification_outbox WHERE data->>'draftId'=d::text) <> auto_count THEN RAISE EXCEPTION 'backstop retry duplicated events'; END IF;
-  UPDATE notification_outbox SET available_at=now() WHERE data->>'draftId'=d::text;
+  UPDATE notification_outbox SET available_at='-infinity'::timestamptz WHERE data->>'draftId'=d::text;
   PERFORM * FROM claim_notification_outbox_atomic(200,60);
   IF EXISTS (SELECT 1 FROM notification_outbox WHERE data->>'draftId'=d::text AND event_type IN ('draft_on_clock','draft_coming_soon','draft_timer_expiring') AND suppression_reason IS DISTINCT FROM 'stale') THEN
     RAISE EXCEPTION 'already-made backstop picks can still send clock alerts';

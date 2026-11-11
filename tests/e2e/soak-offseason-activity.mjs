@@ -116,7 +116,7 @@ export const assertOffseasonActivityScenario = async ({ supabase, env, state, se
 
   const pickRows = []
   for (const member of fixture.members) {
-    for (let year = fixtureSeasonYear + 1; year <= fixtureSeasonYear + 3; year += 1) {
+    for (let year = fixtureSeasonYear; year <= fixtureSeasonYear + 2; year += 1) {
       for (let round = 1; round <= 3; round += 1) {
         pickRows.push({
           league_id: fixture.league.id,
@@ -203,7 +203,7 @@ export const assertOffseasonActivityScenario = async ({ supabase, env, state, se
   const tradedPick = await fetchSingle(supabase, 'draft_picks', 'id', {
     league_id: fixture.league.id,
     current_owner_id: m1.id,
-    season_year: fixtureSeasonYear + 3,
+    season_year: fixtureSeasonYear + 2,
     round: 1,
   })
   const twoTeamTradeId = await rpc(supabase, 'propose_trade_atomic', {

@@ -31,7 +31,7 @@
   ],
   "entry": [
     "tools/perf/{run,edge,profile,harness.test}.mjs",
-    "tools/verify/{run,run.test,browser,fixture,observe}.mjs",
+    "tools/verify/{run,run.test,browser,fixture,observe,pick-years}.mjs",
     "tests/e2e/static-web-server.mjs",
     "tests/e2e/taxi-acquisitions-db.mjs",
     "tests/e2e/validate-production-target.mjs",

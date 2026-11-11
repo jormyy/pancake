@@ -24,14 +24,14 @@ BEGIN
   IF EXISTS (
     SELECT 1 FROM public.draft_picks pick JOIN public.league_seasons season
       ON season.league_id=pick.league_id AND season.is_current
-    WHERE pick.league_id=p_league_id AND pick.id=ANY(p_pick_ids) AND pick.season_year<season.season_year
+    WHERE pick.league_id=p_league_id AND pick.id=ANY(p_pick_ids) AND pick.season_year<season.season_year-1
   ) THEN
     RAISE EXCEPTION 'Picks from past seasons cannot be traded.' USING ERRCODE='P0001';
   END IF;
   IF EXISTS (
     SELECT 1 FROM public.draft_picks pick JOIN public.league_seasons season
       ON season.league_id=pick.league_id AND season.is_current
-    WHERE pick.league_id=p_league_id AND pick.id=ANY(p_pick_ids) AND pick.season_year>season.season_year+v_future_pick_years
+    WHERE pick.league_id=p_league_id AND pick.id=ANY(p_pick_ids) AND pick.season_year>season.season_year+v_future_pick_years-1
   ) THEN
     RAISE EXCEPTION 'Only the next % future draft years can be traded.',v_future_pick_years USING ERRCODE='P0001';
   END IF;

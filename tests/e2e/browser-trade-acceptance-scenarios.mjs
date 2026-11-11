@@ -452,7 +452,7 @@ export async function runBrowserTradeOverflowAcceptScenario({
         'INCOMING',
         fixture.proposer.team_name,
         fixture.proposerPlayer.display_name,
-        `${fixture.recipientFuturePick.seasonYear - 1} Round ${fixture.recipientFuturePick.round}`,
+        `${fixture.recipientFuturePick.seasonYear} Round ${fixture.recipientFuturePick.round}`,
         'Accept',
       ],
       'overflow trade accept before submit',

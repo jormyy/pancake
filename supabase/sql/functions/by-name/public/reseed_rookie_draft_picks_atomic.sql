@@ -91,7 +91,7 @@ BEGIN
       SELECT id, current_owner_id
         FROM draft_picks
        WHERE league_id = v_draft.league_id
-         AND season_year = v_season_year
+         AND season_year = v_season_year - 1
          AND round = pick_slots.round
          AND original_owner_id = pick_slots.original_owner_id
          AND is_used = false

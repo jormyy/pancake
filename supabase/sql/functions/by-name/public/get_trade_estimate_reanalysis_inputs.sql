@@ -36,8 +36,8 @@ BEGIN
   SELECT COALESCE(jsonb_agg(jsonb_build_object('id',pick.id,'seasonYear',pick.season_year,'round',pick.round,
     'ownerId',pick.current_owner_id,'originalOwnerId',pick.original_owner_id,'originalTeamName',member.team_name,'slot',slot.pick_in_round,
     'valueBands',COALESCE((SELECT jsonb_object_agg(v.tier,CASE WHEN v.tier='mid' AND slot.pick_in_round IS NULL AND pick.predicted_trade_value IS NOT NULL THEN pick.predicted_trade_value WHEN v.round=3 THEN GREATEST(v.trade_value,floor_value) ELSE v.trade_value END)
-      FROM public.dynasty_pick_values v WHERE v.draft_year=pick.season_year-1 AND v.round=pick.round),CASE WHEN slot.pick_in_round IS NULL AND pick.predicted_trade_value IS NOT NULL THEN jsonb_set(pick.predicted_value_bands,'{mid}',to_jsonb(pick.predicted_trade_value)) ELSE pick.predicted_value_bands END),
-    'valueFetchedAt',(SELECT max(v.fetched_at) FROM public.dynasty_pick_values v WHERE v.draft_year=pick.season_year-1 AND v.round=pick.round)) ORDER BY pick.id),'[]'::jsonb)
+      FROM public.dynasty_pick_values v WHERE v.draft_year=pick.season_year AND v.round=pick.round),CASE WHEN slot.pick_in_round IS NULL AND pick.predicted_trade_value IS NOT NULL THEN jsonb_set(pick.predicted_value_bands,'{mid}',to_jsonb(pick.predicted_trade_value)) ELSE pick.predicted_value_bands END),
+    'valueFetchedAt',(SELECT max(v.fetched_at) FROM public.dynasty_pick_values v WHERE v.draft_year=pick.season_year AND v.round=pick.round)) ORDER BY pick.id),'[]'::jsonb)
     INTO picks FROM public.draft_picks pick JOIN public.league_members member ON member.id=pick.original_owner_id
     LEFT JOIN public.snake_draft_picks slot ON slot.draft_pick_id=pick.id
     WHERE pick.id IN(SELECT (item->>'pickId')::uuid FROM jsonb_array_elements(terms) item WHERE item->>'pickId' IS NOT NULL);
@@ -70,7 +70,7 @@ BEGIN
     ORDER BY ranking.player_id,ranking.fetched_at DESC,ranking.source_rank,ranking.id
   ) candidate WHERE candidate.trade_value BETWEEN 0 AND 1000;
   PERFORM set_config('request.jwt.claim.sub',COALESCE(previous_user,''),true);
-  inputs:=jsonb_build_object('leagueId',league.id,'seasonId',season.id,'seasonYear',season.season_year,'teams',teams,
+  inputs:=jsonb_build_object('pickYearConvention','calendar','leagueId',league.id,'seasonId',season.id,'seasonYear',season.season_year,'teams',teams,
     'rosterSize',league.roster_size,'scoringSettings',league.scoring_settings,'faabBudget',league.faab_starting_budget,
     'rosters',rosters,'bestFreeAgentValue',best_free_agent,'terms',terms,'players',players,'replacementPlayers',replacements,'picks',picks,'revaluationTradeId',trade.id);
   inputs:=inputs||jsonb_build_object('playerDestinations',(

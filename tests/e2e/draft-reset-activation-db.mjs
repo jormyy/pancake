@@ -79,7 +79,7 @@ try {
     INSERT INTO auth.users(id,aud,role,email,encrypted_password,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at) VALUES(${quote(user2)},'authenticated','authenticated',${quote(user2+'@example.test')},'synthetic-unusable',now(),'{}','{}',now(),now());
     INSERT INTO league_members(id,league_id,user_id,role,team_name) VALUES(${quote(member2)},${quote(league)},${quote(user2)},'manager','Synthetic second');
     INSERT INTO draft_orders(draft_id,member_id,position) VALUES(${quote(draft)},${quote(member)},1),(${quote(draft)},${quote(member2)},2);
-    INSERT INTO draft_picks(league_id,season_year,round,original_owner_id,current_owner_id) VALUES(${quote(league)},9173,1,${quote(member)},${quote(member)}),(${quote(league)},9173,1,${quote(member2)},${quote(member2)});`);
+    INSERT INTO draft_picks(league_id,season_year,round,original_owner_id,current_owner_id) VALUES(${quote(league)},9172,1,${quote(member)},${quote(member)}),(${quote(league)},9172,1,${quote(member2)},${quote(member2)});`);
   await a.query(actionHelper); await b.query(actionHelper);
   const apid=Number(await a.query('SELECT pg_backend_pid();')), bpid=Number(await b.query('SELECT pg_backend_pid();'));
   const gatePid=Number(await root.query('SELECT pg_backend_pid();'));

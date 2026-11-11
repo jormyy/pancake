@@ -23,7 +23,7 @@ test.skipIf(process.env.PANCAKE_PICK_WINDOW_DB_TESTS !== '1')('pick fixtures use
 
   await runWithScenarioResourceOwner('pick window fixtures', async (resourceOwner) => {
     const fixture = await setupTradeGameplayFixture(env, 0, { isolatedPlayers: true })
-    assert.equal(fixture.targetFuturePickYear, fixture.currentSeason.season_year + 3)
+    assert.equal(fixture.targetFuturePickYear, fixture.currentSeason.season_year + 2)
     assert.ok(fixture.proposerFuturePick && fixture.recipientFuturePick)
     assert.equal(fixture.proposerFuturePick.seasonYear, fixture.targetFuturePickYear)
     assert.equal(fixture.recipientFuturePick.seasonYear, fixture.targetFuturePickYear)
@@ -51,7 +51,7 @@ test.skipIf(process.env.PANCAKE_PICK_WINDOW_DB_TESTS !== '1')('pick fixtures use
       resourceOwner,
     })
     assert.deepEqual(lifecycle.failures, [])
-    assert.equal(lifecycle.artifact.pickWindow.maxPickYear, chainFixture.currentSeason.season_year + 3)
+    assert.equal(lifecycle.artifact.pickWindow.maxPickYear, chainFixture.currentSeason.season_year + 2)
     console.log('PASS: soak lifecycle and rollover checks use three future drafts')
 
     const { error } = await chainFixture.admin.from('draft_picks').insert({
@@ -63,7 +63,7 @@ test.skipIf(process.env.PANCAKE_PICK_WINDOW_DB_TESTS !== '1')('pick fixtures use
     })
     assert.equal(error, null)
     const chain = await setupFuturePickChain(chainFixture.admin, chainFixture.league.id)
-    assert.equal(chain.targetYear, chainFixture.currentSeason.season_year + 3)
+    assert.equal(chain.targetYear, chainFixture.currentSeason.season_year + 2)
     const { data: pick, error: readError } = await chainFixture.admin.from('draft_picks')
       .select('current_owner_id').eq('id', chain.targetPickId).single()
     assert.equal(readError, null)

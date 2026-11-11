@@ -25,7 +25,7 @@ BEGIN
   created:=create_league('Synthetic pick lifecycle','Owner'); league:=(created->>'id')::uuid;
   SELECT id,season_year INTO season,new_year FROM league_seasons WHERE league_id=league AND is_current;
   SELECT id INTO source_owner FROM league_members WHERE league_id=league;
-  PERFORM pg_temp.check_post((SELECT count(*)=9 AND min(season_year)=new_year+1 AND max(season_year)=new_year+3
+  PERFORM pg_temp.check_post((SELECT count(*)=9 AND min(season_year)=new_year AND max(season_year)=new_year+2
     AND count(DISTINCT season_year)=3 AND count(DISTINCT round)=3 AND bool_and(current_owner_id=source_owner AND original_owner_id=source_owner)
     FROM draft_picks WHERE league_id=league),'creation allocates three future years and three rounds to the owner');
   FOR i IN 2..4 LOOP
@@ -44,8 +44,8 @@ BEGIN
     (league,old_season,members[3],1,7,0,0,1,0,3),(league,old_season,members[1],2,2,0,0,40,0,1),
     (league,old_season,members[2],2,2,0,0,20,0,2),(league,old_season,members[3],2,1,0,0,100,0,3);
   INSERT INTO draft_picks(league_id,season_year,round,original_owner_id,current_owner_id)
-  SELECT league,year,round_value,member,member FROM unnest(members) member CROSS JOIN generate_series(1,3) round_value;
-  SELECT id INTO asset FROM draft_picks WHERE league_id=league AND season_year=year AND round=1 AND original_owner_id=members[3];
+  SELECT league,year-1,round_value,member,member FROM unnest(members) member CROSS JOIN generate_series(1,3) round_value;
+  SELECT id INTO asset FROM draft_picks WHERE league_id=league AND season_year=year-1 AND round=1 AND original_owner_id=members[3];
   UPDATE draft_picks SET current_owner_id=members[1] WHERE id=asset;
   UPDATE leagues SET status='offseason',rookie_draft_order='snake' WHERE id=league;
   PERFORM set_config('request.jwt.claim.sub','',true);
@@ -80,10 +80,10 @@ BEGIN
   UPDATE leagues SET status='playoffs' WHERE id=league;
   SELECT to_jsonb(s) INTO snapshot FROM league_seasons s WHERE id=old_season;
   SELECT a.new_season_id,a.new_year INTO new_season,new_year FROM advance_season_atomic(league) a;
-  PERFORM pg_temp.check_post(new_year=year+1 AND (SELECT count(*)=12 AND count(DISTINCT round)=3 FROM draft_picks WHERE league_id=league AND season_year=new_year+3),'rollover adds all far-year picks');
+  PERFORM pg_temp.check_post(new_year=year+1 AND (SELECT count(*)=12 AND count(DISTINCT round)=3 FROM draft_picks WHERE league_id=league AND season_year=new_year+2),'rollover adds all far-year picks');
   PERFORM pg_temp.check_post((SELECT to_jsonb(s)=snapshot FROM league_seasons s WHERE id=old_season),'rollover preserves older history');
-  SELECT id INTO asset FROM draft_picks WHERE league_id=league AND season_year=new_year+3 AND round=1 AND original_owner_id=members[1];
-  SELECT id INTO requested_asset FROM draft_picks WHERE league_id=league AND season_year=new_year+3 AND round=1 AND original_owner_id=members[2];
+  SELECT id INTO asset FROM draft_picks WHERE league_id=league AND season_year=new_year+2 AND round=1 AND original_owner_id=members[1];
+  SELECT id INTO requested_asset FROM draft_picks WHERE league_id=league AND season_year=new_year+2 AND round=1 AND original_owner_id=members[2];
   trade_id:=propose_trade_atomic(league,new_season,members[1],members[2],'{}','{}',ARRAY[asset],ARRAY[requested_asset]);
   PERFORM accept_trade_atomic(trade_id,members[2]);
   UPDATE trades SET veto_window_expires_at=now()-interval '1 minute' WHERE id=trade_id;

@@ -77,7 +77,7 @@ BEGIN
     SELECT 1
       FROM draft_picks AS pick
      WHERE pick.league_id = p_league_id
-       AND pick.season_year = v_season.season_year
+       AND pick.season_year = v_season.season_year - 1
        AND pick.is_used = false
        AND private.is_reserved_trade_asset(pick.league_id, NULL, pick.current_owner_id, NULL, pick.id)
   ) THEN
@@ -195,7 +195,7 @@ BEGIN
         SELECT id, current_owner_id
           FROM draft_picks
          WHERE league_id = p_league_id
-           AND season_year = v_season.season_year
+           AND season_year = v_season.season_year - 1
            AND round = pick_slots.round
            AND original_owner_id = pick_slots.original_owner_id
            AND is_used = false
@@ -235,7 +235,7 @@ BEGIN
 
   IF NOT v_is_mock THEN
     UPDATE draft_picks SET is_used=true,used_at=now()
-      WHERE league_id=p_league_id AND season_year=v_season.season_year AND round>p_rounds AND NOT is_used;
+      WHERE league_id=p_league_id AND season_year=v_season.season_year-1 AND round>p_rounds AND NOT is_used;
     UPDATE leagues
        SET status = 'drafting'
      WHERE id = p_league_id

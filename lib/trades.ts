@@ -312,8 +312,8 @@ export async function getPicksForMembers(
         .in('current_owner_id', uniqueMemberIds)
         .eq('league_id', leagueId)
         .eq('is_used', false)
-        .gte('season_year', seasonYear)
-        .lte('season_year', seasonYear + league.future_pick_years)
+        .gte('season_year', seasonYear - 1)
+        .lte('season_year', seasonYear + league.future_pick_years - 1)
         .order('season_year', { ascending: true })
         .order('round', { ascending: true })
 
@@ -326,7 +326,7 @@ export async function getPicksForMembers(
             .eq('league_id', leagueId).eq('draft_type', 'snake').eq('is_mock', false)
             .in('status', ['in_progress', 'paused'])
         if (draftError) throw draftError
-        for (const draft of drafts ?? []) unavailableSeasons.add(draft.league_seasons.season_year)
+        for (const draft of drafts ?? []) unavailableSeasons.add(draft.league_seasons.season_year - 1)
     }
     for (const row of (data ?? []) as MemberTradePickQueryRow[]) {
         if (unavailableSeasons.has(row.season_year)) continue

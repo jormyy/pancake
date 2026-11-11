@@ -86,7 +86,7 @@ await runWithScenarioResourceOwner('draft timer UI', async () => {
     await insert('leagues', { id: league, name: 'Timer preview', slug: suffix, commissioner_id: users[0].id, status: 'offseason', playoff_entrants: 2, playoff_round_lengths: [1] })
     await insert('league_seasons', { id: season, league_id: league, season_year: 2189, is_current: true })
     await insert('league_members', members.map((id, n) => ({ id, league_id: league, user_id: users[n].id, role: n === 0 ? 'commissioner' : 'manager', team_name: `Timer team ${n}` })))
-    await insert('draft_picks', members.flatMap(id => [1, 2, 3].map(round => ({ league_id: league, season_year: 2189, round, original_owner_id: id, current_owner_id: id }))))
+    await insert('draft_picks', members.flatMap(id => [1, 2, 3].map(round => ({ league_id: league, season_year: 2188, round, original_owner_id: id, current_owner_id: id }))))
     const auth = createClient(keys.API_URL, keys.ANON_KEY, { auth: { persistSession: false, autoRefreshToken: false } })
     const { session } = await checked(auth.auth.signInWithPassword({ email: users[0].email, password }))
     const targets = engines.flatMap(engine => [

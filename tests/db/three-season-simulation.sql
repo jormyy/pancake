@@ -273,9 +273,8 @@ SELECT pg_temp.oid('vet-' || n), 'Vet', 'Player ' || n, (ARRAY['STA', 'STB', 'ST
   FROM generate_series(1, 40) AS n;
 INSERT INTO public.players (id, first_name, last_name, nba_team, position, years_exp, eligible_positions, injury_status, nba_draft_number)
 SELECT pg_temp.oid('rookie-' || n), 'Rookie', 'Class ' || n, 'XTX', 'SF'::nba_position, 0, ARRAY['SF'], NULL, n FROM generate_series(1, 12) AS n;
--- Rookie draft assets for 2099 and 2100, two rounds per member.
 INSERT INTO public.draft_picks (id, league_id, season_year, round, original_owner_id, current_owner_id)
-SELECT pg_temp.oid('pick-' || m.key || '-' || y || '-' || r), m.league, y, r, m.id, m.id
+SELECT pg_temp.oid('pick-' || m.key || '-' || y || '-' || r), m.league, y-1, r, m.id, m.id
   FROM (VALUES ('A1', pg_temp.oid('A1'), pg_temp.oid('league-A')), ('A2', pg_temp.oid('A2'), pg_temp.oid('league-A')), ('A3', pg_temp.oid('A3'), pg_temp.oid('league-A')),
                ('B1', pg_temp.oid('B1'), pg_temp.oid('league-B')), ('B2', pg_temp.oid('B2'), pg_temp.oid('league-B')), ('B3', pg_temp.oid('B3'), pg_temp.oid('league-B'))) AS m(key, id, league)
   CROSS JOIN generate_series(2099, 2100) AS y CROSS JOIN generate_series(1, 2) AS r;
@@ -554,7 +553,7 @@ BEGIN
   PERFORM pg_temp.assert((SELECT is_on_ir FROM public.roster_players WHERE league_season_id = v_new_a AND player_id = pg_temp.vet(13)), 'IR flag did not carry over');
   PERFORM pg_temp.assert((SELECT count(*) FROM public.roster_transactions WHERE league_season_id = v_new_a AND transaction_type = 'carry_over') = v_rows, 'carry-over history incomplete');
   PERFORM pg_temp.assert((SELECT count(*) FROM public.waiver_priorities WHERE league_season_id = v_new_a) = 3, 'waiver priorities not reseeded');
-  PERFORM pg_temp.assert((SELECT count(*) FROM public.draft_picks WHERE league_id = i.a AND season_year = 2102) = 9, 'third future draft picks not created');
+  PERFORM pg_temp.assert((SELECT count(*) FROM public.draft_picks WHERE league_id = i.a AND season_year = 2101) = 9, 'third future draft picks not created');
   PERFORM pg_temp.act_as(i.u3);
   SELECT * INTO v_state FROM public.get_member_transaction_state(i.a3, i.a);
   PERFORM pg_temp.act_as(NULL);

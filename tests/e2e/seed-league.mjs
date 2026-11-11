@@ -24,10 +24,6 @@ const EXPECTED_LINEUP_SLOTS = {
   IR: 2,
 }
 
-const currentSeasonYear = (now = new Date()) => {
-  return now.getUTCMonth() >= 9 ? now.getUTCFullYear() + 1 : now.getUTCFullYear()
-}
-
 const expectedSlotDetail = () => Object.entries(EXPECTED_LINEUP_SLOTS)
   .map(([slot, count]) => `${slot}:${count}`)
   .join(', ')
@@ -238,7 +234,7 @@ export const seedDynastyRankingFixtures = async (admin, players) => {
 const seedLatencyFixtures = async (admin, leagueId, members) => {
   const { data: season, error: seasonError } = await admin
     .from('league_seasons')
-    .select('id')
+    .select('id,season_year')
     .eq('league_id', leagueId)
     .eq('is_current', true)
     .single()
@@ -316,7 +312,7 @@ const seedLatencyFixtures = async (admin, leagueId, members) => {
   if (budgetError) throw new Error(`latency fixture draft budgets: ${budgetError.message}`)
   if (pickError) throw new Error(`latency fixture rookie picks: ${pickError.message}`)
 
-  return { matchups: matchupCount, drafts: drafts.length, draftOrders: orderRows.length, rookiePicks: pickRows.length }
+  return { matchups: matchupCount, drafts: drafts.length, draftOrders: orderRows.length, rookiePicks: pickRows.length, seasonYear: season.season_year }
 }
 
 const main = async () => {
@@ -426,9 +422,9 @@ const main = async () => {
       detail: `${latencyFixtures.matchups} matchup, ${latencyFixtures.drafts} drafts, ${latencyFixtures.draftOrders} orders, ${latencyFixtures.rookiePicks} rookie picks`,
     })
 
-    const seasonYear = currentSeasonYear()
-    const minPickYear = seasonYear + 1
-    const maxPickYear = seasonYear + 3
+    const seasonYear = latencyFixtures.seasonYear
+    const minPickYear = seasonYear
+    const maxPickYear = seasonYear + 2
     const { data: picks, error: picksError } = await admin
       .from('draft_picks')
       .select('id, season_year, round, original_owner_id, current_owner_id')

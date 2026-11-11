@@ -22,7 +22,7 @@ BEGIN
   SELECT season_year INTO year FROM public.league_seasons WHERE league_id=league AND is_current;
   SELECT array_agg(id ORDER BY id) INTO before_ids FROM public.draft_picks WHERE league_id=league;
   PERFORM public.update_league_settings_atomic(league,'{"future_pick_years":5}');
-  PERFORM pg_temp.assert_future_setting((SELECT count(*)=15 AND max(season_year)=year+5 FROM public.draft_picks WHERE league_id=league),'increasing setting seeds all five years');
+  PERFORM pg_temp.assert_future_setting((SELECT count(*)=15 AND max(season_year)=year+4 FROM public.draft_picks WHERE league_id=league),'increasing setting seeds all five years');
   PERFORM pg_temp.assert_future_setting((SELECT count(*)=9 FROM public.draft_picks WHERE id=ANY(before_ids)),'increasing preserves existing picks');
   PERFORM set_config('request.jwt.claim.sub',users[2]::text,true);
   PERFORM public.join_league_by_invite_code(item->>'invite_code','Other');
@@ -43,7 +43,7 @@ BEGIN
     END;
   END LOOP;
   UPDATE public.leagues SET status='offseason' WHERE id=league;
-  SELECT id INTO pick FROM public.draft_picks WHERE league_id=league AND original_owner_id=member AND season_year=year+5 AND round=1;
+  SELECT id INTO pick FROM public.draft_picks WHERE league_id=league AND original_owner_id=member AND season_year=year+4 AND round=1;
   PERFORM private.assert_trade_window(league,ARRAY[pick]);
   PERFORM pg_temp.assert_future_setting(true,'fifth future year can be traded');
   UPDATE public.draft_picks SET current_owner_id=other WHERE id=pick;
@@ -56,9 +56,9 @@ BEGIN
   END;
   UPDATE public.draft_picks SET current_owner_id=member WHERE id=pick;
   PERFORM public.update_league_settings_atomic(league,'{"future_pick_years":1}');
-  PERFORM pg_temp.assert_future_setting((SELECT count(*)=6 AND max(season_year)=year+1 FROM public.draft_picks WHERE league_id=league),'safe lowering prunes only unreferenced own picks');
+  PERFORM pg_temp.assert_future_setting((SELECT count(*)=6 AND max(season_year)=year FROM public.draft_picks WHERE league_id=league),'safe lowering prunes only unreferenced own picks');
   PERFORM public.update_league_settings_atomic(league,'{"future_pick_years":10}');
-  PERFORM pg_temp.assert_future_setting((SELECT count(*)=60 AND max(season_year)=year+10 FROM public.draft_picks WHERE league_id=league),'maximum horizon creates ten years');
+  PERFORM pg_temp.assert_future_setting((SELECT count(*)=60 AND max(season_year)=year+9 FROM public.draft_picks WHERE league_id=league),'maximum horizon creates ten years');
   DELETE FROM public.dynasty_pick_values;
   INSERT INTO public.dynasty_pick_values(draft_year,round,tier,trade_value,derived,fetched_at)
     SELECT year+offset_value,round_value,tier_value,round(800*power(0.8,offset_value)/round_value,2),round_value=3,now()
@@ -69,11 +69,11 @@ BEGIN
   PERFORM pg_temp.assert_future_setting((SELECT trade_value=327.68 FROM public.get_dynasty_pick_values(league) WHERE draft_year=year+4 AND round=1 AND tier='mid'),'fifth-year value compounds annual decay again');
   PERFORM pg_temp.assert_future_setting((SELECT min((value->'bands'->>'mid')::numeric)>0 FROM jsonb_array_elements(public.get_pick_prediction_inputs(league)->'picks') value),'predictions receive nonzero bands for all five years');
   PERFORM pg_temp.assert_future_setting((SELECT jsonb_array_length(public.view_picks(league,member)->'picks')=30),'Picks view returns five years per team');
-  SELECT id INTO pick FROM public.draft_picks WHERE league_id=league AND original_owner_id=member AND season_year=year+5 AND round=1;
+  SELECT id INTO pick FROM public.draft_picks WHERE league_id=league AND original_owner_id=member AND season_year=year+4 AND round=1;
   item:=public.get_trade_estimate_inputs(users[1],member,jsonb_build_array(jsonb_build_object('pickId',pick,'fromMemberId',member,'toMemberId',other)));
   PERFORM pg_temp.assert_future_setting((item->'picks'->0->'valueBands'->>'mid')::numeric=327.68,'trade estimates value the fifth-year pick with extended bands');
   SELECT id INTO season FROM public.league_seasons WHERE league_id=league AND is_current;
-  SELECT id INTO peer_pick FROM public.draft_picks WHERE league_id=league AND original_owner_id=other AND season_year=year+1 AND round=1;
+  SELECT id INTO peer_pick FROM public.draft_picks WHERE league_id=league AND original_owner_id=other AND season_year=year AND round=1;
   trade:=public.propose_trade_atomic(league,season,member,other,'{}','{}',ARRAY[pick],ARRAY[peer_pick]);
   PERFORM pg_temp.assert_future_setting(trade IS NOT NULL,'fifth-year picks can be offered through the real trade RPC');
   BEGIN

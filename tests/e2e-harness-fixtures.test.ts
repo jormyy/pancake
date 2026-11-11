@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { ensureSweepDrafts } from './e2e/browser-smoke.mjs'
 import { maskSqlNonCode } from '../scripts/check-db-function-sources.mjs'
 import { PLAYER_REFERENCE_TABLES, deletePlayersWithReferences } from './e2e/harness-cleanup.mjs'
 import { createDisposableLeagueFromSeedUsers, ensureRosterFixture, ensureSyntheticSeasonWeeks } from './e2e/soak-fixtures.mjs'
@@ -444,8 +445,8 @@ describe('rollover pick horizon invariant', () => {
         })
         const failures = await runInvariants(client, 'league')
         expect(failures).toHaveLength(36)
-        expect(failures).toContain('D.SEA.6: league league missing future pick 2031 round 1 for member member-0')
-        expect(failures).toContain('D.SEA.6: league league missing future pick 2033 round 3 for member member-3')
+        expect(failures).toContain('D.SEA.6: league league missing future pick 2030 round 1 for member member-0')
+        expect(failures).toContain('D.SEA.6: league league missing future pick 2032 round 3 for member member-3')
     })
 })
 
@@ -834,4 +835,22 @@ describe('dynasty ranking seed fixtures', () => {
         expect(rows[0]).toMatchObject({ player_id: 'p1', source_player_name: 'E2E Player001', source_team: 'ATL', scoring_format: 'overall' })
         expect(rows[1].source_team).toBeNull()
     })
+})
+
+it('prepares rookie sweep assets in the draft calendar year before the future bank', async () => {
+    const inserted: Record<string, unknown>[] = []
+    const supabase = { from: (table: string) => {
+        const data = table === 'draft_picks' ? [{ id: 'calendar-pick' }] : [{ id: 'slot', round: 1, member_id: 'member', draft_pick_id: null }]
+        const query = {
+            select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(), order: vi.fn().mockReturnThis(), limit: vi.fn().mockReturnThis(),
+            single: vi.fn(async () => ({ data: { id: 'season', season_year: 2028 }, error: null })),
+            maybeSingle: vi.fn(async () => ({ data: { id: 'draft' }, error: null })),
+            update: vi.fn().mockReturnThis(),
+            insert: vi.fn((rows: Record<string, unknown>[]) => { inserted.push(...rows); return query }),
+            then: (resolve: (value: { data: typeof data; error: null }) => unknown) => resolve({ data, error: null }),
+        }
+        return query
+    } }
+    await ensureSweepDrafts(supabase, { leagueId: 'league' }, [{ id: 'member' }])
+    expect(inserted).toEqual([{ league_id: 'league', season_year: 2027, round: 1, original_owner_id: 'member', current_owner_id: 'member' }])
 })

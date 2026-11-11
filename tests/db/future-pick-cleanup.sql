@@ -34,8 +34,8 @@ BEGIN
     VALUES(members[i],league,users[i],CASE WHEN i=1 THEN 'commissioner' ELSE 'manager' END::league_member_role,'Team '||i);
   END LOOP;
   INSERT INTO draft_picks(league_id,season_year,round,original_owner_id,current_owner_id)
-  SELECT league,y,r,m,m FROM generate_series(2028,2034) y CROSS JOIN generate_series(1,3) r CROSS JOIN unnest(members) m;
-  SELECT array_agg(id) INTO extras FROM draft_picks WHERE league_id=league AND season_year>2032;
+  SELECT league,y,r,m,m FROM generate_series(2027,2033) y CROSS JOIN generate_series(1,3) r CROSS JOIN unnest(members) m;
+  SELECT array_agg(id) INTO extras FROM draft_picks WHERE league_id=league AND season_year>2031;
   INSERT INTO drafts(id,league_id,league_season_id,draft_type,status,is_mock) VALUES(draft,league,season,'snake','pending',false);
   FOR i IN 1..8 LOOP
     INSERT INTO draft_picks(league_id,season_year,round,original_owner_id,current_owner_id,is_used,used_at,rookie_draft_id)
@@ -58,8 +58,8 @@ $$;
 SELECT private.reconcile_future_picks(league_id) FROM pick_cleanup_fixture;
 SELECT pg_temp.assert_pick_cleanup((SELECT count(*)=0 FROM draft_picks WHERE id=ANY((SELECT extra_ids FROM pick_cleanup_fixture)::uuid[])),
   'cleanup removes all 42 unused distant picks');
-SELECT pg_temp.assert_pick_cleanup((SELECT count(*)=105 AND min(season_year)=2028 AND max(season_year)=2032 FROM draft_picks
-  WHERE league_id=(SELECT league_id FROM pick_cleanup_fixture) AND season_year<=2032),'cleanup keeps the five owned future drafts');
+SELECT pg_temp.assert_pick_cleanup((SELECT count(*)=105 AND min(season_year)=2027 AND max(season_year)=2031 FROM draft_picks
+  WHERE league_id=(SELECT league_id FROM pick_cleanup_fixture) AND season_year<=2031),'cleanup keeps the five owned future drafts');
 SELECT pg_temp.assert_pick_cleanup((SELECT count(*)=8 FROM draft_picks WHERE id=ANY((SELECT protected_ids FROM pick_cleanup_fixture)::uuid[])),
   'cleanup keeps used picks, assignments, trade references, draft slots, activity references, and every foreign key');
 SELECT pg_temp.assert_pick_cleanup((SELECT count(*)=1 FROM public.pick_window_test_reference),'cleanup never cascades a reference deletion');

@@ -140,8 +140,8 @@ export const verifyLeagueState = async ({ admin, leagueId, commissionerUserId, m
     .from('draft_picks')
     .select('id', { count: 'exact', head: true })
     .eq('league_id', leagueId)
-    .gte('season_year', currentSeasonYear + 1)
-    .lte('season_year', currentSeasonYear + 3)
+    .gte('season_year', currentSeasonYear)
+    .lte('season_year', currentSeasonYear + 2)
   if (pickError) throw new Error(`D.SET.2 browser pick bank read: ${pickError.message}`)
   const expectedPickCount = memberCount * 3 * 3
   if (pickCount !== expectedPickCount) failures.push(`draft_picks=${pickCount}; expected ${expectedPickCount}`)

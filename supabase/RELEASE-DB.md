@@ -246,44 +246,40 @@ The [trade curve report](../docs/trade-curve.md) records the real trades, roster
 
 ## Release order for this release
 
-The supplied production head is `20261214006200`, from the recorded 2.14.7 release.
-This lab does not verify hosted state.
-The local candidate ends at `20261214010800`.
-Apply the pin migration after `20261214009600`, then release the matching optimizer and frontend.
-The pending history change adds `20261214009800_league_history.sql` after the pin migration.
-It adds completed Pancake seasons, final standings, champions, and season totals to the League screen.
-The sweep adds `20261214009900_schedule_matchup_links.sql` for schedule destinations.
-It adds `20261214010000_trade_rule_error_transport.sql` for valid trade error responses.
-The matching Edge code maps the new rule codes to HTTP 409.
-Apply it before releasing the matching frontend.
-The pending autoset change adds `20261214009400_autoset_tipoff_flexibility.sql` after `20261214009300_player_stats_windows.sql`.
-It adds player tipoff times to the optimizer context without changing the response type or permissions.
-Verify this migration on an isolated stack and regenerate both attestations before including it in a release.
-Apply it before the matching `lineup-optimizer` Edge function; old workers ignore the added JSON field.
-Prepare the deployment checkout with `npm ci` and stamp the Edge build before pausing workers or applying migrations.
-Apply `20261214010800_trade_display_dynasty_values.sql` before the matching frontend.
-It adds imported player values to trade-block reads and routed players to trade Activity entries.
-It changes no stored player values, roster order, or trade rules.
-Database, then Edge, then merge the frontend.
-Apply pending migrations through `20261214010800` only during the separately authorized release.
-Regenerate the catalog, types, and both attestations from a fresh private database before the final release checks.
+The supplied production head is `20261214010800`, with 786 migrations.
+The candidate adds `20261214010900_draft_pick_calendar_years.sql`, for 787 migrations.
+It stores draft calendar years and repairs only the approved affected league.
+The guard requires the exact recorded pick state and refuses drift.
+The tested external recovery SQL accompanies the release inputs.
 
-Deploy compatible database and Edge code before enabling public snapshots.
-The route lives beside the static Vercel export; merging the frontend triggers its automatic deployment.
-Set worker `LIVE_SNAPSHOT_BASE_URL` only after the public route passes its checks.
-The Vercel `LIVE_SCORES_OFF` variable and Supabase worker secret are independent controls.
-There is no access to the Vercel account for this change.
-Unsetting the Supabase secret restores ordinary worker ingestion on new invocations, but phones remain in public mode.
-Returning phones to database mode requires a client deployment or a Vercel configuration change.
-A revert merge uses the automatic frontend deployment; matching workers must also be deployed or have the secret unset.
-Keep compatible database functions for old clients, checkpoints, finals, corrections, and rollback.
-Do not reverse data migrations as part of the frontend revert.
-See [rollback and hosted settings](../docs/live-scores.md#rollback) for exact effects and commands.
+Use the approved hand release for this candidate.
+Stamp and deploy the compatible `api` Edge first, verify its labels on the old data, then run the guarded database dry run and push.
+The `refresh-views` function independently bundles the trade formatter through `api/tradeEstimates.ts`.
+After `api`, deploy `refresh-views` from the same stamped candidate before the database change; drain its old workers first.
+An API-only update leaves that worker able to publish old-convention labels from calendar-year inputs.
+After reconciliation, merge the frontend through the supervisor.
+The previous production Edge was never stamped, so the release runner cannot verify its predecessor; leave that runner guard unchanged.
+The earlier database-first recipes below describe historical releases.
+Real HTTP compatibility checks must prove candidate Edge labels on both pre-migration and calendar-year inputs.
+Pause estimate traffic, workers and every draft-pick producer before the final before-state reconciliation.
+Drain league creation and join, future-pick-window changes, draft initialization and completion, season rollover and reset, and direct pick or trade mutations.
+Retain this global pause until the database, matching Edge and frontend are live and the after-state reconciliation passes.
+The runner does not implement this operational pause.
+The new quote and history guards reject delayed inputs containing the old pick years.
+New inputs and repaired frozen inputs declare their calendar convention.
+Candidate Edge retains legacy labels when that declaration is absent, so it works before the database switch.
 
-The lab uses 32 MB shared buffers and PostgREST pool two.
-Hosted acceptance, restart completion, compression, billing, and production capacity remain rollout checks.
-No production deployment or hosted configuration change occurs in the lab.
-The historical release records below describe earlier revisions, not the current schedule or performance result.
+Prepare focused checks, final quality and test receipts, local migration and HTTP compatibility evidence, reviewed release notes, recovery SQL and the exact PR head before the hand release.
+The supervisor dropped the twenty-season replay and runner rehearsal for this promotion.
+Keep a full database backup and the trusted `62d064dd` source available before deployment.
+Stamp the candidate from its complete deployment inputs in a separate source export, then deploy only `api`; do not commit generated release metadata.
+Redeploying the prior `api` and `refresh-views` on old data is the Edge-only rollback; after database migration, coordinate the tested SQL recovery before restoring legacy Edge formatting.
+
+Before promotion, capture the scoped read-only pick and frozen-reference reconciliation.
+After the guarded migration, require all 150 pick IDs, rounds and owners unchanged, each year reduced by one, consistent numeric references and unchanged saved labels and values.
+Require the durable repair receipt and a no-op repeat.
+Keep recovery SQL as a coordinated forward recovery migration if production rollback becomes necessary.
+Do not reverse database history or restore old Edge formatting against calendar-year data without the matching recovery.
 
 ## Release 2.7 trade input order
 

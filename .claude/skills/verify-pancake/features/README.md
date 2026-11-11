@@ -41,7 +41,7 @@ Do not claim iOS home-screen behavior from Chromium viewport checks.
 | [Lineup](lineup.md) | Start, Auto, Bench pins, day selection, daily automation |
 | [Players and Waivers](players-waivers.md) | Search, filters, rankings, news, claim/edit/cancel |
 | [Trades](trades.md) | Builder, multi-team, offers, analyzer, block, history |
-| [League](league.md) | Standings, schedule, activity, settings, history, bracket, picks |
+| [League](league.md) | Standings, schedule, activity, settings, history, bracket, picks, guarded dynasty calendar-year repair |
 | [Player](player.md) | Profile, statistics, season picker, news, roster actions |
 | [Drafts](draft.md) | Auction, rookie draft, mock rooms, draft board |
 | [Settings](settings.md) | Profile, theme, notifications, create/join, password |

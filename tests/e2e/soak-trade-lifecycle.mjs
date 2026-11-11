@@ -574,8 +574,8 @@ export const assertLeagueLifecycleScenario = async ({ supabase, env, state, seas
     failures.push(`${label}: current season rows=${currentSeasons.length}; expected 1`)
   }
   const seasonYear = currentSeasons[0]?.season_year ?? currentSeasonYear()
-  const minPickYear = seasonYear + 1
-  const maxPickYear = seasonYear + 3
+  const minPickYear = seasonYear
+  const maxPickYear = seasonYear + 2
   const pickKeys = new Set(picks.map((pick) => `${pick.season_year}:${pick.round}:${pick.original_owner_id}:${pick.current_owner_id}`))
   for (const member of members) {
     for (let year = minPickYear; year <= maxPickYear; year += 1) {

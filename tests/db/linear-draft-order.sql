@@ -38,9 +38,9 @@ BEGIN
   RAISE EXCEPTION 'Mock rookie room ignores linear order';
  END IF;
  INSERT INTO draft_picks(league_id,season_year,round,original_owner_id,current_owner_id)
- SELECT league,2128,r,m,m FROM generate_series(1,3) r CROSS JOIN unnest(ARRAY[owner,other]) m
- WHERE NOT EXISTS(SELECT 1 FROM draft_picks p WHERE p.league_id=league AND p.season_year=2128 AND p.round=r AND p.original_owner_id=m);
- UPDATE draft_picks SET current_owner_id=other WHERE league_id=league AND season_year=2128 AND round=2 AND original_owner_id=owner;
+ SELECT league,2127,r,m,m FROM generate_series(1,3) r CROSS JOIN unnest(ARRAY[owner,other]) m
+ WHERE NOT EXISTS(SELECT 1 FROM draft_picks p WHERE p.league_id=league AND p.season_year=2127 AND p.round=r AND p.original_owner_id=m);
+ UPDATE draft_picks SET current_owner_id=other WHERE league_id=league AND season_year=2127 AND round=2 AND original_owner_id=owner;
  actual:=(public.start_rookie_draft_atomic(league,3,false)->>'id')::uuid;
  PERFORM public.reseed_rookie_draft_picks_atomic(actual);
  IF EXISTS(SELECT 1 FROM snake_draft_picks p JOIN draft_picks asset ON asset.id=p.draft_pick_id JOIN draft_orders o ON o.draft_id=p.draft_id AND o.member_id=asset.original_owner_id

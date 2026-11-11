@@ -140,7 +140,7 @@ export async function auditWebDraftActions({ check, env, season, page, press, bu
     }))).select('id,display_name'))
     rookies.forEach((rookie) => fixture.registerCreatedPlayer(rookie.id))
     await db(fixture.admin.from('draft_picks').insert([fixture.proposer, fixture.recipient].flatMap((member) =>
-      [1, 2, 3].map((round) => ({ league_id: fixture.league.id, season_year: fixture.currentSeason.season_year,
+      [1, 2, 3].map((round) => ({ league_id: fixture.league.id, season_year: fixture.currentSeason.season_year - 1,
         round, original_owner_id: member.id, current_owner_id: member.id })))))
     await db(fixture.admin.from('leagues').update({ status: 'offseason', taxi_slots: 2, ir_slots: 2 }).eq('id', fixture.league.id))
     await open('/league?tab=draft')

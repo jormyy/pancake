@@ -136,7 +136,7 @@ BEGIN
       format('season %s follows its published calendar and extended week', v_season_offset + 1));
 
     INSERT INTO public.draft_picks(league_id, season_year, round, original_owner_id, current_owner_id)
-    SELECT v_league, v_year, 1, id, id FROM public.league_members WHERE league_id = v_league
+    SELECT v_league, v_year-1, 1, id, id FROM public.league_members WHERE league_id = v_league
     ON CONFLICT (league_id, season_year, round, original_owner_id) DO NOTHING;
 
     FOR v_day IN SELECT generate_series(make_date(v_year - 1, 10, 1), make_date(v_year, 9, 30), interval '1 day')::date LOOP

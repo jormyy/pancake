@@ -42,17 +42,14 @@ BEGIN
     RAISE EXCEPTION 'No active season found for this league';
   END IF;
 
-  -- Prior+1 alone breaks a league that skipped a season or was created
-  -- off-cycle: the derived year would never match season_weeks. The real
-  -- calendar wins whenever it is ahead.
   v_new_year := GREATEST(
     v_current_season.season_year + 1,
     public.current_season_year_et(now())
   );
-  v_far_year := v_new_year + v_league.future_pick_years;
+  v_far_year := v_new_year + v_league.future_pick_years - 1;
 
   UPDATE draft_picks SET is_used=true,used_at=now()
-    WHERE league_id=p_league_id AND season_year<v_new_year AND NOT is_used;
+    WHERE league_id=p_league_id AND season_year<v_new_year-1 AND NOT is_used;
 
   IF EXISTS (
     SELECT 1
@@ -153,7 +150,6 @@ BEGIN
     AND previous.member_id=current.member_id AND previous.player_id=current.player_id
   WHERE current.league_season_id=v_new_season_id AND previous.is_on_taxi AND NOT current.is_on_taxi;
 
-  -- Fill skipped pick years and preserve existing owners.
   INSERT INTO draft_picks (
     league_id,
     season_year,
@@ -168,7 +164,7 @@ BEGIN
     lm.id,
     lm.id
   FROM league_members lm
-  CROSS JOIN generate_series(v_new_year,v_far_year) AS year_value
+  CROSS JOIN generate_series(v_new_year-1,v_far_year) AS year_value
   CROSS JOIN unnest(ARRAY[1, 2, 3]) AS round_value
   WHERE lm.league_id = p_league_id
   ON CONFLICT (league_id, season_year, round, original_owner_id) DO NOTHING;
@@ -210,7 +206,6 @@ BEGIN
   SELECT p_league_id, v_new_season_id, member_id, priority
   FROM ordered_members;
 
-  -- The trade deadline repeats every season.
   UPDATE leagues
      SET status = 'offseason',
          trade_deadline = private.trade_deadline_for_season(trade_deadline, v_new_year)

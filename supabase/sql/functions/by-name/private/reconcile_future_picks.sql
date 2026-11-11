@@ -18,13 +18,13 @@ BEGIN
   INSERT INTO public.draft_picks(league_id,season_year,round,original_owner_id,current_owner_id)
   SELECT p_league_id,year_value,round_value,member.id,member.id
   FROM public.league_members member
-  CROSS JOIN generate_series(v_year+1,v_year+v_years) year_value
+  CROSS JOIN generate_series(v_year,v_year+v_years-1) year_value
   CROSS JOIN generate_series(1,3) round_value
   WHERE member.league_id=p_league_id
   ON CONFLICT(league_id,season_year,round,original_owner_id) DO NOTHING;
 
   PERFORM 1 FROM public.draft_picks pick
-  WHERE pick.league_id=p_league_id AND pick.season_year>v_year+v_years
+  WHERE pick.league_id=p_league_id AND pick.season_year>v_year+v_years-1
     AND pick.current_owner_id=pick.original_owner_id AND NOT pick.is_used
     AND pick.used_at IS NULL AND pick.rookie_draft_id IS NULL
   ORDER BY pick.id FOR UPDATE;
@@ -44,6 +44,6 @@ BEGIN
     AND pick.current_owner_id=pick.original_owner_id AND NOT pick.is_used AND pick.used_at IS NULL AND pick.rookie_draft_id IS NULL
     AND NOT EXISTS(SELECT 1 FROM public.league_activity activity WHERE activity.league_id=pick.league_id
       AND activity.metadata->>''pick_id''=pick.id::text)' || v_predicate
-    USING p_league_id,v_year+v_years;
+    USING p_league_id,v_year+v_years-1;
 END;
 $$;
