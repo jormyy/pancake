@@ -17,6 +17,7 @@ assert.ok(run.readyAt && !run.cleanedAt)
 const env = JSON.parse(await readFile(path.join(dir, 'local-env.json'), 'utf8'))
 const database = requireLocal(env.SUPABASE_DB_URL, 'postgresql:')
 assert.equal(Number(database.port), run.ports.db)
+database.searchParams.set('sslmode', 'disable')
 const league = 'faab8d8f-6a60-4bbc-8f5d-44050b652cdd'
 const migration = path.join(repo, 'supabase/migrations/20261214010900_draft_pick_calendar_years.sql')
 const save = (name, value) => writeFile(path.join(dir, name), JSON.stringify(value, null, 2) + '\n')
@@ -139,6 +140,7 @@ if (action === 'prepare') {
   for (const name of recipes) {
     const original = await readFile(path.join(repo, `tests/db/${name}.sql`), 'utf8')
     const sql = original.replaceAll('http://127.0.0.1:60421', requireLocal(env.E2E_SUPABASE_URL).origin)
+      .replace(/^\\ir (.+)$/gm, (_, include) => `\\i '${path.resolve(repo, 'tests/db', include)}'`)
     await writeFile(path.join(dir, `pick-years-recipe-${name}.sql`), sql)
     const result = execute('env', [`SUPABASE_DB_URL=${database.href}`, `PANCAKE_TEST_DB_PORT=${database.port}`,
       'psql', database.href, '-XqAt', '-v', 'ON_ERROR_STOP=1', '-f', '-'], sql)
