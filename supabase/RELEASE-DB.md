@@ -256,7 +256,10 @@ Use `scripts/release/release.mjs` for this release.
 Its order is compatible Edge first, database dry run and push, then squash merge and frontend verification.
 The earlier database-first recipes below describe historical releases.
 The release replay must prove candidate Edge compatibility with the pre-migration database.
-Pause estimate traffic and workers, drain outstanding requests, and retain the pause until both database and matching Edge are live.
+Pause estimate traffic, workers and every draft-pick producer before the final before-state reconciliation.
+Drain league creation and join, future-pick-window changes, draft initialization and completion, season rollover and reset, and direct pick or trade mutations.
+Retain this global pause until the database, matching Edge and frontend are live and the after-state reconciliation passes.
+The runner does not implement this operational pause.
 The new quote and history guards reject delayed inputs containing the old pick years.
 New inputs and repaired frozen inputs declare their calendar convention.
 Candidate Edge retains legacy labels when that declaration is absent, so it works before the database switch.
