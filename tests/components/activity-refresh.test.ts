@@ -57,8 +57,8 @@ it.each(['trade_completed', 'commissioner_announcement'])('links grouped players
         id: 'event', memberId: null, teamName: 'Team', playerId: null, playerName: 'Trade completed', position: null,
         eligiblePositions: [], nbaId: null, transactionType, occurredAt: '2026-11-10T12:00:00Z', isSystem: true,
         tradePlayers: [
-            { kind: 'player', playerId: 'low', playerName: 'Low', tradeValue: 100, fromMemberId: 'a', toMemberId: 'b', fromTeamName: 'A', toTeamName: 'B' },
-            { kind: 'player', playerId: 'high', playerName: 'High', tradeValue: 900, fromMemberId: 'b', toMemberId: 'a', fromTeamName: 'B', toTeamName: 'A' },
+            { kind: 'player', playerId: 'low', playerName: 'Low', tradeValue: 100, fromMemberId: 'a', toMemberId: 'b', fromTeamName: 'E2E Team 1', toTeamName: 'E2E Team 2' },
+            { kind: 'player', playerId: 'high', playerName: 'High', tradeValue: 900, fromMemberId: 'b', toMemberId: 'a', fromTeamName: 'E2E Team 2', toTeamName: 'E2E Team 1' },
         ],
     }
     let screen!: ReactTestRenderer
@@ -72,8 +72,8 @@ it.each(['trade_completed', 'commissioner_announcement'])('links grouped players
         expect(links.map(link => link.props.accessibilityLabel)).toEqual(transactionType === 'trade_completed' ? ['View High stats', 'View Low stats'] : [])
         if (transactionType === 'trade_completed') {
             expect(row.root.findAllByType('PlayerRowContent' as React.ElementType)).toHaveLength(0)
-            expect(links.map(link => link.findByType('Text' as React.ElementType).props.children.join(''))).toEqual(['High · B → A', 'Low · A → B'])
-            expect(links[0].findByType('Text' as React.ElementType).props.numberOfLines).toBe(1)
+            expect(links.map(link => link.findByType('Text' as React.ElementType).props.children.join(''))).toEqual(['High · E2E Team 2 → E2E Team 1', 'Low · E2E Team 1 → E2E Team 2'])
+            expect(links.map(link => link.findByType('Text' as React.ElementType).props.numberOfLines)).toEqual([undefined, undefined])
             expect(links[0].props.accessibilityRole).toBe('button')
             expect(links[0].props.style).toContainEqual(expect.objectContaining({ minHeight: controlSize.minTouch }))
             await act(async () => links[0].props.onFocus())

@@ -41,7 +41,7 @@ function ActivityRow({ item, isMe, myMemberId, padX = spacing.lg }: { item: Tran
                     </Text>
                     {orderTradeAssets(item.tradePlayers ?? []).map(player => item.transactionType === 'trade_completed'
                         ? <TradePlayerLink key={player.playerId} playerId={player.playerId} name={player.playerName}>
-                            <Text style={styles.txTeam} numberOfLines={1}>{player.playerName} · {player.fromTeamName} → {player.toTeamName}</Text>
+                            <Text style={styles.txTeam}>{player.playerName} · {player.fromTeamName} → {player.toTeamName}</Text>
                         </TradePlayerLink>
                         : <Text key={player.playerId} style={styles.txTeam}>{player.playerName} · {player.fromTeamName} → {player.toTeamName}</Text>)}
                     {orderTradeAssets(item.tradePicks ?? []).map(pick => <TradePickLabel key={pick.pickId} pick={pick} context={{
