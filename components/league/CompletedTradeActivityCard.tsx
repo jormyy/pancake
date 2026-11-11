@@ -41,7 +41,7 @@ export function CompletedTradeActivityCard({ item, myMemberId, padX }: { item: T
                     <MultiTeamTradeOverview compact participants={participants} pickContext={pickContext}
                         items={assets.map(tradeFlowItem).filter((asset): asset is TradeFlowItem => asset !== null)} />
                 ) : participants.map(team => (
-                    <AssetList key={team.memberId} label={`${team.label} receives`} stacked showContext={false} showPickDirection
+                    <AssetList key={team.memberId} label={`${team.label} receives`} stacked showContext={false}
                         items={assets.filter(asset => asset.toMemberId === team.memberId)} pickContext={pickContext} />
                 ))}
             </View>

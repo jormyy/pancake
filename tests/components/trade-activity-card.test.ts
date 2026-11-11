@@ -71,6 +71,8 @@ it('shows one compact trade with both receiving teams, headshots, and shared ass
     const links = row.root.findAllByType('Pressable' as React.ElementType)
     expect(links.map(node => node.props.accessibilityLabel)).toEqual(['View High stats', 'View Low stats'])
     const assetText = JSON.stringify(row.toJSON())
+    expect(assetText).not.toContain(' — from ')
+    expect(assetText).toContain('2028 Round 1 (orig. Foxes)')
     expect(assetText.indexOf('High')).toBeLessThan(assetText.indexOf('Low'))
     expect(assetText.indexOf('Low')).toBeLessThan(assetText.indexOf('2028 Round 1'))
     expect(assetText.indexOf('2028 Round 1')).toBeLessThan(assetText.indexOf('2029 Round 1'))

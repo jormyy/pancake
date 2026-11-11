@@ -113,7 +113,7 @@ function tradeItemKey(item: TradeItem, index: number) {
     return `faab:${item.fromMemberId ?? 'from'}:${item.toMemberId ?? 'to'}:${item.amount}:${index}`
 }
 
-function TradeItemLine({ item, showContext = true, showPickDirection = false, pickContext, onOpen }: { item: TradeItem; showContext?: boolean; showPickDirection?: boolean; pickContext?: TradePickContext; onOpen?: () => void }) {
+function TradeItemLine({ item, showContext = true, pickContext, onOpen }: { item: TradeItem; showContext?: boolean; pickContext?: TradePickContext; onOpen?: () => void }) {
     if (item.kind === 'player') {
         const positions = playerEligiblePositions(item)
         return (
@@ -139,13 +139,13 @@ function TradeItemLine({ item, showContext = true, showPickDirection = false, pi
         <Row {...details} style={[styles.assetRow, onOpen && styles.assetLink]}>
             <View style={styles.assetIcon}><Text style={styles.assetIconText}>R{item.round}</Text></View>
             <View style={styles.assetCopy}>
-                <TradePickLabel pick={item} context={pickContext} showDirection={showPickDirection} />
+                <TradePickLabel pick={item} context={pickContext} showDirection={false} />
             </View>
         </Row>
     )
 }
 
-export function AssetList({ items, label, showContext = true, showPickDirection = false, stacked = false, pickContext, onOpen }: { items: TradeItem[]; label: string; showContext?: boolean; showPickDirection?: boolean; stacked?: boolean; pickContext?: TradePickContext; onOpen?: () => void }) {
+export function AssetList({ items, label, showContext = true, stacked = false, pickContext, onOpen }: { items: TradeItem[]; label: string; showContext?: boolean; stacked?: boolean; pickContext?: TradePickContext; onOpen?: () => void }) {
     return (
         <View style={[styles.assetBlock, stacked && styles.stackedAssetBlock]}>
             <Text style={styles.assetLabel} numberOfLines={1}>{label}</Text>
@@ -153,7 +153,7 @@ export function AssetList({ items, label, showContext = true, showPickDirection 
                 <Text style={styles.assetEmpty}>Nothing</Text>
             ) : (
                 orderTradeAssets(items).map((item, index) => (
-                    <TradeItemLine key={tradeItemKey(item, index)} item={item} showContext={showContext} showPickDirection={showPickDirection} pickContext={pickContext} onOpen={onOpen} />
+                    <TradeItemLine key={tradeItemKey(item, index)} item={item} showContext={showContext} pickContext={pickContext} onOpen={onOpen} />
                 ))
             )}
         </View>
