@@ -1,7 +1,7 @@
 BEGIN;
 SET LOCAL lock_timeout='250ms';
 SET LOCAL statement_timeout='30s';
-LOCK TABLE public.trade_estimate_quotes,public.trade_estimate_history IN SHARE ROW EXCLUSIVE MODE;
+LOCK TABLE public.trade_estimate_history,public.trade_estimate_quotes IN SHARE ROW EXCLUSIVE MODE;
 DROP TRIGGER IF EXISTS guard_trade_pick_years ON public.trade_estimate_quotes;
 DROP TRIGGER IF EXISTS guard_trade_pick_years ON public.trade_estimate_history;
 
@@ -1809,7 +1809,6 @@ BEGIN
     WHERE league.id=v_league AND league.future_pick_years=5 AND season.season_year=2027) THEN
     RAISE EXCEPTION 'Draft-pick calendar repair league state changed';
   END IF;
-  PERFORM 1 FROM public.trades WHERE league_id=v_league ORDER BY id FOR UPDATE;
   PERFORM 1 FROM public.draft_picks WHERE league_id=v_league ORDER BY id FOR UPDATE;
   PERFORM 1 FROM public.trade_estimate_quotes WHERE league_id=v_league ORDER BY id FOR UPDATE;
   PERFORM 1 FROM public.trade_estimate_history history JOIN public.trades trade ON trade.id=history.trade_id
