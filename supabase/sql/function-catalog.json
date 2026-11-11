@@ -110,6 +110,7 @@
     "private.guard_partition_identity()": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.guard_player_career_games()": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.guard_player_stats_identity()": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
+    "private.guard_trade_pick_years()": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.guard_trade_plan_reservations()": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.guard_waiver_plan_reservations()": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.history_capture_lineup()": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
