@@ -87,16 +87,19 @@ describe('fake primary player sources', () => {
         const entries = (teams.body as { sports: { leagues: { teams: { team: { id: string; abbreviation: string } }[] }[] }[] }).sports[0].leagues[0].teams
         expect(entries).toHaveLength(30)
         const ids: string[] = []
+        const names: string[] = []
         for (const { team } of entries) {
             const response = await fakeRequest('GET', `/espn/teams/${team.id}/roster`)
             expect(response.status).toBe(200)
-            const athletes = (response.body as { athletes: { id: string; team: { abbreviation: string } }[] }).athletes
+            const athletes = (response.body as { athletes: { id: string; fullName: string; team: { abbreviation: string } }[] }).athletes
             expect(athletes.length).toBeGreaterThanOrEqual(12)
             expect(athletes.every(athlete => athlete.team.abbreviation === team.abbreviation)).toBe(true)
             ids.push(...athletes.map(athlete => athlete.id))
+            names.push(...athletes.map(athlete => athlete.fullName.toLowerCase().replace(/[^a-z]/g, '')))
         }
         expect(ids).toHaveLength(365)
         expect(new Set(ids).size).toBe(ids.length)
+        expect(new Set(names).size).toBe(names.length)
         const index = (await fakeRequest('GET', '/staticData/playerIndex.json')).body as { resultSets: { headers: string[]; rowSet: unknown[][] }[] }
         expect(index.resultSets[0].headers).toContain('TEAM_ABBREVIATION')
         expect(new Set(index.resultSets[0].rowSet.map(row => String(row[0])))).toEqual(new Set(ids))

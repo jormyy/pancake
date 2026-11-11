@@ -3,14 +3,14 @@ const teams = ['ATL', 'BOS', 'BKN', 'CHA', 'CHI', 'CLE', 'DAL', 'DEN', 'DET', 'G
 export function fakePlayerSourceResponse(url, state) {
   if (!url.pathname.endsWith('/staticData/playerIndex.json') && !url.pathname.startsWith('/espn')) return null
   const players = [...state.players.values(), ...Array.from({ length: 360 }, (_, index) => ({
-    player_id: String(600000 + index), first_name: 'Synthetic', last_name: `Veteran${index}`,
-    full_name: `Synthetic Veteran${index}`, team: teams[index % teams.length], position: 'SG',
+    player_id: String(600000 + index), first_name: 'Synthetic', last_name: `Veteran${String.fromCharCode(65 + Math.floor(index / 26), 65 + index % 26)}`,
+    full_name: `Synthetic Veteran${String.fromCharCode(65 + Math.floor(index / 26), 65 + index % 26)}`, team: teams[index % teams.length], position: 'SG',
     years_exp: state.seasonYear - 2023, active: true, injury_status: index === 0 ? 'Out' : null,
   }))]
   const athlete = player => ({ id: player.player_id, firstName: player.first_name, lastName: player.last_name,
     fullName: player.full_name, displayName: player.full_name, position: { abbreviation: player.position },
     team: { abbreviation: player.team }, status: { type: player.active ? 'active' : 'inactive' },
-    experience: { years: player.years_exp }, dateOfBirth: `${state.seasonYear - 25}-01-01T00:00Z`,
+    experience: { years: player.years_exp }, dateOfBirth: `${state.seasonYear - (player.age ?? state.seasonYear - 2002)}-01-01T00:00Z`,
   })
   if (url.pathname.endsWith('/staticData/playerIndex.json')) return { resultSets: [{
     name: 'PlayerIndex',
