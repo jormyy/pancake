@@ -48,10 +48,10 @@ afterEach(async () => {
     await act(async () => trees.splice(0).forEach(tree => tree.unmount()))
     navigation.push.mockClear()
 })
-async function renderRow(event = item) {
+async function renderRow(event = item, myMemberId?: string) {
     let feed!: ReactTestRenderer
     let row!: ReactTestRenderer
-    await act(async () => { feed = create(React.createElement(ActivityFeed, { transactions: [event] })) })
+    await act(async () => { feed = create(React.createElement(ActivityFeed, { transactions: [event], myMemberId })) })
     trees.push(feed)
     const renderItem = feed.root.findByType('FlashList' as React.ElementType).props.renderItem
     await act(async () => { row = create(renderItem({ item: event })) })
@@ -82,11 +82,17 @@ it('shows one compact trade with both receiving teams, headshots, and shared ass
     expect(navigation.push).toHaveBeenCalledExactlyOnceWith(tradePlayerDetailRoute({ playerId: 'high', name: 'High', nbaId: '456', team: 'DEN', positions: ['C'] }))
 })
 
-it('shows every receiving team in a three-team completed trade', async () => {
+it('shows every receiving team with accepted-card pick labels in a three-team completed trade', async () => {
     const row = await renderRow({ ...item, participantTeamNames: ['Owls', 'Foxes', 'Bears'], tradePlayers: [
         ...item.tradePlayers!,
         { ...item.tradePlayers![0], playerId: 'third', playerName: 'Third', fromMemberId: 'a', toMemberId: 'c', fromTeamName: 'Owls', toTeamName: 'Bears' },
-    ] })
+    ], tradePicks: [
+        ...item.tradePicks!,
+        { kind: 'pick', pickId: 'bears-pick', seasonYear: 2028, round: 1, originalTeamName: 'Bears', fromMemberId: 'c', toMemberId: 'a', fromTeamName: 'Bears', toTeamName: 'Owls' },
+    ] }, 'a')
+    const labels = row.root.findAllByType('Text' as React.ElementType).map(node => node.props.accessibilityLabel).filter(Boolean)
+    expect(labels).toContain('2028 Round 1 (orig. Bears)')
+    expect(labels.every(label => !label.includes(' — from '))).toBe(true)
     const text = JSON.stringify(row.toJSON())
     for (const team of ['Owls', 'Foxes', 'Bears']) expect(text).toContain(team)
     expect(text.match(/gets/g)).toHaveLength(3)

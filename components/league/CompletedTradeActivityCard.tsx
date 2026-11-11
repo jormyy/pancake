@@ -38,7 +38,7 @@ export function CompletedTradeActivityCard({ item, myMemberId, padX }: { item: T
                         <Text style={styles.fallback}>{item.body ?? 'Trade asset details are unavailable.'}</Text>
                     </View>
                 ) : participants.length > 2 ? (
-                    <MultiTeamTradeOverview compact participants={participants} pickContext={pickContext}
+                    <MultiTeamTradeOverview compact participants={participants} pickContext={pickContext} showPickDirection={false}
                         items={assets.map(tradeFlowItem).filter((asset): asset is TradeFlowItem => asset !== null)} />
                 ) : participants.map(team => (
                     <AssetList key={team.memberId} label={`${team.label} receives`} stacked showContext={false}
