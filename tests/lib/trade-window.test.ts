@@ -6,8 +6,8 @@ vi.mock('@/lib/supabase', () => ({ supabase: { from: (table: string) => {
     state.tables.push(table)
     const filters: ((row: Record<string, unknown>) => boolean)[] = []
     const rows = table === 'drafts' ? state.drafts : table === 'league_members' ? [{ user_id: 'user', leagues: { status: 'drafting', drafts: state.drafts } }] : [
-        { id: 'current', current_owner_id: 'me', season_year: 2027, is_used: false, league_id: 'league', round: 1 },
-        { id: 'future', current_owner_id: 'me', season_year: 2028, is_used: false, league_id: 'league', round: 1 },
+        { id: 'current', current_owner_id: 'me', season_year: 2026, is_used: false, league_id: 'league', round: 1 },
+        { id: 'future', current_owner_id: 'me', season_year: 2027, is_used: false, league_id: 'league', round: 1 },
     ]
     const query = { select: (selection: string) => { state.selection = selection; return query }, order: () => query, is: () => query,
         eq: (key: string, value: unknown) => { filters.push(row => row[key] === value); return query },
