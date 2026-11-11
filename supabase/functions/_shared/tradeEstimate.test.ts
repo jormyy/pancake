@@ -34,6 +34,16 @@ Deno.test('known pick positions use imported bands and the frozen official team 
   assert.deepEqual(unknown.ranges.overall, { low: 397, high: 716 })
 })
 
+Deno.test('candidate Edge preserves calendar labels with legacy database inputs', () => {
+  const input = fixture()
+  Reflect.deleteProperty(input, 'pickYearConvention')
+  input.terms = [{ fromMemberId: 'a', toMemberId: 'b', playerId: null, pickId: 'pick', faabAmount: 0 }]
+  input.picks = [{ id: 'pick', seasonYear: 2028, round: 1, slot: 1, ownerId: 'a', originalOwnerId: 'c', originalTeamName: 'Original', valueBands: { early: 716, mid: 557, late: 397 } }]
+  const result = analyzeTradeEstimate(input, observedAt)
+  assert.equal(result.assets[0].label, '2027 Round 1 · Original')
+  assert.equal(result.assets[0].values.overall, 716)
+})
+
 Deno.test('missing imported values contribute zero without an old formula fallback', () => {
   const input = fixture()
   input.terms = [{ fromMemberId: 'a', toMemberId: 'b', playerId: 'player', pickId: null, faabAmount: 0 }]
