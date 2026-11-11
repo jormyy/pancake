@@ -4,7 +4,7 @@ import { analyzeTradeEstimate, type TradeEstimateInputs } from './tradeEstimate.
 const observedAt = Date.parse('2025-02-10T12:00:00Z')
 function fixture(): TradeEstimateInputs {
   return {
-    leagueId: 'league', seasonId: 'season', seasonYear: 2025, teams: 10, rosterSize: 20, scoringSettings: { points: 1 }, faabBudget: 100,
+    pickYearConvention: 'calendar', leagueId: 'league', seasonId: 'season', seasonYear: 2025, teams: 10, rosterSize: 20, scoringSettings: { points: 1 }, faabBudget: 100,
     terms: [
       { fromMemberId: 'a', toMemberId: 'b', playerId: null, pickId: null, faabAmount: 10 },
       { fromMemberId: 'b', toMemberId: 'a', playerId: null, pickId: null, faabAmount: 20 },

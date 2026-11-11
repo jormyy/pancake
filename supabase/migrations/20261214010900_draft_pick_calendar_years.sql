@@ -1425,7 +1425,7 @@ BEGIN
     ORDER BY ranking.player_id,ranking.fetched_at DESC,ranking.source_rank,ranking.id
   ) candidate WHERE candidate.trade_value BETWEEN 0 AND 1000;
   PERFORM set_config('request.jwt.claim.sub',COALESCE(previous_user,''),true);
-  RETURN jsonb_build_object('leagueId',league.id,'seasonId',season.id,'seasonYear',season.season_year,
+  RETURN jsonb_build_object('pickYearConvention','calendar','leagueId',league.id,'seasonId',season.id,'seasonYear',season.season_year,
     'teams',teams,'rosterSize',league.roster_size,'scoringSettings',league.scoring_settings,'faabBudget',league.faab_starting_budget,
     'rosters',rosters,'bestFreeAgentValue',best_free_agent,'terms',terms,'players',player_rows,'replacementPlayers',replacement_rows,'picks',picks,'balances',balances);
 END;
@@ -1499,7 +1499,7 @@ BEGIN
     ORDER BY ranking.player_id,ranking.fetched_at DESC,ranking.source_rank,ranking.id
   ) candidate WHERE candidate.trade_value BETWEEN 0 AND 1000;
   PERFORM set_config('request.jwt.claim.sub',COALESCE(previous_user,''),true);
-  inputs:=jsonb_build_object('leagueId',league.id,'seasonId',season.id,'seasonYear',season.season_year,'teams',teams,
+  inputs:=jsonb_build_object('pickYearConvention','calendar','leagueId',league.id,'seasonId',season.id,'seasonYear',season.season_year,'teams',teams,
     'rosterSize',league.roster_size,'scoringSettings',league.scoring_settings,'faabBudget',league.faab_starting_budget,
     'rosters',rosters,'bestFreeAgentValue',best_free_agent,'terms',terms,'players',players,'replacementPlayers',replacements,'picks',picks,'revaluationTradeId',trade.id);
   inputs:=inputs||jsonb_build_object('playerDestinations',(
@@ -1786,6 +1786,7 @@ DECLARE
   v_pick record;
   v_value jsonb;
   v_path text[];
+  v_convention_path text[];
   v_old integer;
   v_changes jsonb := '[]'::jsonb;
 BEGIN
@@ -1848,6 +1849,16 @@ BEGIN
         v_changes:=v_changes||jsonb_build_array(jsonb_build_object('kind',v_document.kind,'id',v_document.id,
           'formula_version',v_document.formula_version,'path',v_path,'before',v_old,'after',v_old-1));
       END LOOP;
+      IF jsonb_array_length(v_value#>v_location.path)>0 THEN
+        v_convention_path:=v_location.path[1:cardinality(v_location.path)-1]||ARRAY['pickYearConvention'];
+        IF v_value#>v_convention_path IS NOT NULL THEN
+          RAISE EXCEPTION 'Draft-pick calendar repair input convention changed';
+        END IF;
+        v_value:=jsonb_set(v_value,v_convention_path,to_jsonb('calendar'::text));
+        v_changes:=v_changes||jsonb_build_array(jsonb_build_object('kind',v_document.kind,'id',v_document.id,
+          'formula_version',v_document.formula_version,'path',v_convention_path,'before',NULL,
+          'after','calendar','missing',true,'type','convention'));
+      END IF;
     END LOOP;
     IF v_value IS DISTINCT FROM v_document.document THEN
       IF v_document.kind='quote' THEN

@@ -67,6 +67,7 @@ const shiftedReferences = (document, delta) => {
   const result = structuredClone(document)
   for (const inputs of [result.inputs, result.quote?.inputs]) {
     for (const pick of inputs?.picks ?? []) pick.seasonYear += delta
+    if (delta === -1 && inputs?.picks?.length) inputs.pickYearConvention = 'calendar'
   }
   return result
 }
@@ -121,14 +122,15 @@ if (action === 'prepare') {
   const after = state()
   reconcile(before, after, -1)
   assert.equal(after.receipt.length, 1)
-  assert.equal(after.receipt[0].reference_changes.length, copies(before).length)
+  assert.equal(after.receipt[0].reference_changes.filter(change => change.type !== 'convention').length, copies(before).length)
+  assert.equal(after.receipt[0].reference_changes.filter(change => change.type === 'convention').length, (before.quotes ?? []).filter(quote => quote.inputs?.picks?.length).length + (before.history ?? []).reduce((count, row) => count + Number(Boolean(row.snapshot.inputs?.picks?.length)) + Number(Boolean(row.snapshot.quote?.inputs?.picks?.length)), 0))
   await save('pick-years-after.json', after)
   query(await readFile(migration, 'utf8'))
   const repeated = state()
   assert.deepEqual(repeated, after)
   await save('pick-years-repeat.json', repeated)
   await save('pick-years-migration-receipt.json', { mode: registered ? 'fresh-install repair replay' : 'ordered upgrade', missingTargetRefused: true, driftRefused: true, picksShifted: 150, tradedOwnersPreserved: 7,
-    numericReferencesShifted: copies(before).length, allOtherPickColumnsPreserved: true, otherLeagueUnchanged: true, repeatUnchanged: true })
+    numericReferencesShifted: copies(before).length, conventionMarkersAdded: after.receipt[0].reference_changes.filter(change => change.type === 'convention').length, allOtherPickColumnsPreserved: true, otherLeagueUnchanged: true, repeatUnchanged: true })
   console.log('PASS drift refusal, 150 exact shifts, reference reconciliation, seven traded owners and repeat no-op')
 } else if (action === 'rollback') {
   assert.ok(argument, 'Provide the reviewed external rollback SQL')

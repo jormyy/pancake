@@ -114,7 +114,7 @@ BEGIN
     ORDER BY ranking.player_id,ranking.fetched_at DESC,ranking.source_rank,ranking.id
   ) candidate WHERE candidate.trade_value BETWEEN 0 AND 1000;
   PERFORM set_config('request.jwt.claim.sub',COALESCE(previous_user,''),true);
-  RETURN jsonb_build_object('leagueId',league.id,'seasonId',season.id,'seasonYear',season.season_year,
+  RETURN jsonb_build_object('pickYearConvention','calendar','leagueId',league.id,'seasonId',season.id,'seasonYear',season.season_year,
     'teams',teams,'rosterSize',league.roster_size,'scoringSettings',league.scoring_settings,'faabBudget',league.faab_starting_budget,
     'rosters',rosters,'bestFreeAgentValue',best_free_agent,'terms',terms,'players',player_rows,'replacementPlayers',replacement_rows,'picks',picks,'balances',balances);
 END;

@@ -61,6 +61,9 @@ BEGIN
   PERFORM pg_temp.assert_pick_calendar((SELECT count(*)=36 AND count(DISTINCT current_owner_id)=4
     AND min(season_year)=year AND max(season_year)=year+2 FROM public.draft_picks WHERE league_id=league),
     'joining managers receive the same three calendar-year classes');
+  PERFORM pg_temp.assert_pick_calendar(public.get_trade_estimate_inputs(users[1],members[1],jsonb_build_array(
+    jsonb_build_object('fromMemberId',members[1],'toMemberId',members[2],'faabAmount',1)))->>'pickYearConvention'='calendar',
+    'new trade inputs identify their draft-calendar convention during Edge-first rollout');
   SELECT array_agg(id ORDER BY id) INTO before_ids FROM public.draft_picks WHERE league_id=league;
   PERFORM set_config('request.jwt.claim.sub',users[1]::text,true);
   PERFORM public.update_league_settings_atomic(league,'{"future_pick_years":5}');
