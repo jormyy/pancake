@@ -55,12 +55,13 @@ node tools/verify/pick-years.mjs "$EVIDENCE" drive after
 
 Preparation creates 150 deliberately wrong-year picks using the approved UUID identities and synthetic local users.
 Seven real fixture trades reproduce the existing ownership differences.
+If the stack has no other league, preparation adds an unrelated sentinel league so the missing-target refusal and other-league preservation have real data.
 A frozen quote, nested history snapshot, block listing and value cache exercise dependent state.
 The helper refuses an existing target fixture and any database except the recorded loopback instance.
 
 `apply` first removes the target inside a rolled-back transaction and requires a populated database to refuse the missing target.
-It then changes one local pick year and requires the exact-state guard to refuse the drift.
-It restores that fixture drift, applies the pending migration or replays its repair on a fresh install, and checks every row.
+It then changes one local pick year inside another rolled-back transaction and requires the exact-state guard to refuse the drift.
+Both probes roll back even if the expected refusal fails. It applies the pending migration or replays its repair on a fresh install, and checks every row.
 Require 150 shifts by exactly one year, seven unchanged traded owners, identical other pick columns, identical trade/block identities, corrected numeric pick references, explicit calendar-convention markers on repaired frozen inputs, and unchanged root season years and saved labels.
 A second execution must produce identical state and the same receipt timestamp.
 Quote and history table locks drain existing writers during cutover. Permanent write guards lock referenced picks and reject delayed quote/history inputs whose pick years no longer match storage.

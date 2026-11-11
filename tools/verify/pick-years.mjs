@@ -96,24 +96,22 @@ if (action === 'prepare') {
 } else if (action === 'apply') {
   const before = await json('pick-years-before.json')
   const source = await readFile(migration, 'utf8')
+  assert.match(source, /^BEGIN;/)
+  assert.match(source, /COMMIT;\s*$/)
+  const probeSource = source.slice(source.indexOf(';') + 1, source.lastIndexOf('COMMIT;'))
   const registered = query("SELECT EXISTS(SELECT 1 FROM supabase_migrations.schema_migrations WHERE version='20261214010900')") === 't'
-  const absent = execute('psql', [database.href, '-XqAt', '-v', 'ON_ERROR_STOP=1', '-f', '-'], `BEGIN; DELETE FROM public.leagues WHERE id='${league}';\n${source}`)
+  const absent = execute('psql', [database.href, '-XqAt', '-v', 'ON_ERROR_STOP=1', '-f', '-'], `BEGIN; DELETE FROM public.leagues WHERE id='${league}';\n${probeSource}\nROLLBACK;`)
   await writeFile(path.join(dir, 'pick-years-target-refused.log'), (absent.stdout ?? '') + (absent.stderr ?? ''))
   assert.notEqual(absent.status, 0)
   assert.match((absent.stdout ?? '') + (absent.stderr ?? ''), /target missing from populated database/)
   assert.deepEqual(state(), before)
   const drift = before.picks.find(pick => pick.original_owner_id === pick.current_owner_id && !(before.blocks ?? []).some(block => block.pick_id === pick.id))
-  query(`UPDATE public.draft_picks SET season_year=season_year+100 WHERE id='${drift.id}' AND league_id='${league}'`)
-  try {
-    const refused = execute('psql', [database.href, '-XqAt', '-v', 'ON_ERROR_STOP=1', '-f', '-'], source)
-    await writeFile(path.join(dir, 'pick-years-refused.log'), (refused.stdout ?? '') + (refused.stderr ?? ''))
-    assert.notEqual(refused.status, 0)
-    assert.match((refused.stdout ?? '') + (refused.stderr ?? ''), /before-state mismatch/)
-    assert.equal(state().picks.find(pick => pick.id === drift.id).season_year, drift.season_year + 100)
-  } finally {
-    query(`UPDATE public.draft_picks SET season_year=season_year-100 WHERE id='${drift.id}' AND league_id='${league}'`)
-  }
-  assert.deepEqual(state().picks, before.picks)
+  const refused = execute('psql', [database.href, '-XqAt', '-v', 'ON_ERROR_STOP=1', '-f', '-'],
+    `BEGIN; UPDATE public.draft_picks SET season_year=season_year+100 WHERE id='${drift.id}' AND league_id='${league}';\n${probeSource}\nROLLBACK;`)
+  await writeFile(path.join(dir, 'pick-years-refused.log'), (refused.stdout ?? '') + (refused.stderr ?? ''))
+  assert.notEqual(refused.status, 0)
+  assert.match((refused.stdout ?? '') + (refused.stderr ?? ''), /before-state mismatch/)
+  assert.deepEqual(state(), before)
   const applied = registered
     ? execute('psql', [database.href, '-XqAt', '-v', 'ON_ERROR_STOP=1', '-f', '-'], source)
     : execute('supabase', ['migration', 'up', '--db-url', database.href], undefined)

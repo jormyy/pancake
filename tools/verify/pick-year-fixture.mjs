@@ -93,6 +93,11 @@ export function preparePickYearFixture(snapshot, seed, query) {
       IF EXISTS(SELECT 1 FROM public.leagues WHERE id=${literal(targetLeagueId)}) THEN
         RAISE EXCEPTION 'Pick year fixture target league already exists';
       END IF;
+      IF NOT EXISTS(SELECT 1 FROM public.leagues) THEN
+        PERFORM set_config('request.jwt.claim.sub',${literal(seed.users[0].id)},true);
+        PERFORM public.create_league('Other league sentinel','Sentinel',200);
+        PERFORM set_config('request.jwt.claim.sub','',true);
+      END IF;
       INSERT INTO public.leagues(id,name,slug,commissioner_id,status,future_pick_years,waiver_mode,trade_veto_mode,faab_starting_budget)
       VALUES(${literal(targetLeagueId)},'Draft year verification','draft-year-verification',${literal(seed.users[0].id)},'active',5,'faab','disabled',100);
       INSERT INTO public.league_seasons(id,league_id,season_year,is_current)
