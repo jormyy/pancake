@@ -157,6 +157,17 @@ if (action === 'prepare') {
   await writeFile(path.join(dir, 'pick-years-edge.log'), (deno.stdout ?? '') + (deno.stderr ?? ''))
   assert.equal(deno.status, 0, 'Frozen pick valuation tests failed; inspect the owned log')
   await save('pick-years-check-receipt.json', { recipes: receipts, edgeTests: 'passed' })
+} else if (action === 'catalog') {
+  for (const [file, name] of [['db-security-catalog.sql', 'pick-years-security-catalog.json'], ['release-schema-history.sql', 'pick-years-schema-history.json']]) {
+    await save(name, JSON.parse(query(await readFile(path.join(repo, 'tests/e2e', file), 'utf8'))))
+  }
+  console.log('Saved read-only schema and migration catalogs')
+} else if (action === 'attest') {
+  const result = execute('env', [`SUPABASE_DB_URL=${database.href}`, `PANCAKE_TEST_DB_PORT=${database.port}`,
+    'node', 'scripts/regenerate-release-history-attestations.mjs'])
+  await writeFile(path.join(dir, 'pick-years-attest.log'), (result.stdout ?? '') + (result.stderr ?? ''))
+  assert.equal(result.status, 0, 'Local attestation refresh failed; inspect the owned log')
+  console.log('Regenerated required release attestations from the owned local database')
 } else if (action === 'drive') {
   assert.ok(['before', 'after'].includes(argument))
   const fixture = await json('pick-year-fixture.json')
@@ -207,5 +218,5 @@ if (action === 'prepare') {
   }
   await save(`pick-years-ui-${argument}-receipt.json`, { engine: 'WebKit', head: run.sha, receipts })
 } else {
-  throw new Error('Use prepare, observe, apply, rollback, check or drive')
+  throw new Error('Use prepare, observe, apply, rollback, check, catalog, attest or drive')
 }

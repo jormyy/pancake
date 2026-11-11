@@ -88,7 +88,8 @@ A current-head fresh installation already uses the corrected window, so use the 
 
 Keep `pick-years-before.json`, `pick-years-after.json`, `pick-years-repeat.json`, `pick-years-rollback.json`, `pick-years-restored-candidate.json`, `pick-years-migration-receipt.json`, recipe logs and the after-UI receipt.
 Run normal cleanup and prove those files and screenshots survive unchanged.
-Compare the ordered-upgrade and fresh-install schema catalogs before regenerating release attestations.
+Run `node tools/verify/pick-years.mjs "$EVIDENCE" catalog` on both instances and compare their `pick-years-security-catalog.json` files.
+After they match, run `node tools/verify/pick-years.mjs "$EVIDENCE" attest` on the fresh instance to regenerate the required repository attestations from its local database.
 
 A missing filtered snapshot or reviewed rollback is a failed precondition, not a skipped proof.
 The fixed repair accepts only its recorded league and exact before-state; do not weaken its guard to fit another fixture.

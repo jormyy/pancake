@@ -218,7 +218,7 @@ async function launch() {
 }
 
 export async function refreshAppSources(source, work, files) {
-  for (const root of ['app', 'components', 'constants', 'contexts', 'hooks', 'lib', 'types', 'core', 'public', 'scripts']) {
+  for (const root of ['app', 'components', 'constants', 'contexts', 'hooks', 'lib', 'types', 'core', 'public', 'scripts', 'supabase/functions']) {
     await rm(path.join(work, root), { recursive: true, force: true })
   }
   for (const file of files) {
@@ -232,7 +232,7 @@ export async function refreshAppSources(source, work, files) {
 async function rebuild(run) {
   await doctor(run)
   assert.equal(run.work, path.join(run.dir, 'work'))
-  const files = output('git', ['ls-files', '--cached', '--others', '--exclude-standard', '-z', 'app', 'components', 'constants', 'contexts', 'hooks', 'lib', 'types', 'core', 'public', 'scripts']).split('\0').filter(Boolean)
+  const files = output('git', ['ls-files', '--cached', '--others', '--exclude-standard', '-z', 'app', 'components', 'constants', 'contexts', 'hooks', 'lib', 'types', 'core', 'public', 'scripts', 'supabase/functions']).split('\0').filter(Boolean)
   await refreshAppSources(repo, run.work, files)
   const env = await json(path.join(run.dir, 'local-env.json'))
   run.sha = output('git', ['rev-parse', 'HEAD'])
