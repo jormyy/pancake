@@ -258,6 +258,8 @@ The earlier database-first recipes below describe historical releases.
 The release replay must prove candidate Edge compatibility with the pre-migration database.
 Pause estimate traffic and workers, drain outstanding requests, and retain the pause until both database and matching Edge are live.
 The new quote and history guards reject delayed inputs containing the old pick years.
+New inputs and repaired frozen inputs declare their calendar convention.
+Candidate Edge retains legacy labels when that declaration is absent, so it works before the database switch.
 
 Prepare full comprehensive-check and test receipts, replay evidence, reviewed release notes, recovery SQL and the exact PR head before running the release command.
 Run its dry rehearsal on the private `pt4bafablerelease` stack using ports 59400 through 59499.

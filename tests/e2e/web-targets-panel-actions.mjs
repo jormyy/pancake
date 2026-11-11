@@ -202,7 +202,7 @@ export async function auditWebPanelActions({ check, env, season, target, page, p
     await button(`List ${fixture.proposerPlayer.display_name} on trade block`).waitFor({ state: 'hidden' })
     await button(`Remove ${fixture.proposerPlayer.display_name} from trade block`).waitFor()
     const pick = (await db(fixture.admin.from('draft_picks').select('id,season_year,round').eq('league_id', fixture.league.id).eq('current_owner_id', fixture.proposer.id).eq('original_owner_id', fixture.proposer.id).gt('season_year', fixture.currentSeason.season_year).order('season_year').order('round').limit(1)))[0]
-    const listPick = `List ${pick.season_year - 1} Round ${pick.round} pick on trade block`
+    const listPick = `List ${pick.season_year} Round ${pick.round} pick on trade block`
     const listedPick = page.waitForResponse((response) => response.url().endsWith('/api/trades/block') && response.request().method() === 'POST')
     await press(button(listPick))
     const pickResponse = await listedPick
