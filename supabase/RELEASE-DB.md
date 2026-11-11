@@ -246,44 +246,31 @@ The [trade curve report](../docs/trade-curve.md) records the real trades, roster
 
 ## Release order for this release
 
-The supplied production head is `20261214006200`, from the recorded 2.14.7 release.
-This lab does not verify hosted state.
-The local candidate ends at `20261214010800`.
-Apply the pin migration after `20261214009600`, then release the matching optimizer and frontend.
-The pending history change adds `20261214009800_league_history.sql` after the pin migration.
-It adds completed Pancake seasons, final standings, champions, and season totals to the League screen.
-The sweep adds `20261214009900_schedule_matchup_links.sql` for schedule destinations.
-It adds `20261214010000_trade_rule_error_transport.sql` for valid trade error responses.
-The matching Edge code maps the new rule codes to HTTP 409.
-Apply it before releasing the matching frontend.
-The pending autoset change adds `20261214009400_autoset_tipoff_flexibility.sql` after `20261214009300_player_stats_windows.sql`.
-It adds player tipoff times to the optimizer context without changing the response type or permissions.
-Verify this migration on an isolated stack and regenerate both attestations before including it in a release.
-Apply it before the matching `lineup-optimizer` Edge function; old workers ignore the added JSON field.
-Prepare the deployment checkout with `npm ci` and stamp the Edge build before pausing workers or applying migrations.
-Apply `20261214010800_trade_display_dynasty_values.sql` before the matching frontend.
-It adds imported player values to trade-block reads and routed players to trade Activity entries.
-It changes no stored player values, roster order, or trade rules.
-Database, then Edge, then merge the frontend.
-Apply pending migrations through `20261214010800` only during the separately authorized release.
-Regenerate the catalog, types, and both attestations from a fresh private database before the final release checks.
+The supplied production head is `20261214010800`, with 786 migrations.
+The candidate adds `20261214010900_draft_pick_calendar_years.sql`, for 787 migrations.
+It stores draft calendar years and repairs only the approved affected league.
+The guard requires the exact recorded pick state and refuses drift.
+The tested external recovery SQL accompanies the release inputs.
 
-Deploy compatible database and Edge code before enabling public snapshots.
-The route lives beside the static Vercel export; merging the frontend triggers its automatic deployment.
-Set worker `LIVE_SNAPSHOT_BASE_URL` only after the public route passes its checks.
-The Vercel `LIVE_SCORES_OFF` variable and Supabase worker secret are independent controls.
-There is no access to the Vercel account for this change.
-Unsetting the Supabase secret restores ordinary worker ingestion on new invocations, but phones remain in public mode.
-Returning phones to database mode requires a client deployment or a Vercel configuration change.
-A revert merge uses the automatic frontend deployment; matching workers must also be deployed or have the secret unset.
-Keep compatible database functions for old clients, checkpoints, finals, corrections, and rollback.
-Do not reverse data migrations as part of the frontend revert.
-See [rollback and hosted settings](../docs/live-scores.md#rollback) for exact effects and commands.
+Use `scripts/release/release.mjs` for this release.
+Its order is compatible Edge first, database dry run and push, then squash merge and frontend verification.
+The earlier database-first recipes below describe historical releases.
+The release replay must prove candidate Edge compatibility with the pre-migration database.
+Pause estimate traffic and workers, drain outstanding requests, and retain the pause until both database and matching Edge are live.
+The new quote and history guards reject delayed inputs containing the old pick years.
 
-The lab uses 32 MB shared buffers and PostgREST pool two.
-Hosted acceptance, restart completion, compression, billing, and production capacity remain rollout checks.
-No production deployment or hosted configuration change occurs in the lab.
-The historical release records below describe earlier revisions, not the current schedule or performance result.
+Prepare full comprehensive-check and test receipts, replay evidence, reviewed release notes, recovery SQL and the exact PR head before running the release command.
+Run its dry rehearsal on the private `pt4bafablerelease` stack using ports 59400 through 59499.
+The dry run suppresses database pushes, Edge deployments and GitHub merges.
+It still requires real local health, database backups, smoke checks and evidence.
+The live backup requires the previous Edge commit and digest to reproduce from trusted source.
+Do not bypass a missing or placeholder previous identity.
+
+Before promotion, capture the scoped read-only pick and frozen-reference reconciliation.
+After the guarded migration, require all 150 pick IDs, rounds and owners unchanged, each year reduced by one, consistent numeric references and unchanged saved labels and values.
+Require the durable repair receipt and a no-op repeat.
+Keep recovery SQL as a coordinated forward recovery migration if production rollback becomes necessary.
+Do not reverse database history or restore old Edge formatting against calendar-year data without the matching recovery.
 
 ## Release 2.7 trade input order
 
