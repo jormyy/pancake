@@ -2,7 +2,8 @@ import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import ClaimPlayerScreen from '@/app/(modals)/claim-player'
-import BracketScreen from '@/app/(modals)/bracket'
+import { LeaguePlayoffs } from '@/components/league/LeaguePlayoffs'
+import type { StandingRow } from '@/lib/scoring'
 import { setSessionOwner } from '@/lib/session-cache-registry'
 
 vi.mock('@/lib/cache/screen-cache', () => ({ cachedScreenView: () => undefined, subscribeScreenView: () => () => {},
@@ -125,6 +126,9 @@ describe('mounted route resource ownership', () => {
         expect(state.claim).not.toHaveBeenCalled()
     })
 
+    const standings: StandingRow[] = []
+    const renderBracket = () => React.createElement(LeaguePlayoffs, { standings, playoffEntrants: 4 })
+
     const bracket = (team: string) => ({
         quarterfinals: [], semifinals: [], final: null,
         rounds: [{ number: 1, label: 'Championship', matchups: [{
@@ -136,11 +140,11 @@ describe('mounted route resource ownership', () => {
     it.each(['member', 'league'] as const)('rejects late playoff bracket data after the selected %s changes', async changed => {
         let resolveOld!: (value: ReturnType<typeof bracket>) => void
         state.bracket.mockReturnValueOnce(new Promise(resolve => { resolveOld = resolve }))
-        await act(async () => { screen = create(React.createElement(BracketScreen)) })
+        await act(async () => { screen = create(renderBracket()) })
         if (changed === 'member') state.member = { id: 'replacement' }
         else state.league = { ...state.league, id: 'replacement' }
         state.bracket.mockResolvedValue(bracket('Current team'))
-        await act(async () => { screen!.update(React.createElement(BracketScreen)) })
+        await act(async () => { screen!.update(renderBracket()) })
         expect(state.bracket).toHaveBeenCalledTimes(2)
         expect(state.bracket).toHaveBeenLastCalledWith(state.league.id)
         expect(rendered()).toContain('Current team')
@@ -151,7 +155,7 @@ describe('mounted route resource ownership', () => {
         if (changed === 'member') state.member = { id: 'third' }
         else state.league = { ...state.league, id: 'third' }
         state.bracket.mockReturnValue(new Promise(() => {}))
-        await act(async () => { screen!.update(React.createElement(BracketScreen)) })
+        await act(async () => { screen!.update(renderBracket()) })
         expect(rendered()).not.toContain('Current team')
         expect(screen!.root.findAllByType('LoadingState' as React.ElementType)).toHaveLength(1)
     })
@@ -159,7 +163,7 @@ describe('mounted route resource ownership', () => {
     it('rejects a hidden bracket reply and reads once when visible again', async () => {
         let resolveOld!: (value: ReturnType<typeof bracket>) => void
         state.bracket.mockReturnValueOnce(new Promise(resolve => { resolveOld = resolve }))
-        await act(async () => { screen = create(React.createElement(BracketScreen)) })
+        await act(async () => { screen = create(renderBracket()) })
         await act(async () => { state.visible = false; document.dispatchEvent(new Event('visibilitychange')) })
         await act(async () => { resolveOld(bracket('Hidden reply')) })
         expect(rendered()).not.toContain('Hidden reply')
