@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { ensureSweepDrafts } from './e2e/browser-smoke.mjs'
 import { sourceYearsExperience } from '../supabase/functions/_shared/playerSourceDetails'
 import { maskSqlNonCode } from '../scripts/check-db-function-sources.mjs'
 import { PLAYER_REFERENCE_TABLES, deletePlayersWithReferences } from './e2e/harness-cleanup.mjs'
@@ -106,6 +107,17 @@ describe('fake primary player sources', () => {
         expect(new Set(index.resultSets[0].rowSet.map(row => String(row[0])))).toEqual(new Set(ids))
         expect((await fakeRequest('GET', '/espn-search?query=Ari%20Glass')).body.items).toEqual([{ id: '1001', displayName: 'Ari Glass', type: 'player', league: 'nba' }])
         expect((await fakeRequest('GET', '/espn/news')).body.articles).toEqual([])
+    })
+
+    it('keeps rollover rookies distinct through twenty seasons', async () => {
+        createFakeUpstreamServer()
+        for (let season = 0; season < 20; season++) {
+            await fakeRequest('POST', '/admin/advance-season')
+            const response = await fakeRequest('GET', '/espn/teams/29/roster')
+            const athletes = (response.body as { athletes: { fullName: string }[] }).athletes
+            const names = athletes.map(player => player.fullName.toLowerCase().replace(/[^a-z]/g, ''))
+            expect(new Set(names).size).toBe(names.length)
+        }
     })
 
     it('keeps biography, injuries and career seasons coherent through rollover', async () => {
@@ -898,4 +910,23 @@ describe('dynasty ranking seed fixtures', () => {
         expect(rows[0]).toMatchObject({ player_id: 'p1', source_player_name: 'E2E Player001', source_team: 'ATL', scoring_format: 'overall' })
         expect(rows[1].source_team).toBeNull()
     })
+})
+
+
+it('prepares rookie sweep assets in the draft calendar year before the future bank', async () => {
+    const inserted: Record<string, unknown>[] = []
+    const supabase = { from: (table: string) => {
+        const data = table === 'draft_picks' ? [{ id: 'calendar-pick' }] : [{ id: 'slot', round: 1, member_id: 'member', draft_pick_id: null }]
+        const query = {
+            select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(), order: vi.fn().mockReturnThis(), limit: vi.fn().mockReturnThis(),
+            single: vi.fn(async () => ({ data: { id: 'season', season_year: 2028 }, error: null })),
+            maybeSingle: vi.fn(async () => ({ data: { id: 'draft' }, error: null })),
+            update: vi.fn().mockReturnThis(),
+            insert: vi.fn((rows: Record<string, unknown>[]) => { inserted.push(...rows); return query }),
+            then: (resolve: (value: { data: typeof data; error: null }) => unknown) => resolve({ data, error: null }),
+        }
+        return query
+    } }
+    await ensureSweepDrafts(supabase, { leagueId: 'league' }, [{ id: 'member' }])
+    expect(inserted).toEqual([{ league_id: 'league', season_year: 2027, round: 1, original_owner_id: 'member', current_owner_id: 'member' }])
 })
