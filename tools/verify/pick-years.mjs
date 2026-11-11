@@ -61,13 +61,21 @@ const copies = observed => {
   }
   return result
 }
+const shiftedReferences = (document, delta) => {
+  const result = structuredClone(document)
+  for (const inputs of [result.inputs, result.quote?.inputs]) {
+    for (const pick of inputs?.picks ?? []) pick.seasonYear += delta
+  }
+  return result
+}
 const reconcile = (before, after, delta) => {
   assert.equal(before.picks.length, 150)
   assert.equal(after.picks.length, 150)
   assert.deepEqual(after.picks, before.picks.map(pick => ({ ...pick, season_year: pick.season_year + delta })))
   for (const key of ['trades', 'items', 'blocks', 'sentinel_sha256']) assert.deepEqual(after[key], before[key], key)
   assert.deepEqual(copies(after), copies(before).map(copy => ({ ...copy, year: copy.year + delta })))
-  assert.deepEqual((after.quotes ?? []).map(quote => quote.analysis), (before.quotes ?? []).map(quote => quote.analysis))
+  assert.deepEqual(after.quotes, before.quotes?.map(quote => ({ ...quote, inputs: shiftedReferences({ inputs: quote.inputs }, delta).inputs })) ?? null)
+  assert.deepEqual(after.history, before.history?.map(history => ({ ...history, snapshot: shiftedReferences(history.snapshot, delta) })) ?? null)
   assert.equal(after.picks.filter(pick => pick.original_owner_id !== pick.current_owner_id).length, 7)
 }
 
@@ -86,12 +94,15 @@ if (action === 'prepare') {
   const before = await json('pick-years-before.json')
   const drift = before.picks.find(pick => pick.original_owner_id === pick.current_owner_id && !(before.blocks ?? []).some(block => block.pick_id === pick.id))
   query(`UPDATE public.draft_picks SET season_year=season_year+100 WHERE id='${drift.id}' AND league_id='${league}'`)
-  const refused = execute('supabase', ['migration', 'up', '--db-url', database.href], undefined)
-  await writeFile(path.join(dir, 'pick-years-refused.log'), (refused.stdout ?? '') + (refused.stderr ?? ''))
-  assert.notEqual(refused.status, 0)
-  assert.match((refused.stdout ?? '') + (refused.stderr ?? ''), /before-state mismatch/)
-  assert.equal(state().picks.find(pick => pick.id === drift.id).season_year, drift.season_year + 100)
-  query(`UPDATE public.draft_picks SET season_year=season_year-100 WHERE id='${drift.id}' AND league_id='${league}'`)
+  try {
+    const refused = execute('supabase', ['migration', 'up', '--db-url', database.href], undefined)
+    await writeFile(path.join(dir, 'pick-years-refused.log'), (refused.stdout ?? '') + (refused.stderr ?? ''))
+    assert.notEqual(refused.status, 0)
+    assert.match((refused.stdout ?? '') + (refused.stderr ?? ''), /before-state mismatch/)
+    assert.equal(state().picks.find(pick => pick.id === drift.id).season_year, drift.season_year + 100)
+  } finally {
+    query(`UPDATE public.draft_picks SET season_year=season_year-100 WHERE id='${drift.id}' AND league_id='${league}'`)
+  }
   assert.deepEqual(state().picks, before.picks)
   const applied = execute('supabase', ['migration', 'up', '--db-url', database.href], undefined)
   await writeFile(path.join(dir, 'pick-years-apply.log'), (applied.stdout ?? '') + (applied.stderr ?? ''))
@@ -114,14 +125,32 @@ if (action === 'prepare') {
   const before = await json('pick-years-before.json')
   const restored = state()
   reconcile(before, restored, 0)
-  assert.deepEqual(restored.quotes, before.quotes)
-  assert.deepEqual(restored.history, before.history)
   assert.equal(restored.receipt.length, 0)
   await save('pick-years-rollback.json', restored)
   query(await readFile(migration, 'utf8'))
   reconcile(before, state(), -1)
   await save('pick-years-restored-candidate.json', state())
   console.log('PASS rollback restored all pick and frozen-reference state; candidate reapplied')
+} else if (action === 'check') {
+  const recipes = ['dynasty-pick-calendar-years', 'future-pick-settings', 'pick-window', 'rollover-year-gap', 'pick-draft-year',
+    'picks-lifecycle', 'linear-draft-order', 'taxi-acquisition-policy', 'server-retired-picks', 'server-stopped-rookie-overflow',
+    'trade-value-readers', 'future-pick-cleanup', 'forever-two-seasons', 'notif-draft-transitions', 'three-season-simulation', 'dynasty-rules']
+  const receipts = []
+  for (const name of recipes) {
+    const original = await readFile(path.join(repo, `tests/db/${name}.sql`), 'utf8')
+    const sql = original.replaceAll('http://127.0.0.1:60421', requireLocal(env.E2E_SUPABASE_URL).origin)
+    await writeFile(path.join(dir, `pick-years-recipe-${name}.sql`), sql)
+    const result = execute('env', [`SUPABASE_DB_URL=${database.href}`, `PANCAKE_TEST_DB_PORT=${database.port}`,
+      'psql', database.href, '-XqAt', '-v', 'ON_ERROR_STOP=1', '-f', '-'], sql)
+    await writeFile(path.join(dir, `pick-years-recipe-${name}.log`), (result.stdout ?? '') + (result.stderr ?? ''))
+    assert.equal(result.status, 0, `Recipe ${name} failed; inspect its owned log`)
+    receipts.push({ recipe: name, exit: 0, ownedApiSubstitution: original !== sql })
+    console.log(`PASS ${name}`)
+  }
+  const deno = execute('deno', ['test', '--no-lock', '--allow-read', 'supabase/functions/_shared/tradeEstimate.test.ts'])
+  await writeFile(path.join(dir, 'pick-years-edge.log'), (deno.stdout ?? '') + (deno.stderr ?? ''))
+  assert.equal(deno.status, 0, 'Frozen pick valuation tests failed; inspect the owned log')
+  await save('pick-years-check-receipt.json', { recipes: receipts, edgeTests: 'passed' })
 } else if (action === 'drive') {
   assert.ok(['before', 'after'].includes(argument))
   const fixture = await json('pick-year-fixture.json')
@@ -172,5 +201,5 @@ if (action === 'prepare') {
   }
   await save(`pick-years-ui-${argument}-receipt.json`, { engine: 'WebKit', head: run.sha, receipts })
 } else {
-  throw new Error('Use prepare, observe, apply, rollback or drive')
+  throw new Error('Use prepare, observe, apply, rollback, check or drive')
 }

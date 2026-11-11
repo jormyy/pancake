@@ -68,12 +68,10 @@ export function preparePickYearFixture(snapshot, seed, query) {
   }
   const memberValues = owners.map((id, index) => `(${literal(id)},${literal(targetLeagueId)},${literal(seed.users[index].id)},${literal(index === 0 ? 'commissioner' : 'manager')}::public.league_member_role,${literal(ownerNames[id])})`).join(',\n')
   const transfers = transferred.map(pick => `
-    PERFORM set_config('request.jwt.claim.sub',${literal(userByMember[pick.original_owner_id])},true);
     trade_id := public.propose_trade_atomic(${literal(targetLeagueId)},${literal(seasonId)},
       ${literal(pick.original_owner_id)},${literal(pick.current_owner_id)},'{}'::uuid[],'{}'::uuid[],
       ARRAY[${literal(pick.id)}::uuid],'{}'::uuid[],'Pick year verification',NULL,0,1);
     trade_ids := array_append(trade_ids,trade_id);
-    PERFORM set_config('request.jwt.claim.sub',${literal(userByMember[pick.current_owner_id])},true);
     PERFORM public.accept_trade_atomic(trade_id,${literal(pick.current_owner_id)});
     PERFORM public.complete_accepted_trade_atomic(trade_id);
     IF (SELECT status FROM public.trades WHERE id=trade_id) IS DISTINCT FROM 'completed'::public.trade_status THEN
