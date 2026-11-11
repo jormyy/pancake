@@ -98,7 +98,7 @@ This avoids contacting the live production release.
 | Taxi adds and claims | `npm run test:db:server-taxi-acquisitions`, `npm run test:db:straight-to-taxi-api` |
 | Legal roster guard | `npm run test:db:server-roster-legality`, `npm run test:db:server-roster-dispatch-repairs` |
 | Trade window | `npm run test:db:server-trade-window` |
-| Public activity feed | `npm run test:db:server-activity-feed-review` |
+| Public activity feed | `npm run test:db:server-activity-feed-review`, `npm run test:db:compact-trade-activity` |
 | Injury dispatch | `npm run test:db:server-injury-schedule`, `npm run test:db:server-roster-dispatch-repairs` |
 | Atomic trade plans | `npm run test:db:trade-roster-plans`, `npm run test:db:trade-plan-concurrency` |
 | Retained trade moves and reserved capacity | `npm run test:db:trade-plan-moves-capacity`, `npm run test:db:trade-waiver-concurrency` |
