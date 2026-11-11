@@ -23,7 +23,7 @@ type LeagueView = Partial<LeagueScheduleView> & { activeDraft?: Draft | null; se
 export function useLeagueTabResources(leagueId: string | undefined, memberId: string | undefined, activeTab: LeagueTab, authorized = true) {
     const owner = sessionOwner()
     const focused = useIsFocused()
-    const tab = activeTab === 'picks' ? 'draftBoard' : activeTab === 'draft' ? 'mockRooms' : activeTab
+    const tab = activeTab === 'bracket' ? 'results' : activeTab === 'picks' ? 'draftBoard' : activeTab === 'draft' ? 'mockRooms' : activeTab
     const scope = owner && leagueId && memberId ? screenScope(tab === 'schedule' ? 'league-schedule' : 'league', leagueId, memberId, tab === 'schedule' ? {} : { tab, limit: ACTIVITY_PAGE }, owner) : null
     const view = useScreenView<LeagueView>(scope, authorized && focused)
     const refreshView = view.refresh

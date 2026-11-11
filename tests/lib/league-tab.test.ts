@@ -20,6 +20,8 @@ describe('parseLeagueTab', () => {
         for (const { key } of LEAGUE_TABS) {
             expect(parseLeagueTab(key)).toBe(key)
         }
+        expect(LEAGUE_TABS.find(tab => tab.key === 'bracket')?.label).toBe('Playoffs')
+        expect(parseLeagueTab('playoffs')).toBe('bracket')
         expect(parseLeagueTab('not-a-tab')).toBe('results')
         expect(parseLeagueTab(undefined)).toBe('results')
     })

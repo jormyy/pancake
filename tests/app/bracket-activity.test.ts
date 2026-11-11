@@ -2,7 +2,11 @@ import { clearPersistentCaches } from '@/lib/persistent-cache'
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { beforeEach, expect, it, vi } from 'vitest'
-import BracketScreen from '@/app/(modals)/bracket'
+import { LeaguePlayoffs } from '@/components/league/LeaguePlayoffs'
+import type { StandingRow } from '@/lib/scoring'
+import LegacyBracketScreen from '@/app/(modals)/bracket'
+
+function BracketScreen() { return React.createElement(LeaguePlayoffs, { standings: [], playoffEntrants: 4 }) }
 
 const state = vi.hoisted(() => ({ active: true, epoch: 0, getBracket: vi.fn(), dismissTo: vi.fn(), replace: vi.fn(), push: vi.fn() }))
 vi.mock('@/components/league/draft-room/useDraftActivity', () => {
@@ -12,7 +16,7 @@ vi.mock('@/components/league/draft-room/useDraftActivity', () => {
 })
 vi.mock('react-native', () => ({ Platform: { OS: 'ios' }, View: 'View', Text: 'Text', ScrollView: 'ScrollView',
     StyleSheet: { create: (styles: unknown) => styles }, useWindowDimensions: () => ({ width: 1200, height: 900 }) }))
-vi.mock('expo-router', () => ({ Stack: { Screen: () => null }, useRouter: () => ({ replace: state.replace, dismissTo: state.dismissTo, push: state.push }) }))
+vi.mock('expo-router', () => ({ Redirect: 'Redirect', Stack: { Screen: () => null }, useRouter: () => ({ replace: state.replace, dismissTo: state.dismissTo, push: state.push }) }))
 vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => ({ current: { id: 'member' }, currentLeague: { id: 'league' } }) }))
 vi.mock('@/components/Motion', () => ({ MotionPressable: 'MotionPressable' }))
 vi.mock('@/components/ui/Badge', () => ({ Badge: 'Badge' }))
@@ -41,11 +45,11 @@ it('discards a bracket reply after suspension and replays one refresh', async ()
     state.active = false; state.epoch += 1
     await act(async () => view.update(React.createElement(BracketScreen)))
     await act(async () => finish(null))
-    expect(view.root.findAllByProps({ children: 'No playoff bracket yet' })).toHaveLength(0)
+    expect(view.root.findAllByProps({ children: 'Playoff projection unavailable' })).toHaveLength(0)
     state.active = true; state.epoch += 1
     await act(async () => view.update(React.createElement(BracketScreen)))
     expect(state.getBracket).toHaveBeenCalledTimes(2)
-    expect(view.root.findAllByProps({ children: 'No playoff bracket yet' })).toHaveLength(1)
+    expect(view.root.findAllByProps({ children: 'Playoff projection unavailable' })).toHaveLength(1)
     await act(async () => view.unmount())
 })
 it('keeps settled empty content visible through revalidation and a failed refresh', async () => {
@@ -56,11 +60,11 @@ it('keeps settled empty content visible through revalidation and a failed refres
     state.epoch += 1
     await act(async () => view.update(React.createElement(BracketScreen)))
     expect(view.root.findAllByType('LoadingState' as React.ElementType)).toHaveLength(0)
-    expect(view.root.findAllByProps({ children: 'No playoff bracket yet' })[0].props.children).toBe('No playoff bracket yet')
+    expect(view.root.findAllByProps({ children: 'Playoff projection unavailable' })[0].props.children).toBe('Playoff projection unavailable')
     expect(view.root.findAll(node => node.props['aria-busy'] === true)).toHaveLength(1)
     const error = vi.spyOn(console, 'error').mockImplementation(() => {})
     await act(async () => fail(new Error('offline')))
-    expect(view.root.findAllByProps({ children: 'No playoff bracket yet' })[0].props.children).toBe('No playoff bracket yet')
+    expect(view.root.findAllByProps({ children: 'Playoff projection unavailable' })[0].props.children).toBe('Playoff projection unavailable')
     const banner = view.root.findByType('ErrorBanner' as React.ElementType)
     expect(banner.props.message).toBe('Could not refresh the bracket.')
     state.getBracket.mockResolvedValue(null)
@@ -76,18 +80,15 @@ it('paints a saved bracket answer immediately on remount while the next read is 
     state.getBracket.mockReturnValue(new Promise(() => {}))
     await act(async () => { view = create(React.createElement(BracketScreen)) })
     expect(view.root.findAllByType('LoadingState' as React.ElementType)).toHaveLength(0)
-    expect(view.root.findAllByProps({ children: 'No playoff bracket yet' })[0].props.children).toBe('No playoff bracket yet')
+    expect(view.root.findAllByProps({ children: 'Playoff projection unavailable' })[0].props.children).toBe('Playoff projection unavailable')
     await act(async () => view.unmount())
 })
 
-it('dismisses the bracket when returning to standings', async () => {
+it('redirects old bracket links into League Playoffs', async () => {
     let view!: ReactTestRenderer
-    await act(async () => { view = create(React.createElement(BracketScreen)) })
-    const modal = view.root.findByType('ModalScreen' as React.ElementType)
-    expect(modal.props).toMatchObject({ showTitle: true, divider: false, backLabel: 'Back to league standings' })
-    await act(async () => modal.props.onBack())
-    expect(state.dismissTo).toHaveBeenCalledExactlyOnceWith('/league?tab=results')
-    expect(state.replace).not.toHaveBeenCalled()
+    await act(async () => { view = create(React.createElement(LegacyBracketScreen)) })
+    expect(view.root.findByType('Redirect' as React.ElementType).props.href).toBe('/league?tab=bracket')
+    expect(state.getBracket).not.toHaveBeenCalled()
     await act(async () => view.unmount())
 })
 
@@ -104,4 +105,20 @@ it('opens the selected playoff matchup from its card', async () => {
     } finally {
         await act(async () => view.unmount())
     }
+})
+
+it('shows labeled projections inline and switches to actual cards after standings refresh', async () => {
+    const standings: StandingRow[] = Array.from({ length: 4 }, (_, index) => ({ memberId: `team-${index}`, teamName: `Team ${index}`, wins: 4 - index, losses: index, ties: 0, pointsFor: 100, maxPointsFor: 200, pointsAgainst: 100 }))
+    const render = (rows: StandingRow[]) => React.createElement(LeaguePlayoffs, { standings: rows, playoffEntrants: 4 })
+    let view!: ReactTestRenderer
+    await act(async () => { view = create(render(standings)) })
+    expect(view.root.findAllByProps({ children: 'Projected bracket — based on current standings' })).toHaveLength(1)
+    expect(view.root.findAllByProps({ children: '4 playoff teams · 0 first-round byes' })).toHaveLength(1)
+    expect(view.root.findAllByType('ModalScreen' as React.ElementType)).toHaveLength(0)
+    expect(view.root.findAllByType('MotionPressable' as React.ElementType)).toHaveLength(0)
+    state.getBracket.mockResolvedValue({ quarterfinals: [], semifinals: [], final: { id: 'actual', round: 'final', weekNumber: 20, homeId: 'member', homeName: 'Owls', homePoints: 12, awayId: 'other', awayName: 'Foxes', awayPoints: 9, winnerId: null, isFinalized: false }, champion: null })
+    await act(async () => view.update(render([...standings])))
+    expect(view.root.findAllByProps({ children: 'Projected bracket — based on current standings' })).toHaveLength(0)
+    expect(view.root.findByProps({ accessibilityLabel: 'Open Owls versus Foxes' })).toBeTruthy()
+    await act(async () => view.unmount())
 })

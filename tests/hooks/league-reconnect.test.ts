@@ -134,3 +134,10 @@ it('shows the newest server view after a version changes during a suspended read
     expect(latest.standings[0].memberId).toBe('authoritative')
     expect(boundary.read).toHaveBeenCalledTimes(2)
 })
+
+it('loads current standings for the inline Playoffs tab', async () => {
+    boundary.read.mockResolvedValue(payload('projected-team'))
+    await act(async () => { screen = create(React.createElement(Probe, { tab: 'bracket' })) })
+    expect(latest.standings[0].memberId).toBe('projected-team')
+    expect(boundary.read.mock.calls.map(([scope]) => scope.params.tab)).toEqual(['results'])
+})

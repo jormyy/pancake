@@ -14,7 +14,7 @@ export function useLeagueScreenState() {
     const { push } = router
     const params = useLocalSearchParams<{ tab?: string }>()
     const { current, currentLeague, isCommissioner, loading: leagueLoading, membershipValidated } = useLeagueContext()
-    const [tab, setTab] = useState<LeagueSection>(() => parseLeagueTab(params.tab) === 'bracket' ? 'results' : parseLeagueTab(params.tab))
+    const [tab, setTab] = useState<LeagueSection>(() => parseLeagueTab(params.tab))
     const [sharing, setSharing] = useState(false)
     const tabResources = useLeagueTabResources(currentLeague?.id, current?.id, tab, membershipValidated)
     const draft = useLeagueDraftController(currentLeague?.id, { memberId: current?.id, authorized: membershipValidated, view: useMemo(() => ({ draft: tabResources.activeDraft, loaded: tabResources.activeDraftLoaded, error: tabResources.activeDraftError }), [tabResources.activeDraft, tabResources.activeDraftLoaded, tabResources.activeDraftError]) })
@@ -26,12 +26,10 @@ export function useLeagueScreenState() {
     })
     useEffect(() => {
         const next = parseLeagueTab(params.tab)
-        if (next === 'bracket') { push('/(modals)/bracket'); return }
         setTab(next)
-    }, [params.tab, push])
+    }, [params.tab])
 
     const handleTabChange = (nextTab: LeagueSection) => {
-        if (nextTab === 'bracket') { push('/(modals)/bracket'); return }
         setTab(nextTab)
         // setParams (not push) keeps the current screen instance mounted, so the
         // pill tab bar keeps its scroll position instead of resetting to the start.
@@ -80,7 +78,7 @@ export function useLeagueScreenState() {
         isOnline: tabResources.isOnline,
         mockRooms: tabResources.mockRooms,
         nominationMode: draft.nominationMode,
-        openBracket: () => push('/(modals)/bracket'),
+        openBracket: () => handleTabChange('bracket'),
         openMatchup: (matchupId: string) => push({ pathname: '/(modals)/matchup', params: { matchupId } }),
         openCommissionerSettings: () => push('/(modals)/commissioner-settings'),
         openDraftRoom: draft.openDraftRoom,
