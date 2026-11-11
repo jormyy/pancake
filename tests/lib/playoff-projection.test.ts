@@ -63,3 +63,33 @@ it('returns an unavailable reason for missing standings, settings, or too few te
     expect(projectPlayoffs(standings(4), null)).toMatchObject({ kind: 'unavailable' })
     expect(projectPlayoffs(standings(4), { playoffEntrants: 6 })).toMatchObject({ kind: 'unavailable', reason: 'The bracket needs 6 teams. Current standings contain 4.' })
 })
+
+it('discloses equal points-per-game ratios despite floating-point noise', () => {
+    const rows = standings(4)
+    rows[0] = { ...rows[0], teamName: 'Zebra', wins: 2, losses: 1, pointsFor: 1000.2 }
+    rows[1] = { ...rows[0], memberId: 'team-2', teamName: 'Alpha', pointsFor: 333.4 * 3 }
+    rows[2] = { ...rows[2], wins: 0, losses: 3 }
+    rows[3] = { ...rows[3], wins: 0, losses: 3, pointsFor: 900 }
+    expect(rows[0].pointsFor / 3).toBe(333.40000000000003)
+    expect(rows[1].pointsFor / 3).toBe(333.4)
+    const result = projectPlayoffs(rows, { playoffEntrants: 4 })
+    if (result.kind !== 'projected') throw new Error('Expected a projection')
+    expect(result.unresolvedTies.map(group => group.seeds)).toEqual([[1, 2]])
+    expect(result.seeds.slice(0, 2).map(team => team.teamName)).toEqual(['Alpha', 'Zebra'])
+})
+
+it('names prior rounds in winner labels while keeping first-round seed pairings', () => {
+    const result = projectPlayoffs(standings(10), { playoffEntrants: 6 })
+    if (result.kind !== 'projected') throw new Error('Expected a projection')
+    expect(result.rounds[1].matchups[0].away).toEqual({ kind: 'winner', label: 'Winner of 4 vs 5' })
+    expect(result.rounds[2].matchups[0]).toMatchObject({
+        home: { kind: 'winner', label: 'Winner of Semifinal 1' },
+        away: { kind: 'winner', label: 'Winner of Semifinal 2' },
+    })
+    const larger = projectPlayoffs(standings(16), { playoffEntrants: 16 })
+    if (larger.kind !== 'projected') throw new Error('Expected a projection')
+    expect(larger.rounds[2].matchups[0]).toMatchObject({
+        home: { kind: 'winner', label: 'Winner of Quarterfinal 1' },
+        away: { kind: 'winner', label: 'Winner of Quarterfinal 2' },
+    })
+})

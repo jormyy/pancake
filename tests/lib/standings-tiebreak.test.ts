@@ -72,3 +72,18 @@ describe('compareStandingsRows precedence matrix', () => {
     })
 
 })
+
+it('uses later tiebreakers when points-per-game ratios differ only by floating-point noise', () => {
+    const a = row({ teamName: 'Alpha', wins: 2, losses: 1, pointsFor: 333.4 * 3 })
+    const b = row({ teamName: 'Zebra', wins: 2, losses: 1, pointsFor: 1000.2 })
+    expect(compareStandingsRows(a, b)).toBeLessThan(0)
+    expect(compareStandingsRows(b, a)).toBeGreaterThan(0)
+    expect(compareStandingsRows({ ...a, maxPointsFor: 1199 }, b)).toBeGreaterThan(0)
+})
+
+it('preserves real points-per-game differences smaller than a displayed decimal', () => {
+    const a = row({ teamName: 'Zebra', pointsFor: 1000.000001 })
+    const b = row({ teamName: 'Alpha', pointsFor: 1000 })
+    expect(compareStandingsRows(a, b)).toBeLessThan(0)
+    expect(compareStandingsRows(b, a)).toBeGreaterThan(0)
+})

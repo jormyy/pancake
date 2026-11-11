@@ -48,6 +48,9 @@ export function projectPlayoffs(
     const rounds: ProjectedRound[] = []
     const byes: ProjectedSeed[] = []
     for (let number = 1; number <= roundCount; number += 1) {
+        const remainingRounds = roundCount - number
+        const roundName = remainingRounds === 0 ? 'Championship' : remainingRounds === 1 ? 'Semifinal' : remainingRounds === 2 ? 'Quarterfinal' : `Round ${number}`
+        const label = remainingRounds === 1 || remainingRounds === 2 ? `${roundName}s` : roundName
         const matchups: ProjectedMatchup[] = []
         const next: ProjectedSlot[] = []
         for (let index = 0; index < slots.length; index += 2) {
@@ -61,10 +64,10 @@ export function projectPlayoffs(
                 if (advancing.kind === 'seed') byes.push(advancing.team)
                 next.push(advancing)
             } else {
-                next.push({ kind: 'winner', label: `Winner of ${number === 1 && home.kind === 'seed' && away.kind === 'seed' ? `${home.team.seed} vs ${away.team.seed}` : `round ${number}, game ${index / 2 + 1}`}` })
+                next.push({ kind: 'winner', label: `Winner of ${number === 1 && home.kind === 'seed' && away.kind === 'seed' ? `${home.team.seed} vs ${away.team.seed}` : `${roundName} ${index / 2 + 1}`}` })
             }
         }
-        rounds.push({ number, label: number === roundCount ? 'Championship' : number === roundCount - 1 ? 'Semifinals' : roundCount === 3 ? 'Quarterfinals' : `Round ${number}`, matchups })
+        rounds.push({ number, label, matchups })
         slots = next
     }
     return { kind: 'projected', seeds, rounds, byes, unresolvedTies }
