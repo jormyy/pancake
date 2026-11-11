@@ -10,7 +10,7 @@ export function fakePlayerSourceResponse(url, state) {
   const athlete = player => ({ id: player.player_id, firstName: player.first_name, lastName: player.last_name,
     fullName: player.full_name, displayName: player.full_name, position: { abbreviation: player.position },
     team: { abbreviation: player.team }, status: { type: player.active ? 'active' : 'inactive' },
-    experience: { years: player.years_exp }, dateOfBirth: `${state.seasonYear - (player.age ?? state.seasonYear - 2002)}-01-01T00:00Z`,
+    experience: { years: player.years_exp + 1 }, dateOfBirth: `${state.seasonYear - (player.age ?? state.seasonYear - 2002)}-01-01T00:00Z`,
   })
   if (url.pathname.endsWith('/staticData/playerIndex.json')) return { resultSets: [{
     name: 'PlayerIndex',

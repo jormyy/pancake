@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { sourceYearsExperience } from '../supabase/functions/_shared/playerSourceDetails'
 import { maskSqlNonCode } from '../scripts/check-db-function-sources.mjs'
 import { PLAYER_REFERENCE_TABLES, deletePlayersWithReferences } from './e2e/harness-cleanup.mjs'
 import { createDisposableLeagueFromSeedUsers, ensureRosterFixture, ensureSyntheticSeasonWeeks } from './e2e/soak-fixtures.mjs'
@@ -109,12 +110,20 @@ describe('fake primary player sources', () => {
 
     it('keeps biography, injuries and career seasons coherent through rollover', async () => {
         createFakeUpstreamServer()
-        const biography = (await fakeRequest('GET', '/espn-career/athletes/1001')).body as { athlete: { id: string; displayExperience: string } }
+        const biography = (await fakeRequest('GET', '/espn-career/athletes/1001')).body as { athlete: { id: string; displayExperience: string; dateOfBirth: string } }
+        const roster = (await fakeRequest('GET', '/espn/teams/2/roster')).body as { athletes: { id: string; experience: { years: number } }[] }
+        expect(sourceYearsExperience(roster.athletes.find(player => player.id === '1001')!, 2027)).toBe(4)
         expect(biography.athlete).toMatchObject({ id: '1001', displayExperience: '5th Season' })
         await fakeRequest('POST', '/admin/injury', { playerId: '1001', injuryStatus: 'Questionable' })
         const injuries = JSON.stringify((await fakeRequest('GET', '/espn/injuries')).body)
         expect(injuries).toContain('Questionable')
         await fakeRequest('POST', '/admin/advance-season')
+        const nextRoster = (await fakeRequest('GET', '/espn/teams/2/roster')).body as typeof roster
+        expect(sourceYearsExperience(nextRoster.athletes.find(player => player.id === '1001')!, 2028)).toBe(5)
+        const nextBiography = (await fakeRequest('GET', '/espn-career/athletes/1001')).body as typeof biography
+        expect(nextBiography.athlete.dateOfBirth).toBe(biography.athlete.dateOfBirth)
+        const rookieRoster = (await fakeRequest('GET', '/espn/teams/14/roster')).body as typeof roster
+        expect(sourceYearsExperience(rookieRoster.athletes.find(player => player.id === '1003')!, 2028)).toBe(1)
         const career = (await fakeRequest('GET', '/espn-career/athletes/1001/stats?seasontype=2')).body as { categories: { statistics: { season: { year: number } }[] }[] }
         expect(career.categories[0].statistics[0].season.year).toBe(2027)
         expect((await fakeRequest('GET', '/espn-career/athletes/999999999/stats')).status).toBe(404)
