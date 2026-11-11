@@ -58,7 +58,8 @@ Seven real fixture trades reproduce the existing ownership differences.
 A frozen quote, nested history snapshot, block listing and value cache exercise dependent state.
 The helper refuses an existing target fixture and any database except the recorded loopback instance.
 
-`apply` first changes one local pick year and requires the exact-state guard to refuse the migration.
+`apply` first removes the target inside a rolled-back transaction and requires a populated database to refuse the missing target.
+It then changes one local pick year and requires the exact-state guard to refuse the drift.
 It restores that fixture drift, applies the pending migration or replays its repair on a fresh install, and checks every row.
 Require 150 shifts by exactly one year, seven unchanged traded owners, identical other pick columns, identical trade/block identities, corrected numeric pick references and unchanged root season years and saved labels.
 A second execution must produce identical state and the same receipt timestamp.

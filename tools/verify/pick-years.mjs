@@ -99,7 +99,7 @@ if (action === 'prepare') {
   await writeFile(path.join(dir, 'pick-years-target-refused.log'), (absent.stdout ?? '') + (absent.stderr ?? ''))
   assert.notEqual(absent.status, 0)
   assert.match((absent.stdout ?? '') + (absent.stderr ?? ''), /target missing from populated database/)
-  assert.deepEqual(state().picks, before.picks)
+  assert.deepEqual(state(), before)
   const drift = before.picks.find(pick => pick.original_owner_id === pick.current_owner_id && !(before.blocks ?? []).some(block => block.pick_id === pick.id))
   query(`UPDATE public.draft_picks SET season_year=season_year+100 WHERE id='${drift.id}' AND league_id='${league}'`)
   try {
