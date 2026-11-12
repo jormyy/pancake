@@ -79,8 +79,9 @@ const fill = sql(`
                  AND league_season_id = ${q(ctx.seasonId)}
                  AND member_id = ${q(ctx.full.memberId)}));`)
 const filled = JSON.parse(fill)
-sql(`UPDATE leagues SET roster_size = ${Math.max(1, filled.count)}
-      WHERE id = ${q(ctx.leagueId)} AND roster_size <> ${Math.max(1, filled.count)};`)
+const limit = Math.max(1, filled.count)
+sql(`UPDATE leagues SET roster_size = ${limit} WHERE id = ${q(ctx.leagueId)};`)
+assert.equal(Number(sql(`SELECT roster_size FROM leagues WHERE id = ${q(ctx.leagueId)};`)), limit, 'Full team must sit exactly at the roster limit')
 
 const freeOn = (memberId) => `
   SELECT roster.player_id
