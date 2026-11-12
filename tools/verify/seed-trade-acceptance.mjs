@@ -26,10 +26,8 @@ assert.ok(['drop', 'none'].includes(plan), '--plan=drop|none')
 assert.equal(new Set([proposerTeam, middleTeam, fullTeam]).size, 3, 'Use three different teams')
 
 const q = (value) => `'${String(value).replaceAll("'", "''")}'`
-const sql = (statement) => {
-  const output = execFileSync('psql', [env.SUPABASE_DB_URL, '-X', '-qAt', '-v', 'ON_ERROR_STOP=1', '-c', statement], { encoding: 'utf8' }).trim()
-  return output
-}
+const sql = (statement) =>
+  execFileSync('psql', [env.SUPABASE_DB_URL, '-X', '-qAt', '-v', 'ON_ERROR_STOP=1', '-c', statement], { encoding: 'utf8' }).trim()
 
 const context = sql(`
   SELECT json_build_object(
