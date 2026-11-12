@@ -101,6 +101,7 @@ This avoids contacting the live production release.
 | Public activity feed | `npm run test:db:server-activity-feed-review`, `npm run test:db:compact-trade-activity` |
 | Injury dispatch | `npm run test:db:server-injury-schedule`, `npm run test:db:server-roster-dispatch-repairs` |
 | Atomic trade plans | `npm run test:db:trade-roster-plans`, `npm run test:db:trade-plan-concurrency` |
+| Multi-team trade acceptance | `npm run test:db:trade-acceptance-multi-team`, `npm run test:db:trade-acceptance-concurrency` |
 | Retained trade moves and reserved capacity | `npm run test:db:trade-plan-moves-capacity`, `npm run test:db:trade-waiver-concurrency` |
 | Continuous FAAB claims | `npm run test:db:continuous-faab`, `npm run test:db:continuous-faab-schedule` |
 | Historical trade revaluation | `npm run test:db:trade-historical-revaluation` |
