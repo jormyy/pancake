@@ -175,3 +175,15 @@ Provide the approved filtered before-snapshot and reviewed external rollback fil
 `apply` handles both an ordered upgrade and a current-schema fresh fixture; it never targets a hosted database.
 Run its reconciliation, drift refusal, repeat, rollback and focused recipe checks before the visible Picks journey.
 Keep data snapshots, migration receipts and both All/Traded screenshots after cleanup.
+
+## Multi-team partial acceptance
+
+Use the `trade-offers` journey in [Trades](features/trades.md) with a three-team offer.
+The fixture teams map to the real case: Team 1 is Kyle (proposer), Team 2 is Matt, Team 3 is Jet (full roster).
+`BROWSER login <n>` signs in as the user at index n of the fixture list, which is E2E Team n; confirm the team name in the snapshot.
+Seed the offer with `tools/verify/seed-trade-acceptance.mjs`; it reads `run.json`, `local-env.json` and `fixture.json` and needs no hardcoded ids.
+Require Team 2 to accept while Team 3 is full. Require Team 3 to settle its own roster with a drop plan before its acceptance counts.
+Require completion to apply every transfer and planned move, and to reject only a final roster over the limit.
+The isolated stack has no background worker; complete with `psql "$SUPABASE_DB_URL" -c 'select public.process_due_accepted_trades_atomic()'`.
+Run the database recipes first: `npm run test:db:trade-acceptance-multi-team` and `npm run test:db:trade-acceptance-concurrency`.
+Both fail on the pre-fix `private.accept_trade_participant_atomic` and pass on the scoped one.
