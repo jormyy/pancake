@@ -26,7 +26,7 @@ const selects = {
   standings: 'league_season_id,member_id,week_number,wins,losses,ties,points_for,points_against',
   waiver_claims: 'id,member_id,player_id,bid_amount,status',
   trades: 'id,proposer_member_id,recipient_member_id,status,is_multi_team,accepted_at,completed_at,veto_window_expires_at,completion_failure_reason',
-  trade_participants: 'trade_id,member_id,sort_order,accepted_at,drop_player_ids,taxi_player_ids,ir_player_ids,roster_moves',
+  trade_participants: 'trade_id,member_id,sort_order,accepted_at,drop_player_ids,roster_moves',
   trade_items: 'trade_id,player_id,pick_id,faab_amount,from_member_id,to_member_id',
   trade_block_items: 'id,member_id,player_id',
   draft_picks: 'id,season_year,round,current_owner_id,original_owner_id',

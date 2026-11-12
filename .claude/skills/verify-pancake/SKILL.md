@@ -181,9 +181,30 @@ Keep data snapshots, migration receipts and both All/Traded screenshots after cl
 Use the `trade-offers` journey in [Trades](features/trades.md) with a three-team offer.
 The fixture teams map to the real case: Team 1 is Kyle (proposer), Team 2 is Matt, Team 3 is Jet (full roster).
 `BROWSER login <n>` signs in as the user at index n of the fixture list, which is E2E Team n; confirm the team name in the snapshot.
-Seed the offer with `tools/verify/seed-trade-acceptance.mjs`; it reads `run.json`, `local-env.json` and `fixture.json` and needs no hardcoded ids.
-Require Team 2 to accept while Team 3 is full. Require Team 3 to settle its own roster with a drop plan before its acceptance counts.
-Require completion to apply every transfer and planned move, and to reject only a final roster over the limit.
-The isolated stack has no background worker; complete with `psql "$SUPABASE_DB_URL" -c 'select public.process_due_accepted_trades_atomic()'`.
+Seed the offer with `node tools/verify/seed-trade-acceptance.mjs "$EVIDENCE" --full='E2E Team 3' --mode=net-plus-one --plan=none`.
+The seed sets `leagues.roster_size` to Team 3's player count, so the limit equals the roster size and Team 3 starts full.
+Read the real limit and counts from the database, not from the offer text.
+
+Prove the failure first on the unfixed stack.
+Sign in as Team 2, open the offer, tap Accept, then poll the page text for `over the limit` every 125 ms and screenshot on the first match.
+The toast is transient; a screenshot two seconds later misses it.
+Expect the 409 body in the response log and an unaccepted participant in `trade_participants`.
+
+Repeat the journey on the fixed stack.
+Team 2 accepts while Team 3 is full; the API returns 200 and `trade_participants.accepted_at` is set.
+Team 3 then opens the offer, picks a drop, and accepts; the trade status becomes `accepted`.
+Read the drop back from `trade_participants.drop_player_ids`, not from the radio label after the click, because the row moves between sections and the list order changes.
+
+An over-limit last acceptance never reaches the server from the app.
+The client disables Accept and shows `Invalid roster • 1 over roster limit (17/16)`.
+Prove the server rule with a direct call: POST `$E2E_API_BASE_URL/trades/<id>/accept` with the participant token,
+body `{"memberId":"<full team>","dropPlayerIds":[],"rosterMoves":[]}`, and an `x-request-id` header.
+Expect 409 `E2E Team N: Regular roster is 1 over the limit of <size>` and an unchanged trade.
+
+Complete through the Edge route the app uses:
+`curl -X POST "$E2E_SUPABASE_URL/functions/v1/process-trades" -H "x-internal-function-token: $PANCAKE_EDGE_INTERNAL_TOKEN"`.
+The isolated stack has no cron, so nothing else calls it.
+Record `node tools/verify/observe.mjs "$EVIDENCE"` before and after, and require the incoming player on the receiving roster, the dropped player gone, and each team's `faab_balances.balance` changed by the traded amount.
+
 Run the database recipes first: `npm run test:db:trade-acceptance-multi-team` and `npm run test:db:trade-acceptance-concurrency`.
 Both fail on the pre-fix `private.accept_trade_participant_atomic` and pass on the scoped one.
