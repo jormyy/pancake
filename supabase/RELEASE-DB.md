@@ -247,7 +247,7 @@ The [trade curve report](../docs/trade-curve.md) records the real trades, roster
 ## Release order for this release
 
 The supplied production head is `20261214010800`, with 786 migrations.
-The candidate adds `20261214010900_draft_pick_calendar_years.sql` and `20261214011000_compact_trade_activity.sql`, for 788 migrations.
+The candidate adds `20261214010900_draft_pick_calendar_years.sql`, `20261214011000_compact_trade_activity.sql` and `20261214011100_scoped_trade_acceptance_capacity.sql`, for 789 migrations.
 The draft-year migration stores draft calendar years and repairs only the approved affected league.
 The guard requires the exact recorded pick state and refuses drift.
 The tested external recovery SQL accompanies the release inputs.
@@ -257,6 +257,11 @@ It hides duplicate trade transfer rows before paging and adds player identity an
 Trade-planned drops stay visible, and stored transaction history stays unchanged.
 The release and security attestations regenerate from the local database through this migration.
 The function catalog remains unchanged because function signatures, owners, and grants stay unchanged.
+
+Apply the scoped trade acceptance migration after the compact trade Activity migration.
+A partial acceptance validates only the accepting team's resulting roster, so one team can accept while another team's current roster is full.
+The last acceptance and completion validate every team's final roster after all transfers and planned moves.
+That migration keeps every function signature, owner, and grant, so the function catalog stays unchanged.
 This candidate does not verify or change production state.
 
 Use the approved hand release for this candidate.

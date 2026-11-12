@@ -17,12 +17,18 @@ BEGIN
     jsonb_build_object('fromMemberId',f.member_ids[2],'toMemberId',f.member_ids[3],'playerId',players[4]));
   offer:=public.submit_trade_offer_atomic(f.user_ids[1],gen_random_uuid(),f.member_ids[1],'propose-multi',
     jsonb_build_object('leagueId',f.league_id,'leagueSeasonId',f.season_id,'participantMemberIds',f.member_ids,'items',items));
-  PERFORM pg_temp.reject_rules(format('SELECT public.accept_trade_atomic(%L,%L)',offer,f.member_ids[2]),
-    'Rules team 3: Regular roster is % over the limit of %','every acceptor requires complete plans for all teams');
-  PERFORM pg_temp.reject_rules(format('SELECT public.accept_trade_atomic(%L,%L)',offer,f.member_ids[3]),
-    'Rules team 3: Regular roster is % over the limit of %','final acceptance validates all teams');
-  PERFORM public.set_trade_roster_plan_atomic(offer,f.member_ids[3],f.user_ids[3],'{}','{}',ARRAY[players[6]]);
   PERFORM public.accept_trade_atomic(offer,f.member_ids[2]);
+  PERFORM pg_temp.check_rules(
+    (SELECT status='pending' FROM trades WHERE id=offer)
+    AND (SELECT accepted_at IS NOT NULL FROM trade_participants WHERE trade_id=offer AND member_id=f.member_ids[2]),
+    'partial acceptance succeeds while another team final roster is over the limit');
+  PERFORM pg_temp.reject_rules(format('SELECT public.accept_trade_atomic(%L,%L)',offer,f.member_ids[3]),
+    'Rules team 3: Regular roster is % over the limit of %','final acceptance without a plan rejects an over-limit final roster');
+  PERFORM pg_temp.check_rules(
+    (SELECT status='pending' FROM trades WHERE id=offer)
+    AND (SELECT accepted_at IS NULL FROM trade_participants WHERE trade_id=offer AND member_id=f.member_ids[3]),
+    'a rejected final acceptance leaves the trade pending');
+  PERFORM public.set_trade_roster_plan_atomic(offer,f.member_ids[3],f.user_ids[3],'{}','{}',ARRAY[players[6]]);
   PERFORM public.accept_trade_atomic(offer,f.member_ids[3]);
   PERFORM pg_temp.check_rules((SELECT status='accepted' FROM trades WHERE id=offer),'final acceptance succeeds after final team plan');
 END;
@@ -83,10 +89,14 @@ BEGIN
         expected:='%cannot return to this team%';
       END IF;
     END IF;
-    PERFORM pg_temp.reject_rules(format('SELECT public.accept_trade_atomic(%L,%L)',offer,f.member_ids[2]),expected,kind||' invalid recipient blocks every acceptance');
-    PERFORM pg_temp.check_rules((SELECT accepted_at IS NULL FROM trade_participants WHERE trade_id=offer AND member_id=f.member_ids[2]),kind||' failed acceptance leaves the team unaccepted');
+    PERFORM public.accept_trade_atomic(offer,f.member_ids[2]);
+    PERFORM pg_temp.check_rules(
+      (SELECT accepted_at IS NOT NULL FROM trade_participants WHERE trade_id=offer AND member_id=f.member_ids[2])
+      AND (SELECT status='pending' FROM trades WHERE id=offer),
+      kind||' invalid recipient does not block another team partial acceptance');
     PERFORM pg_temp.reject_rules(format('SELECT private.validate_trade_rosters(%L)',offer),expected,kind||' full validation checks all recipients');
-    PERFORM pg_temp.reject_rules(format('SELECT public.accept_trade_atomic(%L,%L)',offer,f.member_ids[3]),expected,kind||' invalid recipient still cannot accept');
+    PERFORM pg_temp.reject_rules(format('SELECT public.accept_trade_atomic(%L,%L)',offer,f.member_ids[3]),expected,kind||' invalid recipient blocks the final acceptance');
+    PERFORM pg_temp.check_rules((SELECT accepted_at IS NULL FROM trade_participants WHERE trade_id=offer AND member_id=f.member_ids[3]),kind||' rejected final acceptance leaves the team unaccepted');
   END LOOP;
 END;
 $$;

@@ -402,8 +402,28 @@ it('keeps acceptance timing conditional when a player game has started', async (
     await act(async () => renderer.unmount())
 })
 
-it('blocks acceptance when another participant has an invalid resulting roster', async () => {
-    mocks.getTradeRosterPreview.mockResolvedValue([{ memberId: 'other', teamName: 'Other', error: 'Regular roster is full.' }])
+it('accepts when another participant has an invalid preview but the accepting team has a plan', async () => {
+    const plan = { taxiPlayerIds: [], irPlayerIds: [], dropPlayerIds: [], rosterMoves: [] }
+    mocks.getTradeRosterPreview.mockResolvedValue([
+        { memberId: 'member-a', teamName: 'A', roster: [], drops: [], moves: [], limits: { active: 20, ir: 2, taxi: 3 }, error: null, plan },
+        { memberId: 'other', teamName: 'Other', roster: [], drops: [], moves: [], limits: { active: 20, ir: 2, taxi: 3 }, error: 'Regular roster is full.', plan: null },
+    ])
+    let latest!: ReturnType<typeof useTradeActions>
+    const Probe = () => { latest = useTradeActions({ memberId: 'member-a', leagueId: 'league-a', onAction: vi.fn() }); return null }
+    let screen!: ReactTestRenderer
+    await act(async () => { screen = create(React.createElement(Probe)) })
+    await act(async () => latest.accept(trade('overflow')))
+    expect(mocks.showAlert).not.toHaveBeenCalledWith('Complete the roster plan', expect.anything())
+    expect(mocks.confirmAction).toHaveBeenCalled()
+    expect(mocks.acceptTrade).toHaveBeenCalledWith('overflow', 'member-a', plan)
+    await act(async () => screen.unmount())
+})
+
+it('blocks acceptance when the accepting team has an invalid resulting roster', async () => {
+    mocks.getTradeRosterPreview.mockResolvedValue([
+        { memberId: 'member-a', teamName: 'A', error: 'Regular roster is full.' },
+        { memberId: 'other', teamName: 'Other', error: null },
+    ])
     let latest!: ReturnType<typeof useTradeActions>
     const Probe = () => { latest = useTradeActions({ memberId: 'member-a', leagueId: 'league-a', onAction: vi.fn() }); return null }
     let screen!: ReactTestRenderer
@@ -411,7 +431,7 @@ it('blocks acceptance when another participant has an invalid resulting roster',
     await act(async () => latest.accept(trade('overflow')))
     expect(mocks.confirmAction).not.toHaveBeenCalled()
     expect(mocks.acceptTrade).not.toHaveBeenCalled()
-    expect(mocks.showAlert).toHaveBeenCalledWith('Complete the roster plan', 'Other: Regular roster is full.')
+    expect(mocks.showAlert).toHaveBeenCalledWith('Complete the roster plan', 'A: Regular roster is full.')
     await act(async () => screen.unmount())
 })
 

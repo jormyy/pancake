@@ -33,6 +33,10 @@ Preconditions:
 - **Multi-team.** Run `BROWSER click '[aria-label="Use multi-team trade mode"]'`. Add a third participant, route assets, and require correct recipients in review before submitting.
 - **Received offer.** Sign in as the generated recipient through the real form. Open the card, inspect all terms, then exercise Counter or Reject. Require a changed offer/status in the database.
 - **Acceptance.** On a fresh legal offer, accept and verify terminal status plus transferred roster assets. Reload both teams before declaring success.
+- **Multi-team partial acceptance.** Seed the offer with `node tools/verify/seed-trade-acceptance.mjs "$EVIDENCE" --full='E2E Team 3' --mode=net-plus-one --plan=drop`. Team 1 proposes, Team 2 is the middle team, Team 3 is at its roster limit. Sign in as Team 2 (`BROWSER login 1`) and accept. Require trade status `pending`, Team 2 `accepted_at` set, Team 3 `accepted_at` null, and no roster change. Sign in as Team 3 (`BROWSER login 2`) and accept. Require `accepted`, then complete with `psql "$SUPABASE_DB_URL" -c 'select public.process_due_accepted_trades_atomic()'`. Require the sent player on Team 3, the planned drop gone, FAAB moved, and every team at or under its limit.
+  With `--plan=none` the last acceptance must fail with `E2E Team 3: Regular roster is 1 over the limit of <n>` and must move nothing. A repeated acceptance must report that the trade is no longer pending.
+  `--mode=net-neutral` sends one player back, so the full team accepts without a plan.
+  Seeding writes are setup, not proof. Proof is stored state from `observe.mjs`: `trades.status`, `trade_participants.accepted_at` and `drop_player_ids`, `roster_players` counts per team, and `roster_transactions`.
 - **Withdraw.** Sign in as proposer and withdraw a pending offer. Require it to leave pending views.
 - **Analyze and history.** Open the analyzer from a trade and from its section. Require asset identities and results. Open History and compare a completed offer’s assets and date.
 - **Trade block.** Open its section, list a rostered player, reopen, and remove the listing. Verify stored listing changes.

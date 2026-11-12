@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261214011000",
+  "candidateVersion": "20261214011100",
   "common": {
     "functions": [
       {
@@ -2713,6 +2713,10 @@
     {
       "filename": "20261214011000_compact_trade_activity.sql",
       "sha256": "5da14276b6fcaa824bf37bfa030ab53dd11824364382d4699c75c0f1bb9af018"
+    },
+    {
+      "filename": "20261214011100_scoped_trade_acceptance_capacity.sql",
+      "sha256": "38a78dbd4d825b84ec2ebbbfdb7f9c8c1fa3badc2731750949d7056abb6d927a"
     }
   ],
   "preMigration": {

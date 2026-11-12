@@ -92,7 +92,7 @@ export function useTradeActions({
         try {
             const teams = await getTradeRosterPreview(trade.id)
             if (!enabledRef.current || !mountedRef.current || identityRef.current !== identity) return
-            const invalid = teams.find((team) => team.error)
+            const invalid = teams.find((team) => team.memberId === memberId && team.error)
             if (invalid) {
                 showAlert('Complete the roster plan', `${invalid.teamName}: ${invalid.error}`)
                 return

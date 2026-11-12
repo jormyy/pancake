@@ -288,10 +288,17 @@ const assertTradePlanCapacityAndRosterRecovery = async (fixture) => {
 
   const repairableOffer = await propose(fixture, faabRoutes(fixture), 'Over-cap offer awaits a roster plan')
   assert.equal((await fetchTrade(fixture, repairableOffer)).status, 'pending')
+  await accept(fixture, repairableOffer, fixture.recipient.id)
+  assert.equal((await fetchTrade(fixture, repairableOffer)).status, 'pending', 'partial acceptance succeeds while another team is over the limit')
   await expectRpcError(fixture.admin, 'accept_trade_atomic', {
     p_trade_id: repairableOffer,
-    p_accepting_member_id: fixture.recipient.id,
+    p_accepting_member_id: fixture.observer.id,
   }, 'regular|roster|capacity')
+  await rpc(fixture.admin, 'withdraw_trade_atomic', {
+    p_trade_id: repairableOffer,
+    p_member_id: fixture.proposer.id,
+    p_user_id: fixture.users[0].id,
+  })
   const { data: extraRoster, error: extraLookupError } = await fixture.admin.from('roster_players')
     .select('id').eq('league_season_id', fixture.currentSeason.id).eq('member_id', fixture.proposer.id)
     .eq('player_id', proposerExtraTwo.id).single()

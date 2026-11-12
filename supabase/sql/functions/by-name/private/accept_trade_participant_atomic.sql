@@ -168,7 +168,7 @@ BEGIN
     p_trade_id,
     v_trade.league_id,
     v_trade.league_season_id,
-    NULL
+    CASE WHEN v_all_accepted THEN NULL ELSE p_accepting_member_id END
   );
 
   IF EXISTS (

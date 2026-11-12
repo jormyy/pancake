@@ -3651,6 +3651,13 @@
       "statementCount": 2,
       "statementsSha256": "c83b3a33b1b2d55046e981f59014ff529fb4f2bdb05279371d6d9b427e87b8cc",
       "sha256": "5da14276b6fcaa824bf37bfa030ab53dd11824364382d4699c75c0f1bb9af018"
+    },
+    {
+      "name": "scoped_trade_acceptance_capacity",
+      "version": "20261214011100",
+      "statementCount": 1,
+      "statementsSha256": "98dc2ffe1fd889b7b2aba4b97265c927f80d5c3cf67607adadd0303932365c67",
+      "sha256": "38a78dbd4d825b84ec2ebbbfdb7f9c8c1fa3badc2731750949d7056abb6d927a"
     }
   ]
 }
