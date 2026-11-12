@@ -180,7 +180,7 @@ Keep data snapshots, migration receipts and both All/Traded screenshots after cl
 
 Use the `trade-offers` journey in [Trades](features/trades.md) with a three-team offer.
 The fixture teams map to the real case: Team 1 is Kyle (proposer), Team 2 is Matt, Team 3 is Jet (full roster).
-`BROWSER login <n>` signs in as the user at index n of the fixture list, which is E2E Team n; confirm the team name in the snapshot.
+`BROWSER login <n>` takes a zero-based index: `login 1` is E2E Team 2 and `login 2` is E2E Team 3; confirm the team name in the snapshot.
 Seed the offer with `node tools/verify/seed-trade-acceptance.mjs "$EVIDENCE" --full='E2E Team 3' --mode=net-plus-one --plan=none`.
 The seed sets `leagues.roster_size` to Team 3's player count, so the limit equals the roster size and Team 3 starts full.
 Read the real limit and counts from the database, not from the offer text.

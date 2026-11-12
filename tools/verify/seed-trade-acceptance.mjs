@@ -48,7 +48,7 @@ const context = sql(`
 assert.ok(context, 'Fixture league, current season and the three team names must exist')
 const ctx = JSON.parse(context)
 
-const fill = sql(`
+sql(`
   WITH free_players AS (
     SELECT player.id
       FROM players player
@@ -65,23 +65,19 @@ const fill = sql(`
       FROM roster_players
      WHERE league_id = ${q(ctx.leagueId)}
        AND league_season_id = ${q(ctx.seasonId)}
-       AND member_id = ${q(ctx.full.memberId)}),
-  added AS (
-    INSERT INTO roster_players(league_id, league_season_id, member_id, player_id, acquired_via)
-    SELECT ${q(ctx.leagueId)}, ${q(ctx.seasonId)}, ${q(ctx.full.memberId)}, id, 'verification'
-      FROM free_players
-     LIMIT GREATEST(0, ${ctx.rosterSize} - (SELECT held FROM current))
-    RETURNING 1)
-  SELECT json_build_object(
-    'filled', (SELECT count(*) FROM added),
-    'count', (SELECT count(*) FROM roster_players
-               WHERE league_id = ${q(ctx.leagueId)}
-                 AND league_season_id = ${q(ctx.seasonId)}
-                 AND member_id = ${q(ctx.full.memberId)}));`)
-const filled = JSON.parse(fill)
-const limit = Math.max(1, filled.count)
+       AND member_id = ${q(ctx.full.memberId)})
+  INSERT INTO roster_players(league_id, league_season_id, member_id, player_id, acquired_via)
+  SELECT ${q(ctx.leagueId)}, ${q(ctx.seasonId)}, ${q(ctx.full.memberId)}, id, 'verification'
+    FROM free_players
+   LIMIT GREATEST(0, ${ctx.rosterSize} - (SELECT held FROM current));`)
+
+const held = () => Number(sql(`SELECT count(*) FROM roster_players
+  WHERE league_id = ${q(ctx.leagueId)}
+    AND league_season_id = ${q(ctx.seasonId)}
+    AND member_id = ${q(ctx.full.memberId)};`))
+const limit = Math.max(1, held())
 sql(`UPDATE leagues SET roster_size = ${limit} WHERE id = ${q(ctx.leagueId)};`)
-assert.equal(Number(sql(`SELECT roster_size FROM leagues WHERE id = ${q(ctx.leagueId)};`)), limit, 'Full team must sit exactly at the roster limit')
+assert.equal(Number(sql(`SELECT roster_size FROM leagues WHERE id = ${q(ctx.leagueId)};`)), held(), 'Full team must sit exactly at the roster limit')
 
 const freeOn = (memberId) => `
   SELECT roster.player_id
