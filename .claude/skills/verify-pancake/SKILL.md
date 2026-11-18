@@ -222,12 +222,15 @@ node tools/verify/trigger-lineup-optimizer.mjs "$EVIDENCE"
 node tools/verify/observe.mjs "$EVIDENCE" > "$EVIDENCE/auto-ir-after.json"
 ```
 
-Cases are `open-slot`, `full-bench-swap`, `no-legal-swap`, `uncertain`, `locked`, and `taxi-ineligible`.
+Cases are `open-slot`, `full-bench-swap`, `no-legal-swap`, `swap-available`, `uncertain`, `locked`, `taxi-ineligible`, `incumbent-exchange`, `incumbent-tie`, and `incumbent-unknown`.
 The seeder reshapes E2E Team 1, enables that member’s lineup optimizer, and prints the involved player names, ids, counts, and expected moves or notices as JSON.
 Re-running a case resets and reapplies it.
 The trigger posts to the local Edge route with the run’s generated internal token, which is never printed.
 The Lineup screen path is the visible Auto lineup control; the background path is the trigger command.
+Notices are never stored: open Lineup without touching any Start/Auto/Bench control and require the notice, then close and reopen it and require the same notice again.
 Require the expected `is_on_ir` flags and `roster_transactions` rows in the after observation.
-For `no-legal-swap`, `uncertain`, and `taxi-ineligible`, require the notice text and action and no roster change.
-For `full-bench-swap`, also exercise the IR resolution sheet’s `Swap with injured player` option.
+For `no-legal-swap`, `swap-available`, `uncertain`, `taxi-ineligible`, `incumbent-tie`, and `incumbent-unknown`, require the notice text and action and no roster change.
+`no-legal-swap` advises a cut; `swap-available` advises `Swap <name> with an injured player`.
+For `incumbent-exchange`, require the 60-day contender on IR, the 7-day incumbent active, and the 30-day incumbent still on IR.
+For `full-bench-swap` and `swap-available`, also exercise the IR resolution sheet’s `Swap with injured player` option.
 The seeder writes plain fixture rows, so it works before the SQL service and optimizer lanes integrate; behavior assertions wait for that integration.
