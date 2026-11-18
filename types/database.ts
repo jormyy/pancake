@@ -6491,6 +6491,10 @@ export type Database = {
         Args: { p_league_id: string }
         Returns: Json
       }
+      get_auto_ir_notices: {
+        Args: { p_league_id: string; p_league_season_id: string }
+        Returns: Json
+      }
       get_backfill_season_plan: {
         Args: { p_now?: string }
         Returns: {

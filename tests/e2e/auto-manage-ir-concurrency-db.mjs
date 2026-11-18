@@ -26,6 +26,7 @@ const one = async (sql) => {
 
 const race = (statements) => Promise.all(statements.map((statement) =>
   query(`BEGIN; SET LOCAL statement_timeout='20s'; ${statement} SELECT pg_sleep(0.25); COMMIT;`)))
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
 const setup = async (year) => {
   const league = randomUUID()
@@ -44,6 +45,9 @@ const setup = async (year) => {
     INSERT INTO league_seasons(id,league_id,season_year,is_current) VALUES(${quote(season)},${quote(league)},${year},true);
     INSERT INTO league_members(id,league_id,user_id,role,team_name)
       VALUES(${quote(member)},${quote(league)},${quote(user)},'commissioner','Race team');
+    INSERT INTO lineup_optimizer_settings(league_id,league_season_id,member_id,enabled)
+      VALUES(${quote(league)},${quote(season)},${quote(member)},true)
+      ON CONFLICT ON CONSTRAINT lineup_optimizer_settings_pkey DO UPDATE SET enabled=true;
     INSERT INTO players(id,first_name,last_name,position,eligible_positions,injury_status,injury_expected_return) VALUES
       (${quote(healthy)},'Race','Healthy','PG',ARRAY['PG'],'Healthy','unknown'),
       (${quote(injured)},'Race','Injured','PG',ARRAY['PG'],'Out','2026-12-01');
@@ -106,6 +110,41 @@ try {
   assert.ok(toggleRace.every((result) => result.code === 0 ||
     /IR slot|active roster is full|league is busy|roster changed/i.test(result.error)), JSON.stringify(toggleRace))
   await assertLegal(toggle)
+
+  const disabled = await setup(9703)
+  const lock = query(`BEGIN; SELECT pg_advisory_xact_lock(hashtext(${quote(disabled.league)}), hashtext(${quote(disabled.member)})); SELECT pg_sleep(1.5); COMMIT;`)
+  await sleep(300)
+  const queued = query(`SELECT public.auto_manage_ir_service(${quote(disabled.league)},${quote(disabled.season)},${quote(disabled.member)})`)
+  await sleep(300)
+  await one(`UPDATE lineup_optimizer_settings SET enabled=false
+    WHERE league_id=${quote(disabled.league)} AND league_season_id=${quote(disabled.season)} AND member_id=${quote(disabled.member)}`)
+  const [lockResult, queuedResult] = await Promise.all([lock, queued])
+  assert.equal(lockResult.code, 0, lockResult.error)
+  assert.equal(queuedResult.code, 0, queuedResult.error)
+  const disabledOutcome = JSON.parse(queuedResult.output)
+  assert.equal(disabledOutcome.moves.length, 0, `Disabled queued call moved: ${queuedResult.output}`)
+  assert.equal(disabledOutcome.skipped.length, 0, `Disabled queued call skipped: ${queuedResult.output}`)
+  assert.equal(disabledOutcome.notices.length, 0, `Disabled queued call noticed: ${queuedResult.output}`)
+  const disabledCounts = JSON.parse(await one(`SELECT jsonb_build_object(
+    'ir', count(*) FILTER (WHERE is_on_ir),
+    'active', count(*) FILTER (WHERE NOT is_on_ir AND NOT is_on_taxi),
+    'rows', count(*))
+    FROM roster_players WHERE member_id=${quote(disabled.member)}`))
+  assert.equal(disabledCounts.ir, 1, `Disabled queued call changed IR: ${JSON.stringify(disabledCounts)}`)
+  assert.equal(disabledCounts.active, 1, `Disabled queued call changed active: ${JSON.stringify(disabledCounts)}`)
+  assert.equal(disabledCounts.rows, 2, `Disabled queued call changed membership: ${JSON.stringify(disabledCounts)}`)
+  assert.equal(await one(`SELECT count(*) FROM roster_transactions WHERE member_id=${quote(disabled.member)}`), '0',
+    'Disabled queued call wrote transactions')
+  assert.equal(await one(`SELECT is_on_ir FROM roster_players WHERE id=${quote(disabled.healthyRoster)}`), 't',
+    'Disabled queued call moved the healthy occupant')
+  assert.equal(await one(`SELECT is_on_ir FROM roster_players WHERE id=${quote(disabled.injuredRoster)}`), 'f',
+    'Disabled queued call moved the injured player')
+
+  const enabled = await setup(9704)
+  const enabledResult = await query(`SELECT public.auto_manage_ir_service(${quote(enabled.league)},${quote(enabled.season)},${quote(enabled.member)})`)
+  assert.equal(enabledResult.code, 0, enabledResult.error)
+  assert.equal(JSON.parse(enabledResult.output).moves.length, 1, `Enabled call did not move: ${enabledResult.output}`)
+  await assertLegal(enabled)
 
   console.log('auto-manage-ir concurrency: pass')
 } catch (error) {

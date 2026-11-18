@@ -61,27 +61,39 @@ Game locks and trade or waiver reservations still apply.
 ## Auto Lineup and injured reserve
 
 Auto Lineup manages IR through `public.auto_manage_ir_service`.
-The service RPC takes the member and player locks before reading.
+The service RPC takes the member lock, rechecks the member's `lineup_optimizer_settings.enabled`, then takes the player locks before reading.
+It writes nothing when the setting is not enabled.
 It applies every move through `private.toggle_ir_for_activation`, so manual and automatic moves share the same checks.
 Each designate, swap pair, or lone activation is its own sub-transaction.
 A failed group rolls back alone and is reported; other groups continue.
 After applying, the call asserts taxi rows are unchanged, no roster player was dropped, no new roster problem appeared, and IR and active counts did not grow past their limits.
 Any assertion failure rolls back the whole call.
 The call only runs for an active or playoff league with the current season.
+Planning lives in `private.plan_auto_ir`, which both the service and the notices reader use.
 
 IR eligibility is `private.is_ir_designation` on the player's injury status.
 A return date is reliable only when it is a valid `YYYY-MM-DD` date on or after the league's Eastern date.
 Unknown, malformed, and past dates are uncertain.
 Two candidates are comparable only when both returns are reliable and the dates differ.
 The later reliable return has priority.
-Auto Lineup fills open IR slots first, then swaps one-for-one with healthy IR occupants.
-It selects candidates only when the choice is unambiguous.
-Tied or uncertain candidates at the boundary stay put and produce an `ir_choice_uncertain` notice.
+Injured IR incumbents with a reliable return compete with active injured players on return date.
+Incumbents with an uncertain return, or that are game-locked or reserved, keep their slot and are not compared.
+Auto Lineup fills open IR slots first, then swaps one-for-one with healthy IR occupants, then exchanges with the earliest-returning incumbents outside the selected group.
+An incumbent exchange is one atomic pair and re-reads both players before writing.
+If either player changed, the pair is skipped and nothing is written for it.
+It selects players only when the choice is unambiguous.
+Tied or uncertain players at the boundary stay put and produce an `ir_choice_uncertain` notice.
 A healthy occupant with no swap partner is activated alone only when the active roster has room.
-Otherwise it stays and produces a `healthy_ir_bench_full` notice.
+Otherwise it stays and produces a `healthy_ir_swap_available` notice when an unplaced injured active player exists, or a `healthy_ir_bench_full` notice when none does.
 An ineligible taxi player produces a `taxi_ineligible` notice; Auto Lineup never touches taxi.
 Game-locked and reserved players are skipped and retried on the next run.
 Auto Lineup never drops a player.
+
+`public.get_auto_ir_notices` returns the caller's own notices from the current roster.
+It resolves the member from `auth.uid()` and accepts no member id.
+It returns `enabled` and an empty notice list when the setting is off or the caller is not a member.
+The app reads it when Lineup opens, regains focus, or changes a pin or optimizer run.
+Notices are never stored.
 
 ## Continuous waivers
 

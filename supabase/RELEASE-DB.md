@@ -265,8 +265,11 @@ That migration keeps every function signature, owner, and grant, so the function
 This candidate does not verify or change production state.
 
 Apply the Auto Lineup IR migration after the scoped trade acceptance migration.
-It adds the service-only `public.auto_manage_ir_service` RPC and its function catalog entry.
+It adds the service-only `public.auto_manage_ir_service` RPC, the authenticated `public.get_auto_ir_notices` reader, and the private planner and return-date helpers.
 The RPC reuses `private.toggle_ir_for_activation` and the existing reservation check.
+It rechecks the member's optimizer setting after the member lock and writes nothing when the setting is off.
+Injured IR incumbents with a reliable return compete with active injured players on return date.
+The notices reader recomputes notices from the current roster and never stores them.
 It only runs for an active or playoff league with the current season.
 The matching `lineup-optimizer` release calls it before loading each member's roster.
 This candidate does not verify or change production state.
@@ -1656,12 +1659,19 @@ The candidate also bounds live version hints in `20261214010100_bound_version_hi
 Apply `20261214011200_auto_manage_ir_service.sql` after `20261214011100`.
 Release the matching `lineup-optimizer` function with the IR call.
 `public.auto_manage_ir_service` is service-only and returns moves, skipped players, and notices.
-It takes the member and player advisory locks before reading, then applies every move through `private.toggle_ir_for_activation`.
+It takes the member advisory lock, rechecks `lineup_optimizer_settings.enabled`, then takes the player advisory locks before reading.
+It writes nothing when the setting is not enabled.
+It applies every move through `private.toggle_ir_for_activation`.
 Each designate, swap pair, or lone activation runs in its own sub-transaction.
 A failed group rolls back alone and is reported; other groups continue.
 After applying, the call asserts taxi rows are unchanged, no roster player was dropped, no new `private.roster_problems` row appeared, and IR and active counts did not grow past their limits.
 Any assertion failure rolls back the whole call.
 The function only runs for an active or playoff league with the current season.
+Planning lives in `private.plan_auto_ir`, which the service and the notices reader share.
+Injured IR incumbents with a reliable return compete with active injured players on return date.
+An incumbent exchange re-reads both players before writing and skips the pair when either changed.
+`public.get_auto_ir_notices` is authenticated-only, resolves the caller's own member from `auth.uid()`, and returns `enabled` plus the current notices.
+It returns an empty notice list when the setting is off or the caller is not a member.
 IR and taxi over-capacity are not reachable through supported write paths, so `private.roster_problems` keeps its existing problem kinds.
 Run `npm run test:db:auto-manage-ir` and `npm run test:db:auto-manage-ir-concurrency` on a private stack.
 Regenerate database types, the function catalog, and release attestations.

@@ -8,6 +8,9 @@ DECLARE f record;
 BEGIN
   SELECT * INTO f FROM pg_temp.rules_fixture(p_teams, p_year);
   UPDATE leagues SET roster_size=p_roster_size, ir_slots=p_ir_slots WHERE id=f.league_id;
+  INSERT INTO lineup_optimizer_settings(league_id, league_season_id, member_id, enabled)
+    VALUES(f.league_id, f.season_id, f.member_ids[1], true)
+    ON CONFLICT ON CONSTRAINT lineup_optimizer_settings_pkey DO UPDATE SET enabled = true;
   league_id := f.league_id;
   season_id := f.season_id;
   user_id := f.user_ids[1];
@@ -65,6 +68,17 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION pg_temp.auto_ir_change_incumbent()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.player_id = current_setting('auto_ir.exchange_contender')::uuid THEN
+    UPDATE players SET injury_status = 'Healthy'
+     WHERE id = current_setting('auto_ir.exchange_incumbent')::uuid;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
 CREATE FUNCTION pg_temp.expect_denied(p_query text)
 RETURNS void LANGUAGE plpgsql AS $$
 DECLARE v_denied boolean := false;
@@ -91,6 +105,7 @@ DECLARE
   v_add uuid;
   v_taxi_before jsonb;
   v_taxi_after jsonb;
+  v_today date := (now() AT TIME ZONE 'America/New_York')::date;
 BEGIN
   -- Open slot filled by an eligible injured player.
   SELECT * INTO f FROM pg_temp.auto_ir_league(9531, 2, 2);
@@ -306,6 +321,167 @@ BEGIN
     'the failed group is reported');
   PERFORM pg_temp.check_rules(NOT (SELECT is_on_ir FROM roster_players WHERE id = c1)
     AND (SELECT is_on_ir FROM roster_players WHERE id = c2), 'the failed group leaves its roster unchanged');
+
+  -- Reviewer fixture: two eligible incumbents returning in 7 and 30 days, a contender returning in 60.
+  SELECT * INTO f FROM pg_temp.auto_ir_league(9546, 1, 2);
+  h1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Incumbent Seven', 'Out', (v_today + 7)::text, 'ir');
+  h2 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Incumbent Thirty', 'Out', (v_today + 30)::text, 'ir');
+  c1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Contender Sixty', 'Out', (v_today + 60)::text, 'active');
+  r := public.auto_manage_ir_service(f.league_id, f.season_id, f.member_id);
+  PERFORM pg_temp.check_rules(jsonb_array_length(r->'moves') = 1
+    AND r->'moves'->0->>'kind' = 'swap'
+    AND (r->'moves'->0->>'designatePlayerId')::uuid = (SELECT player_id FROM roster_players WHERE id = c1)
+    AND (r->'moves'->0->>'activatePlayerId')::uuid = (SELECT player_id FROM roster_players WHERE id = h1),
+    'incumbent fixture exchanges the earliest-returning incumbent');
+  PERFORM pg_temp.check_rules((SELECT is_on_ir FROM roster_players WHERE id = c1)
+    AND NOT (SELECT is_on_ir FROM roster_players WHERE id = h1)
+    AND (SELECT is_on_ir FROM roster_players WHERE id = h2),
+    'incumbent fixture keeps the later incumbent');
+  PERFORM pg_temp.check_rules((SELECT count(*) FROM roster_transactions WHERE member_id = f.member_id AND transaction_type = 'ir_designate') = 1
+    AND (SELECT count(*) FROM roster_transactions WHERE member_id = f.member_id AND transaction_type = 'ir_return') = 1,
+    'incumbent fixture writes both roster transactions');
+
+  -- Tied contender and incumbent preserve both incumbents.
+  SELECT * INTO f FROM pg_temp.auto_ir_league(9547, 1, 2);
+  h1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Tie Incumbent Seven', 'Out', (v_today + 7)::text, 'ir');
+  h2 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Tie Incumbent Thirty', 'Out', (v_today + 30)::text, 'ir');
+  c1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Tie Contender Seven', 'Out', (v_today + 7)::text, 'active');
+  r := public.auto_manage_ir_service(f.league_id, f.season_id, f.member_id);
+  PERFORM pg_temp.check_rules(jsonb_array_length(r->'moves') = 0, 'tied incumbent makes no move');
+  PERFORM pg_temp.check_rules((SELECT is_on_ir FROM roster_players WHERE id = h1)
+    AND (SELECT is_on_ir FROM roster_players WHERE id = h2)
+    AND NOT (SELECT is_on_ir FROM roster_players WHERE id = c1),
+    'tied incumbent preserves both incumbents');
+  PERFORM pg_temp.check_rules((SELECT count(*) FROM roster_transactions WHERE member_id = f.member_id) = 0,
+    'tied incumbent writes nothing');
+
+  -- Unknown contender return preserves both incumbents.
+  SELECT * INTO f FROM pg_temp.auto_ir_league(9548, 1, 2);
+  h1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Unknown Incumbent Seven', 'Out', (v_today + 7)::text, 'ir');
+  h2 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Unknown Incumbent Thirty', 'Out', (v_today + 30)::text, 'ir');
+  c1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Unknown Contender', 'Out', 'unknown', 'active');
+  r := public.auto_manage_ir_service(f.league_id, f.season_id, f.member_id);
+  PERFORM pg_temp.check_rules(jsonb_array_length(r->'moves') = 0, 'unknown incumbent contender makes no move');
+  PERFORM pg_temp.check_rules((SELECT is_on_ir FROM roster_players WHERE id = h1)
+    AND (SELECT is_on_ir FROM roster_players WHERE id = h2)
+    AND NOT (SELECT is_on_ir FROM roster_players WHERE id = c1),
+    'unknown incumbent contender preserves both incumbents');
+  PERFORM pg_temp.check_rules((SELECT count(*) FROM roster_transactions WHERE member_id = f.member_id) = 0,
+    'unknown incumbent contender writes nothing');
+
+  -- An incumbent that changes between plan and write is not exchanged.
+  SELECT * INTO f FROM pg_temp.auto_ir_league(9549, 1, 2);
+  h1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Changing Incumbent Seven', 'Out', (v_today + 7)::text, 'ir');
+  h2 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Changing Incumbent Thirty', 'Out', (v_today + 30)::text, 'ir');
+  c1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Changing Contender Sixty', 'Out', (v_today + 60)::text, 'active');
+  PERFORM set_config('auto_ir.exchange_contender', (SELECT player_id FROM roster_players WHERE id = c1)::text, true);
+  PERFORM set_config('auto_ir.exchange_incumbent', (SELECT player_id FROM roster_players WHERE id = h1)::text, true);
+  CREATE TRIGGER auto_ir_change_incumbent BEFORE UPDATE ON roster_players
+    FOR EACH ROW EXECUTE FUNCTION pg_temp.auto_ir_change_incumbent();
+  r := public.auto_manage_ir_service(f.league_id, f.season_id, f.member_id);
+  DROP TRIGGER auto_ir_change_incumbent ON roster_players;
+  PERFORM pg_temp.check_rules(jsonb_array_length(r->'moves') = 0, 'changed incumbent makes no move');
+  PERFORM pg_temp.check_rules(EXISTS (
+    SELECT 1 FROM jsonb_array_elements(r->'skipped') s
+     WHERE s->>'reason' LIKE '%Incumbent exchange no longer valid%'
+       AND (s->>'playerId')::uuid = (SELECT player_id FROM roster_players WHERE id = c1)),
+    'changed incumbent is reported as skipped');
+  PERFORM pg_temp.check_rules((SELECT is_on_ir FROM roster_players WHERE id = h1)
+    AND (SELECT is_on_ir FROM roster_players WHERE id = h2)
+    AND NOT (SELECT is_on_ir FROM roster_players WHERE id = c1),
+    'changed incumbent leaves both players unchanged');
+  PERFORM pg_temp.check_rules((SELECT count(*) FROM roster_transactions WHERE member_id = f.member_id) = 0,
+    'changed incumbent writes nothing');
+
+  -- A healthy occupant with an unplaced injured active player gets swap advice.
+  SELECT * INTO f FROM pg_temp.auto_ir_league(9550, 2, 1);
+  h1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Healthy Swap', 'Healthy', 'unknown', 'ir');
+  c1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Tied Contender One', 'Out', (v_today + 60)::text, 'active');
+  c2 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Tied Contender Two', 'Out', (v_today + 60)::text, 'active');
+  r := public.auto_manage_ir_service(f.league_id, f.season_id, f.member_id);
+  PERFORM pg_temp.check_rules(jsonb_array_length(r->'moves') = 0, 'swap advice makes no move');
+  PERFORM pg_temp.check_rules(EXISTS (
+    SELECT 1 FROM jsonb_array_elements(r->'notices') n
+     WHERE n->>'reason' = 'healthy_ir_swap_available'
+       AND (n->>'playerId')::uuid = (SELECT player_id FROM roster_players WHERE id = h1)
+       AND n->>'action' = 'Swap ' || (SELECT display_name FROM players WHERE id = (SELECT player_id FROM roster_players WHERE id = h1)) || ' with an injured player'),
+    'healthy occupant with an unplaced injured player gets swap advice');
+
+  -- A healthy occupant with no injured active player gets cut advice.
+  SELECT * INTO f FROM pg_temp.auto_ir_league(9551, 1, 1);
+  h1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Healthy Bench', 'Healthy', 'unknown', 'ir');
+  c1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Healthy Active', 'Healthy', 'unknown', 'active');
+  r := public.auto_manage_ir_service(f.league_id, f.season_id, f.member_id);
+  PERFORM pg_temp.check_rules(jsonb_array_length(r->'moves') = 0, 'cut advice makes no move');
+  PERFORM pg_temp.check_rules(EXISTS (
+    SELECT 1 FROM jsonb_array_elements(r->'notices') n
+     WHERE n->>'reason' = 'healthy_ir_bench_full'
+       AND (n->>'playerId')::uuid = (SELECT player_id FROM roster_players WHERE id = h1)
+       AND n->>'action' = 'Drop a player, then activate ' || (SELECT display_name FROM players WHERE id = (SELECT player_id FROM roster_players WHERE id = h1))),
+    'healthy occupant with no injured active player gets cut advice');
+
+  -- A disabled setting returns empty and writes nothing.
+  SELECT * INTO f FROM pg_temp.auto_ir_league(9552, 2, 2);
+  c1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Disabled Candidate', 'Out', (v_today + 60)::text, 'active');
+  UPDATE lineup_optimizer_settings SET enabled = false
+   WHERE league_id = f.league_id AND league_season_id = f.season_id AND member_id = f.member_id;
+  r := public.auto_manage_ir_service(f.league_id, f.season_id, f.member_id);
+  PERFORM pg_temp.check_rules(jsonb_array_length(r->'moves') = 0
+    AND jsonb_array_length(r->'skipped') = 0
+    AND jsonb_array_length(r->'notices') = 0,
+    'disabled setting returns empty');
+  PERFORM pg_temp.check_rules(NOT (SELECT is_on_ir FROM roster_players WHERE id = c1), 'disabled setting writes nothing');
+  PERFORM pg_temp.check_rules((SELECT count(*) FROM roster_transactions WHERE member_id = f.member_id) = 0,
+    'disabled setting writes no transactions');
+
+  -- The notices reader returns the caller's own notices and respects the setting.
+  SELECT * INTO f FROM pg_temp.auto_ir_league(9553, 1, 1);
+  h1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Notice Bench', 'Healthy', 'unknown', 'ir');
+  c1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Notice Healthy', 'Healthy', 'unknown', 'active');
+  PERFORM set_config('request.jwt.claim.sub', f.user_id::text, true);
+  r := public.get_auto_ir_notices(f.league_id, f.season_id);
+  PERFORM pg_temp.check_rules((r->>'enabled')::boolean
+    AND EXISTS (
+      SELECT 1 FROM jsonb_array_elements(r->'notices') n
+       WHERE n->>'reason' = 'healthy_ir_bench_full'
+         AND (n->>'playerId')::uuid = (SELECT player_id FROM roster_players WHERE id = h1)),
+    'notices reader returns the healthy bench notice');
+  PERFORM public.auto_manage_ir_service(f.league_id, f.season_id, f.member_id);
+  r := public.get_auto_ir_notices(f.league_id, f.season_id);
+  PERFORM pg_temp.check_rules(EXISTS (
+    SELECT 1 FROM jsonb_array_elements(r->'notices') n
+     WHERE n->>'reason' = 'healthy_ir_bench_full'
+       AND (n->>'playerId')::uuid = (SELECT player_id FROM roster_players WHERE id = h1)),
+    'notices reader keeps the healthy bench notice after a service run');
+
+  SELECT * INTO f FROM pg_temp.auto_ir_league(9554, 2, 2);
+  UPDATE leagues SET taxi_slots = 2 WHERE id = f.league_id;
+  t1 := pg_temp.auto_ir_taxi(f.league_id, f.season_id, f.member_id, 'Notice Taxi');
+  UPDATE players SET years_exp = 3, career_regular_season_games = 100
+   WHERE id = (SELECT player_id FROM roster_players WHERE id = t1);
+  PERFORM set_config('request.jwt.claim.sub', f.user_id::text, true);
+  r := public.get_auto_ir_notices(f.league_id, f.season_id);
+  PERFORM pg_temp.check_rules(EXISTS (
+    SELECT 1 FROM jsonb_array_elements(r->'notices') n
+     WHERE n->>'reason' = 'taxi_ineligible'
+       AND (n->>'playerId')::uuid = (SELECT player_id FROM roster_players WHERE id = t1)),
+    'notices reader returns the taxi notice');
+  PERFORM public.auto_manage_ir_service(f.league_id, f.season_id, f.member_id);
+  r := public.get_auto_ir_notices(f.league_id, f.season_id);
+  PERFORM pg_temp.check_rules(EXISTS (
+    SELECT 1 FROM jsonb_array_elements(r->'notices') n
+     WHERE n->>'reason' = 'taxi_ineligible'
+       AND (n->>'playerId')::uuid = (SELECT player_id FROM roster_players WHERE id = t1)),
+    'notices reader keeps the taxi notice after a service run');
+  UPDATE lineup_optimizer_settings SET enabled = false
+   WHERE league_id = f.league_id AND league_season_id = f.season_id AND member_id = f.member_id;
+  r := public.get_auto_ir_notices(f.league_id, f.season_id);
+  PERFORM pg_temp.check_rules(NOT (r->>'enabled')::boolean AND jsonb_array_length(r->'notices') = 0,
+    'notices reader returns nothing when disabled');
+  PERFORM set_config('request.jwt.claim.sub', gen_random_uuid()::text, true);
+  r := public.get_auto_ir_notices(f.league_id, f.season_id);
+  PERFORM pg_temp.check_rules(NOT (r->>'enabled')::boolean AND jsonb_array_length(r->'notices') = 0,
+    'notices reader returns nothing for a non-member');
 END;
 $$;
 
@@ -320,6 +496,8 @@ SET LOCAL ROLE anon;
 SELECT pg_temp.expect_denied(format('SELECT public.auto_manage_ir_service(%L, %L, %L)',
   (SELECT league_id FROM auto_ir_role_fixture), (SELECT season_id FROM auto_ir_role_fixture),
   (SELECT member_ids[1] FROM auto_ir_role_fixture)));
+SELECT pg_temp.expect_denied(format('SELECT public.get_auto_ir_notices(%L, %L)',
+  (SELECT league_id FROM auto_ir_role_fixture), (SELECT season_id FROM auto_ir_role_fixture)));
 RESET ROLE;
 
 SELECT count(*) AS passed_checks FROM rules_checks;
