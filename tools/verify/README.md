@@ -24,6 +24,8 @@ tools/verify/browser.sh "$EVIDENCE" login
 tools/verify/browser.sh "$EVIDENCE" snapshot -i
 tools/verify/browser.sh "$EVIDENCE" screenshot "$EVIDENCE/home-390.png"
 node tools/verify/observe.mjs "$EVIDENCE" > "$EVIDENCE/database-before.json"
+node tools/verify/seed-auto-ir.mjs "$EVIDENCE" --case=open-slot
+node tools/verify/trigger-lineup-optimizer.mjs "$EVIDENCE"
 tools/verify/browser.sh "$EVIDENCE" set viewport 375 812
 tools/verify/cleanup.sh "$EVIDENCE"
 test -s "$EVIDENCE/home-390.png"
@@ -36,6 +38,12 @@ It reports submission; require Home’s seeded team before declaring sign-in suc
 Pass a zero-based seed index after `login` to use another generated manager.
 Other arguments pass directly to `agent-browser`.
 Use `node tools/verify/capture.mjs EVIDENCE FEATURE LABEL` to save a snapshot, screenshot, layout, and database observation together.
+
+`seed-auto-ir.mjs EVIDENCE --case=NAME` reshapes E2E Team 1 into one Auto Lineup IR case and prints the involved players, counts, and expected moves or notices as JSON.
+Cases are `open-slot`, `full-bench-swap`, `no-legal-swap`, `uncertain`, `locked`, and `taxi-ineligible`.
+It enables that member’s lineup optimizer and is idempotent per case.
+`trigger-lineup-optimizer.mjs EVIDENCE [--date=YYYY-MM-DD] [--mode=daily|pre_tipoff]` posts to the run’s local Edge route with the generated internal token and prints the optimizer JSON.
+The token is read from `functions.env` and never printed.
 
 ## Isolation and evidence
 
@@ -78,6 +86,7 @@ Rerunning cleanup is supported; doctor rejects an already cleaned run.
 | Taxi | Synthetic draft acquisition uses the database’s taxi authorization and eligibility checks |
 | Waivers | One pending bid and unrostered players for new claims |
 | Trades | One pending two-team offer |
+| Auto Lineup IR | `seed-auto-ir.mjs` reshapes E2E Team 1 into one named IR case and enables its optimizer |
 | Drafts | Seeded auction and rookie draft; startup auction completes for season play |
 | Past season | Completed season with two regular-season games, a final, standings, and expected history results |
 
@@ -110,6 +119,8 @@ Run only their covering checks during iteration.
 ```sh
 node --test tools/verify/run.test.mjs
 npx eslint tools/verify/*.mjs
+node --check tools/verify/seed-auto-ir.mjs
+node --check tools/verify/trigger-lineup-optimizer.mjs
 sh -n tools/verify/launch.sh tools/verify/doctor.sh tools/verify/cleanup.sh tools/verify/browser.sh
 ```
 

@@ -4,9 +4,9 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { useRosterLegality } from '@/hooks/use-roster-legality'
 import { rosterPlayer } from '../helpers/fixtures'
 
-const state = vi.hoisted(() => ({ roster: vi.fn(), drop: vi.fn(), move: vi.fn(), activate: vi.fn(), changed: vi.fn(), alert: vi.fn() }))
+const state = vi.hoisted(() => ({ roster: vi.fn(), drop: vi.fn(), move: vi.fn(), activate: vi.fn(), swap: vi.fn(), changed: vi.fn(), alert: vi.fn() }))
 vi.mock('@/lib/roster', () => ({ getRoster: state.roster, dropPlayer: state.drop, toggleIR: state.move }))
-vi.mock('@/lib/roster-add-flow', () => ({ resolveRosterAddIRConflict: state.activate }))
+vi.mock('@/lib/roster-add-flow', () => ({ resolveRosterAddIRConflict: state.activate, swapHealthyIrWithInjured: state.swap }))
 vi.mock('@/lib/alert', () => ({ showAlert: state.alert }))
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 let screen: ReactTestRenderer
@@ -48,4 +48,16 @@ it('ignores an old roster response across an owner switch and return', async () 
     await act(async () => { finish([taxi]); await pending })
     expect(latest.modalProps.visible).toBe(false)
     expect(latest.modalProps.ineligibleIR).toEqual([])
+})
+
+it('swaps a healthy IR player with an injured active player through the overflow flow', async () => {
+    const healthyIr = rosterPlayer({ id: 'ir', is_on_ir: true })
+    const injured = rosterPlayer({ id: 'injured' })
+    state.roster.mockResolvedValue([])
+    state.swap.mockResolvedValue({ status: 'resolved', roster: [], remaining: [] })
+    await act(async () => latest.modalProps.onSwapWithInjured(healthyIr, injured))
+    expect(state.swap).toHaveBeenCalledExactlyOnceWith({
+        memberId: 'member', leagueId: 'league', healthyIrPlayer: healthyIr, injuredPlayer: injured, rosterSize: 1,
+    })
+    expect(state.changed).toHaveBeenCalledOnce()
 })

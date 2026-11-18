@@ -102,3 +102,33 @@ export async function resolveRosterAddIRConflict({
         remaining: getRosterProblems(roster, rosterSize).flatMap(problem => problem.player ? [problem.player] : []),
     }
 }
+
+export async function swapHealthyIrWithInjured({
+    memberId,
+    leagueId,
+    healthyIrPlayer,
+    injuredPlayer,
+    rosterSize = 20,
+}: {
+    memberId: string
+    leagueId: string
+    healthyIrPlayer: RosterPlayer
+    injuredPlayer: RosterPlayer
+    rosterSize?: number
+}): Promise<
+    | { status: 'locked'; message: string }
+    | { status: 'resolved'; roster: RosterPlayer[]; remaining: RosterPlayer[] }
+> {
+    const lockMessage = await getRosterStatusChangeLockMessage(healthyIrPlayer) ??
+        await getRosterStatusChangeLockMessage(injuredPlayer)
+    if (lockMessage) return { status: 'locked', message: lockMessage }
+
+    await activateRosterPlayerWithOverflow(healthyIrPlayer.id, 'ir', injuredPlayer.id, 'ir')
+
+    const roster = await getRoster(memberId, leagueId)
+    return {
+        status: 'resolved',
+        roster,
+        remaining: getRosterProblems(roster, rosterSize).flatMap(problem => problem.player ? [problem.player] : []),
+    }
+}

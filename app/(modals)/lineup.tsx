@@ -7,6 +7,8 @@ import type { LineupView, RosterView } from '@/lib/cache/view-types'
 import { LineupPinControl } from '@/components/LineupPinControl'
 import { optimizeLineupDate, setLineupPlayerPin, type LineupPin } from '@/lib/lineup/pins'
 import { LineupControls } from '@/components/ui/LineupControls'
+import { IrNotices } from '@/components/lineup/IrNotices'
+import type { IrNotice } from '@/lib/lineup/ir-notices'
 import { SectionBand } from '@/components/ui/SectionBand'
 import { holdPwaUpdate } from '@/lib/pwa-update-guard'
 import { PlayerRowContent } from '@/components/player/PlayerRowContent'
@@ -240,6 +242,7 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
     const [reserves, setReserves] = useState<{ ir: LineupPlayer[]; taxi: LineupPlayer[] }>({ ir: [], taxi: [] })
     const [seasonOptimizerEnabled, setSeasonOptimizerEnabled] = useState(false)
     const [optimizerSaving, setOptimizerSaving] = useState(false)
+    const [irNotices, setIrNotices] = useState<IrNotice[]>([])
     const [pinSaving, setPinSaving] = useState(false)
     const pinPendingRef = useRef(false)
     const [lineupLoading, setLineupLoading] = useState(true)
@@ -556,7 +559,8 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
             await setLineupPlayerPin(actionContext.leagueId, player.playerId, date, pin)
             pinSaved = true
             if (!isCurrent()) return
-            await optimizeLineupDate(actionContext.memberId, actionContext.leagueId, actionContext.seasonId, date)
+            const optimized = await optimizeLineupDate(actionContext.memberId, actionContext.leagueId, actionContext.seasonId, date)
+            if (isCurrent()) setIrNotices(optimized.notices)
             if (isCurrent() && selectedDateRef.current === date) await load(date)
         } catch (error) {
             if (isCurrent()) {
@@ -573,6 +577,7 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
     async function handleDaySelect(date: string) {
         setSelectedDate(date)
         selectedDateRef.current = date
+        setIrNotices([])
         setDataDate('')
         setStarters([])
         setBench([])
@@ -676,6 +681,12 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
                     onAutomaticChange={(enabled) => { void (enabled ? handleEnableSeasonOptimizer() : handleDisableSeasonOptimizer()) }}
                 />
             </View>
+
+            {irNotices.length > 0 ? (
+                <View style={{ marginHorizontal: padX, marginTop: spacing.md }}>
+                    <IrNotices notices={irNotices} />
+                </View>
+            ) : null}
 
             <Text style={[textStyles.meta, { paddingHorizontal: padX, paddingVertical: spacing.sm }]}>
                 Tap a player, then a slot or another player to swap. Players whose games have started stay in place.

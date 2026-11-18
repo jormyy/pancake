@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase'
 import { apiPost } from '@/lib/shared/api'
 import { assertMutationOnline, withPwaMutation } from '@/lib/shared/pwa-mutation'
+import type { IrNotice } from '@/lib/lineup/ir-notices'
 
 export type LineupPin = 'start' | 'bench' | null
 
@@ -26,12 +27,13 @@ export async function setLineupPlayerPin(leagueId: string, playerId: string, dat
     })
 }
 
-export async function optimizeLineupDate(memberId: string, leagueId: string, seasonId: string, date: string): Promise<void> {
+export async function optimizeLineupDate(memberId: string, leagueId: string, seasonId: string, date: string): Promise<{ notices: IrNotice[] }> {
     assertMutationOnline()
-    const result = await apiPost<{ failed?: number; results?: { status: string; error?: string }[] }>(
+    const result = await apiPost<{ failed?: number; results?: { status: string; error?: string }[]; ir?: { notices?: IrNotice[] } }>(
         '/league/lineup/auto-set-season',
         { memberId, leagueId, leagueSeasonId: seasonId, dates: [date] },
     )
     const failure = result.results?.find(row => row.status === 'failed')
     if (result.failed || failure) throw new Error(failure?.error ?? 'Could not update the lineup for this day.')
+    return { notices: Array.isArray(result.ir?.notices) ? result.ir.notices : [] }
 }

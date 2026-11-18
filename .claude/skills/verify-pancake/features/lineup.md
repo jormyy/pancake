@@ -9,6 +9,7 @@ Lineup lets a manager choose starters, pin player roles, and enable daily automa
 - `lineup-bench` excludes a player from starters through Bench.
 - `lineup-days` loads each selected date independently.
 - `lineup-daily` changes the automatic daily setting.
+- `lineup-auto-ir` shows Auto Lineup IR moves and notices after an optimizer run.
 - `lineup-slots` changes occupied and empty slots through their visible controls.
 
 ## How to get to it (user POV)
@@ -34,6 +35,7 @@ Preconditions:
 - **Dates.** Select another full-date button from the snapshot. Require the other date’s own pin state. Return to today and confirm persistence.
 - **Manual swap.** Pin a player to Start, select their slot, then select an eligible bench player. Require the swap and removal of the contradicted pin.
 - **Other controls.** Toggle the automatic daily switch, reopen, and compare `lineup_optimizer_settings`.
+- **Auto IR.** Use the [Auto Lineup IR](auto-lineup-ir.md) journey to seed a case, trigger the background optimizer, and require the returned moves or notices on this screen.
 - **Narrow view.** At 375×812, repeat the Start/Auto/Bench controls and confirm each remains reachable without horizontal clipping.
 
 ## Gotchas

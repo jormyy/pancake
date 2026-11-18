@@ -346,6 +346,7 @@ export default function PlayerDetailScreen() {
                 onMoveToIR={quickAdd.handleResolutionMoveToIR}
                 irAvailable={(quickAdd.irModal?.roster ?? []).filter(player => player.is_on_ir).length < (currentLeague?.ir_slots ?? 2)}
                 onDropAndActivate={quickAdd.handleDropAndIRActivate}
+                onSwapWithInjured={quickAdd.handleSwapWithInjured}
                 onCancel={() => quickAdd.setIrModal(null)}
             />
         </>

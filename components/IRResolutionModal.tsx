@@ -20,6 +20,7 @@ type Props = {
     onRefresh?: () => void
     onActivate: (player: RosterPlayer) => Promise<void>
     onDropAndActivate: (dropPlayer: RosterPlayer, activatePlayer: RosterPlayer) => Promise<void>
+    onSwapWithInjured?: (healthyIrPlayer: RosterPlayer, injuredPlayer: RosterPlayer) => Promise<void>
     onDrop?: (player: RosterPlayer) => Promise<void>
     onMoveToIR?: (player: RosterPlayer) => Promise<void>
     onCancel: () => void
@@ -35,12 +36,17 @@ function PlayerLine({ player, message, action }: { player: RosterPlayer; message
     </View>
 }
 
-export function IRResolutionModal({ visible, ineligibleIR, activeRoster, rosterSize, pendingPlayerName, irAvailable = false, serverMessage, onRefresh, onActivate, onDropAndActivate, onDrop, onMoveToIR, onCancel }: Props) {
+export function IRResolutionModal({ visible, ineligibleIR, activeRoster, rosterSize, pendingPlayerName, irAvailable = false, serverMessage, onRefresh, onActivate, onDropAndActivate, onSwapWithInjured, onDrop, onMoveToIR, onCancel }: Props) {
     const [activatingPlayer, setActivatingPlayer] = useState<RosterPlayer | null>(null)
     const [loadingId, setLoadingId] = useState<string | null>(null)
     const reserveOptions = useMemo(() => orderRosterOptions(ineligibleIR), [ineligibleIR])
     const activeOptions = useMemo(() => orderRosterOptions(activeRoster), [activeRoster])
+    const injuredCandidates = useMemo(
+        () => activeRoster.filter(player => isIREligible(player.players.injury_status) && !player.assetLocks?.length),
+        [activeRoster],
+    )
     const excess = activeRoster.length - rosterSize
+    const benchFull = activeRoster.length >= rosterSize
 
     useEffect(() => {
         if (visible) { setActivatingPlayer(null); setLoadingId(null) }
@@ -61,6 +67,11 @@ export function IRResolutionModal({ visible, ineligibleIR, activeRoster, rosterS
     function fixes(player: RosterPlayer, reserved: boolean) {
         return <>
             {reserved ? <Button title="Activate" size="sm" onPress={() => activate(player)} disabled={loadingId !== null} accessibilityLabel={`Activate ${player.players.display_name}`} /> : null}
+            {reserved && player.is_on_ir && !isIREligible(player.players.injury_status) && benchFull && onSwapWithInjured ? injuredCandidates.map(injured => <Button key={injured.id}
+                title={`Swap with ${injured.players.display_name}`} size="sm" variant="outline"
+                onPress={() => run(player, () => onSwapWithInjured(player, injured))} disabled={loadingId !== null}
+                loading={loadingId === player.id}
+                accessibilityLabel={`Swap ${player.players.display_name} with ${injured.players.display_name}`} />) : null}
             {irAvailable && !player.is_on_ir && isIREligible(player.players.injury_status) && onMoveToIR ? <Button title="Move to IR" size="sm" variant="outline" onPress={() => run(player, () => onMoveToIR(player))} disabled={loadingId !== null} accessibilityLabel={`Move ${player.players.display_name} to IR`} /> : null}
             {onDrop ? <Button title="Drop" size="sm" variant="outline" onPress={() => run(player, () => onDrop(player))} disabled={loadingId !== null} accessibilityLabel={`Drop ${player.players.display_name}`} /> : null}
         </>

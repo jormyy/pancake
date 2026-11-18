@@ -247,7 +247,7 @@ The [trade curve report](../docs/trade-curve.md) records the real trades, roster
 ## Release order for this release
 
 The supplied production head is `20261214010800`, with 786 migrations.
-The candidate adds `20261214010900_draft_pick_calendar_years.sql`, `20261214011000_compact_trade_activity.sql` and `20261214011100_scoped_trade_acceptance_capacity.sql`, for 789 migrations.
+The candidate adds `20261214010900_draft_pick_calendar_years.sql`, `20261214011000_compact_trade_activity.sql`, `20261214011100_scoped_trade_acceptance_capacity.sql` and `20261214011200_auto_manage_ir_service.sql`, for 790 migrations.
 The draft-year migration stores draft calendar years and repairs only the approved affected league.
 The guard requires the exact recorded pick state and refuses drift.
 The tested external recovery SQL accompanies the release inputs.
@@ -262,6 +262,13 @@ Apply the scoped trade acceptance migration after the compact trade Activity mig
 A partial acceptance validates only the accepting team's resulting roster, so one team can accept while another team's current roster is full.
 The last acceptance and completion validate every team's final roster after all transfers and planned moves.
 That migration keeps every function signature, owner, and grant, so the function catalog stays unchanged.
+This candidate does not verify or change production state.
+
+Apply the Auto Lineup IR migration after the scoped trade acceptance migration.
+It adds the service-only `public.auto_manage_ir_service` RPC and its function catalog entry.
+The RPC reuses `private.toggle_ir_for_activation` and the existing reservation check.
+It only runs for an active or playoff league with the current season.
+The matching `lineup-optimizer` release calls it before loading each member's roster.
 This candidate does not verify or change production state.
 
 Use the approved hand release for this candidate.
@@ -1643,3 +1650,18 @@ Run the optimizer Deno tests and regenerate database types and release attestati
 The candidate also bounds live version hints in `20261214010100_bound_version_hint_payload.sql`. Large batches retain their full durable change record.
 
 `20261214010200_register_retention_lifetimes.sql` records the existing lifetime of fourteen tables in the retention catalog.
+
+## Auto Lineup injured reserve
+
+Apply `20261214011200_auto_manage_ir_service.sql` after `20261214011100`.
+Release the matching `lineup-optimizer` function with the IR call.
+`public.auto_manage_ir_service` is service-only and returns moves, skipped players, and notices.
+It takes the member and player advisory locks before reading, then applies every move through `private.toggle_ir_for_activation`.
+Each designate, swap pair, or lone activation runs in its own sub-transaction.
+A failed group rolls back alone and is reported; other groups continue.
+After applying, the call asserts taxi rows are unchanged, no roster player was dropped, no new `private.roster_problems` row appeared, and IR and active counts did not grow past their limits.
+Any assertion failure rolls back the whole call.
+The function only runs for an active or playoff league with the current season.
+IR and taxi over-capacity are not reachable through supported write paths, so `private.roster_problems` keeps its existing problem kinds.
+Run `npm run test:db:auto-manage-ir` and `npm run test:db:auto-manage-ir-concurrency` on a private stack.
+Regenerate database types, the function catalog, and release attestations.

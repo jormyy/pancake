@@ -43,6 +43,17 @@ it('runs the existing manual optimizer for exactly the selected date', async () 
     })
 })
 
+it('returns the IR notices from the manual optimizer', async () => {
+    const notices = [{ playerId: 'player', playerName: 'Injured Star', reason: 'ir_choice_uncertain', action: 'Choose who moves to IR' }]
+    apiPost.mockResolvedValue({ optimized: 1, failed: 0, ir: { moves: [], notices } })
+    await expect(optimizeLineupDate('member', 'league', 'season', '2026-11-04')).resolves.toEqual({ notices })
+})
+
+it('returns no notices when the optimizer response has none', async () => {
+    apiPost.mockResolvedValue({ optimized: 1, failed: 0 })
+    await expect(optimizeLineupDate('member', 'league', 'season', '2026-11-04')).resolves.toEqual({ notices: [] })
+})
+
 it.each([{ failed: 1 }, { results: [{ status: 'failed' }] }])('rejects partial optimizer failures: %j', async result => {
     apiPost.mockResolvedValue(result)
     await expect(optimizeLineupDate('member', 'league', 'season', '2026-11-04')).rejects.toThrow('Could not update the lineup')

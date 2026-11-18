@@ -4,6 +4,7 @@ import { renewCurrentWorkLease } from '../_shared/workContext.ts'
 import { errorMessage } from '../_shared/responses.ts'
 import { loadEnabledOptimizerSettings } from './settings.ts'
 import { tipoffAssignments, type TipoffContext } from './preTipoff.ts'
+import { manageIrForMember } from './ir.ts'
 
 export async function processDaily(body: Record<string, unknown>) {
   if (typeof body.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(body.date)) {
@@ -19,6 +20,7 @@ export async function processDaily(body: Record<string, unknown>) {
   for (const setting of settings) {
     await renewCurrentWorkLease()
     try {
+      await manageIrForMember(setting)
       const { data, error } = await supabase.rpc('get_pre_tipoff_lineup_context', {
         p_league_id: setting.league_id, p_league_season_id: setting.league_season_id, p_member_id: setting.member_id,
       })

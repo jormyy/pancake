@@ -74,7 +74,7 @@ beforeEach(() => {
     const page = new EventTarget()
     Object.defineProperty(page, 'visibilityState', { get: () => mocks.hidden ? 'hidden' : 'visible' })
     vi.stubGlobal('document', page)
-    mocks.snapshot = false; mocks.setPin.mockReset().mockResolvedValue({}); mocks.optimizeDate.mockReset().mockResolvedValue(undefined)
+    mocks.snapshot = false; mocks.setPin.mockReset().mockResolvedValue({}); mocks.optimizeDate.mockReset().mockResolvedValue({ notices: [] })
     mocks.teamMatchups = {}
     mocks.freshness = 'fresh'; mocks.games = []; mocks.startedTeams = new Set()
     mocks.hidden = false; mocks.dirty = false; mocks.listeners.clear()
@@ -117,6 +117,26 @@ it('keeps Auto selected when older saved data has no pin field', async () => {
     mocks.lineup.bench = [player]
     await mount()
     expect(pinButton('Set Player to Auto').props.accessibilityState.checked).toBe(true)
+})
+
+it('shows the IR notices returned by the optimizer run', async () => {
+    mocks.lineup.bench = [pinPlayer('Bench')]
+    mocks.optimizeDate.mockResolvedValue({ notices: [{
+        playerId: 'p1', playerName: 'Injured Star', reason: 'ir_choice_uncertain', action: 'Choose who moves to IR',
+    }] })
+    await mount()
+    await tapPin('Pin Bench to start')
+    const text = JSON.stringify(screen.toJSON())
+    expect(text).toContain('Injured Star')
+    expect(text).toContain('Injured players are competing for the last IR spot and their return dates are unclear.')
+    expect(text).toContain('Choose who moves to IR')
+})
+
+it('shows nothing new when the optimizer run returns no notices', async () => {
+    mocks.lineup.bench = [pinPlayer('Bench')]
+    await mount()
+    await tapPin('Pin Bench to start')
+    expect(JSON.stringify(screen.toJSON())).not.toContain('Roster needs your call')
 })
 
 it.each(['starter', 'bench'] as const)('disables pins on locked %s rows', async kind => {
