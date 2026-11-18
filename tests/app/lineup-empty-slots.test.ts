@@ -9,7 +9,7 @@ import type { AssetLock } from '@/lib/locked-assets'
 const mocks = vi.hoisted(() => ({
     context: { current: { id: 'member-a' }, currentLeague: { id: 'league-a' } as { id: string; roster_size?: number; ir_slots?: number; taxi_slots?: number }, online: true, membershipValidated: false, membershipError: null as Error | null, refresh: vi.fn() },
     lineup: { starters: [] as { slotType: string; player: LineupPlayer | null }[], bench: [] as LineupPlayer[], benchSlots: 3 },
-    setPin: vi.fn(), optimizeDate: vi.fn(), snapshot: false,
+    setPin: vi.fn(), optimizeDate: vi.fn(), readNotices: vi.fn(), snapshot: false,
     readView: vi.fn(), hidden: false, dirty: false, listeners: new Map<() => void, string>(),
     freshness: 'fresh', games: [] as { home_team: string; away_team: string; status: string }[], startedTeams: new Set<string>(),
     teamMatchups: {} as Record<string, Record<string, { opponent: string; isHome: boolean }>>,
@@ -38,6 +38,7 @@ vi.mock('@/lib/cache/screen-cache', () => ({
 }))
 vi.mock('@/lib/lineup', () => ({ getLineupMoveTargetState: () => null }))
 vi.mock('@/lib/lineup/pins', () => ({ setLineupPlayerPin: mocks.setPin, optimizeLineupDate: mocks.optimizeDate }))
+vi.mock('@/lib/lineup/ir-notice-read', () => ({ readAutoIrNotices: mocks.readNotices }))
 vi.mock('@/lib/lineup/optimizerSettings', () => ({ getLineupOptimizerEnabled: async () => mocks.enabled, setLineupOptimizerEnabled: mocks.setEnabled }))
 vi.mock('@/lib/lineup/snapshot', () => ({ readLineupSnapshot: (_scope: unknown, date: string) => mocks.snapshot ? {
     context: { seasonId: 'season-league-a', weekNumber: 1, seasonYear: 2027, today: '2026-10-11' },
@@ -74,7 +75,8 @@ beforeEach(() => {
     const page = new EventTarget()
     Object.defineProperty(page, 'visibilityState', { get: () => mocks.hidden ? 'hidden' : 'visible' })
     vi.stubGlobal('document', page)
-    mocks.snapshot = false; mocks.setPin.mockReset().mockResolvedValue({}); mocks.optimizeDate.mockReset().mockResolvedValue({ notices: [] })
+    mocks.snapshot = false; mocks.setPin.mockReset().mockResolvedValue({}); mocks.optimizeDate.mockReset().mockResolvedValue(undefined)
+    mocks.readNotices.mockReset().mockResolvedValue({ enabled: true, notices: [] })
     mocks.teamMatchups = {}
     mocks.freshness = 'fresh'; mocks.games = []; mocks.startedTeams = new Set()
     mocks.hidden = false; mocks.dirty = false; mocks.listeners.clear()
@@ -119,23 +121,49 @@ it('keeps Auto selected when older saved data has no pin field', async () => {
     expect(pinButton('Set Player to Auto').props.accessibilityState.checked).toBe(true)
 })
 
-it('shows the IR notices returned by the optimizer run', async () => {
-    mocks.lineup.bench = [pinPlayer('Bench')]
-    mocks.optimizeDate.mockResolvedValue({ notices: [{
-        playerId: 'p1', playerName: 'Injured Star', reason: 'ir_choice_uncertain', action: 'Choose who moves to IR',
-    }] })
+const notice = (overrides: Record<string, string> = {}) => ({
+    playerId: 'p1', playerName: 'Injured Star', reason: 'ir_choice_uncertain', action: 'Choose who moves to IR', ...overrides,
+})
+
+it('shows Auto Lineup notices on first open without a pin change', async () => {
+    mocks.readNotices.mockResolvedValue({ enabled: true, notices: [notice()] })
     await mount()
-    await tapPin('Pin Bench to start')
+    await act(async () => {})
     const text = JSON.stringify(screen.toJSON())
     expect(text).toContain('Injured Star')
     expect(text).toContain('Injured players are competing for the last IR spot and their return dates are unclear.')
     expect(text).toContain('Choose who moves to IR')
+    expect(mocks.setPin).not.toHaveBeenCalled()
 })
 
-it('shows nothing new when the optimizer run returns no notices', async () => {
-    mocks.lineup.bench = [pinPlayer('Bench')]
+it('shows the notices again after the screen is closed and reopened', async () => {
+    mocks.readNotices.mockResolvedValue({ enabled: true, notices: [notice()] })
     await mount()
+    await act(async () => {})
+    expect(JSON.stringify(screen.toJSON())).toContain('Injured Star')
+    await act(async () => screen.unmount())
+    await mount()
+    await act(async () => {})
+    expect(JSON.stringify(screen.toJSON())).toContain('Injured Star')
+    expect(mocks.readNotices).toHaveBeenCalledTimes(2)
+})
+
+it('refreshes the notices after a pin change', async () => {
+    mocks.lineup.bench = [pinPlayer('Bench')]
+    mocks.readNotices.mockResolvedValueOnce({ enabled: true, notices: [] })
+        .mockResolvedValue({ enabled: true, notices: [notice({ playerName: 'Fresh Notice' })] })
+    await mount()
+    await act(async () => {})
+    expect(JSON.stringify(screen.toJSON())).not.toContain('Fresh Notice')
     await tapPin('Pin Bench to start')
+    await act(async () => {})
+    expect(JSON.stringify(screen.toJSON())).toContain('Fresh Notice')
+})
+
+it('shows nothing when Auto Lineup is disabled', async () => {
+    mocks.readNotices.mockResolvedValue({ enabled: false, notices: [notice()] })
+    await mount()
+    await act(async () => {})
     expect(JSON.stringify(screen.toJSON())).not.toContain('Roster needs your call')
 })
 

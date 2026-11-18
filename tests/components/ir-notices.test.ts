@@ -38,6 +38,21 @@ it('explains an uncertain IR choice and a taxi problem in plain words', async ()
     expect(text).toContain('Activate Taxi Guy from taxi or drop a player')
 })
 
+it('explains that a healthy IR player can swap with an injured player', async () => {
+    await act(async () => {
+        screen = create(React.createElement(IrNotices, {
+            notices: [{
+                playerId: 'p1', playerName: 'Healthy Vet', reason: 'healthy_ir_swap_available',
+                action: 'Swap Healthy Vet with an injured player',
+            }],
+        }))
+    })
+    const text = JSON.stringify(screen.toJSON())
+    expect(text).toContain('Healthy Vet')
+    expect(text).toContain('Healthy on IR, but the active roster is full. An injured player can take the spot.')
+    expect(text).toContain('Swap Healthy Vet with an injured player')
+})
+
 it('renders nothing when the optimizer returned no notices', async () => {
     await act(async () => { screen = create(React.createElement(IrNotices, { notices: [] })) })
     expect(screen.toJSON()).toBeNull()

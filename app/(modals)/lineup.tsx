@@ -8,7 +8,7 @@ import { LineupPinControl } from '@/components/LineupPinControl'
 import { optimizeLineupDate, setLineupPlayerPin, type LineupPin } from '@/lib/lineup/pins'
 import { LineupControls } from '@/components/ui/LineupControls'
 import { IrNotices } from '@/components/lineup/IrNotices'
-import type { IrNotice } from '@/lib/lineup/ir-notices'
+import { useAutoIrNotices } from '@/hooks/use-auto-ir-notices'
 import { SectionBand } from '@/components/ui/SectionBand'
 import { holdPwaUpdate } from '@/lib/pwa-update-guard'
 import { PlayerRowContent } from '@/components/player/PlayerRowContent'
@@ -242,7 +242,6 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
     const [reserves, setReserves] = useState<{ ir: LineupPlayer[]; taxi: LineupPlayer[] }>({ ir: [], taxi: [] })
     const [seasonOptimizerEnabled, setSeasonOptimizerEnabled] = useState(false)
     const [optimizerSaving, setOptimizerSaving] = useState(false)
-    const [irNotices, setIrNotices] = useState<IrNotice[]>([])
     const [pinSaving, setPinSaving] = useState(false)
     const pinPendingRef = useRef(false)
     const [lineupLoading, setLineupLoading] = useState(true)
@@ -446,6 +445,12 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
 
     const ownsLineup = dataOwnerKey === ownerKey
     const visibleCtx = ownsLineup ? ctx : null
+    const { notices: irNotices, refresh: refreshIrNotices } = useAutoIrNotices({
+        leagueId: snapshotScope?.leagueId ?? null,
+        seasonId: visibleCtx?.seasonId ?? null,
+        ownerKey,
+        online,
+    })
     const matchingDay = dataDate === selectedDate
     const visibleStarters = useMemo(() => ownsLineup && matchingDay ? starters : [], [ownsLineup, matchingDay, starters])
     const visibleBench = useMemo(() => ownsLineup && matchingDay ? bench : [], [bench, matchingDay, ownsLineup])
@@ -559,8 +564,8 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
             await setLineupPlayerPin(actionContext.leagueId, player.playerId, date, pin)
             pinSaved = true
             if (!isCurrent()) return
-            const optimized = await optimizeLineupDate(actionContext.memberId, actionContext.leagueId, actionContext.seasonId, date)
-            if (isCurrent()) setIrNotices(optimized.notices)
+            await optimizeLineupDate(actionContext.memberId, actionContext.leagueId, actionContext.seasonId, date)
+            if (isCurrent()) void refreshIrNotices()
             if (isCurrent() && selectedDateRef.current === date) await load(date)
         } catch (error) {
             if (isCurrent()) {
@@ -577,7 +582,6 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
     async function handleDaySelect(date: string) {
         setSelectedDate(date)
         selectedDateRef.current = date
-        setIrNotices([])
         setDataDate('')
         setStarters([])
         setBench([])
@@ -602,6 +606,7 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
             if (optimizerRequestIsCurrent(requestId, generation)) {
                 if (snapshotScope) updateLineupOptimizerSnapshot(snapshotScope, generation, actionContext.seasonId, true)
                 setSeasonOptimizerEnabled(true)
+                void refreshIrNotices()
             }
         } catch (e) {
             if (optimizerRequestIsCurrent(requestId, generation)) showAlert('Auto-set daily failed', getErrorMessage(e))
@@ -625,6 +630,7 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
             if (optimizerRequestIsCurrent(requestId, generation)) {
                 if (snapshotScope) updateLineupOptimizerSnapshot(snapshotScope, generation, actionContext.seasonId, false)
                 setSeasonOptimizerEnabled(false)
+                void refreshIrNotices()
             }
         } catch (e) {
             if (optimizerRequestIsCurrent(requestId, generation)) showAlert('Auto-set daily failed', getErrorMessage(e))
