@@ -816,6 +816,25 @@ BEGIN
   PERFORM pg_temp.check_rules((SELECT count(*) FROM roster_transactions WHERE member_id = f.member_id AND transaction_type = 'ir_designate') = 1
     AND (SELECT count(*) FROM roster_transactions WHERE member_id = f.member_id AND transaction_type = 'ir_return') = 0,
     'tied compared incumbent writes only the designate transaction');
+
+  -- Tied incumbents that are both exchanged still write both pairs.
+  SELECT * INTO f FROM pg_temp.auto_ir_league(9572, 2, 3);
+  h1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Both Tie Seven One', 'Out', (v_today + 7)::text, 'ir');
+  h2 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Both Tie Seven Two', 'Out', (v_today + 7)::text, 'ir');
+  h3 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Both Tie Thirty', 'Out', (v_today + 30)::text, 'ir');
+  c1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Both Tie Sixty', 'Out', (v_today + 60)::text, 'active');
+  c2 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Both Tie Fifty', 'Out', (v_today + 50)::text, 'active');
+  r := public.auto_manage_ir_service(f.league_id, f.season_id, f.member_id);
+  PERFORM pg_temp.check_rules(jsonb_array_length(r->'moves') = 2, 'both tied incumbents write both pairs');
+  PERFORM pg_temp.check_rules((SELECT is_on_ir FROM roster_players WHERE id = c1)
+    AND (SELECT is_on_ir FROM roster_players WHERE id = c2)
+    AND NOT (SELECT is_on_ir FROM roster_players WHERE id = h1)
+    AND NOT (SELECT is_on_ir FROM roster_players WHERE id = h2)
+    AND (SELECT is_on_ir FROM roster_players WHERE id = h3),
+    'both tied incumbents move both contenders to IR and keep the 30-day incumbent');
+  PERFORM pg_temp.check_rules((SELECT count(*) FROM roster_transactions WHERE member_id = f.member_id AND transaction_type = 'ir_designate') = 2
+    AND (SELECT count(*) FROM roster_transactions WHERE member_id = f.member_id AND transaction_type = 'ir_return') = 2,
+    'both tied incumbents write both designate and return transactions');
 END;
 $$;
 
