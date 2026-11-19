@@ -769,6 +769,53 @@ BEGIN
     SELECT 1 FROM jsonb_array_elements(r->'skipped') s
      WHERE s->>'reason' LIKE '%IR slots%'),
     'zero slots with a full bench produces no raw capacity error');
+
+  -- An unchanged multi-exchange plan writes every pair.
+  SELECT * INTO f FROM pg_temp.auto_ir_league(9570, 2, 2);
+  h1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Multi Exchange Seven', 'Out', (v_today + 7)::text, 'ir');
+  h2 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Multi Exchange Ten', 'Out', (v_today + 10)::text, 'ir');
+  c1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Multi Exchange Sixty', 'Out', (v_today + 60)::text, 'active');
+  c2 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Multi Exchange Fifty', 'Out', (v_today + 50)::text, 'active');
+  r := public.auto_manage_ir_service(f.league_id, f.season_id, f.member_id);
+  PERFORM pg_temp.check_rules(jsonb_array_length(r->'moves') = 2, 'multi exchange writes both pairs');
+  PERFORM pg_temp.check_rules((SELECT is_on_ir FROM roster_players WHERE id = c1)
+    AND (SELECT is_on_ir FROM roster_players WHERE id = c2)
+    AND NOT (SELECT is_on_ir FROM roster_players WHERE id = h1)
+    AND NOT (SELECT is_on_ir FROM roster_players WHERE id = h2),
+    'multi exchange moves both contenders to IR and both incumbents active');
+  PERFORM pg_temp.check_rules((SELECT count(*) FROM roster_transactions WHERE member_id = f.member_id AND transaction_type = 'ir_designate') = 2
+    AND (SELECT count(*) FROM roster_transactions WHERE member_id = f.member_id AND transaction_type = 'ir_return') = 2,
+    'multi exchange writes both designate and return transactions');
+
+  -- A compared incumbent that ties the exchanged incumbent skips the pair.
+  SELECT * INTO f FROM pg_temp.auto_ir_league(9571, 2, 3);
+  h1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Tie Incumbent Seven', 'Out', (v_today + 7)::text, 'ir');
+  h2 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Tie Incumbent Thirty', 'Out', (v_today + 30)::text, 'ir');
+  c1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Tie Designate Sixty', 'Out', (v_today + 60)::text, 'active');
+  c2 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Tie Exchange Fifty', 'Out', (v_today + 50)::text, 'active');
+  PERFORM set_config('auto_ir.set_return_member', f.member_id::text, true);
+  PERFORM set_config('auto_ir.set_return_target', (SELECT player_id FROM roster_players WHERE id = h2)::text, true);
+  PERFORM set_config('auto_ir.set_return_value', (v_today + 7)::text, true);
+  CREATE TRIGGER auto_ir_set_return BEFORE UPDATE ON roster_players
+    FOR EACH ROW EXECUTE FUNCTION pg_temp.auto_ir_set_return();
+  r := public.auto_manage_ir_service(f.league_id, f.season_id, f.member_id);
+  DROP TRIGGER auto_ir_set_return ON roster_players;
+  PERFORM pg_temp.check_rules(jsonb_array_length(r->'moves') = 1
+    AND r->'moves'->0->>'kind' = 'designate'
+    AND (r->'moves'->0->>'designatePlayerId')::uuid = (SELECT player_id FROM roster_players WHERE id = c1),
+    'tied compared incumbent still writes the designate');
+  PERFORM pg_temp.check_rules(EXISTS (
+    SELECT 1 FROM jsonb_array_elements(r->'skipped') s
+     WHERE s->>'reason' LIKE '%Incumbent exchange no longer valid%'
+       AND (s->>'playerId')::uuid = (SELECT player_id FROM roster_players WHERE id = c2)),
+    'tied compared incumbent skips the exchange');
+  PERFORM pg_temp.check_rules((SELECT is_on_ir FROM roster_players WHERE id = h1)
+    AND (SELECT is_on_ir FROM roster_players WHERE id = h2)
+    AND NOT (SELECT is_on_ir FROM roster_players WHERE id = c2),
+    'tied compared incumbent leaves the pair unchanged');
+  PERFORM pg_temp.check_rules((SELECT count(*) FROM roster_transactions WHERE member_id = f.member_id AND transaction_type = 'ir_designate') = 1
+    AND (SELECT count(*) FROM roster_transactions WHERE member_id = f.member_id AND transaction_type = 'ir_return') = 0,
+    'tied compared incumbent writes only the designate transaction');
 END;
 $$;
 
