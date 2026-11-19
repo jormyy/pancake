@@ -29,7 +29,7 @@ Preconditions:
 - `node tools/verify/seed-auto-ir.mjs "$EVIDENCE" --case=<name>` has run.
 - Read the involved player names and ids from the seeder’s JSON, not from the fixture.
 
-Cases: `open-slot`, `full-bench-swap`, `no-legal-swap`, `swap-available`, `uncertain`, `locked`, `taxi-ineligible`, `incumbent-exchange`, `incumbent-tie`, `incumbent-unknown`.
+Cases: `open-slot`, `full-bench-swap`, `no-legal-swap`, `swap-available`, `swap-locked`, `uncertain`, `locked`, `taxi-ineligible`, `incumbent-exchange`, `incumbent-tie`, `incumbent-unknown`.
 
 - **Seed.** Run the seeder for one case. It reshapes E2E Team 1, enables that member’s lineup optimizer, and prints JSON. Re-running the same case resets and reapplies it.
 - **Before.** Run `node tools/verify/observe.mjs "$EVIDENCE" > "$EVIDENCE/auto-ir-before.json"`. Require `roster_players.is_on_ir`/`is_on_taxi`, the team’s `roster_transactions`, and the `players` injury fields.
@@ -38,6 +38,7 @@ Cases: `open-slot`, `full-bench-swap`, `no-legal-swap`, `swap-available`, `uncer
 - **Trigger (Lineup screen).** Use the visible Auto lineup control. After the run, the notice list refreshes from the live read; no pin change is required.
 - **After.** Repeat the observation into `auto-ir-after.json`. Require the expected `is_on_ir` flags and `roster_transactions` rows (`ir_designate`, `ir_return`).
 - **Incumbent exchange.** For `incumbent-exchange`, require the 60-day contender on IR and the 7-day incumbent active, with the 30-day incumbent still on IR. For `incumbent-tie` and `incumbent-unknown`, require no roster change and the `ir_choice_uncertain` notice.
+- **Locked swap partner.** For `swap-locked`, require no roster change and the `healthy_ir_swap_locked` notice. The reason text is `Healthy on IR, but the active roster is full. The injured player who could take the spot is locked by a game or a pending move.` and the action is `Swap <name> with an injured player after their game or pending move clears`. The notice must not advise a swap that the game lock would reject.
 - **Manual swap.** For `full-bench-swap` and `swap-available`, either path above must leave the healthy occupant active and the injured player on IR. The roster sheet repeats each `Move ... to IR` label behind the dialog; click `[role="dialog"] [aria-label="Move <name> to IR"]`, then `Move and activate`.
 - **Pickup gate.** With IR invalid, a claim must open Resolve roster and write no `waiver_claims` row until the roster is legal.
 - **Widths.** Repeat the notice and manual swap at 375×812.
@@ -50,6 +51,7 @@ Cases: `open-slot`, `full-bench-swap`, `no-legal-swap`, `swap-available`, `uncer
 | `full-bench-swap` | occupant `is_on_ir=false`, candidate `is_on_ir=true`, `ir_return` and `ir_designate` | swap reflected in both groups |
 | `no-legal-swap` | no roster change | `healthy_ir_bench_full` notice with `Drop a player, then activate <name>` |
 | `swap-available` | no roster change | `healthy_ir_swap_available` notice with `Swap <name> with an injured player` |
+| `swap-locked` | no roster change | `healthy_ir_swap_locked` notice with `Swap <name> with an injured player after their game or pending move clears` |
 | `uncertain` | no roster change | `ir_choice_uncertain` notice with `Choose who moves to IR` |
 | `locked` | no roster change | no notice; the candidate is retried next run |
 | `taxi-ineligible` | no roster change | `taxi_ineligible` notice with `Activate <name> from taxi or drop a player` |
@@ -60,8 +62,8 @@ Cases: `open-slot`, `full-bench-swap`, `no-legal-swap`, `swap-available`, `uncer
 ## Gotchas
 
 - The seeder is destructive to E2E Team 1; recreate the run before unrelated roster journeys.
-- A started NBA game locks the candidate; the `locked` case inserts a started game for that player’s team.
+- A started NBA game locks the candidate; the `locked` and `swap-locked` cases insert a started game for that player’s team.
 - The first `browser.sh login` after launch can fail once; the helper retries once.
 - The seeder writes plain fixture rows and does not require `public.auto_manage_ir_service` or `public.get_auto_ir_notices` to exist.
 - Notices are never stored. Opening Lineup after a scheduled run must show the current roster’s notices without a pin change; reopening must show them again.
-- `no-legal-swap` has no IR-eligible active player, so its advice is a cut. `swap-available` has eligible active players, so its advice is the manual swap.
+- `no-legal-swap` has no IR-eligible active player, so its advice is a cut. `swap-available` has eligible active players, so its advice is the manual swap. `swap-locked` has an eligible active player who is game-locked, so its advice waits for the lock to clear.

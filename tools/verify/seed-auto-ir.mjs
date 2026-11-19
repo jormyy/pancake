@@ -9,7 +9,7 @@ const flag = (name, fallback) => {
   const hit = process.argv.find((arg) => arg.startsWith(`--${name}=`))
   return hit ? hit.slice(name.length + 3) : fallback
 }
-const cases = ['open-slot', 'full-bench-swap', 'no-legal-swap', 'swap-available', 'uncertain', 'locked', 'taxi-ineligible', 'incumbent-exchange', 'incumbent-tie', 'incumbent-unknown']
+const cases = ['open-slot', 'full-bench-swap', 'no-legal-swap', 'swap-available', 'swap-locked', 'uncertain', 'locked', 'taxi-ineligible', 'incumbent-exchange', 'incumbent-tie', 'incumbent-unknown']
 const caseName = flag('case', '')
 assert.ok(cases.includes(caseName), `--case=${cases.join('|')}`)
 const team = flag('team', 'E2E Team 1')
@@ -137,6 +137,22 @@ if (caseName === 'open-slot') {
     { role: 'healthyIrOccupant', playerId: healthyOccupant.playerId },
     { role: 'candidate', playerId: first.playerId },
     { role: 'candidate', playerId: second.playerId },
+  )
+} else if (caseName === 'swap-locked') {
+  const [healthyOccupant, injuredPartner] = pick(2)
+  assert.ok(injuredPartner.nbaTeam, `${injuredPartner.name} needs an NBA team for the swap-locked case`)
+  assert.ok(ctx.weekNumber, 'The swap-locked case needs a current season week')
+  playerUpdates.set(healthyOccupant.playerId, { injury_status: 'Healthy' })
+  rosterUpdates.set(healthyOccupant.rosterPlayerId, { is_on_ir: true })
+  playerUpdates.set(injuredPartner.playerId, { injury_status: 'Out', injury_expected_return: addDays(ctx.today, 20) })
+  leagueUpdates.ir_slots = 1
+  leagueUpdates.roster_size = roster.length - 2
+  statements.push(`INSERT INTO nba_games(season_year, week_number, game_date, home_team, away_team, status, game_time, nba_game_id)
+    VALUES (${ctx.seasonYear}, ${ctx.weekNumber}, ${q(ctx.today)}, ${q(injuredPartner.nbaTeam)}, ${q(injuredPartner.nbaTeam === 'BOS' ? 'NYK' : 'BOS')}, 'InProgress', now() - interval '1 hour', 'verify-auto-ir-swap-locked');`)
+  expected.notices.push({ playerId: healthyOccupant.playerId, playerName: healthyOccupant.name, reason: 'healthy_ir_swap_locked', action: `Swap ${healthyOccupant.name} with an injured player after their game or pending move clears` })
+  involved.push(
+    { role: 'healthyIrOccupant', playerId: healthyOccupant.playerId },
+    { role: 'lockedInjuredPartner', playerId: injuredPartner.playerId },
   )
 } else if (caseName === 'uncertain') {
   const first = bench[0] ?? activePool[0]
@@ -270,6 +286,12 @@ if (caseName === 'open-slot') {
   const [healthyOccupant, first, second] = involvedPlayers
   checks.occupantHealthyOnIr = healthyOccupant.isOnIr === true && healthyOccupant.irEligible === false
   checks.twoTiedCandidates = first.isOnIr === false && second.isOnIr === false && first.irEligible === true && second.irEligible === true && first.injuryExpectedReturn === second.injuryExpectedReturn
+  checks.activeFull = final.counts.active === final.league.rosterSize
+  checks.noOpenIrSlot = openIrSlots === 0
+} else if (caseName === 'swap-locked') {
+  const [healthyOccupant, injuredPartner] = involvedPlayers
+  checks.occupantHealthyOnIr = healthyOccupant.isOnIr === true && healthyOccupant.irEligible === false
+  checks.partnerLocked = injuredPartner.isOnIr === false && injuredPartner.irEligible === true && injuredPartner.gameLocked === true
   checks.activeFull = final.counts.active === final.league.rosterSize
   checks.noOpenIrSlot = openIrSlots === 0
 } else if (caseName === 'uncertain') {
