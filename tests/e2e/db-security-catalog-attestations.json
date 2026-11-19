@@ -2720,7 +2720,7 @@
     },
     {
       "filename": "20261214011200_auto_manage_ir_service.sql",
-      "sha256": "af64cdcd6f82e6df98d7defa6104162dc2d58de93e1b5adfd96279dbbe0201b3"
+      "sha256": "815150aae09ab5ed3697428409cf544fa0095369d55abd5a4e1bff1184c79348"
     }
   ],
   "preMigration": {
