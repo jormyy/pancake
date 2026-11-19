@@ -58,6 +58,40 @@ const setup = async (year) => {
   return { league, season, user, member, healthy, injured, healthyRoster, injuredRoster }
 }
 
+const setupIncumbent = async (year) => {
+  const league = randomUUID()
+  const season = randomUUID()
+  const user = randomUUID()
+  const member = randomUUID()
+  const incumbent7 = randomUUID()
+  const incumbent30 = randomUUID()
+  const contender = randomUUID()
+  const incumbent7Roster = randomUUID()
+  const incumbent30Roster = randomUUID()
+  const contenderRoster = randomUUID()
+  await one(`BEGIN;
+    INSERT INTO auth.users(id,aud,role,email,encrypted_password,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at)
+      VALUES(${quote(user)},'authenticated','authenticated',${quote(user + '@example.test')},'x',now(),'{}','{}',now(),now());
+    INSERT INTO leagues(id,name,slug,commissioner_id,status,roster_size,ir_slots,taxi_slots)
+      VALUES(${quote(league)},'Auto IR incumbent race',${quote(league)},${quote(user)},'active',1,2,0);
+    INSERT INTO league_seasons(id,league_id,season_year,is_current) VALUES(${quote(season)},${quote(league)},${year},true);
+    INSERT INTO league_members(id,league_id,user_id,role,team_name)
+      VALUES(${quote(member)},${quote(league)},${quote(user)},'commissioner','Race team');
+    INSERT INTO lineup_optimizer_settings(league_id,league_season_id,member_id,enabled)
+      VALUES(${quote(league)},${quote(season)},${quote(member)},true)
+      ON CONFLICT ON CONSTRAINT lineup_optimizer_settings_pkey DO UPDATE SET enabled=true;
+    INSERT INTO players(id,first_name,last_name,position,eligible_positions,injury_status,injury_expected_return) VALUES
+      (${quote(incumbent7)},'Race','Incumbent7','PG',ARRAY['PG'],'Out',((now() AT TIME ZONE 'America/New_York')::date + 7)::text),
+      (${quote(incumbent30)},'Race','Incumbent30','PG',ARRAY['PG'],'Out',((now() AT TIME ZONE 'America/New_York')::date + 30)::text),
+      (${quote(contender)},'Race','Contender60','PG',ARRAY['PG'],'Out',((now() AT TIME ZONE 'America/New_York')::date + 60)::text);
+    INSERT INTO roster_players(id,league_id,league_season_id,member_id,player_id,acquired_via,is_on_ir) VALUES
+      (${quote(incumbent7Roster)},${quote(league)},${quote(season)},${quote(member)},${quote(incumbent7)},'draft',true),
+      (${quote(incumbent30Roster)},${quote(league)},${quote(season)},${quote(member)},${quote(incumbent30)},'draft',true),
+      (${quote(contenderRoster)},${quote(league)},${quote(season)},${quote(member)},${quote(contender)},'draft',false);
+    COMMIT;`)
+  return { league, season, user, member, incumbent7, incumbent30, contender, incumbent7Roster, incumbent30Roster, contenderRoster }
+}
+
 const assertLegal = async (fixture) => {
   const counts = JSON.parse(await one(`SELECT jsonb_build_object(
     'ir', count(*) FILTER (WHERE is_on_ir),
@@ -145,6 +179,27 @@ try {
   assert.equal(enabledResult.code, 0, enabledResult.error)
   assert.equal(JSON.parse(enabledResult.output).moves.length, 1, `Enabled call did not move: ${enabledResult.output}`)
   await assertLegal(enabled)
+
+  const incumbent = await setupIncumbent(9705)
+  const incumbentLock = query(`BEGIN; SELECT pg_advisory_xact_lock(hashtext(${quote(incumbent.league)}), hashtext(${quote(incumbent.member)})); SELECT pg_sleep(1.5); COMMIT;`)
+  await sleep(300)
+  const incumbentQueued = query(`SELECT public.auto_manage_ir_service(${quote(incumbent.league)},${quote(incumbent.season)},${quote(incumbent.member)})`)
+  await sleep(300)
+  await one(`UPDATE players SET injury_expected_return = ((now() AT TIME ZONE 'America/New_York')::date + 7)::text
+    WHERE id=${quote(incumbent.contender)}`)
+  const [incumbentLockResult, incumbentQueuedResult] = await Promise.all([incumbentLock, incumbentQueued])
+  assert.equal(incumbentLockResult.code, 0, incumbentLockResult.error)
+  assert.equal(incumbentQueuedResult.code, 0, incumbentQueuedResult.error)
+  const incumbentOutcome = JSON.parse(incumbentQueuedResult.output)
+  assert.equal(incumbentOutcome.moves.length, 0, `Stale incumbent exchange moved: ${incumbentQueuedResult.output}`)
+  assert.equal(await one(`SELECT is_on_ir FROM roster_players WHERE id=${quote(incumbent.incumbent7Roster)}`), 't',
+    'Stale incumbent exchange moved the 7-day incumbent')
+  assert.equal(await one(`SELECT is_on_ir FROM roster_players WHERE id=${quote(incumbent.incumbent30Roster)}`), 't',
+    'Stale incumbent exchange moved the 30-day incumbent')
+  assert.equal(await one(`SELECT is_on_ir FROM roster_players WHERE id=${quote(incumbent.contenderRoster)}`), 'f',
+    'Stale incumbent exchange moved the contender')
+  assert.equal(await one(`SELECT count(*) FROM roster_transactions WHERE member_id=${quote(incumbent.member)}`), '0',
+    'Stale incumbent exchange wrote transactions')
 
   console.log('auto-manage-ir concurrency: pass')
 } catch (error) {

@@ -509,17 +509,18 @@ BEGIN
         BEGIN
           PERFORM private.assert_asset_unlocked(p_league_id, p_league_season_id, p_member_id, v_candidate_player_id);
           PERFORM private.assert_asset_unlocked(p_league_id, p_league_season_id, p_member_id, v_occupant_player_id);
-          PERFORM private.toggle_ir_for_activation(v_candidate_roster_id, true, v_user_id, v_occupant_roster_id);
           SELECT p.injury_status, private.ir_reliable_return(p.injury_expected_return, v_today)
             INTO v_candidate_status, v_candidate_return
             FROM roster_players rp
             JOIN players p ON p.id = rp.player_id
-           WHERE rp.id = v_candidate_roster_id;
+           WHERE rp.id = v_candidate_roster_id
+           FOR SHARE OF p;
           SELECT p.injury_status, private.ir_reliable_return(p.injury_expected_return, v_today), rp.is_on_ir
             INTO v_occupant_status, v_occupant_return, v_occupant_on_ir
             FROM roster_players rp
             JOIN players p ON p.id = rp.player_id
-           WHERE rp.id = v_occupant_roster_id;
+           WHERE rp.id = v_occupant_roster_id
+           FOR SHARE OF p;
           IF NOT private.is_ir_designation(v_candidate_status)
              OR v_candidate_return IS NULL
              OR NOT v_occupant_on_ir
@@ -528,6 +529,7 @@ BEGIN
              OR v_candidate_return <= v_occupant_return THEN
             RAISE EXCEPTION 'Incumbent exchange no longer valid.' USING ERRCODE = 'P0001';
           END IF;
+          PERFORM private.toggle_ir_for_activation(v_candidate_roster_id, true, v_user_id, v_occupant_roster_id);
           PERFORM private.toggle_ir_for_activation(v_occupant_roster_id, false, v_user_id, NULL);
           v_moves := v_moves || jsonb_build_object(
             'kind', 'swap',
