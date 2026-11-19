@@ -91,6 +91,17 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION pg_temp.auto_ir_set_return()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.member_id = current_setting('auto_ir.set_return_member')::uuid THEN
+    UPDATE players SET injury_expected_return = current_setting('auto_ir.set_return_value')
+     WHERE id = current_setting('auto_ir.set_return_target')::uuid;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
 CREATE FUNCTION pg_temp.expect_denied(p_query text)
 RETURNS void LANGUAGE plpgsql AS $$
 DECLARE v_denied boolean := false;
@@ -112,6 +123,7 @@ DECLARE
   c2 uuid;
   h1 uuid;
   h2 uuid;
+  h3 uuid;
   t1 uuid;
   v_player uuid;
   v_add uuid;
@@ -591,6 +603,172 @@ BEGIN
     'reserved swap partner gets locked swap advice');
   PERFORM pg_temp.check_rules((SELECT count(*) FROM roster_transactions WHERE member_id = f.member_id) = 0,
     'reserved swap partner writes nothing');
+
+  -- Tied incumbents at the eviction boundary are not evicted by UUID.
+  SELECT * INTO f FROM pg_temp.auto_ir_league(9560, 1, 2);
+  h1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Boundary Tie One', 'Out', (v_today + 7)::text, 'ir');
+  h2 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Boundary Tie Two', 'Out', (v_today + 7)::text, 'ir');
+  c1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Boundary Tie Contender', 'Out', (v_today + 60)::text, 'active');
+  r := public.auto_manage_ir_service(f.league_id, f.season_id, f.member_id);
+  PERFORM pg_temp.check_rules(jsonb_array_length(r->'moves') = 0, 'boundary tie makes no move');
+  PERFORM pg_temp.check_rules((SELECT is_on_ir FROM roster_players WHERE id = h1)
+    AND (SELECT is_on_ir FROM roster_players WHERE id = h2)
+    AND NOT (SELECT is_on_ir FROM roster_players WHERE id = c1),
+    'boundary tie keeps both incumbents and the contender active');
+  PERFORM pg_temp.check_rules((SELECT count(*) FROM roster_transactions WHERE member_id = f.member_id) = 0,
+    'boundary tie writes nothing');
+  PERFORM pg_temp.check_rules(EXISTS (
+    SELECT 1 FROM jsonb_array_elements(r->'notices') n
+     WHERE n->>'reason' = 'ir_choice_uncertain'),
+    'boundary tie produces an uncertainty notice');
+  PERFORM set_config('request.jwt.claim.sub', f.user_id::text, true);
+  r := public.get_auto_ir_notices(f.league_id, f.season_id);
+  PERFORM pg_temp.check_rules(EXISTS (
+    SELECT 1 FROM jsonb_array_elements(r->'notices') n
+     WHERE n->>'reason' = 'ir_choice_uncertain'),
+    'notices reader returns the boundary tie notice');
+
+  -- A tie away from the eviction boundary still exchanges the earliest incumbent.
+  SELECT * INTO f FROM pg_temp.auto_ir_league(9561, 1, 3);
+  h1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Nonboundary Tie One', 'Out', (v_today + 30)::text, 'ir');
+  h2 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Nonboundary Tie Two', 'Out', (v_today + 30)::text, 'ir');
+  h3 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Nonboundary Seven', 'Out', (v_today + 7)::text, 'ir');
+  c1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Nonboundary Contender', 'Out', (v_today + 60)::text, 'active');
+  r := public.auto_manage_ir_service(f.league_id, f.season_id, f.member_id);
+  PERFORM pg_temp.check_rules(jsonb_array_length(r->'moves') = 1
+    AND r->'moves'->0->>'kind' = 'swap'
+    AND (r->'moves'->0->>'activatePlayerId')::uuid = (SELECT player_id FROM roster_players WHERE id = h3),
+    'non-boundary tie exchanges the earliest incumbent');
+  PERFORM pg_temp.check_rules((SELECT is_on_ir FROM roster_players WHERE id = h1)
+    AND (SELECT is_on_ir FROM roster_players WHERE id = h2)
+    AND NOT (SELECT is_on_ir FROM roster_players WHERE id = h3)
+    AND (SELECT is_on_ir FROM roster_players WHERE id = c1),
+    'non-boundary tie keeps the tied incumbents');
+
+  -- A changed exchanged-incumbent return skips the pair.
+  SELECT * INTO f FROM pg_temp.auto_ir_league(9562, 2, 3);
+  h1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Stale Incumbent Seven', 'Out', (v_today + 7)::text, 'ir');
+  h2 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Stale Incumbent Thirty', 'Out', (v_today + 30)::text, 'ir');
+  c1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Stale Designate Sixty', 'Out', (v_today + 60)::text, 'active');
+  c2 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Stale Exchange Fifty', 'Out', (v_today + 50)::text, 'active');
+  PERFORM set_config('auto_ir.set_return_member', f.member_id::text, true);
+  PERFORM set_config('auto_ir.set_return_target', (SELECT player_id FROM roster_players WHERE id = h1)::text, true);
+  PERFORM set_config('auto_ir.set_return_value', (v_today + 45)::text, true);
+  CREATE TRIGGER auto_ir_set_return BEFORE UPDATE ON roster_players
+    FOR EACH ROW EXECUTE FUNCTION pg_temp.auto_ir_set_return();
+  r := public.auto_manage_ir_service(f.league_id, f.season_id, f.member_id);
+  DROP TRIGGER auto_ir_set_return ON roster_players;
+  PERFORM pg_temp.check_rules(jsonb_array_length(r->'moves') = 1
+    AND r->'moves'->0->>'kind' = 'designate'
+    AND (r->'moves'->0->>'designatePlayerId')::uuid = (SELECT player_id FROM roster_players WHERE id = c1),
+    'changed incumbent return still writes the designate');
+  PERFORM pg_temp.check_rules(EXISTS (
+    SELECT 1 FROM jsonb_array_elements(r->'skipped') s
+     WHERE s->>'reason' LIKE '%Incumbent exchange no longer valid%'
+       AND (s->>'playerId')::uuid = (SELECT player_id FROM roster_players WHERE id = c2)),
+    'changed incumbent return skips the exchange');
+  PERFORM pg_temp.check_rules((SELECT is_on_ir FROM roster_players WHERE id = h1)
+    AND (SELECT is_on_ir FROM roster_players WHERE id = h2)
+    AND NOT (SELECT is_on_ir FROM roster_players WHERE id = c2),
+    'changed incumbent return leaves the pair unchanged');
+  PERFORM pg_temp.check_rules((SELECT count(*) FROM roster_transactions WHERE member_id = f.member_id AND transaction_type = 'ir_designate') = 1
+    AND (SELECT count(*) FROM roster_transactions WHERE member_id = f.member_id AND transaction_type = 'ir_return') = 0,
+    'changed incumbent return writes only the designate transaction');
+
+  -- A changed contender return skips the pair.
+  SELECT * INTO f FROM pg_temp.auto_ir_league(9563, 2, 3);
+  h1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Stale Contender Incumbent Seven', 'Out', (v_today + 7)::text, 'ir');
+  h2 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Stale Contender Incumbent Thirty', 'Out', (v_today + 30)::text, 'ir');
+  c1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Stale Contender Designate Sixty', 'Out', (v_today + 60)::text, 'active');
+  c2 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Stale Contender Exchange Fifty', 'Out', (v_today + 50)::text, 'active');
+  PERFORM set_config('auto_ir.set_return_member', f.member_id::text, true);
+  PERFORM set_config('auto_ir.set_return_target', (SELECT player_id FROM roster_players WHERE id = c2)::text, true);
+  PERFORM set_config('auto_ir.set_return_value', (v_today + 40)::text, true);
+  CREATE TRIGGER auto_ir_set_return BEFORE UPDATE ON roster_players
+    FOR EACH ROW EXECUTE FUNCTION pg_temp.auto_ir_set_return();
+  r := public.auto_manage_ir_service(f.league_id, f.season_id, f.member_id);
+  DROP TRIGGER auto_ir_set_return ON roster_players;
+  PERFORM pg_temp.check_rules(jsonb_array_length(r->'moves') = 1
+    AND r->'moves'->0->>'kind' = 'designate'
+    AND (r->'moves'->0->>'designatePlayerId')::uuid = (SELECT player_id FROM roster_players WHERE id = c1),
+    'changed contender return still writes the designate');
+  PERFORM pg_temp.check_rules(EXISTS (
+    SELECT 1 FROM jsonb_array_elements(r->'skipped') s
+     WHERE s->>'reason' LIKE '%Incumbent exchange no longer valid%'
+       AND (s->>'playerId')::uuid = (SELECT player_id FROM roster_players WHERE id = c2)),
+    'changed contender return skips the exchange');
+  PERFORM pg_temp.check_rules((SELECT is_on_ir FROM roster_players WHERE id = h1)
+    AND (SELECT is_on_ir FROM roster_players WHERE id = h2)
+    AND NOT (SELECT is_on_ir FROM roster_players WHERE id = c2),
+    'changed contender return leaves the pair unchanged');
+  PERFORM pg_temp.check_rules((SELECT count(*) FROM roster_transactions WHERE member_id = f.member_id AND transaction_type = 'ir_designate') = 1
+    AND (SELECT count(*) FROM roster_transactions WHERE member_id = f.member_id AND transaction_type = 'ir_return') = 0,
+    'changed contender return writes only the designate transaction');
+
+  -- A changed other-incumbent return that now outranks skips the pair.
+  SELECT * INTO f FROM pg_temp.auto_ir_league(9564, 2, 3);
+  h1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Outrank Incumbent Seven', 'Out', (v_today + 7)::text, 'ir');
+  h2 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Outrank Incumbent Thirty', 'Out', (v_today + 30)::text, 'ir');
+  c1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Outrank Designate Sixty', 'Out', (v_today + 60)::text, 'active');
+  c2 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Outrank Exchange Fifty', 'Out', (v_today + 50)::text, 'active');
+  PERFORM set_config('auto_ir.set_return_member', f.member_id::text, true);
+  PERFORM set_config('auto_ir.set_return_target', (SELECT player_id FROM roster_players WHERE id = h2)::text, true);
+  PERFORM set_config('auto_ir.set_return_value', (v_today + 3)::text, true);
+  CREATE TRIGGER auto_ir_set_return BEFORE UPDATE ON roster_players
+    FOR EACH ROW EXECUTE FUNCTION pg_temp.auto_ir_set_return();
+  r := public.auto_manage_ir_service(f.league_id, f.season_id, f.member_id);
+  DROP TRIGGER auto_ir_set_return ON roster_players;
+  PERFORM pg_temp.check_rules(jsonb_array_length(r->'moves') = 1
+    AND r->'moves'->0->>'kind' = 'designate'
+    AND (r->'moves'->0->>'designatePlayerId')::uuid = (SELECT player_id FROM roster_players WHERE id = c1),
+    'outranking incumbent still writes the designate');
+  PERFORM pg_temp.check_rules(EXISTS (
+    SELECT 1 FROM jsonb_array_elements(r->'skipped') s
+     WHERE s->>'reason' LIKE '%Incumbent exchange no longer valid%'
+       AND (s->>'playerId')::uuid = (SELECT player_id FROM roster_players WHERE id = c2)),
+    'outranking incumbent skips the exchange');
+  PERFORM pg_temp.check_rules((SELECT is_on_ir FROM roster_players WHERE id = h1)
+    AND (SELECT is_on_ir FROM roster_players WHERE id = h2)
+    AND NOT (SELECT is_on_ir FROM roster_players WHERE id = c2),
+    'outranking incumbent leaves the pair unchanged');
+  PERFORM pg_temp.check_rules((SELECT count(*) FROM roster_transactions WHERE member_id = f.member_id AND transaction_type = 'ir_designate') = 1
+    AND (SELECT count(*) FROM roster_transactions WHERE member_id = f.member_id AND transaction_type = 'ir_return') = 0,
+    'outranking incumbent writes only the designate transaction');
+
+  -- Zero IR slots with active room activates the healthy occupant alone.
+  SELECT * INTO f FROM pg_temp.auto_ir_league(9565, 2, 0);
+  h1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Zero Slot Occupant', 'Healthy', 'unknown', 'ir');
+  c1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Zero Slot Contender', 'Out', (v_today + 60)::text, 'active');
+  r := public.auto_manage_ir_service(f.league_id, f.season_id, f.member_id);
+  PERFORM pg_temp.check_rules(jsonb_array_length(r->'moves') = 1
+    AND r->'moves'->0->>'kind' = 'activate'
+    AND (r->'moves'->0->>'activatePlayerId')::uuid = (SELECT player_id FROM roster_players WHERE id = h1),
+    'zero slots activates the healthy occupant alone');
+  PERFORM pg_temp.check_rules(NOT (SELECT is_on_ir FROM roster_players WHERE id = h1)
+    AND NOT (SELECT is_on_ir FROM roster_players WHERE id = c1),
+    'zero slots leaves the contender active');
+  PERFORM pg_temp.check_rules(NOT EXISTS (
+    SELECT 1 FROM jsonb_array_elements(r->'skipped') s
+     WHERE s->>'reason' LIKE '%IR slots%'),
+    'zero slots produces no raw capacity error');
+
+  -- Zero IR slots with a full active roster produces a notice and no writes.
+  SELECT * INTO f FROM pg_temp.auto_ir_league(9566, 1, 0);
+  h1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Zero Slot Full Occupant', 'Healthy', 'unknown', 'ir');
+  c1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Zero Slot Full Contender', 'Out', (v_today + 60)::text, 'active');
+  r := public.auto_manage_ir_service(f.league_id, f.season_id, f.member_id);
+  PERFORM pg_temp.check_rules(jsonb_array_length(r->'moves') = 0, 'zero slots with a full bench makes no move');
+  PERFORM pg_temp.check_rules(EXISTS (
+    SELECT 1 FROM jsonb_array_elements(r->'notices') n
+     WHERE n->>'reason' = 'healthy_ir_bench_full'
+       AND (n->>'playerId')::uuid = (SELECT player_id FROM roster_players WHERE id = h1)),
+    'zero slots with a full bench produces the cut notice');
+  PERFORM pg_temp.check_rules((SELECT count(*) FROM roster_transactions WHERE member_id = f.member_id) = 0,
+    'zero slots with a full bench writes nothing');
+  PERFORM pg_temp.check_rules(NOT EXISTS (
+    SELECT 1 FROM jsonb_array_elements(r->'skipped') s
+     WHERE s->>'reason' LIKE '%IR slots%'),
+    'zero slots with a full bench produces no raw capacity error');
 END;
 $$;
 
