@@ -246,8 +246,22 @@ The [trade curve report](../docs/trade-curve.md) records the real trades, roster
 
 ## Release order for this release
 
-The supplied production head is `20261214010800`, with 786 migrations.
-The candidate adds `20261214010900_draft_pick_calendar_years.sql`, `20261214011000_compact_trade_activity.sql`, `20261214011100_scoped_trade_acceptance_capacity.sql` and `20261214011200_auto_manage_ir_service.sql`, for 790 migrations.
+The supplied production head is `20261214011100`, with 789 migrations.
+This release adds only `20261214011200_auto_manage_ir_service.sql`, for 790 migrations.
+A read-only ledger dry run showed it as the only pending migration.
+Apply it through the guarded dry run and push.
+Verify the new functions, grants, and that nothing else changed with read-only checks.
+Then release only the `lineup-optimizer` Edge function.
+No `api` or `refresh-views` deploy and no producer pause are required for this release.
+Before `lineup-optimizer` is released, the database function is unused.
+Rolling back `lineup-optimizer` alone restores today's behavior.
+
+## Release order for the earlier calendar-year pick release
+
+This section describes the earlier calendar-year pick release, which is already live. It does not apply to the Auto Lineup IR migration above.
+
+The supplied production head was `20261214010800`, with 786 migrations.
+That release added `20261214010900_draft_pick_calendar_years.sql`, `20261214011000_compact_trade_activity.sql` and `20261214011100_scoped_trade_acceptance_capacity.sql`, for 789 migrations.
 The draft-year migration stores draft calendar years and repairs only the approved affected league.
 The guard requires the exact recorded pick state and refuses drift.
 The tested external recovery SQL accompanies the release inputs.
@@ -262,16 +276,6 @@ Apply the scoped trade acceptance migration after the compact trade Activity mig
 A partial acceptance validates only the accepting team's resulting roster, so one team can accept while another team's current roster is full.
 The last acceptance and completion validate every team's final roster after all transfers and planned moves.
 That migration keeps every function signature, owner, and grant, so the function catalog stays unchanged.
-This candidate does not verify or change production state.
-
-Apply the Auto Lineup IR migration after the scoped trade acceptance migration.
-It adds the service-only `public.auto_manage_ir_service` RPC, the authenticated `public.get_auto_ir_notices` reader, and the private planner and return-date helpers.
-The RPC reuses `private.toggle_ir_for_activation` and the existing reservation check.
-It rechecks the member's optimizer setting after the member lock and writes nothing when the setting is off.
-Injured IR incumbents with a reliable return compete with active injured players on return date.
-The notices reader recomputes notices from the current roster and never stores them.
-It only runs for an active or playoff league with the current season.
-The matching `lineup-optimizer` release calls it before loading each member's roster.
 This candidate does not verify or change production state.
 
 Use the approved hand release for this candidate.
@@ -1659,8 +1663,9 @@ The candidate also bounds live version hints in `20261214010100_bound_version_hi
 Apply `20261214011200_auto_manage_ir_service.sql` after `20261214011100`.
 Release the matching `lineup-optimizer` function with the IR call.
 `public.auto_manage_ir_service` is service-only and returns moves, skipped players, and notices.
-It takes the member advisory lock, rechecks `lineup_optimizer_settings.enabled`, then takes the player advisory locks before reading.
+It takes the member advisory lock, reads `lineup_optimizer_settings.enabled`, takes the player advisory locks, then re-reads the setting with a row lock before reading the roster.
 It writes nothing when the setting is not enabled.
+A disable that commits before the row-lock re-read makes the call return empty; a disable that arrives after the row lock waits for the call to finish.
 It applies every move through `private.toggle_ir_for_activation`.
 Each designate, swap pair, or lone activation runs in its own sub-transaction.
 A failed group rolls back alone and is reported; other groups continue.
@@ -1670,6 +1675,8 @@ The function only runs for an active or playoff league with the current season.
 Planning lives in `private.plan_auto_ir`, which the service and the notices reader share.
 Injured IR incumbents with a reliable return compete with active injured players on return date.
 An incumbent exchange re-reads both players before writing and skips the pair when either changed.
+Healthy swaps and standalone activations re-read the occupant with its players row held and skip the move when the occupant became IR-eligible.
+Swap advice names a usable partner, a locked or reserved partner, or a cut when no injured active player exists.
 `public.get_auto_ir_notices` is authenticated-only, resolves the caller's own member from `auth.uid()`, and returns `enabled` plus the current notices.
 It returns an empty notice list when the setting is off or the caller is not a member.
 IR and taxi over-capacity are not reachable through supported write paths, so `private.roster_problems` keeps its existing problem kinds.
