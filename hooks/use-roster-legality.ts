@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { dropPlayer, getRoster, toggleIR, type RosterPlayer } from '@/lib/roster'
-import { resolveRosterAddIRConflict } from '@/lib/roster-add-flow'
+import { resolveRosterAddIRConflict, swapHealthyIrWithInjured } from '@/lib/roster-add-flow'
 import { getRosterProblems } from '@/lib/roster-problems'
 import { RULE_CODES, errorCode, getErrorMessage } from '@/lib/shared/errors'
 import { showAlert } from '@/lib/alert'
@@ -55,6 +55,11 @@ export function useRosterLegality({ memberId, leagueId, rosterSize = 20, irSlots
         const result = await resolveRosterAddIRConflict({ memberId, leagueId, activatePlayer: player, dropPlayer: drop, rosterSize })
         if (result.status === 'locked') throw new Error(result.message)
     }
+    const swapWithInjured = async (healthyIrPlayer: RosterPlayer, injuredPlayer: RosterPlayer) => {
+        if (!memberId || !leagueId) return
+        const result = await swapHealthyIrWithInjured({ memberId, leagueId, healthyIrPlayer, injuredPlayer, rosterSize })
+        if (result.status === 'locked') throw new Error(result.message)
+    }
     const roster = snapshot?.owner === requestOwner ? snapshot.roster : []
     return {
         check,
@@ -69,6 +74,7 @@ export function useRosterLegality({ memberId, leagueId, rosterSize = 20, irSlots
             pendingPlayerName: '',
             onActivate: (player: RosterPlayer) => resolve(() => activate(player)),
             onDropAndActivate: (drop: RosterPlayer, player: RosterPlayer) => resolve(() => activate(player, drop)),
+            onSwapWithInjured: (healthyIrPlayer: RosterPlayer, injuredPlayer: RosterPlayer) => resolve(() => swapWithInjured(healthyIrPlayer, injuredPlayer)),
             onDrop: (player: RosterPlayer) => resolve(() => dropPlayer(player.id)),
             onMoveToIR: (player: RosterPlayer) => resolve(() => toggleIR(player.id, true)),
             onRefresh: () => { void resolve(async () => {}) },

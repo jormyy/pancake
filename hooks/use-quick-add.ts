@@ -5,7 +5,7 @@ import {
     dropPlayer,
     RosterPlayer,
 } from '@/lib/roster'
-import { addFreeAgentOrRequestDrop, loadRosterAddGate, resolveRosterAddIRConflict } from '@/lib/roster-add-flow'
+import { addFreeAgentOrRequestDrop, loadRosterAddGate, resolveRosterAddIRConflict, swapHealthyIrWithInjured } from '@/lib/roster-add-flow'
 import { useAddLimitGate } from '@/hooks/use-add-limit-gate'
 import { isIREligible, isTaxiEligible } from '@pancake/core'
 import { canAddToIR, hasOpenIRSlot, pickupDestinations, reportPickupError, type PickupDestination } from '@/lib/pickup'
@@ -309,6 +309,23 @@ export function useQuickAdd({
         }
     }, [memberId, leagueId, ownerIdentity, continueAfterIRResolution, isCurrent, rosterSize])
 
+    const handleSwapWithInjured = useCallback(async (healthyIrPlayer: RosterPlayer, injuredPlayer: RosterPlayer) => {
+        if (!memberId || !leagueId) return
+        const generation = generationRef.current
+        const identity = ownerIdentity
+        try {
+            const result = await swapHealthyIrWithInjured({ memberId, leagueId, healthyIrPlayer, injuredPlayer, rosterSize })
+            if (!isCurrent(generation, identity)) return
+            if (result.status === 'locked') {
+                showAlert('Roster locked', result.message)
+            } else {
+                await continueAfterIRResolution(leagueId, result.roster, result.remaining)
+            }
+        } catch (error) {
+            if (isCurrent(generation, identity)) showAlert('Error', getErrorMessage(error))
+        }
+    }, [memberId, leagueId, ownerIdentity, continueAfterIRResolution, isCurrent, rosterSize])
+
     const handlePlacement = useCallback(async (toTaxi: boolean) => {
         if (!dropPickerPlayer || !leagueId || !ownsState || pendingDropAndAdd.current || explainBlock()) return
         const token = Symbol('placement')
@@ -359,8 +376,9 @@ export function useQuickAdd({
         irMoveCandidates: ownsState && openIR ? myRoster.filter(player => !player.is_on_ir && !player.is_on_taxi && isIREligible(player.players.injury_status)) : [],
         handleIRActivate,
         handleDropAndIRActivate,
+        handleSwapWithInjured,
     }), [
         ownsState, openIR, taxiAvailable, placementRoster, rosterSize, taxiSlots, irSlots, allowIR, handlePlacement, handleResolutionChange, adding, dropPickerPlayer, myRoster, dropping, irModal, addBlockedReason,
-        handleAdd, handleClaim, handleDropAndAdd, handleMoveToIRAndAdd, handleIRActivate, handleDropAndIRActivate,
+        handleAdd, handleClaim, handleDropAndAdd, handleMoveToIRAndAdd, handleIRActivate, handleDropAndIRActivate, handleSwapWithInjured,
     ])
 }

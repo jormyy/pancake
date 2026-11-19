@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261214011100",
+  "candidateVersion": "20261214011200",
   "common": {
     "functions": [
       {
@@ -2717,6 +2717,10 @@
     {
       "filename": "20261214011100_scoped_trade_acceptance_capacity.sql",
       "sha256": "38a78dbd4d825b84ec2ebbbfdb7f9c8c1fa3badc2731750949d7056abb6d927a"
+    },
+    {
+      "filename": "20261214011200_auto_manage_ir_service.sql",
+      "sha256": "8d2402a4b326cfdace54ee13f3700eda9cb92aec30acb9b9bd0b71d8cf7a8be1"
     }
   ],
   "preMigration": {

@@ -27,12 +27,15 @@ if (action === 'login') {
   const state = JSON.parse(await readFile(path.join(run.work, 'tests/e2e-state.json'), 'utf8'))
   const user = state.users[Number(args[0] ?? 0)]
   assert.ok(user, 'Choose a seeded account index')
-  browser(['set', 'viewport', '390', '844'])
-  browser(['open', `${run.url}/sign-in`])
-  browser(['wait', 'input[placeholder="you@example.com"]'])
-  browser(['fill', 'input[placeholder="you@example.com"]', user.email])
-  browser(['fill', 'input[placeholder="Your password"]', state.password])
-  browser(['find', 'role', 'button', 'click', '--name', 'Sign In', '--exact'])
+  const attempt = () => {
+    browser(['set', 'viewport', '390', '844'])
+    browser(['open', `${run.url}/sign-in`])
+    browser(['wait', 'input[placeholder="you@example.com"]'])
+    browser(['fill', 'input[placeholder="you@example.com"]', user.email])
+    browser(['fill', 'input[placeholder="Your password"]', state.password])
+    browser(['find', 'role', 'button', 'click', '--name', 'Sign In', '--exact'])
+  }
+  try { attempt() } catch { attempt() }
   console.log('Submitted seeded credentials through the sign-in form. Confirm Home with snapshot.')
 } else if (action === 'find' && args[0] === 'role' && args[2] === 'click' && args[3] === '--name' && args.includes('--exact')) {
   const snapshot = JSON.parse(browser(['snapshot', '-i', '--json']))

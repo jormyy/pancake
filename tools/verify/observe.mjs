@@ -18,7 +18,7 @@ const selects = {
   league_seasons: 'id,league_id,season_year,is_current',
   league_members: 'id,team_name',
   roster_players: 'id,league_season_id,member_id,player_id,is_on_ir,is_on_taxi',
-  roster_transactions: 'league_season_id,member_id,player_id,transaction_type,occurred_at',
+  roster_transactions: 'id,league_season_id,member_id,player_id,transaction_type,occurred_at',
   weekly_lineups: 'league_season_id,member_id,player_id,game_date,slot_type,is_auto_set',
   lineup_player_pins: 'member_id,player_id,game_date,pin',
   lineup_optimizer_settings: 'member_id,enabled',
@@ -42,6 +42,12 @@ for (const table of ['draft_budgets', 'draft_room_members', 'nominations']) {
   const { data, error } = await client.from(table).select('*').in('draft_id', result.drafts.map(draft => draft.id))
   if (error) throw new Error(`${table}: ${error.message}`)
   result[table] = data
+}
+const rosterPlayerIds = [...new Set(result.roster_players.map(row => row.player_id))]
+if (rosterPlayerIds.length) {
+  const { data, error } = await client.from('players').select('id,display_name,injury_status,injury_expected_return').in('id', rosterPlayerIds)
+  if (error) throw new Error(`players: ${error.message}`)
+  result.players = data
 }
 const { data: bids, error: bidsError } = await client.from('bids').select('*').in('nomination_id', result.nominations.map(nomination => nomination.id))
 if (bidsError) throw new Error(`bids: ${bidsError.message}`)

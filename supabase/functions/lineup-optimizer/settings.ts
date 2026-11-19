@@ -45,3 +45,16 @@ export async function loadEnabledOptimizerSettings(
   })
   return dailyDate ? settings.filter(setting => setting.last_daily_optimized_date !== dailyDate) : settings
 }
+
+export async function loadOptimizerSettingEnabled(
+  client: SupabaseClient<Database>, setting: OptimizerSetting,
+): Promise<boolean> {
+  const { data, error } = await client.from('lineup_optimizer_settings')
+    .select('enabled')
+    .eq('league_id', setting.league_id)
+    .eq('league_season_id', setting.league_season_id)
+    .eq('member_id', setting.member_id)
+    .maybeSingle()
+  if (error) throw error
+  return data?.enabled === true
+}

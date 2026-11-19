@@ -39,6 +39,7 @@ Do not claim iOS home-screen behavior from Chromium viewport checks.
 | [Home](home.md) | Matchup, day selector, team/player access, Auto-set sheet |
 | [Roster](roster.md) | Starters, bench, IR, taxi, other-team roster |
 | [Lineup](lineup.md) | Start, Auto, Bench pins, day selection, daily automation |
+| [Auto Lineup IR](auto-lineup-ir.md) | IR seeding, background and screen triggers, notices, manual swap |
 | [Players and Waivers](players-waivers.md) | Search, filters, rankings, news, claim/edit/cancel |
 | [Trades](trades.md) | Builder, multi-team, offers, analyzer, block, history |
 | [League](league.md) | Standings, schedule, activity, settings, history, bracket, picks, guarded dynasty calendar-year repair |

@@ -34,6 +34,7 @@ tools/verify/browser.sh "$EVIDENCE" login
 tools/verify/browser.sh "$EVIDENCE" snapshot -i
 ```
 
+The first `login` after launch can fail once with a Node stack trace; the helper retries once.
 Wait for `READY`, then require Home to show the seeded team after login.
 `READY` proves stack, fixtures, build, and read-only health; the UI login proves authentication in the exported app.
 Credentials come only from the generated `work/tests/e2e-state.json`.
@@ -208,3 +209,28 @@ Record `node tools/verify/observe.mjs "$EVIDENCE"` before and after, and require
 
 Run the database recipes first: `npm run test:db:trade-acceptance-multi-team` and `npm run test:db:trade-acceptance-concurrency`.
 Both fail on the pre-fix `private.accept_trade_participant_atomic` and pass on the scoped one.
+
+## Auto Lineup injured reserve
+
+Use the `auto-lineup-ir` journey in [Auto Lineup IR](features/auto-lineup-ir.md).
+Seed one case on a fresh disposable stack:
+
+```sh
+node tools/verify/seed-auto-ir.mjs "$EVIDENCE" --case=open-slot
+node tools/verify/observe.mjs "$EVIDENCE" > "$EVIDENCE/auto-ir-before.json"
+node tools/verify/trigger-lineup-optimizer.mjs "$EVIDENCE"
+node tools/verify/observe.mjs "$EVIDENCE" > "$EVIDENCE/auto-ir-after.json"
+```
+
+Cases are `open-slot`, `full-bench-swap`, `no-legal-swap`, `swap-available`, `swap-locked`, `uncertain`, `locked`, `taxi-ineligible`, `incumbent-exchange`, `incumbent-tie`, `incumbent-boundary-tie`, and `incumbent-unknown`.
+The seeder reshapes E2E Team 1, enables that member’s lineup optimizer, and prints the involved player names, ids, counts, and expected moves or notices as JSON.
+Re-running a case resets and reapplies it.
+The trigger posts to the local Edge route with the run’s generated internal token, which is never printed.
+The Lineup screen path is the visible Auto lineup control; the background path is the trigger command.
+Notices are never stored: open Lineup without touching any Start/Auto/Bench control and require the notice, then close and reopen it and require the same notice again.
+Require the expected `is_on_ir` flags and `roster_transactions` rows in the after observation.
+For `no-legal-swap`, `swap-available`, `uncertain`, `taxi-ineligible`, `incumbent-tie`, `incumbent-boundary-tie`, and `incumbent-unknown`, require the notice text and action and no roster change.
+`no-legal-swap` advises a cut; `swap-available` advises `Swap <name> with an injured player`.
+For `incumbent-exchange`, require the 60-day contender on IR, the 7-day incumbent active, and the 30-day incumbent still on IR.
+For `full-bench-swap` and `swap-available`, also exercise the IR resolution sheet’s `Swap with injured player` option.
+The seeder writes plain fixture rows, so it works before the SQL service and optimizer lanes integrate; behavior assertions wait for that integration.

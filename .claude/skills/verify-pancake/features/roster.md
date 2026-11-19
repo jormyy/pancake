@@ -9,6 +9,7 @@ Roster shows starters, bench, injured reserve, taxi players, and each team’s p
 - `roster-autoset` opens the shared lineup sheet.
 - `roster-other` shows another manager’s roster.
 - `roster-ir` moves an eligible player out of and back into injured reserve.
+- `roster-ir-auto` resolves a healthy IR occupant through the Auto Lineup IR journey.
 - `roster-taxi` promotes a taxi player to the active roster.
 - `roster-drop` drops an unlocked player after confirmation.
 
@@ -29,6 +30,7 @@ Preconditions:
 - **Player.** Run `BROWSER click '[aria-label="Open E2E Player001"]'`. Snapshot the player sheet and follow `View E2E Player001 player page`. Require that player’s statistics page.
 - **Other team.** From League standings select the opponent’s visible team name. Require `/team-roster?memberId=...`, that manager’s players, and no ownership controls for your own lineup.
 - **IR.** Open Player015, choose Activate from IR, and confirm. Reopen the player, choose Move to IR, and confirm. Compare stored flags.
+- **Auto IR.** Use the [Auto Lineup IR](auto-lineup-ir.md) journey to seed a case, trigger the optimizer, and check the IR resolution sheet’s `Swap with injured player` option.
 - **Taxi.** Select Activate beside Player016, read the permanent-promotion warning, and confirm. Require the player on the active roster.
 - **Drop.** Open unlocked Player014, choose Drop, then confirm with the Drop button. Require removal from the roster and a stored transaction.
 - **Widths.** Capture your roster and the other roster at both required widths. Scroll to IR and taxi before claiming those groups work.

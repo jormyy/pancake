@@ -3658,6 +3658,13 @@
       "statementCount": 1,
       "statementsSha256": "98dc2ffe1fd889b7b2aba4b97265c927f80d5c3cf67607adadd0303932365c67",
       "sha256": "38a78dbd4d825b84ec2ebbbfdb7f9c8c1fa3badc2731750949d7056abb6d927a"
+    },
+    {
+      "name": "auto_manage_ir_service",
+      "version": "20261214011200",
+      "statementCount": 10,
+      "statementsSha256": "55260b719b9dc4bf88f1a7e251624292e1ff987391d2d31d58b687bb909df81a",
+      "sha256": "8d2402a4b326cfdace54ee13f3700eda9cb92aec30acb9b9bd0b71d8cf7a8be1"
     }
   ]
 }

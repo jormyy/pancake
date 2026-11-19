@@ -6000,6 +6000,14 @@ export type Database = {
         Args: { p_nba_id: string; p_player_id: string }
         Returns: string
       }
+      auto_manage_ir_service: {
+        Args: {
+          p_league_id: string
+          p_league_season_id: string
+          p_member_id: string
+        }
+        Returns: Json
+      }
       auto_pick_snake_pick_atomic: {
         Args: {
           p_draft_id: string
@@ -6481,6 +6489,10 @@ export type Database = {
       }
       generate_playoff_bracket_atomic: {
         Args: { p_league_id: string }
+        Returns: Json
+      }
+      get_auto_ir_notices: {
+        Args: { p_league_id: string; p_league_season_id: string }
         Returns: Json
       }
       get_backfill_season_plan: {
