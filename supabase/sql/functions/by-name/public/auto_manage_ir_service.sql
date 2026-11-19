@@ -38,6 +38,10 @@ DECLARE
   v_occupant_status text;
   v_occupant_return date;
   v_occupant_on_ir boolean;
+  v_planned_contender_return date;
+  v_planned_incumbent_return date;
+  v_compared_player_id uuid;
+  v_compared_return date;
   v_moves jsonb := '[]'::jsonb;
   v_skipped jsonb := '[]'::jsonb;
   v_notices jsonb := '[]'::jsonb;
@@ -169,14 +173,34 @@ BEGIN
             JOIN players p ON p.id = rp.player_id
            WHERE rp.id = v_occupant_roster_id
            FOR SHARE OF p;
+          v_planned_contender_return := (v_move->>'plannedContenderReturn')::date;
+          v_planned_incumbent_return := (v_move->>'plannedIncumbentReturn')::date;
           IF NOT private.is_ir_designation(v_candidate_status)
              OR v_candidate_return IS NULL
+             OR v_planned_contender_return IS NULL
+             OR v_candidate_return <> v_planned_contender_return
              OR NOT v_occupant_on_ir
              OR NOT private.is_ir_designation(v_occupant_status)
              OR v_occupant_return IS NULL
-             OR v_candidate_return <= v_occupant_return THEN
+             OR v_planned_incumbent_return IS NULL
+             OR v_occupant_return <> v_planned_incumbent_return
+             OR v_planned_contender_return <= v_planned_incumbent_return THEN
             RAISE EXCEPTION 'Incumbent exchange no longer valid.' USING ERRCODE = 'P0001';
           END IF;
+          FOR v_compared_player_id IN
+            SELECT (value)::uuid
+              FROM jsonb_array_elements_text(COALESCE(v_move->'comparedIncumbentPlayerIds', '[]'::jsonb))
+             ORDER BY 1
+          LOOP
+            SELECT private.ir_reliable_return(p.injury_expected_return, v_today)
+              INTO v_compared_return
+              FROM players p
+             WHERE p.id = v_compared_player_id
+             FOR SHARE;
+            IF v_compared_return IS NOT NULL AND v_compared_return < v_planned_incumbent_return THEN
+              RAISE EXCEPTION 'Incumbent exchange no longer valid.' USING ERRCODE = 'P0001';
+            END IF;
+          END LOOP;
           PERFORM private.toggle_ir_for_activation(v_candidate_roster_id, true, v_user_id, v_occupant_roster_id);
           PERFORM private.toggle_ir_for_activation(v_occupant_roster_id, false, v_user_id, NULL);
           v_moves := v_moves || jsonb_build_object(

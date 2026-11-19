@@ -65,8 +65,15 @@ DECLARE
   v_sorted_is_incumbent boolean[];
   v_placed_contender_roster_ids uuid[] := ARRAY[]::uuid[];
   v_placed_contender_player_ids uuid[] := ARRAY[]::uuid[];
+  v_placed_contender_dates date[] := ARRAY[]::date[];
   v_exchange_incumbent_roster_ids uuid[] := ARRAY[]::uuid[];
   v_exchange_incumbent_player_ids uuid[] := ARRAY[]::uuid[];
+  v_exchange_incumbent_names text[] := ARRAY[]::text[];
+  v_exchange_incumbent_dates date[] := ARRAY[]::date[];
+  v_exchange_incumbent_count int;
+  v_unambiguous_exchange_count int;
+  v_compared_player_ids uuid[];
+  v_j int;
   v_moves jsonb := '[]'::jsonb;
   v_skipped jsonb := '[]'::jsonb;
   v_notices jsonb := '[]'::jsonb;
@@ -213,9 +220,14 @@ BEGIN
   v_free_places := v_open_slots + v_occupant_count;
   v_pool_places := v_free_places + v_incumbent_count;
 
-  IF v_candidate_count <= v_free_places THEN
+  IF v_ir_count > v_ir_slots THEN
+    v_placed_contender_roster_ids := ARRAY[]::uuid[];
+    v_placed_contender_player_ids := ARRAY[]::uuid[];
+    v_placed_contender_dates := ARRAY[]::date[];
+  ELSIF v_candidate_count <= v_free_places THEN
     v_placed_contender_roster_ids := v_cand_roster_ids;
     v_placed_contender_player_ids := v_cand_player_ids;
+    v_placed_contender_dates := v_cand_dates;
   ELSE
     v_pool_roster_ids := v_cand_roster_ids || v_inc_roster_ids;
     v_pool_player_ids := v_cand_player_ids || v_inc_player_ids;
@@ -253,6 +265,7 @@ BEGIN
       IF NOT v_sorted_is_incumbent[v_index] THEN
         v_placed_contender_roster_ids := v_placed_contender_roster_ids || v_sorted_roster_ids[v_index];
         v_placed_contender_player_ids := v_placed_contender_player_ids || v_sorted_player_ids[v_index];
+        v_placed_contender_dates := v_placed_contender_dates || v_sorted_dates[v_index];
       END IF;
     END LOOP;
 
@@ -260,6 +273,8 @@ BEGIN
       IF v_sorted_is_incumbent[v_index] THEN
         v_exchange_incumbent_roster_ids := v_exchange_incumbent_roster_ids || v_sorted_roster_ids[v_index];
         v_exchange_incumbent_player_ids := v_exchange_incumbent_player_ids || v_sorted_player_ids[v_index];
+        v_exchange_incumbent_names := v_exchange_incumbent_names || v_sorted_names[v_index];
+        v_exchange_incumbent_dates := v_exchange_incumbent_dates || v_sorted_dates[v_index];
       END IF;
     END LOOP;
 
@@ -284,6 +299,20 @@ BEGIN
   v_designate_count := LEAST(v_open_slots, v_placed_count);
   v_healthy_swap_count := LEAST(v_occupant_count, v_placed_count - v_designate_count);
   v_incumbent_swap_count := v_placed_count - v_designate_count - v_healthy_swap_count;
+  v_exchange_incumbent_count := COALESCE(array_length(v_exchange_incumbent_roster_ids, 1), 0);
+
+  v_unambiguous_exchange_count := 0;
+  IF v_incumbent_swap_count > 0 THEN
+    v_index := v_incumbent_swap_count;
+    WHILE v_index >= 1 LOOP
+      IF v_index = v_exchange_incumbent_count
+         OR v_exchange_incumbent_dates[v_index] < v_exchange_incumbent_dates[v_index + 1] THEN
+        v_unambiguous_exchange_count := v_index;
+        EXIT;
+      END IF;
+      v_index := v_index - 1;
+    END LOOP;
+  END IF;
 
   FOR v_index IN 1..v_designate_count LOOP
     v_moves := v_moves || jsonb_build_object(
@@ -304,16 +333,39 @@ BEGIN
     );
   END LOOP;
 
-  FOR v_index IN 1..v_incumbent_swap_count LOOP
+  FOR v_index IN 1..v_unambiguous_exchange_count LOOP
+    v_compared_player_ids := ARRAY[]::uuid[];
+    FOR v_j IN 1..v_incumbent_count LOOP
+      IF v_inc_player_ids[v_j] <> v_exchange_incumbent_player_ids[v_index] THEN
+        v_compared_player_ids := v_compared_player_ids || v_inc_player_ids[v_j];
+      END IF;
+    END LOOP;
     v_moves := v_moves || jsonb_build_object(
       'kind', 'swap',
       'swapKind', 'incumbent',
       'designatePlayerId', v_placed_contender_player_ids[v_designate_count + v_healthy_swap_count + v_index],
       'designateRosterPlayerId', v_placed_contender_roster_ids[v_designate_count + v_healthy_swap_count + v_index],
       'activatePlayerId', v_exchange_incumbent_player_ids[v_index],
-      'activateRosterPlayerId', v_exchange_incumbent_roster_ids[v_index]
+      'activateRosterPlayerId', v_exchange_incumbent_roster_ids[v_index],
+      'plannedContenderReturn', v_placed_contender_dates[v_designate_count + v_healthy_swap_count + v_index]::text,
+      'plannedIncumbentReturn', v_exchange_incumbent_dates[v_index]::text,
+      'comparedIncumbentPlayerIds', to_jsonb(v_compared_player_ids)
     );
   END LOOP;
+
+  IF v_unambiguous_exchange_count < v_incumbent_swap_count THEN
+    v_boundary_date := v_exchange_incumbent_dates[v_unambiguous_exchange_count + 1];
+    FOR v_index IN (v_unambiguous_exchange_count + 1)..v_exchange_incumbent_count LOOP
+      IF v_exchange_incumbent_dates[v_index] = v_boundary_date THEN
+        v_notices := v_notices || jsonb_build_object(
+          'playerId', v_exchange_incumbent_player_ids[v_index],
+          'playerName', v_exchange_incumbent_names[v_index],
+          'reason', 'ir_choice_uncertain',
+          'action', 'Choose who moves to IR'
+        );
+      END IF;
+    END LOOP;
+  END IF;
 
   v_active_now := v_active_count - v_designate_count;
   v_unplaced_eligible_active := v_active_eligible_count - v_placed_count;
@@ -335,10 +387,12 @@ BEGIN
         'playerId', v_occupant_player_id,
         'playerName', v_occupant_name,
         'reason', CASE
+          WHEN v_ir_count > v_ir_slots THEN 'healthy_ir_bench_full'
           WHEN v_unplaced_usable_active > 0 THEN 'healthy_ir_swap_available'
           WHEN v_unplaced_eligible_active > 0 THEN 'healthy_ir_swap_locked'
           ELSE 'healthy_ir_bench_full' END,
         'action', CASE
+          WHEN v_ir_count > v_ir_slots THEN 'Drop a player, then activate ' || v_occupant_name
           WHEN v_unplaced_usable_active > 0 THEN 'Swap ' || v_occupant_name || ' with an injured player'
           WHEN v_unplaced_eligible_active > 0 THEN 'Swap ' || v_occupant_name || ' with an injured player after their game or pending move clears'
           ELSE 'Drop a player, then activate ' || v_occupant_name END
