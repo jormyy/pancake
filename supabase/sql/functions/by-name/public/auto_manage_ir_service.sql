@@ -94,6 +94,16 @@ BEGIN
     PERFORM pg_advisory_xact_lock(hashtext(p_league_id::text), hashtext(v_lock_id::text));
   END LOOP;
 
+  SELECT enabled INTO v_enabled
+    FROM lineup_optimizer_settings
+   WHERE league_id = p_league_id
+     AND league_season_id = p_league_season_id
+     AND member_id = p_member_id
+   FOR SHARE;
+  IF NOT COALESCE(v_enabled, false) THEN
+    RETURN jsonb_build_object('moves', '[]'::jsonb, 'skipped', '[]'::jsonb, 'notices', '[]'::jsonb);
+  END IF;
+
   SELECT count(*) FILTER (WHERE is_on_ir),
          count(*) FILTER (WHERE NOT is_on_ir AND NOT is_on_taxi)
     INTO v_ir_before, v_active_before
@@ -181,6 +191,15 @@ BEGIN
         BEGIN
           PERFORM private.assert_asset_unlocked(p_league_id, p_league_season_id, p_member_id, v_candidate_player_id);
           PERFORM private.assert_asset_unlocked(p_league_id, p_league_season_id, p_member_id, v_occupant_player_id);
+          SELECT p.injury_status, rp.is_on_ir
+            INTO v_occupant_status, v_occupant_on_ir
+            FROM roster_players rp
+            JOIN players p ON p.id = rp.player_id
+           WHERE rp.id = v_occupant_roster_id
+           FOR SHARE OF p;
+          IF NOT v_occupant_on_ir OR private.is_ir_designation(v_occupant_status) THEN
+            RAISE EXCEPTION 'Healthy occupant is no longer activatable.' USING ERRCODE = 'P0001';
+          END IF;
           PERFORM private.toggle_ir_for_activation(v_candidate_roster_id, true, v_user_id, v_occupant_roster_id);
           PERFORM private.toggle_ir_for_activation(v_occupant_roster_id, false, v_user_id, NULL);
           v_moves := v_moves || jsonb_build_object(
@@ -197,6 +216,15 @@ BEGIN
       v_occupant_player_id := (v_move->>'activatePlayerId')::uuid;
       BEGIN
         PERFORM private.assert_asset_unlocked(p_league_id, p_league_season_id, p_member_id, v_occupant_player_id);
+        SELECT p.injury_status, rp.is_on_ir
+          INTO v_occupant_status, v_occupant_on_ir
+          FROM roster_players rp
+          JOIN players p ON p.id = rp.player_id
+         WHERE rp.id = v_occupant_roster_id
+         FOR SHARE OF p;
+        IF NOT v_occupant_on_ir OR private.is_ir_designation(v_occupant_status) THEN
+          RAISE EXCEPTION 'Healthy occupant is no longer activatable.' USING ERRCODE = 'P0001';
+        END IF;
         PERFORM private.toggle_ir_for_activation(v_occupant_roster_id, false, v_user_id, NULL);
         v_moves := v_moves || jsonb_build_object('kind', 'activate', 'activatePlayerId', v_occupant_player_id);
       EXCEPTION WHEN OTHERS THEN

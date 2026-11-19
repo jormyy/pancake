@@ -72,6 +72,7 @@ DECLARE
   v_notices jsonb := '[]'::jsonb;
   v_active_now int;
   v_unplaced_eligible_active int;
+  v_unplaced_usable_active int;
   v_swap_available boolean;
   v_occupant_roster_id uuid;
   v_occupant_player_id uuid;
@@ -316,7 +317,8 @@ BEGIN
 
   v_active_now := v_active_count - v_designate_count;
   v_unplaced_eligible_active := v_active_eligible_count - v_placed_count;
-  v_swap_available := v_unplaced_eligible_active > 0;
+  v_unplaced_usable_active := v_candidate_count - v_placed_count;
+  v_swap_available := v_unplaced_usable_active > 0;
   FOR v_index IN (v_healthy_swap_count + 1)..v_occupant_count LOOP
     v_occupant_roster_id := v_occ_roster_ids[v_index];
     v_occupant_player_id := v_occ_player_ids[v_index];
@@ -332,9 +334,13 @@ BEGIN
       v_notices := v_notices || jsonb_build_object(
         'playerId', v_occupant_player_id,
         'playerName', v_occupant_name,
-        'reason', CASE WHEN v_swap_available THEN 'healthy_ir_swap_available' ELSE 'healthy_ir_bench_full' END,
-        'action', CASE WHEN v_swap_available
-          THEN 'Swap ' || v_occupant_name || ' with an injured player'
+        'reason', CASE
+          WHEN v_unplaced_usable_active > 0 THEN 'healthy_ir_swap_available'
+          WHEN v_unplaced_eligible_active > 0 THEN 'healthy_ir_swap_locked'
+          ELSE 'healthy_ir_bench_full' END,
+        'action', CASE
+          WHEN v_unplaced_usable_active > 0 THEN 'Swap ' || v_occupant_name || ' with an injured player'
+          WHEN v_unplaced_eligible_active > 0 THEN 'Swap ' || v_occupant_name || ' with an injured player after their game or pending move clears'
           ELSE 'Drop a player, then activate ' || v_occupant_name END
       );
     END IF;
