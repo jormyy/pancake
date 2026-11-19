@@ -9,7 +9,7 @@ const flag = (name, fallback) => {
   const hit = process.argv.find((arg) => arg.startsWith(`--${name}=`))
   return hit ? hit.slice(name.length + 3) : fallback
 }
-const cases = ['open-slot', 'full-bench-swap', 'no-legal-swap', 'swap-available', 'swap-locked', 'uncertain', 'locked', 'taxi-ineligible', 'incumbent-exchange', 'incumbent-tie', 'incumbent-unknown']
+const cases = ['open-slot', 'full-bench-swap', 'no-legal-swap', 'swap-available', 'swap-locked', 'uncertain', 'locked', 'taxi-ineligible', 'incumbent-exchange', 'incumbent-tie', 'incumbent-boundary-tie', 'incumbent-unknown']
 const caseName = flag('case', '')
 assert.ok(cases.includes(caseName), `--case=${cases.join('|')}`)
 const team = flag('team', 'E2E Team 1')
@@ -175,6 +175,25 @@ if (caseName === 'open-slot') {
   statements.push(`INSERT INTO nba_games(season_year, week_number, game_date, home_team, away_team, status, game_time, nba_game_id)
     VALUES (${ctx.seasonYear}, ${ctx.weekNumber}, ${q(ctx.today)}, ${q(candidate.nbaTeam)}, ${q(candidate.nbaTeam === 'BOS' ? 'NYK' : 'BOS')}, 'InProgress', now() - interval '1 hour', 'verify-auto-ir-locked');`)
   involved.push({ role: 'lockedCandidate', playerId: candidate.playerId })
+} else if (caseName === 'incumbent-boundary-tie') {
+  const [incumbentOne, incumbentTwo, contender] = pick(3)
+  const tiedReturn = addDays(ctx.today, 7)
+  playerUpdates.set(incumbentOne.playerId, { injury_status: 'Out', injury_expected_return: tiedReturn })
+  playerUpdates.set(incumbentTwo.playerId, { injury_status: 'Out', injury_expected_return: tiedReturn })
+  playerUpdates.set(contender.playerId, { injury_status: 'Out', injury_expected_return: addDays(ctx.today, 60) })
+  rosterUpdates.set(incumbentOne.rosterPlayerId, { is_on_ir: true })
+  rosterUpdates.set(incumbentTwo.rosterPlayerId, { is_on_ir: true })
+  leagueUpdates.ir_slots = 2
+  leagueUpdates.roster_size = roster.length - 3
+  involved.push(
+    { role: 'incumbentOne', playerId: incumbentOne.playerId },
+    { role: 'incumbentTwo', playerId: incumbentTwo.playerId },
+    { role: 'contender', playerId: contender.playerId },
+  )
+  expected.notices.push(
+    { playerId: incumbentOne.playerId, playerName: incumbentOne.name, reason: 'ir_choice_uncertain', action: 'Choose who moves to IR' },
+    { playerId: incumbentTwo.playerId, playerName: incumbentTwo.name, reason: 'ir_choice_uncertain', action: 'Choose who moves to IR' },
+  )
 } else if (caseName === 'incumbent-exchange' || caseName === 'incumbent-tie' || caseName === 'incumbent-unknown') {
   const [incumbentSoon, incumbentLater, contender] = pick(3)
   const soonReturn = addDays(ctx.today, 7)
@@ -301,6 +320,14 @@ if (caseName === 'open-slot') {
   checks.candidateLocked = involvedPlayers[0].gameLocked === true
   checks.candidateIrEligible = involvedPlayers[0].irEligible === true
   checks.openIrSlot = openIrSlots >= 1
+} else if (caseName === 'incumbent-boundary-tie') {
+  const [incumbentOne, incumbentTwo, contender] = involvedPlayers
+  checks.incumbentsOnIr = incumbentOne.isOnIr === true && incumbentTwo.isOnIr === true && incumbentOne.irEligible === true && incumbentTwo.irEligible === true
+  checks.incumbentReturns = incumbentOne.injuryExpectedReturn === addDays(ctx.today, 7) && incumbentTwo.injuryExpectedReturn === addDays(ctx.today, 7)
+  checks.contenderActive = contender.isOnIr === false && contender.irEligible === true
+  checks.activeFull = final.counts.active === final.league.rosterSize
+  checks.noOpenIrSlot = openIrSlots === 0
+  checks.contenderLater = contender.injuryExpectedReturn === addDays(ctx.today, 60)
 } else if (caseName === 'incumbent-exchange' || caseName === 'incumbent-tie' || caseName === 'incumbent-unknown') {
   const [incumbentSoon, incumbentLater, contender] = involvedPlayers
   checks.incumbentsOnIr = incumbentSoon.isOnIr === true && incumbentLater.isOnIr === true && incumbentSoon.irEligible === true && incumbentLater.irEligible === true

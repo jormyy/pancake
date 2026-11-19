@@ -29,7 +29,7 @@ Preconditions:
 - `node tools/verify/seed-auto-ir.mjs "$EVIDENCE" --case=<name>` has run.
 - Read the involved player names and ids from the seeder’s JSON, not from the fixture.
 
-Cases: `open-slot`, `full-bench-swap`, `no-legal-swap`, `swap-available`, `swap-locked`, `uncertain`, `locked`, `taxi-ineligible`, `incumbent-exchange`, `incumbent-tie`, `incumbent-unknown`.
+Cases: `open-slot`, `full-bench-swap`, `no-legal-swap`, `swap-available`, `swap-locked`, `uncertain`, `locked`, `taxi-ineligible`, `incumbent-exchange`, `incumbent-tie`, `incumbent-boundary-tie`, `incumbent-unknown`.
 
 - **Seed.** Run the seeder for one case. It reshapes E2E Team 1, enables that member’s lineup optimizer, and prints JSON. Re-running the same case resets and reapplies it.
 - **Before.** Run `node tools/verify/observe.mjs "$EVIDENCE" > "$EVIDENCE/auto-ir-before.json"`. Require `roster_players.is_on_ir`/`is_on_taxi`, the team’s `roster_transactions`, and the `players` injury fields.
@@ -37,7 +37,7 @@ Cases: `open-slot`, `full-bench-swap`, `no-legal-swap`, `swap-available`, `swap-
 - **Notices (live read).** Open Lineup without touching any Start/Auto/Bench control. Require the notice name, reason text, and action from the seeder JSON. Close Lineup, reopen it, and require the same notice again. The notice comes from the live read on open and refocus, not from the optimizer response.
 - **Trigger (Lineup screen).** Use the visible Auto lineup control. After the run, the notice list refreshes from the live read; no pin change is required.
 - **After.** Repeat the observation into `auto-ir-after.json`. Require the expected `is_on_ir` flags and `roster_transactions` rows (`ir_designate`, `ir_return`).
-- **Incumbent exchange.** For `incumbent-exchange`, require the 60-day contender on IR and the 7-day incumbent active, with the 30-day incumbent still on IR. For `incumbent-tie` and `incumbent-unknown`, require no roster change and the `ir_choice_uncertain` notice.
+- **Incumbent exchange.** For `incumbent-exchange`, require the 60-day contender on IR and the 7-day incumbent active, with the 30-day incumbent still on IR. For `incumbent-tie`, `incumbent-boundary-tie`, and `incumbent-unknown`, require no roster change and the `ir_choice_uncertain` notice.
 - **Locked swap partner.** For `swap-locked`, require no roster change and the `healthy_ir_swap_locked` notice. The reason text is `Healthy on IR, but the active roster is full. The injured player who could take the spot is locked by a game or a pending move.` and the action is `Swap <name> with an injured player after their game or pending move clears`. The notice must not advise a swap that the game lock would reject.
 - **Manual swap.** For `full-bench-swap` and `swap-available`, either path above must leave the healthy occupant active and the injured player on IR. The roster sheet repeats each `Move ... to IR` label behind the dialog; click `[role="dialog"] [aria-label="Move <name> to IR"]`, then `Move and activate`.
 - **Pickup gate.** With IR invalid, a claim must open Resolve roster and write no `waiver_claims` row until the roster is legal.
@@ -57,6 +57,7 @@ Cases: `open-slot`, `full-bench-swap`, `no-legal-swap`, `swap-available`, `swap-
 | `taxi-ineligible` | no roster change | `taxi_ineligible` notice with `Activate <name> from taxi or drop a player` |
 | `incumbent-exchange` | 60-day contender `is_on_ir=true`, 7-day incumbent `is_on_ir=false`, 30-day incumbent `is_on_ir=true`, `ir_return` and `ir_designate` | one exchange; the 30-day incumbent stays |
 | `incumbent-tie` | no roster change | `ir_choice_uncertain` notice with `Choose who moves to IR` |
+| `incumbent-boundary-tie` | no roster change | `ir_choice_uncertain` notice with `Choose who moves to IR` |
 | `incumbent-unknown` | no roster change | `ir_choice_uncertain` notice with `Choose who moves to IR` |
 
 ## Gotchas
