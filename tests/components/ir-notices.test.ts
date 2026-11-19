@@ -53,6 +53,21 @@ it('explains that a healthy IR player can swap with an injured player', async ()
     expect(text).toContain('Swap Healthy Vet with an injured player')
 })
 
+it('explains that the injured swap partner is locked and keeps the action unchanged', async () => {
+    const action = 'Swap Healthy Vet with an injured player after their game or pending move clears'
+    await act(async () => {
+        screen = create(React.createElement(IrNotices, {
+            notices: [{
+                playerId: 'p1', playerName: 'Healthy Vet', reason: 'healthy_ir_swap_locked', action,
+            }],
+        }))
+    })
+    const text = JSON.stringify(screen.toJSON())
+    expect(text).toContain('Healthy Vet')
+    expect(text).toContain('Healthy on IR, but the active roster is full. The injured player who could take the spot is locked by a game or a pending move.')
+    expect(text).toContain(action)
+})
+
 it('renders nothing when the optimizer returned no notices', async () => {
     await act(async () => { screen = create(React.createElement(IrNotices, { notices: [] })) })
     expect(screen.toJSON()).toBeNull()
