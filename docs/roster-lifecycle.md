@@ -84,7 +84,7 @@ If either player's reliable return changed, or another compared incumbent now ou
 It selects players only when the choice is unambiguous.
 Tied or uncertain players at the boundary stay put and produce an `ir_choice_uncertain` notice.
 When the incumbents at the eviction boundary are tied, no incumbent is exchanged and the tied incumbents produce the notice.
-When the IR is at or over capacity, no designate or swap is planned; a healthy occupant is activated alone when the active roster has room, otherwise it produces a `healthy_ir_bench_full` notice.
+When the IR is over capacity, no designate or swap is planned; a healthy occupant is activated alone when the active roster has room, otherwise it produces a `healthy_ir_bench_full` notice.
 A healthy occupant with no swap partner is activated alone only when the active roster has room.
 Otherwise it stays and produces a `healthy_ir_swap_available` notice when an unplaced injured active player is unlocked and unreserved, a `healthy_ir_swap_locked` notice when every unplaced injured active player is game-locked or reserved, or a `healthy_ir_bench_full` notice when no injured active player exists.
 An ineligible taxi player produces a `taxi_ineligible` notice; Auto Lineup never touches taxi.
