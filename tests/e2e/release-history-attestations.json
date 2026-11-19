@@ -3663,8 +3663,8 @@
       "name": "auto_manage_ir_service",
       "version": "20261214011200",
       "statementCount": 10,
-      "statementsSha256": "34bbeb82a1fc0ea52e84dc99de6ea5f9e60fb5192cc7d7ec84ed68c48ac49a45",
-      "sha256": "62c758b87e8850c467717bc6dffdb144769f5b2f1f4e3d6d17ee1df45994c8d9"
+      "statementsSha256": "b781eeb8d14c352bd1aee00a44bea104d71eb0bdb47b3ab847058a32c614c4ec",
+      "sha256": "af64cdcd6f82e6df98d7defa6104162dc2d58de93e1b5adfd96279dbbe0201b3"
     }
   ]
 }
