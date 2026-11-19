@@ -72,7 +72,7 @@ CREATE FUNCTION pg_temp.auto_ir_change_incumbent()
 RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
   IF NEW.player_id = current_setting('auto_ir.exchange_contender')::uuid THEN
-    UPDATE players SET injury_status = 'Healthy'
+    UPDATE players SET injury_expected_return = ((now() AT TIME ZONE 'America/New_York')::date + 90)::text
      WHERE id = current_setting('auto_ir.exchange_incumbent')::uuid;
   END IF;
   RETURN NEW;
@@ -370,28 +370,33 @@ BEGIN
     'unknown incumbent contender writes nothing');
 
   -- An incumbent that changes between plan and write is not exchanged.
-  SELECT * INTO f FROM pg_temp.auto_ir_league(9549, 1, 2);
+  SELECT * INTO f FROM pg_temp.auto_ir_league(9549, 2, 3);
   h1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Changing Incumbent Seven', 'Out', (v_today + 7)::text, 'ir');
   h2 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Changing Incumbent Thirty', 'Out', (v_today + 30)::text, 'ir');
   c1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Changing Contender Sixty', 'Out', (v_today + 60)::text, 'active');
+  c2 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Changing Contender Fifty', 'Out', (v_today + 50)::text, 'active');
   PERFORM set_config('auto_ir.exchange_contender', (SELECT player_id FROM roster_players WHERE id = c1)::text, true);
   PERFORM set_config('auto_ir.exchange_incumbent', (SELECT player_id FROM roster_players WHERE id = h1)::text, true);
   CREATE TRIGGER auto_ir_change_incumbent BEFORE UPDATE ON roster_players
     FOR EACH ROW EXECUTE FUNCTION pg_temp.auto_ir_change_incumbent();
   r := public.auto_manage_ir_service(f.league_id, f.season_id, f.member_id);
   DROP TRIGGER auto_ir_change_incumbent ON roster_players;
-  PERFORM pg_temp.check_rules(jsonb_array_length(r->'moves') = 0, 'changed incumbent makes no move');
+  PERFORM pg_temp.check_rules(jsonb_array_length(r->'moves') = 1
+    AND r->'moves'->0->>'kind' = 'designate'
+    AND (r->'moves'->0->>'designatePlayerId')::uuid = (SELECT player_id FROM roster_players WHERE id = c1),
+    'changed incumbent still writes the designate');
   PERFORM pg_temp.check_rules(EXISTS (
     SELECT 1 FROM jsonb_array_elements(r->'skipped') s
      WHERE s->>'reason' LIKE '%Incumbent exchange no longer valid%'
-       AND (s->>'playerId')::uuid = (SELECT player_id FROM roster_players WHERE id = c1)),
+       AND (s->>'playerId')::uuid = (SELECT player_id FROM roster_players WHERE id = c2)),
     'changed incumbent is reported as skipped');
   PERFORM pg_temp.check_rules((SELECT is_on_ir FROM roster_players WHERE id = h1)
     AND (SELECT is_on_ir FROM roster_players WHERE id = h2)
-    AND NOT (SELECT is_on_ir FROM roster_players WHERE id = c1),
-    'changed incumbent leaves both players unchanged');
-  PERFORM pg_temp.check_rules((SELECT count(*) FROM roster_transactions WHERE member_id = f.member_id) = 0,
-    'changed incumbent writes nothing');
+    AND NOT (SELECT is_on_ir FROM roster_players WHERE id = c2),
+    'changed incumbent leaves the exchange players unchanged');
+  PERFORM pg_temp.check_rules((SELECT count(*) FROM roster_transactions WHERE member_id = f.member_id AND transaction_type = 'ir_designate') = 1
+    AND (SELECT count(*) FROM roster_transactions WHERE member_id = f.member_id AND transaction_type = 'ir_return') = 0,
+    'changed incumbent writes only the designate transaction');
 
   -- A healthy occupant with an unplaced injured active player gets swap advice.
   SELECT * INTO f FROM pg_temp.auto_ir_league(9550, 2, 1);
