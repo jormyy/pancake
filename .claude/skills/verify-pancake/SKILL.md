@@ -222,7 +222,7 @@ node tools/verify/trigger-lineup-optimizer.mjs "$EVIDENCE"
 node tools/verify/observe.mjs "$EVIDENCE" > "$EVIDENCE/auto-ir-after.json"
 ```
 
-Cases are `open-slot`, `full-bench-swap`, `no-legal-swap`, `swap-available`, `uncertain`, `locked`, `taxi-ineligible`, `incumbent-exchange`, `incumbent-tie`, `incumbent-boundary-tie`, and `incumbent-unknown`.
+Cases are `open-slot`, `full-bench-swap`, `no-legal-swap`, `swap-available`, `swap-locked`, `uncertain`, `locked`, `taxi-ineligible`, `incumbent-exchange`, `incumbent-tie`, `incumbent-boundary-tie`, and `incumbent-unknown`.
 The seeder reshapes E2E Team 1, enables that member’s lineup optimizer, and prints the involved player names, ids, counts, and expected moves or notices as JSON.
 Re-running a case resets and reapplies it.
 The trigger posts to the local Edge route with the run’s generated internal token, which is never printed.

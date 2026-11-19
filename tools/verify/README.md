@@ -40,7 +40,7 @@ Other arguments pass directly to `agent-browser`.
 Use `node tools/verify/capture.mjs EVIDENCE FEATURE LABEL` to save a snapshot, screenshot, layout, and database observation together.
 
 `seed-auto-ir.mjs EVIDENCE --case=NAME` reshapes E2E Team 1 into one Auto Lineup IR case and prints the involved players, counts, and expected moves or notices as JSON.
-Cases are `open-slot`, `full-bench-swap`, `no-legal-swap`, `swap-available`, `uncertain`, `locked`, `taxi-ineligible`, `incumbent-exchange`, `incumbent-tie`, and `incumbent-unknown`.
+Cases are `open-slot`, `full-bench-swap`, `no-legal-swap`, `swap-available`, `swap-locked`, `uncertain`, `locked`, `taxi-ineligible`, `incumbent-exchange`, `incumbent-tie`, `incumbent-boundary-tie`, and `incumbent-unknown`.
 It enables that member’s lineup optimizer and is idempotent per case.
 `trigger-lineup-optimizer.mjs EVIDENCE [--date=YYYY-MM-DD] [--mode=daily|pre_tipoff]` posts to the run’s local Edge route with the generated internal token and prints the optimizer JSON.
 The token is read from `functions.env` and never printed.
