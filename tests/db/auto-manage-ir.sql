@@ -79,6 +79,18 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION pg_temp.auto_ir_injure_occupant()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.member_id = current_setting('auto_ir.injure_member')::uuid THEN
+    UPDATE players SET injury_status = 'Out',
+      injury_expected_return = ((now() AT TIME ZONE 'America/New_York')::date + 60)::text
+     WHERE id = current_setting('auto_ir.injure_target')::uuid;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
 CREATE FUNCTION pg_temp.expect_denied(p_query text)
 RETURNS void LANGUAGE plpgsql AS $$
 DECLARE v_denied boolean := false;
@@ -487,6 +499,98 @@ BEGIN
   r := public.get_auto_ir_notices(f.league_id, f.season_id);
   PERFORM pg_temp.check_rules(NOT (r->>'enabled')::boolean AND jsonb_array_length(r->'notices') = 0,
     'notices reader returns nothing for a non-member');
+
+  -- A healthy swap is skipped when the occupant becomes IR-eligible before the write.
+  SELECT * INTO f FROM pg_temp.auto_ir_league(9555, 2, 2);
+  h1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Swap Injured Occupant', 'Healthy', 'unknown', 'ir');
+  c1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Swap Designate Sixty', 'Out', (v_today + 60)::text, 'active');
+  c2 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Swap Exchange Fifty', 'Out', (v_today + 50)::text, 'active');
+  PERFORM set_config('auto_ir.injure_member', f.member_id::text, true);
+  PERFORM set_config('auto_ir.injure_target', (SELECT player_id FROM roster_players WHERE id = h1)::text, true);
+  CREATE TRIGGER auto_ir_injure_occupant BEFORE UPDATE ON roster_players
+    FOR EACH ROW EXECUTE FUNCTION pg_temp.auto_ir_injure_occupant();
+  r := public.auto_manage_ir_service(f.league_id, f.season_id, f.member_id);
+  DROP TRIGGER auto_ir_injure_occupant ON roster_players;
+  PERFORM pg_temp.check_rules(jsonb_array_length(r->'moves') = 1
+    AND r->'moves'->0->>'kind' = 'designate'
+    AND (r->'moves'->0->>'designatePlayerId')::uuid IN (
+      (SELECT player_id FROM roster_players WHERE id = c1),
+      (SELECT player_id FROM roster_players WHERE id = c2)),
+    'injured occupant still writes the designate');
+  PERFORM pg_temp.check_rules(EXISTS (
+    SELECT 1 FROM jsonb_array_elements(r->'skipped') s
+     WHERE s->>'reason' LIKE '%Healthy occupant is no longer activatable%'
+       AND (s->>'playerId')::uuid IN (
+         (SELECT player_id FROM roster_players WHERE id = c1),
+         (SELECT player_id FROM roster_players WHERE id = c2))),
+    'injured occupant skips the healthy swap');
+  PERFORM pg_temp.check_rules((SELECT is_on_ir FROM roster_players WHERE id = h1)
+    AND (SELECT count(*) FROM roster_players WHERE id IN (c1, c2) AND is_on_ir) = 1
+    AND (SELECT count(*) FROM roster_players WHERE id IN (c1, c2) AND NOT is_on_ir) = 1,
+    'injured occupant stays on IR and one contender stays active');
+  PERFORM pg_temp.check_rules((SELECT count(*) FROM roster_transactions WHERE member_id = f.member_id AND transaction_type = 'ir_designate') = 1
+    AND (SELECT count(*) FROM roster_transactions WHERE member_id = f.member_id AND transaction_type = 'ir_return') = 0,
+    'injured occupant writes only the designate transaction for activation');
+
+  -- A standalone activation is skipped when the occupant becomes IR-eligible before the write.
+  SELECT * INTO f FROM pg_temp.auto_ir_league(9556, 2, 2);
+  h1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Activate Injured Occupant', 'Healthy', 'unknown', 'ir');
+  c1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Activate Designate Sixty', 'Out', (v_today + 60)::text, 'active');
+  PERFORM set_config('auto_ir.injure_member', f.member_id::text, true);
+  PERFORM set_config('auto_ir.injure_target', (SELECT player_id FROM roster_players WHERE id = h1)::text, true);
+  CREATE TRIGGER auto_ir_injure_occupant BEFORE UPDATE ON roster_players
+    FOR EACH ROW EXECUTE FUNCTION pg_temp.auto_ir_injure_occupant();
+  r := public.auto_manage_ir_service(f.league_id, f.season_id, f.member_id);
+  DROP TRIGGER auto_ir_injure_occupant ON roster_players;
+  PERFORM pg_temp.check_rules(jsonb_array_length(r->'moves') = 1
+    AND r->'moves'->0->>'kind' = 'designate'
+    AND (r->'moves'->0->>'designatePlayerId')::uuid = (SELECT player_id FROM roster_players WHERE id = c1),
+    'injured occupant still writes the designate before activation');
+  PERFORM pg_temp.check_rules(EXISTS (
+    SELECT 1 FROM jsonb_array_elements(r->'skipped') s
+     WHERE s->>'reason' LIKE '%Healthy occupant is no longer activatable%'
+       AND (s->>'playerId')::uuid = (SELECT player_id FROM roster_players WHERE id = h1)),
+    'injured occupant skips the standalone activation');
+  PERFORM pg_temp.check_rules((SELECT is_on_ir FROM roster_players WHERE id = h1),
+    'injured occupant stays on IR after the skipped activation');
+  PERFORM pg_temp.check_rules((SELECT count(*) FROM roster_transactions WHERE member_id = f.member_id AND transaction_type = 'ir_designate') = 1
+    AND (SELECT count(*) FROM roster_transactions WHERE member_id = f.member_id AND transaction_type = 'ir_return') = 0,
+    'injured occupant writes only the designate transaction');
+
+  -- A game-locked injured partner produces locked swap advice.
+  SELECT * INTO f FROM pg_temp.auto_ir_league(9557, 1, 1);
+  h1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Locked Swap Occupant', 'Healthy', 'unknown', 'ir');
+  c1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Locked Swap Partner', 'Out', (v_today + 60)::text, 'active');
+  PERFORM pg_temp.auto_ir_game_lock((SELECT player_id FROM roster_players WHERE id = c1), 'LCK3', 9557);
+  r := public.auto_manage_ir_service(f.league_id, f.season_id, f.member_id);
+  PERFORM pg_temp.check_rules(jsonb_array_length(r->'moves') = 0, 'locked swap partner makes no move');
+  PERFORM pg_temp.check_rules(EXISTS (
+    SELECT 1 FROM jsonb_array_elements(r->'notices') n
+     WHERE n->>'reason' = 'healthy_ir_swap_locked'
+       AND (n->>'playerId')::uuid = (SELECT player_id FROM roster_players WHERE id = h1)
+       AND n->>'action' = 'Swap ' || (SELECT display_name FROM players WHERE id = (SELECT player_id FROM roster_players WHERE id = h1)) || ' with an injured player after their game or pending move clears'),
+    'locked swap partner gets locked swap advice');
+  PERFORM pg_temp.check_rules((SELECT count(*) FROM roster_transactions WHERE member_id = f.member_id) = 0,
+    'locked swap partner writes nothing');
+
+  -- A reserved injured partner produces locked swap advice.
+  SELECT * INTO f FROM pg_temp.auto_ir_league(9558, 1, 1, 2);
+  h1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Reserved Swap Occupant', 'Healthy', 'unknown', 'ir');
+  c1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Reserved Swap Partner', 'Out', (v_today + 60)::text, 'active');
+  INSERT INTO trades(id, league_id, league_season_id, proposer_member_id, recipient_member_id, status)
+    VALUES(gen_random_uuid(), f.league_id, f.season_id, f.member_id, f.other_member_id, 'pending')
+    RETURNING id INTO v_player;
+  INSERT INTO trade_items(trade_id, side, player_id, from_member_id, to_member_id)
+    VALUES(v_player, 'proposer', (SELECT player_id FROM roster_players WHERE id = c1), f.member_id, f.other_member_id);
+  r := public.auto_manage_ir_service(f.league_id, f.season_id, f.member_id);
+  PERFORM pg_temp.check_rules(jsonb_array_length(r->'moves') = 0, 'reserved swap partner makes no move');
+  PERFORM pg_temp.check_rules(EXISTS (
+    SELECT 1 FROM jsonb_array_elements(r->'notices') n
+     WHERE n->>'reason' = 'healthy_ir_swap_locked'
+       AND (n->>'playerId')::uuid = (SELECT player_id FROM roster_players WHERE id = h1)),
+    'reserved swap partner gets locked swap advice');
+  PERFORM pg_temp.check_rules((SELECT count(*) FROM roster_transactions WHERE member_id = f.member_id) = 0,
+    'reserved swap partner writes nothing');
 END;
 $$;
 

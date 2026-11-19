@@ -174,6 +174,37 @@ try {
   assert.equal(await one(`SELECT is_on_ir FROM roster_players WHERE id=${quote(disabled.injuredRoster)}`), 'f',
     'Disabled queued call moved the injured player')
 
+  const playerDisabled = await setup(9706)
+  const playerLock = query(`BEGIN; SELECT pg_advisory_xact_lock(hashtext(${quote(playerDisabled.league)}), hashtext((SELECT player_id FROM roster_players WHERE id=${quote(playerDisabled.injuredRoster)})::text)); SELECT pg_sleep(1.5); COMMIT;`)
+  await sleep(300)
+  const playerQueued = query(`SELECT public.auto_manage_ir_service(${quote(playerDisabled.league)},${quote(playerDisabled.season)},${quote(playerDisabled.member)})`)
+  await sleep(300)
+  await one(`SELECT set_config('request.jwt.claim.sub',${quote(playerDisabled.user)},true);
+    SELECT public.save_client_settings_atomic('lineup_optimizer', jsonb_build_object(
+      'memberId',${quote(playerDisabled.member)},'leagueId',${quote(playerDisabled.league)},
+      'seasonId',${quote(playerDisabled.season)},'enabled',false))`)
+  const [playerLockResult, playerQueuedResult] = await Promise.all([playerLock, playerQueued])
+  assert.equal(playerLockResult.code, 0, playerLockResult.error)
+  assert.equal(playerQueuedResult.code, 0, playerQueuedResult.error)
+  const playerOutcome = JSON.parse(playerQueuedResult.output)
+  assert.equal(playerOutcome.moves.length, 0, `Player-lock disable moved: ${playerQueuedResult.output}`)
+  assert.equal(playerOutcome.skipped.length, 0, `Player-lock disable skipped: ${playerQueuedResult.output}`)
+  assert.equal(playerOutcome.notices.length, 0, `Player-lock disable noticed: ${playerQueuedResult.output}`)
+  const playerCounts = JSON.parse(await one(`SELECT jsonb_build_object(
+    'ir', count(*) FILTER (WHERE is_on_ir),
+    'active', count(*) FILTER (WHERE NOT is_on_ir AND NOT is_on_taxi),
+    'rows', count(*))
+    FROM roster_players WHERE member_id=${quote(playerDisabled.member)}`))
+  assert.equal(playerCounts.ir, 1, `Player-lock disable changed IR: ${JSON.stringify(playerCounts)}`)
+  assert.equal(playerCounts.active, 1, `Player-lock disable changed active: ${JSON.stringify(playerCounts)}`)
+  assert.equal(playerCounts.rows, 2, `Player-lock disable changed membership: ${JSON.stringify(playerCounts)}`)
+  assert.equal(await one(`SELECT count(*) FROM roster_transactions WHERE member_id=${quote(playerDisabled.member)}`), '0',
+    'Player-lock disable wrote transactions')
+  assert.equal(await one(`SELECT is_on_ir FROM roster_players WHERE id=${quote(playerDisabled.healthyRoster)}`), 't',
+    'Player-lock disable moved the healthy occupant')
+  assert.equal(await one(`SELECT is_on_ir FROM roster_players WHERE id=${quote(playerDisabled.injuredRoster)}`), 'f',
+    'Player-lock disable moved the injured player')
+
   const enabled = await setup(9704)
   const enabledResult = await query(`SELECT public.auto_manage_ir_service(${quote(enabled.league)},${quote(enabled.season)},${quote(enabled.member)})`)
   assert.equal(enabledResult.code, 0, enabledResult.error)
