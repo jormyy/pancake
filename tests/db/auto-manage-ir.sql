@@ -121,6 +121,7 @@ DECLARE
   r jsonb;
   c1 uuid;
   c2 uuid;
+  c3 uuid;
   h1 uuid;
   h2 uuid;
   h3 uuid;
@@ -835,6 +836,40 @@ BEGIN
   PERFORM pg_temp.check_rules((SELECT count(*) FROM roster_transactions WHERE member_id = f.member_id AND transaction_type = 'ir_designate') = 2
     AND (SELECT count(*) FROM roster_transactions WHERE member_id = f.member_id AND transaction_type = 'ir_return') = 2,
     'both tied incumbents write both designate and return transactions');
+
+  -- An unselected, unexchanged incumbent that outranks the exchanged one skips the pair.
+  SELECT * INTO f FROM pg_temp.auto_ir_league(9573, 3, 4);
+  h1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Unselected Three', 'Out', (v_today + 3)::text, 'ir');
+  h2 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Unselected Seven One', 'Out', (v_today + 7)::text, 'ir');
+  h3 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Unselected Seven Two', 'Out', (v_today + 7)::text, 'ir');
+  c1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Unselected Sixty', 'Out', (v_today + 60)::text, 'active');
+  c2 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Unselected Fifty', 'Out', (v_today + 50)::text, 'active');
+  c3 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Unselected Seven Contender', 'Out', (v_today + 7)::text, 'active');
+  PERFORM set_config('auto_ir.set_return_member', f.member_id::text, true);
+  PERFORM set_config('auto_ir.set_return_target', (SELECT player_id FROM roster_players WHERE id = h2)::text, true);
+  PERFORM set_config('auto_ir.set_return_value', (v_today + 2)::text, true);
+  CREATE TRIGGER auto_ir_set_return BEFORE UPDATE ON roster_players
+    FOR EACH ROW EXECUTE FUNCTION pg_temp.auto_ir_set_return();
+  r := public.auto_manage_ir_service(f.league_id, f.season_id, f.member_id);
+  DROP TRIGGER auto_ir_set_return ON roster_players;
+  PERFORM pg_temp.check_rules(EXISTS (
+    SELECT 1 FROM jsonb_array_elements(r->'moves') m
+     WHERE m->>'kind' = 'designate'
+       AND (m->>'designatePlayerId')::uuid = (SELECT player_id FROM roster_players WHERE id = c1)),
+    'unselected incumbent still writes the designate');
+  PERFORM pg_temp.check_rules(EXISTS (
+    SELECT 1 FROM jsonb_array_elements(r->'skipped') s
+     WHERE s->>'reason' LIKE '%Incumbent exchange no longer valid%'
+       AND (s->>'playerId')::uuid = (SELECT player_id FROM roster_players WHERE id = c2)),
+    'unselected incumbent skips the exchange');
+  PERFORM pg_temp.check_rules((SELECT is_on_ir FROM roster_players WHERE id = h1)
+    AND (SELECT is_on_ir FROM roster_players WHERE id = h2)
+    AND (SELECT is_on_ir FROM roster_players WHERE id = h3)
+    AND NOT (SELECT is_on_ir FROM roster_players WHERE id = c2),
+    'unselected incumbent leaves the pair unchanged');
+  PERFORM pg_temp.check_rules((SELECT count(*) FROM roster_transactions WHERE member_id = f.member_id AND transaction_type = 'ir_designate') = 1
+    AND (SELECT count(*) FROM roster_transactions WHERE member_id = f.member_id AND transaction_type = 'ir_return') = 0,
+    'unselected incumbent writes only the designate transaction');
 END;
 $$;
 
