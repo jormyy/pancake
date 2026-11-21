@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261214011400",
+  "candidateVersion": "20261214011300",
   "common": {
     "functions": [
       {
@@ -2724,11 +2724,7 @@
     },
     {
       "filename": "20261214011300_trade_roster_holds.sql",
-      "sha256": "b0982352d067065d72c7ebdd56e7d7bdb529c74efbd36c99908cbdb14cf009fd"
-    },
-    {
-      "filename": "20261214011400_trade_hold_perspective_and_shrinking_writes.sql",
-      "sha256": "5ced90d68e6948a15aebe24a2df9c22100b08f63c15ee464af43c73ad62de483"
+      "sha256": "34fe87003e0ce51a5bdb8e841babb75f8584e9f5df64218f27e13f437142f521"
     }
   ],
   "preMigration": {

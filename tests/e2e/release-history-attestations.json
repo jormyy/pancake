@@ -3669,16 +3669,9 @@
     {
       "name": "trade_roster_holds",
       "version": "20261214011300",
-      "statementCount": 14,
-      "statementsSha256": "8121ff2409a02d347aaaec3467a763205e1edd0f8f44e06d934c89e55d5e5cd2",
-      "sha256": "b0982352d067065d72c7ebdd56e7d7bdb529c74efbd36c99908cbdb14cf009fd"
-    },
-    {
-      "name": "trade_hold_perspective_and_shrinking_writes",
-      "version": "20261214011400",
       "statementCount": 18,
-      "statementsSha256": "b8777c07a465573621128142db9ef00a087af0c44f989b6534f9c82101632d1a",
-      "sha256": "5ced90d68e6948a15aebe24a2df9c22100b08f63c15ee464af43c73ad62de483"
+      "statementsSha256": "a2bac52ad2bea57f28bee90ddbb039826eb5f1b5d76bdae93c68d3d86c1fe677",
+      "sha256": "34fe87003e0ce51a5bdb8e841babb75f8584e9f5df64218f27e13f437142f521"
     }
   ]
 }

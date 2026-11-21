@@ -1,3 +1,5 @@
+DROP FUNCTION IF EXISTS private.assert_trade_assets_acceptance_ready(uuid,uuid,uuid,uuid);
+
 CREATE OR REPLACE FUNCTION private.trade_hold_roster(
   p_league_id uuid,
   p_season_id uuid,
@@ -62,78 +64,22 @@ AS $$
   SELECT player_id, on_ir, on_taxi FROM extra_add
 $$;
 
-CREATE OR REPLACE FUNCTION private.trade_hold_conflict(
+CREATE OR REPLACE FUNCTION private.trade_hold_counts(
   p_league_id uuid,
   p_season_id uuid,
   p_member_id uuid,
-  p_trade_id uuid,
-  p_can_withdraw boolean,
-  p_remedy text
+  p_extra jsonb DEFAULT NULL
 )
-RETURNS jsonb
+RETURNS TABLE(trade_id uuid, active int, ir int, taxi int)
 LANGUAGE plpgsql
 STABLE
 SET search_path = public
 AS $$
 DECLARE
-  v_names text[];
-  v_label text;
-  v_message text;
-BEGIN
-  SELECT array_agg(member.team_name ORDER BY participant.sort_order, participant.member_id)
-    INTO v_names
-    FROM trade_participants participant
-    JOIN league_members member ON member.id = participant.member_id
-   WHERE participant.trade_id = p_trade_id
-     AND participant.member_id <> p_member_id;
-
-  IF v_names IS NULL OR cardinality(v_names) = 0 THEN
-    v_label := 'Your accepted trade';
-  ELSIF cardinality(v_names) = 1 THEN
-    v_label := 'Your accepted trade with ' || v_names[1];
-  ELSE
-    v_label := 'Your accepted trade with '
-      || array_to_string(v_names[1:cardinality(v_names) - 1], ', ')
-      || ' and ' || v_names[cardinality(v_names)];
-  END IF;
-
-  v_message := v_label || ' needs this roster spot. '
-    || CASE WHEN p_remedy = 'add' THEN 'Add a drop' ELSE 'Drop a player' END
-    || CASE WHEN p_can_withdraw THEN ' or withdraw your acceptance.' ELSE '.' END;
-
-  RETURN jsonb_build_object(
-    'tradeId', p_trade_id,
-    'partnerTeamNames', COALESCE(to_jsonb(v_names), '[]'::jsonb),
-    'canWithdraw', p_can_withdraw,
-    'message', v_message
-  );
-END;
-$$;
-
-CREATE OR REPLACE FUNCTION private.trade_hold_conflicts(
-  p_league_id uuid,
-  p_season_id uuid,
-  p_member_id uuid,
-  p_extra jsonb DEFAULT NULL,
-  p_remedy text DEFAULT 'drop',
-  p_include_trade_id uuid DEFAULT NULL,
-  p_commit_trade boolean DEFAULT false
-)
-RETURNS jsonb
-LANGUAGE plpgsql
-STABLE
-SET search_path = public
-AS $$
-DECLARE
-  v_league leagues%ROWTYPE;
-  v_conflicts jsonb := '[]'::jsonb;
+  v_base_ids uuid[];
   v_trade_id uuid;
   v_counts record;
-  v_base_ids uuid[];
 BEGIN
-  SELECT * INTO v_league FROM leagues WHERE id = p_league_id;
-  IF NOT FOUND THEN RETURN '[]'::jsonb; END IF;
-
   SELECT COALESCE(array_agg(trade.id), '{}'::uuid[])
     INTO v_base_ids
     FROM trades trade
@@ -143,10 +89,6 @@ BEGIN
    WHERE trade.league_id = p_league_id
      AND trade.league_season_id = p_season_id
      AND trade.status = 'accepted';
-
-  IF p_commit_trade AND p_include_trade_id IS NOT NULL AND NOT p_include_trade_id = ANY(v_base_ids) THEN
-    v_base_ids := v_base_ids || p_include_trade_id;
-  END IF;
 
   FOR v_trade_id IN
     SELECT trade.id
@@ -164,11 +106,184 @@ BEGIN
            count(*) FILTER (WHERE on_taxi) AS taxi
       INTO v_counts
       FROM private.trade_hold_roster(p_league_id, p_season_id, p_member_id, v_base_ids, p_extra);
-    IF v_counts.active > v_league.roster_size
-      OR v_counts.ir > v_league.ir_slots
-      OR v_counts.taxi > v_league.taxi_slots THEN
+    trade_id := v_trade_id;
+    active := v_counts.active;
+    ir := v_counts.ir;
+    taxi := v_counts.taxi;
+    RETURN NEXT;
+  END LOOP;
+
+  FOR v_trade_id IN
+    SELECT trade.id
+      FROM trades trade
+      JOIN trade_participants participant
+        ON participant.trade_id = trade.id
+       AND participant.member_id = p_member_id
+     WHERE trade.league_id = p_league_id
+       AND trade.league_season_id = p_season_id
+       AND trade.status = 'pending'
+       AND participant.accepted_at IS NOT NULL
+     ORDER BY trade.id
+  LOOP
+    SELECT count(*) FILTER (WHERE NOT on_ir AND NOT on_taxi) AS active,
+           count(*) FILTER (WHERE on_ir) AS ir,
+           count(*) FILTER (WHERE on_taxi) AS taxi
+      INTO v_counts
+      FROM private.trade_hold_roster(p_league_id, p_season_id, p_member_id, v_base_ids || v_trade_id, p_extra);
+    trade_id := v_trade_id;
+    active := v_counts.active;
+    ir := v_counts.ir;
+    taxi := v_counts.taxi;
+    RETURN NEXT;
+  END LOOP;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION private.trade_hold_conflict(
+  p_league_id uuid,
+  p_season_id uuid,
+  p_member_id uuid,
+  p_trade_id uuid,
+  p_can_withdraw boolean,
+  p_remedy text,
+  p_actor_member_id uuid DEFAULT NULL
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+STABLE
+SET search_path = public
+AS $$
+DECLARE
+  v_names text[];
+  v_holder_name text;
+  v_label text;
+  v_message text;
+BEGIN
+  SELECT member.team_name INTO v_holder_name FROM league_members member WHERE member.id = p_member_id;
+
+  SELECT array_agg(member.team_name ORDER BY participant.sort_order, participant.member_id)
+    INTO v_names
+    FROM trade_participants participant
+    JOIN league_members member ON member.id = participant.member_id
+   WHERE participant.trade_id = p_trade_id
+     AND participant.member_id <> p_member_id;
+
+  IF p_actor_member_id IS NULL OR p_actor_member_id = p_member_id THEN
+    IF v_names IS NULL OR cardinality(v_names) = 0 THEN
+      v_label := 'Your accepted trade';
+    ELSIF cardinality(v_names) = 1 THEN
+      v_label := 'Your accepted trade with ' || v_names[1];
+    ELSE
+      v_label := 'Your accepted trade with '
+        || array_to_string(v_names[1:cardinality(v_names) - 1], ', ')
+        || ' and ' || v_names[cardinality(v_names)];
+    END IF;
+    v_message := v_label || ' needs this roster spot. '
+      || CASE WHEN p_remedy = 'add' THEN 'Add a drop' ELSE 'Drop a player' END
+      || CASE WHEN p_can_withdraw THEN ' or withdraw your acceptance.' ELSE '.' END;
+  ELSE
+    IF v_names IS NULL OR cardinality(v_names) = 0 THEN
+      v_label := v_holder_name || '''s accepted trade';
+    ELSIF cardinality(v_names) = 1 THEN
+      v_label := v_holder_name || '''s accepted trade with ' || v_names[1];
+    ELSE
+      v_label := v_holder_name || '''s accepted trade with '
+        || array_to_string(v_names[1:cardinality(v_names) - 1], ', ')
+        || ' and ' || v_names[cardinality(v_names)];
+    END IF;
+    v_message := v_label || ' needs the roster spot this trade would use. '
+      || v_holder_name || ' has to make room'
+      || CASE WHEN p_can_withdraw THEN ' or withdraw that acceptance first.' ELSE ' first.' END;
+  END IF;
+
+  RETURN jsonb_build_object(
+    'tradeId', p_trade_id,
+    'holderTeamName', v_holder_name,
+    'partnerTeamNames', COALESCE(to_jsonb(v_names), '[]'::jsonb),
+    'canWithdraw', p_can_withdraw,
+    'message', v_message
+  );
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION private.trade_hold_conflicts(
+  p_league_id uuid,
+  p_season_id uuid,
+  p_member_id uuid,
+  p_extra jsonb DEFAULT NULL,
+  p_remedy text DEFAULT 'drop',
+  p_include_trade_id uuid DEFAULT NULL,
+  p_commit_trade boolean DEFAULT false,
+  p_actor_member_id uuid DEFAULT NULL,
+  p_baseline jsonb DEFAULT NULL
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+STABLE
+SET search_path = public
+AS $$
+DECLARE
+  v_league leagues%ROWTYPE;
+  v_conflicts jsonb := '[]'::jsonb;
+  v_trade_id uuid;
+  v_after record;
+  v_before record;
+  v_base_ids uuid[];
+  v_after_ids uuid[];
+  v_baseline_hold jsonb;
+  v_conflict boolean;
+BEGIN
+  SELECT * INTO v_league FROM leagues WHERE id = p_league_id;
+  IF NOT FOUND THEN RETURN '[]'::jsonb; END IF;
+
+  SELECT COALESCE(array_agg(trade.id), '{}'::uuid[])
+    INTO v_base_ids
+    FROM trades trade
+    JOIN trade_participants participant
+      ON participant.trade_id = trade.id
+     AND participant.member_id = p_member_id
+   WHERE trade.league_id = p_league_id
+     AND trade.league_season_id = p_season_id
+     AND trade.status = 'accepted';
+
+  v_after_ids := v_base_ids;
+  IF p_include_trade_id IS NOT NULL AND p_commit_trade AND NOT p_include_trade_id = ANY(v_after_ids) THEN
+    v_after_ids := v_after_ids || p_include_trade_id;
+  END IF;
+
+  FOR v_trade_id IN
+    SELECT trade.id
+      FROM trades trade
+      JOIN trade_participants participant
+        ON participant.trade_id = trade.id
+       AND participant.member_id = p_member_id
+     WHERE trade.league_id = p_league_id
+       AND trade.league_season_id = p_season_id
+       AND trade.status = 'accepted'
+     ORDER BY trade.id
+  LOOP
+    SELECT count(*) FILTER (WHERE NOT on_ir AND NOT on_taxi) AS active,
+           count(*) FILTER (WHERE on_ir) AS ir,
+           count(*) FILTER (WHERE on_taxi) AS taxi
+      INTO v_after
+      FROM private.trade_hold_roster(p_league_id, p_season_id, p_member_id, v_after_ids, p_extra);
+    v_baseline_hold := p_baseline->(v_trade_id::text);
+    IF v_baseline_hold IS NOT NULL THEN
+      SELECT (v_baseline_hold->>'active')::bigint AS active,
+             (v_baseline_hold->>'ir')::bigint AS ir,
+             (v_baseline_hold->>'taxi')::bigint AS taxi
+        INTO v_before;
+      v_conflict := GREATEST(0, v_after.active - v_league.roster_size) > GREATEST(0, v_before.active - v_league.roster_size)
+        OR GREATEST(0, v_after.ir - v_league.ir_slots) > GREATEST(0, v_before.ir - v_league.ir_slots)
+        OR GREATEST(0, v_after.taxi - v_league.taxi_slots) > GREATEST(0, v_before.taxi - v_league.taxi_slots);
+    ELSE
+      v_conflict := v_after.active > v_league.roster_size
+        OR v_after.ir > v_league.ir_slots
+        OR v_after.taxi > v_league.taxi_slots;
+    END IF;
+    IF v_conflict THEN
       v_conflicts := v_conflicts || private.trade_hold_conflict(
-        p_league_id, p_season_id, p_member_id, v_trade_id, false, p_remedy);
+        p_league_id, p_season_id, p_member_id, v_trade_id, false, p_remedy, p_actor_member_id);
     END IF;
   END LOOP;
 
@@ -176,13 +291,25 @@ BEGIN
     SELECT count(*) FILTER (WHERE NOT on_ir AND NOT on_taxi) AS active,
            count(*) FILTER (WHERE on_ir) AS ir,
            count(*) FILTER (WHERE on_taxi) AS taxi
-      INTO v_counts
-      FROM private.trade_hold_roster(p_league_id, p_season_id, p_member_id, v_base_ids || p_include_trade_id, p_extra);
-    IF v_counts.active > v_league.roster_size
-      OR v_counts.ir > v_league.ir_slots
-      OR v_counts.taxi > v_league.taxi_slots THEN
+      INTO v_after
+      FROM private.trade_hold_roster(p_league_id, p_season_id, p_member_id, v_after_ids || p_include_trade_id, p_extra);
+    v_baseline_hold := p_baseline->(p_include_trade_id::text);
+    IF v_baseline_hold IS NOT NULL THEN
+      SELECT (v_baseline_hold->>'active')::bigint AS active,
+             (v_baseline_hold->>'ir')::bigint AS ir,
+             (v_baseline_hold->>'taxi')::bigint AS taxi
+        INTO v_before;
+      v_conflict := GREATEST(0, v_after.active - v_league.roster_size) > GREATEST(0, v_before.active - v_league.roster_size)
+        OR GREATEST(0, v_after.ir - v_league.ir_slots) > GREATEST(0, v_before.ir - v_league.ir_slots)
+        OR GREATEST(0, v_after.taxi - v_league.taxi_slots) > GREATEST(0, v_before.taxi - v_league.taxi_slots);
+    ELSE
+      v_conflict := v_after.active > v_league.roster_size
+        OR v_after.ir > v_league.ir_slots
+        OR v_after.taxi > v_league.taxi_slots;
+    END IF;
+    IF v_conflict THEN
       v_conflicts := v_conflicts || private.trade_hold_conflict(
-        p_league_id, p_season_id, p_member_id, p_include_trade_id, false, p_remedy);
+        p_league_id, p_season_id, p_member_id, p_include_trade_id, false, p_remedy, p_actor_member_id);
     END IF;
   END IF;
 
@@ -202,13 +329,25 @@ BEGIN
     SELECT count(*) FILTER (WHERE NOT on_ir AND NOT on_taxi) AS active,
            count(*) FILTER (WHERE on_ir) AS ir,
            count(*) FILTER (WHERE on_taxi) AS taxi
-      INTO v_counts
-      FROM private.trade_hold_roster(p_league_id, p_season_id, p_member_id, v_base_ids || v_trade_id, p_extra);
-    IF v_counts.active > v_league.roster_size
-      OR v_counts.ir > v_league.ir_slots
-      OR v_counts.taxi > v_league.taxi_slots THEN
+      INTO v_after
+      FROM private.trade_hold_roster(p_league_id, p_season_id, p_member_id, v_after_ids || v_trade_id, p_extra);
+    v_baseline_hold := p_baseline->(v_trade_id::text);
+    IF v_baseline_hold IS NOT NULL THEN
+      SELECT (v_baseline_hold->>'active')::bigint AS active,
+             (v_baseline_hold->>'ir')::bigint AS ir,
+             (v_baseline_hold->>'taxi')::bigint AS taxi
+        INTO v_before;
+      v_conflict := GREATEST(0, v_after.active - v_league.roster_size) > GREATEST(0, v_before.active - v_league.roster_size)
+        OR GREATEST(0, v_after.ir - v_league.ir_slots) > GREATEST(0, v_before.ir - v_league.ir_slots)
+        OR GREATEST(0, v_after.taxi - v_league.taxi_slots) > GREATEST(0, v_before.taxi - v_league.taxi_slots);
+    ELSE
+      v_conflict := v_after.active > v_league.roster_size
+        OR v_after.ir > v_league.ir_slots
+        OR v_after.taxi > v_league.taxi_slots;
+    END IF;
+    IF v_conflict THEN
       v_conflicts := v_conflicts || private.trade_hold_conflict(
-        p_league_id, p_season_id, p_member_id, v_trade_id, true, p_remedy);
+        p_league_id, p_season_id, p_member_id, v_trade_id, true, p_remedy, p_actor_member_id);
     END IF;
   END LOOP;
 
@@ -223,7 +362,9 @@ CREATE OR REPLACE FUNCTION private.assert_trade_roster_holds(
   p_extra jsonb DEFAULT NULL,
   p_remedy text DEFAULT 'drop',
   p_include_trade_id uuid DEFAULT NULL,
-  p_commit_trade boolean DEFAULT false
+  p_commit_trade boolean DEFAULT false,
+  p_actor_member_id uuid DEFAULT NULL,
+  p_baseline jsonb DEFAULT NULL
 )
 RETURNS void
 LANGUAGE plpgsql
@@ -233,7 +374,7 @@ AS $$
 DECLARE
   v_conflicts jsonb;
 BEGIN
-  v_conflicts := private.trade_hold_conflicts(p_league_id, p_season_id, p_member_id, p_extra, p_remedy, p_include_trade_id, p_commit_trade);
+  v_conflicts := private.trade_hold_conflicts(p_league_id, p_season_id, p_member_id, p_extra, p_remedy, p_include_trade_id, p_commit_trade, p_actor_member_id, p_baseline);
   IF jsonb_array_length(v_conflicts) > 0 THEN
     RAISE EXCEPTION '%', v_conflicts->0->>'message'
       USING ERRCODE = 'PT409',
@@ -242,17 +383,67 @@ BEGIN
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION private.assert_accepted_trade_capacity(p_league_id uuid,p_season_id uuid,p_member_id uuid,p_include_trade_id uuid DEFAULT NULL)
+CREATE OR REPLACE FUNCTION private.assert_trade_acceptance_holds(
+  p_league_id uuid,
+  p_season_id uuid,
+  p_member_id uuid,
+  p_include_trade_id uuid DEFAULT NULL,
+  p_commit_trade boolean DEFAULT false,
+  p_actor_member_id uuid DEFAULT NULL
+)
 RETURNS void LANGUAGE plpgsql SET search_path=public AS $$
 BEGIN
-  PERFORM private.assert_trade_roster_holds(p_league_id,p_season_id,p_member_id,NULL,'drop',p_include_trade_id);
+  PERFORM private.assert_trade_roster_holds(p_league_id,p_season_id,p_member_id,NULL,'add',p_include_trade_id,p_commit_trade,p_actor_member_id,NULL);
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION private.assert_trade_acceptance_holds(p_league_id uuid,p_season_id uuid,p_member_id uuid,p_include_trade_id uuid DEFAULT NULL,p_commit_trade boolean DEFAULT false)
+CREATE OR REPLACE FUNCTION private.assert_accepted_trade_capacity(p_league_id uuid,p_season_id uuid,p_member_id uuid,p_include_trade_id uuid DEFAULT NULL)
 RETURNS void LANGUAGE plpgsql SET search_path=public AS $$
+DECLARE
+  v_baseline jsonb;
+  v_member_baseline jsonb;
 BEGIN
-  PERFORM private.assert_trade_roster_holds(p_league_id,p_season_id,p_member_id,NULL,'add',p_include_trade_id,p_commit_trade);
+  v_baseline := COALESCE(NULLIF(current_setting('pancake.trade_hold_baseline', true), ''), '{}')::jsonb;
+  v_member_baseline := v_baseline->(p_member_id::text)->'counts';
+  PERFORM private.assert_trade_roster_holds(p_league_id,p_season_id,p_member_id,NULL,'drop',p_include_trade_id,false,NULL,v_member_baseline);
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION private.guard_accepted_trade_capacity()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+DECLARE
+  v_member uuid;
+  v_league uuid;
+  v_season uuid;
+  v_baseline jsonb;
+  v_member_baseline jsonb;
+  v_txid text := txid_current()::text;
+BEGIN
+  v_baseline := COALESCE(NULLIF(current_setting('pancake.trade_hold_baseline', true), ''), '{}')::jsonb;
+  FOR v_league,v_season,v_member IN
+    SELECT DISTINCT league_id,league_season_id,member_id FROM (
+      SELECT OLD.league_id,OLD.league_season_id,OLD.member_id WHERE TG_OP<>'INSERT'
+      UNION ALL SELECT NEW.league_id,NEW.league_season_id,NEW.member_id WHERE TG_OP<>'DELETE'
+    ) affected ORDER BY league_id,member_id,league_season_id
+  LOOP
+    PERFORM pg_advisory_xact_lock(hashtext(v_league::text),hashtext(v_member::text));
+    IF TG_WHEN='AFTER' THEN
+      PERFORM private.assert_accepted_trade_capacity(v_league,v_season,v_member);
+      v_baseline := v_baseline || jsonb_build_object(v_member::text,
+        COALESCE(v_baseline->(v_member::text), '{}'::jsonb) || jsonb_build_object('checked', true));
+      PERFORM set_config('pancake.trade_hold_baseline', v_baseline::text, true);
+    ELSIF COALESCE(v_baseline->(v_member::text)->>'txid','') <> v_txid
+       OR COALESCE((v_baseline->(v_member::text)->>'checked')::boolean, false) THEN
+      SELECT jsonb_object_agg(counts.trade_id::text, jsonb_build_object('active', counts.active, 'ir', counts.ir, 'taxi', counts.taxi))
+        INTO v_member_baseline
+        FROM private.trade_hold_counts(v_league, v_season, v_member, NULL) counts;
+      v_baseline := v_baseline || jsonb_build_object(v_member::text,
+        jsonb_build_object('txid', v_txid, 'checked', false, 'counts', COALESCE(v_member_baseline, '{}'::jsonb)));
+      PERFORM set_config('pancake.trade_hold_baseline', v_baseline::text, true);
+    END IF;
+  END LOOP;
+  IF TG_OP='DELETE' THEN RETURN OLD; END IF;
+  RETURN NEW;
 END;
 $$;
 
@@ -260,7 +451,8 @@ CREATE OR REPLACE FUNCTION private.assert_trade_assets_acceptance_ready(
   p_trade_id uuid,
   p_league_id uuid,
   p_league_season_id uuid,
-  p_only_member_id uuid DEFAULT NULL
+  p_only_member_id uuid DEFAULT NULL,
+  p_actor_member_id uuid DEFAULT NULL
 )
 RETURNS void
 LANGUAGE plpgsql
@@ -277,7 +469,7 @@ BEGIN
     END IF;
   END LOOP;
   PERFORM private.validate_trade_rosters(p_trade_id, p_only_member_id);
-  PERFORM private.assert_trade_acceptance_holds(p_league_id,p_league_season_id,participant.member_id,p_trade_id,p_only_member_id IS NULL)
+  PERFORM private.assert_trade_acceptance_holds(p_league_id,p_league_season_id,participant.member_id,p_trade_id,p_only_member_id IS NULL,p_actor_member_id)
     FROM trade_participants participant WHERE participant.trade_id=p_trade_id
       AND (p_only_member_id IS NULL OR participant.member_id=p_only_member_id);
   PERFORM 1
@@ -351,6 +543,247 @@ BEGIN
 END;
 $$;
 
+CREATE OR REPLACE FUNCTION private.accept_trade_participant_atomic(
+  p_trade_id uuid,
+  p_accepting_member_id uuid
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
+DECLARE
+  v_trade trades%ROWTYPE;
+  v_league leagues%ROWTYPE;
+  v_member_lock uuid;
+  v_lock_player_id uuid;
+  v_rows int;
+  v_all_accepted boolean;
+  v_veto_window_hours int;
+BEGIN
+  PERFORM set_config('pancake.trade_write','true',true);
+  PERFORM set_config('lock_timeout','100ms',true);
+  SELECT *
+    INTO v_trade
+    FROM trades
+   WHERE id = p_trade_id;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Trade not found'
+      USING ERRCODE = 'P0002';
+  END IF;
+
+  IF v_trade.status <> 'pending'::trade_status THEN
+    RAISE EXCEPTION 'This trade is no longer pending.'
+      USING ERRCODE = 'P0001';
+  END IF;
+
+
+  PERFORM 1
+    FROM trade_participants
+   WHERE trade_id = p_trade_id
+     AND member_id = p_accepting_member_id;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Only a trade participant can accept this trade.'
+      USING ERRCODE = '42501';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+      FROM trade_participants
+     WHERE trade_id = p_trade_id
+       AND member_id = p_accepting_member_id
+       AND accepted_at IS NOT NULL
+  ) THEN
+    RAISE EXCEPTION 'This participant has already accepted the trade.'
+      USING ERRCODE = 'P0001';
+  END IF;
+
+  FOR v_member_lock IN
+    SELECT participant.member_id
+      FROM trade_participants AS participant
+     WHERE participant.trade_id = p_trade_id
+     ORDER BY participant.member_id ASC
+  LOOP
+    IF NOT pg_try_advisory_xact_lock(
+      hashtext(v_trade.league_id::text),
+      hashtext(v_member_lock::text)
+    ) THEN
+      RAISE EXCEPTION 'The league is busy. Try this trade again.' USING ERRCODE='PA010';
+    END IF;
+  END LOOP;
+
+  FOR v_lock_player_id IN
+    SELECT DISTINCT player_id FROM (
+      SELECT player_id FROM trade_items WHERE trade_id=p_trade_id AND player_id IS NOT NULL
+      UNION SELECT unnest(drop_player_ids) FROM trade_participants WHERE trade_id=p_trade_id
+    ) touched ORDER BY player_id ASC
+  LOOP
+    IF NOT pg_try_advisory_xact_lock(
+      hashtext(v_trade.league_id::text),
+      hashtext(v_lock_player_id::text)
+    ) THEN
+      RAISE EXCEPTION 'The league is busy. Try this trade again.' USING ERRCODE='PA010';
+    END IF;
+  END LOOP;
+
+  SELECT *
+    INTO v_trade
+    FROM trades
+   WHERE id = p_trade_id
+     AND status = 'pending'::trade_status
+   FOR NO KEY UPDATE NOWAIT;
+
+  IF NOT FOUND THEN
+    SELECT * INTO v_trade FROM trades WHERE id = p_trade_id;
+  END IF;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Trade not found' USING ERRCODE = 'P0002';
+  END IF;
+
+  IF v_trade.status <> 'pending'::trade_status THEN
+    RAISE EXCEPTION 'This trade is no longer pending.'
+      USING ERRCODE = 'P0001';
+  END IF;
+
+  IF v_trade.expires_at IS NOT NULL AND v_trade.expires_at <= now() THEN
+    UPDATE trades SET status = 'expired'::trade_status
+     WHERE id = p_trade_id AND status = 'pending'::trade_status;
+    RETURN jsonb_build_object(
+      'expired', true,
+      'isMultiTeam', COALESCE(v_trade.is_multi_team, false),
+      'allAccepted', false,
+      'proposerMemberId', v_trade.proposer_member_id,
+      'recipientMemberId', v_trade.recipient_member_id,
+      'participantMemberIds', (
+        SELECT jsonb_agg(participant.member_id ORDER BY participant.sort_order, participant.member_id)
+          FROM trade_participants AS participant
+         WHERE participant.trade_id = p_trade_id
+      )
+    );
+  END IF;
+
+
+  SELECT *
+    INTO v_league
+    FROM leagues
+   WHERE id = v_trade.league_id
+   FOR NO KEY UPDATE NOWAIT;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'League not found.';
+  END IF;
+
+  IF v_league.status = 'archived'::league_status THEN
+    RAISE EXCEPTION 'Archived leagues are read-only.'
+      USING ERRCODE = 'P0001';
+  END IF;
+
+  PERFORM 1
+    FROM league_seasons AS season
+   WHERE season.id = v_trade.league_season_id
+     AND season.is_current = true
+   FOR NO KEY UPDATE NOWAIT;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Trades require the current season.'
+      USING ERRCODE = 'P0001';
+  END IF;
+
+
+  PERFORM private.assert_trade_window(v_trade.league_id,
+    ARRAY(SELECT pick_id FROM trade_items WHERE trade_id=p_trade_id AND pick_id IS NOT NULL));
+
+  SELECT NOT EXISTS (SELECT 1 FROM trade_participants
+    WHERE trade_id=p_trade_id AND member_id<>p_accepting_member_id AND accepted_at IS NULL)
+    INTO v_all_accepted;
+
+  PERFORM private.assert_trade_assets_acceptance_ready(
+    p_trade_id,
+    v_trade.league_id,
+    v_trade.league_season_id,
+    CASE WHEN v_all_accepted THEN NULL ELSE p_accepting_member_id END,
+    p_accepting_member_id
+  );
+
+  IF EXISTS (
+    SELECT 1
+      FROM trade_items AS item
+     WHERE item.trade_id = p_trade_id
+       AND item.player_id IS NULL
+       AND item.pick_id IS NULL
+       AND COALESCE(item.faab_amount, 0) <= 0
+  ) THEN
+    RAISE EXCEPTION 'Trade item must include a player, pick, or positive FAAB amount';
+  END IF;
+
+  UPDATE trade_participants
+     SET accepted_at = now()
+   WHERE trade_id = p_trade_id
+     AND member_id = p_accepting_member_id
+     AND accepted_at IS NULL;
+
+  GET DIAGNOSTICS v_rows = ROW_COUNT;
+  IF v_rows <> 1 THEN
+    RAISE EXCEPTION 'Failed to record participant acceptance.'
+      USING ERRCODE = 'P0001';
+  END IF;
+
+  SELECT NOT EXISTS (
+    SELECT 1
+      FROM trade_participants
+     WHERE trade_id = p_trade_id
+       AND accepted_at IS NULL
+  )
+    INTO v_all_accepted;
+
+  IF v_all_accepted THEN
+    v_veto_window_hours := CASE
+      WHEN COALESCE(v_league.trade_veto_mode, 'member_vote') = 'disabled' THEN 0
+      ELSE LEAST(GREATEST(COALESCE(v_league.trade_veto_window_hours, 24), 0), 168)
+    END;
+
+    UPDATE trades
+       SET status = 'accepted',
+           accepted_at = now(),
+           veto_window_expires_at = CASE
+             WHEN v_veto_window_hours = 0 THEN now() - interval '1 microsecond'
+             ELSE now() + make_interval(hours => v_veto_window_hours)
+           END,
+           completed_at = NULL,
+           vetoed_at = NULL
+     WHERE id = p_trade_id
+       AND status = 'pending';
+
+    GET DIAGNOSTICS v_rows = ROW_COUNT;
+    IF v_rows <> 1 THEN
+      RAISE EXCEPTION 'Failed to accept trade atomically';
+    END IF;
+
+  END IF;
+
+  IF v_all_accepted THEN
+    PERFORM private.work_enqueue('trade-activation',p_trade_id::text,now(),jsonb_build_object('tradeId',p_trade_id));
+  END IF;
+
+  RETURN jsonb_build_object(
+    'expired', false,
+    'isMultiTeam', COALESCE(v_trade.is_multi_team, false),
+    'allAccepted', v_all_accepted,
+    'proposerMemberId', v_trade.proposer_member_id,
+    'recipientMemberId', v_trade.recipient_member_id,
+    'participantMemberIds', (
+      SELECT jsonb_agg(participant.member_id ORDER BY participant.sort_order, participant.member_id)
+        FROM trade_participants AS participant
+       WHERE participant.trade_id = p_trade_id
+    )
+  );
+EXCEPTION WHEN lock_not_available THEN
+  RAISE EXCEPTION 'The league is busy. Try this trade again.' USING ERRCODE='PA010';
+END;
+$$;
+
 CREATE OR REPLACE FUNCTION public.trade_roster_hold_check(
   p_member_id uuid,
   p_user_id uuid,
@@ -385,126 +818,13 @@ BEGIN
       'toTaxi', COALESCE(p_to_taxi, false)
     ),
     'add',
+    NULL,
+    false,
+    p_member_id,
     NULL
   );
 END;
 $$;
-
-CREATE OR REPLACE FUNCTION public.retract_trade_acceptance_atomic(
-  p_trade_id uuid,
-  p_member_id uuid,
-  p_user_id uuid
-)
-RETURNS jsonb
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-DECLARE
-  __request_context jsonb;
-  __request_result jsonb;
-BEGIN
-  __request_context := private.request_begin('public.retract_trade_acceptance_atomic', jsonb_build_array(p_trade_id, p_member_id, p_user_id), NULL, NULL);
-  IF (__request_context->>'replay')::boolean THEN RETURN __request_context->'result'; END IF;
-  <<request_write>>
-DECLARE
-  v_trade trades%ROWTYPE;
-  v_member_lock uuid;
-  v_lock_player_id uuid;
-  v_rows int;
-BEGIN
-  PERFORM set_config('pancake.trade_write','true',true);
-  PERFORM set_config('lock_timeout','100ms',true);
-
-  SELECT * INTO v_trade FROM trades WHERE id = p_trade_id;
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'Trade not found' USING ERRCODE = 'P0002';
-  END IF;
-
-  PERFORM 1 FROM league_members WHERE id = p_member_id AND user_id = p_user_id;
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'Not authorized to act for this member.' USING ERRCODE = '42501';
-  END IF;
-
-  PERFORM 1 FROM trade_participants WHERE trade_id = p_trade_id AND member_id = p_member_id;
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'Only a trade participant can retract this trade.' USING ERRCODE = '42501';
-  END IF;
-
-  FOR v_member_lock IN
-    SELECT participant.member_id
-      FROM trade_participants AS participant
-     WHERE participant.trade_id = p_trade_id
-     ORDER BY participant.member_id ASC
-  LOOP
-    IF NOT pg_try_advisory_xact_lock(
-      hashtext(v_trade.league_id::text),
-      hashtext(v_member_lock::text)
-    ) THEN
-      RAISE EXCEPTION 'The league is busy. Try this trade again.' USING ERRCODE='PA010';
-    END IF;
-  END LOOP;
-
-  FOR v_lock_player_id IN
-    SELECT DISTINCT player_id FROM (
-      SELECT player_id FROM trade_items WHERE trade_id=p_trade_id AND player_id IS NOT NULL
-      UNION SELECT unnest(drop_player_ids) FROM trade_participants WHERE trade_id=p_trade_id
-    ) touched ORDER BY player_id ASC
-  LOOP
-    IF NOT pg_try_advisory_xact_lock(
-      hashtext(v_trade.league_id::text),
-      hashtext(v_lock_player_id::text)
-    ) THEN
-      RAISE EXCEPTION 'The league is busy. Try this trade again.' USING ERRCODE='PA010';
-    END IF;
-  END LOOP;
-
-  SELECT * INTO v_trade FROM trades WHERE id = p_trade_id FOR NO KEY UPDATE NOWAIT;
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'Trade not found' USING ERRCODE = 'P0002';
-  END IF;
-
-  IF v_trade.status <> 'pending'::trade_status THEN
-    RAISE EXCEPTION 'Every team has accepted this trade, so acceptance can no longer be withdrawn.' USING ERRCODE = 'PT409';
-  END IF;
-
-  IF NOT EXISTS (
-    SELECT 1 FROM trade_participants
-     WHERE trade_id = p_trade_id AND member_id = p_member_id AND accepted_at IS NOT NULL
-  ) THEN
-    RAISE EXCEPTION 'You have not accepted this trade.' USING ERRCODE = 'PT409';
-  END IF;
-
-  IF NOT EXISTS (
-    SELECT 1 FROM trade_participants
-     WHERE trade_id = p_trade_id AND accepted_at IS NULL
-  ) THEN
-    RAISE EXCEPTION 'Every team has accepted this trade, so acceptance can no longer be withdrawn.' USING ERRCODE = 'PT409';
-  END IF;
-
-  UPDATE trade_participants
-     SET accepted_at = NULL
-   WHERE trade_id = p_trade_id
-     AND member_id = p_member_id
-     AND accepted_at IS NOT NULL;
-
-  GET DIAGNOSTICS v_rows = ROW_COUNT;
-  IF v_rows <> 1 THEN
-    RAISE EXCEPTION 'You have not accepted this trade.' USING ERRCODE = 'PT409';
-  END IF;
-
-  __request_result := jsonb_build_object('ok', true, 'tradeId', p_trade_id); EXIT request_write;
-END request_write;
-  PERFORM private.request_finish(__request_context, to_jsonb(__request_result));
-  RETURN __request_result;
-EXCEPTION WHEN lock_not_available THEN
-  RAISE EXCEPTION 'The league is busy. Try this trade again.' USING ERRCODE='PA010';
-END;
-$$;
-
-REVOKE ALL ON FUNCTION private.trade_hold_roster(uuid,uuid,uuid,uuid[],jsonb),private.trade_hold_conflict(uuid,uuid,uuid,uuid,boolean,text),private.trade_hold_conflicts(uuid,uuid,uuid,jsonb,text,uuid,boolean),private.assert_trade_roster_holds(uuid,uuid,uuid,jsonb,text,uuid,boolean),private.assert_trade_acceptance_holds(uuid,uuid,uuid,uuid,boolean) FROM PUBLIC,anon,authenticated,service_role;
-REVOKE ALL ON FUNCTION public.trade_roster_hold_check(uuid,uuid,uuid,uuid[],boolean,boolean),public.retract_trade_acceptance_atomic(uuid,uuid,uuid) FROM PUBLIC,anon,authenticated;
-GRANT EXECUTE ON FUNCTION public.trade_roster_hold_check(uuid,uuid,uuid,uuid[],boolean,boolean),public.retract_trade_acceptance_atomic(uuid,uuid,uuid) TO service_role;
 
 CREATE OR REPLACE FUNCTION public.create_waiver_claim_atomic(
   p_league_id uuid,
@@ -692,6 +1012,9 @@ BEGIN
       'toTaxi', COALESCE(p_to_taxi, false)
     ),
     'add',
+    NULL,
+    false,
+    p_member_id,
     NULL
   );
 
@@ -817,7 +1140,6 @@ BEGIN
 
   PERFORM pg_advisory_xact_lock(hashtext(v_claim.league_id::text), hashtext(v_claim.league_season_id::text));
 
-  -- Use the roster writers' lock order before any claim or league row lock.
   PERFORM pg_advisory_xact_lock(hashtext(v_claim.league_id::text), hashtext(p_member_id::text));
   FOR v_lock_player_id IN
     SELECT DISTINCT player_id
@@ -862,9 +1184,6 @@ BEGIN
       USING ERRCODE = 'P0002';
   END IF;
 
-  -- Like create_waiver_claim_atomic, edits require eligible league/season state
-  -- and add capacity. An uncleared waiver entry stays editable until processing,
-  -- even after clears_at; a processed entry no longer accepts edits.
   IF v_league.status NOT IN ('active'::league_status, 'playoffs'::league_status, 'offseason'::league_status) THEN
     RAISE EXCEPTION 'Waiver claims require an active, playoff, or offseason league.'
       USING ERRCODE = 'P0001';
@@ -945,6 +1264,9 @@ BEGIN
       'toTaxi', COALESCE(p_to_taxi, v_claim.to_taxi)
     ),
     'add',
+    NULL,
+    false,
+    p_member_id,
     NULL
   );
 
@@ -961,3 +1283,119 @@ END request_write;
   RETURN;
 END;
 $$;
+
+CREATE OR REPLACE FUNCTION public.retract_trade_acceptance_atomic(
+  p_trade_id uuid,
+  p_member_id uuid,
+  p_user_id uuid
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  __request_context jsonb;
+  __request_result jsonb;
+BEGIN
+  __request_context := private.request_begin('public.retract_trade_acceptance_atomic', jsonb_build_array(p_trade_id, p_member_id, p_user_id), NULL, NULL);
+  IF (__request_context->>'replay')::boolean THEN RETURN __request_context->'result'; END IF;
+  <<request_write>>
+DECLARE
+  v_trade trades%ROWTYPE;
+  v_member_lock uuid;
+  v_lock_player_id uuid;
+  v_rows int;
+BEGIN
+  PERFORM set_config('pancake.trade_write','true',true);
+  PERFORM set_config('lock_timeout','100ms',true);
+
+  SELECT * INTO v_trade FROM trades WHERE id = p_trade_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Trade not found' USING ERRCODE = 'P0002';
+  END IF;
+
+  PERFORM 1 FROM league_members WHERE id = p_member_id AND user_id = p_user_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Not authorized to act for this member.' USING ERRCODE = '42501';
+  END IF;
+
+  PERFORM 1 FROM trade_participants WHERE trade_id = p_trade_id AND member_id = p_member_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Only a trade participant can retract this trade.' USING ERRCODE = '42501';
+  END IF;
+
+  FOR v_member_lock IN
+    SELECT participant.member_id
+      FROM trade_participants AS participant
+     WHERE participant.trade_id = p_trade_id
+     ORDER BY participant.member_id ASC
+  LOOP
+    IF NOT pg_try_advisory_xact_lock(
+      hashtext(v_trade.league_id::text),
+      hashtext(v_member_lock::text)
+    ) THEN
+      RAISE EXCEPTION 'The league is busy. Try this trade again.' USING ERRCODE='PA010';
+    END IF;
+  END LOOP;
+
+  FOR v_lock_player_id IN
+    SELECT DISTINCT player_id FROM (
+      SELECT player_id FROM trade_items WHERE trade_id=p_trade_id AND player_id IS NOT NULL
+      UNION SELECT unnest(drop_player_ids) FROM trade_participants WHERE trade_id=p_trade_id
+    ) touched ORDER BY player_id ASC
+  LOOP
+    IF NOT pg_try_advisory_xact_lock(
+      hashtext(v_trade.league_id::text),
+      hashtext(v_lock_player_id::text)
+    ) THEN
+      RAISE EXCEPTION 'The league is busy. Try this trade again.' USING ERRCODE='PA010';
+    END IF;
+  END LOOP;
+
+  SELECT * INTO v_trade FROM trades WHERE id = p_trade_id FOR NO KEY UPDATE NOWAIT;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Trade not found' USING ERRCODE = 'P0002';
+  END IF;
+
+  IF v_trade.status <> 'pending'::trade_status THEN
+    RAISE EXCEPTION 'Every team has accepted this trade, so acceptance can no longer be withdrawn.' USING ERRCODE = 'PT409';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM trade_participants
+     WHERE trade_id = p_trade_id AND member_id = p_member_id AND accepted_at IS NOT NULL
+  ) THEN
+    RAISE EXCEPTION 'You have not accepted this trade.' USING ERRCODE = 'PT409';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM trade_participants
+     WHERE trade_id = p_trade_id AND accepted_at IS NULL
+  ) THEN
+    RAISE EXCEPTION 'Every team has accepted this trade, so acceptance can no longer be withdrawn.' USING ERRCODE = 'PT409';
+  END IF;
+
+  UPDATE trade_participants
+     SET accepted_at = NULL
+   WHERE trade_id = p_trade_id
+     AND member_id = p_member_id
+     AND accepted_at IS NOT NULL;
+
+  GET DIAGNOSTICS v_rows = ROW_COUNT;
+  IF v_rows <> 1 THEN
+    RAISE EXCEPTION 'You have not accepted this trade.' USING ERRCODE = 'PT409';
+  END IF;
+
+  __request_result := jsonb_build_object('ok', true, 'tradeId', p_trade_id); EXIT request_write;
+END request_write;
+  PERFORM private.request_finish(__request_context, to_jsonb(__request_result));
+  RETURN __request_result;
+EXCEPTION WHEN lock_not_available THEN
+  RAISE EXCEPTION 'The league is busy. Try this trade again.' USING ERRCODE='PA010';
+END;
+$$;
+
+REVOKE ALL ON FUNCTION private.trade_hold_roster(uuid,uuid,uuid,uuid[],jsonb),private.trade_hold_counts(uuid,uuid,uuid,jsonb) FROM PUBLIC,anon,authenticated,service_role;
+REVOKE ALL ON FUNCTION public.trade_roster_hold_check(uuid,uuid,uuid,uuid[],boolean,boolean),public.retract_trade_acceptance_atomic(uuid,uuid,uuid) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.trade_roster_hold_check(uuid,uuid,uuid,uuid[],boolean,boolean),public.retract_trade_acceptance_atomic(uuid,uuid,uuid) TO service_role;

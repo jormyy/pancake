@@ -248,7 +248,7 @@ The [trade curve report](../docs/trade-curve.md) records the real trades, roster
 
 The supplied production head is `20261214011200`, with 790 migrations.
 That head assumes the Auto Lineup IR release below is applied first; confirm it with a read-only ledger dry run before applying.
-This release adds `20261214011300_trade_roster_holds.sql` and `20261214011400_trade_hold_perspective_and_shrinking_writes.sql`, for 792 migrations.
+This release adds only `20261214011300_trade_roster_holds.sql`, for 791 migrations.
 Database, then Edge, then merge the frontend.
 Release the `api` Edge function for the new `/waivers/roster-hold-check` and `/trades/<id>/retract-acceptance` routes.
 `process-waivers` needs no redeploy because its source is unchanged since `33069cfc`.
@@ -1697,8 +1697,9 @@ Regenerate database types, the function catalog, and release attestations.
 ## Trade roster holds
 
 Apply `20261214011300_trade_roster_holds.sql` after `20261214011200`.
-`20261214011400_trade_hold_perspective_and_shrinking_writes.sql` names the holding team in every conflict, gives a non-holder the holding team's message, and allows shrinking writes with a transaction-scoped baseline.
-The migration replaces `private.assert_accepted_trade_capacity` with a per-trade hold check and adds `private.trade_hold_roster`, `private.trade_hold_conflict`, `private.trade_hold_conflicts`, `private.assert_trade_roster_holds`, and `private.assert_trade_acceptance_holds`.
+The migration replaces `private.assert_accepted_trade_capacity` with a per-trade hold check and adds `private.trade_hold_roster`, `private.trade_hold_counts`, `private.trade_hold_conflict`, `private.trade_hold_conflicts`, `private.assert_trade_roster_holds`, and `private.assert_trade_acceptance_holds`.
+It replaces the four-argument `private.assert_trade_assets_acceptance_ready` with a version that also takes the acting member.
+Every conflict names the holding team, a non-holder gets the holding team's message, and shrinking writes stay allowed against a transaction-scoped baseline.
 A team holds roster room from the moment its `trade_participants.accepted_at` is set; the proposer is accepted on send.
 The projected roster is the current roster plus every trade with status `accepted`.
 Each pending trade the team has accepted is checked independently against that projected roster, so overlapping offers never add their holds.
