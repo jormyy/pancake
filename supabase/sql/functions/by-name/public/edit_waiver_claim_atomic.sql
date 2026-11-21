@@ -63,7 +63,6 @@ BEGIN
 
   PERFORM pg_advisory_xact_lock(hashtext(v_claim.league_id::text), hashtext(v_claim.league_season_id::text));
 
-  -- Use the roster writers' lock order before any claim or league row lock.
   PERFORM pg_advisory_xact_lock(hashtext(v_claim.league_id::text), hashtext(p_member_id::text));
   FOR v_lock_player_id IN
     SELECT DISTINCT player_id
@@ -108,9 +107,6 @@ BEGIN
       USING ERRCODE = 'P0002';
   END IF;
 
-  -- Like create_waiver_claim_atomic, edits require eligible league/season state
-  -- and add capacity. An uncleared waiver entry stays editable until processing,
-  -- even after clears_at; a processed entry no longer accepts edits.
   IF v_league.status NOT IN ('active'::league_status, 'playoffs'::league_status, 'offseason'::league_status) THEN
     RAISE EXCEPTION 'Waiver claims require an active, playoff, or offseason league.'
       USING ERRCODE = 'P0001';
@@ -179,6 +175,23 @@ BEGIN
   IF COALESCE(p_to_ir,v_claim.to_ir) AND COALESCE(p_to_taxi,v_claim.to_taxi) THEN
     RAISE EXCEPTION 'Choose IR or taxi, not both.' USING ERRCODE='P0001';
   END IF;
+
+  PERFORM private.assert_trade_roster_holds(
+    v_claim.league_id,
+    v_claim.league_season_id,
+    p_member_id,
+    jsonb_build_object(
+      'addPlayerId', v_claim.player_id,
+      'dropPlayerIds', CASE WHEN p_drop_player_id IS NULL THEN '[]'::jsonb ELSE to_jsonb(ARRAY[p_drop_player_id]) END,
+      'toIr', COALESCE(p_to_ir, v_claim.to_ir),
+      'toTaxi', COALESCE(p_to_taxi, v_claim.to_taxi)
+    ),
+    'add',
+    NULL,
+    false,
+    p_member_id,
+    NULL
+  );
 
   UPDATE waiver_claims
      SET to_ir = COALESCE(p_to_ir, to_ir),

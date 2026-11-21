@@ -587,6 +587,17 @@ export async function handleTradeRoute(req: Request, path: string): Promise<Resp
     await withdrawTrade(userId, action.tradeId, body)
     return json({ ok: true })
   }
+  if (action.action === 'retract-acceptance') {
+    const memberId = uuidField(body, 'memberId')
+    await requireOwnMember(userId, memberId)
+    const { error } = await supabase.rpc('retract_trade_acceptance_atomic', {
+      p_trade_id: action.tradeId,
+      p_member_id: memberId,
+      p_user_id: userId,
+    })
+    if (error) throwDb(error)
+    return json({ ok: true, tradeId: action.tradeId })
+  }
   if (action.action === 'counter') {
     return json({ ok: true, ...await counterTrade(userId, action.tradeId, body) })
   }

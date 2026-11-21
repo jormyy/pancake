@@ -210,6 +210,36 @@ Record `node tools/verify/observe.mjs "$EVIDENCE"` before and after, and require
 Run the database recipes first: `npm run test:db:trade-acceptance-multi-team` and `npm run test:db:trade-acceptance-concurrency`.
 Both fail on the pre-fix `private.accept_trade_participant_atomic` and pass on the scoped one.
 
+## Trade roster holds
+
+Use the `trade-roster-holds` journeys in [Trades](features/trades.md) and [Players and Waivers](features/players-waivers.md).
+Seed each case on a fresh disposable stack with `node tools/verify/seed-trade-roster-holds.mjs "$EVIDENCE" --case=<case>`.
+Cases are `three-team`, `overlapping`, `waiver-before-hold`, and `free-agent-pool`.
+The seeder prints the trade, claim, and player ids as JSON; read them from that output, not from the offer text.
+
+Run the database recipes first: `npm run test:db:trade-roster-holds` and `npm run test:db:trade-roster-holds-concurrency`.
+The recipe proves the hold starts at acceptance, the proposer is held on send, overlapping pending offers do not add, every blocked write path names its conflict, and every terminal state releases the hold.
+The concurrency recipe races final acceptance against retraction in both orders and accepts only a unanimous accepted trade or a pending trade without a cleared unanimous acceptance.
+
+For `three-team`, the near-full team has accepted and the middle team has accepted; the full team still has to accept.
+Sign in as the full team, open the offer, and require the roster-hold warning to name the accepted trade and offer a drop or a withdrawal.
+Add a drop, accept, and require `trades.status='accepted'` plus the planned drop in `trade_participants.drop_player_ids`.
+Retract the acceptance from the offer screen and require `accepted_at` cleared, the trade still pending, and the other acceptances kept.
+Accept again and require the trade to become accepted.
+
+For `overlapping`, the same team has accepted two pending offers.
+Require both offers to show that team accepted and neither hold to add to the other.
+Make one offer unanimous and require the 409 `roster_hold` response with the other offer's conflict, then retract the other acceptance and require the first offer to complete.
+
+For `waiver-before-hold`, a waiver claim was entered before the trade hold existed.
+Run the waiver processor and require the claim to fail with the roster-hold message, no FAAB or priority change, and the next claim to proceed.
+
+For `free-agent-pool`, require the waiver wire to list the seeded free agents.
+Submit a claim without a drop and require the immediate roster-hold warning before submit; add a drop and require the claim to be accepted.
+
+Every blocked write path returns HTTP 409 with `code: 'roster_hold'`, the first conflict's message, and the `conflicts` array.
+Read the response log and the stored state; a toast alone is not proof.
+
 ## Auto Lineup injured reserve
 
 Use the `auto-lineup-ir` journey in [Auto Lineup IR](features/auto-lineup-ir.md).

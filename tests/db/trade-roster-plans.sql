@@ -198,12 +198,8 @@ BEGIN
   INSERT INTO waiver_wire_log(league_id,league_season_id,player_id,dropped_by_member_id,clears_at)
   VALUES(league,season,v_players[7],members[2],now()-interval '1 minute');
   UPDATE waiver_wire_log SET clears_at=now()-interval '1 minute' WHERE league_season_id=season AND player_id=v_players[7];
-  claim:=create_waiver_claim_atomic(league,members[3],v_players[7],NULL,users[3]);
-  UPDATE waiver_claims SET process_date=(now() AT TIME ZONE 'America/New_York')::date-1 WHERE id=claim;
-  UPDATE waiver_wire_log SET clears_at=now()-interval '2 days' WHERE league_season_id=season AND player_id=(SELECT player_id FROM waiver_claims WHERE id=claim);
-  PERFORM process_next_waiver_claim_atomic((SELECT process_date FROM waiver_claims WHERE id=claim));
-  PERFORM pg_temp.check_plan((SELECT status='failed_roster' AND failure_reason LIKE '%reserve roster capacity%' FROM waiver_claims WHERE id=claim),
-    'waiver cannot fill capacity reserved by an accepted trade');
+  PERFORM pg_temp.fail_plan(format('SELECT create_waiver_claim_atomic(%L,%L,%L,NULL,%L)',league,members[3],v_players[7],users[3]),
+    'needs this roster spot','waiver cannot fill capacity reserved by an accepted trade');
   PERFORM pg_temp.check_plan(NOT EXISTS(SELECT 1 FROM roster_players WHERE player_id=v_players[7]),'capacity failure keeps the waived player unowned');
   other_trade:=propose_trade_atomic(league,season,members[1],members[3],ARRAY[v_players[6]],'{}','{}',ARRAY[v_picks[2]]);
   SELECT jsonb_agg(to_jsonb(roster) ORDER BY id) INTO before_rosters FROM roster_players roster WHERE league_season_id=season;

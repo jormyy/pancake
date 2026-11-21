@@ -21,15 +21,25 @@ const CORS_HEADERS = {
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
+export type RosterHoldConflict = {
+  tradeId: string
+  holderTeamName: string
+  partnerTeamNames: string[]
+  canWithdraw: boolean
+  message: string
+}
+
 class ApiError extends Error {
   status: number
   /** SQLSTATE of the database error this wraps, when the client may classify on it. */
   code?: string
+  conflicts?: RosterHoldConflict[]
 
-  constructor(message: string, status = 500, code?: string) {
+  constructor(message: string, status = 500, code?: string, conflicts?: RosterHoldConflict[]) {
     super(message)
     this.status = status
     this.code = code
+    this.conflicts = conflicts
   }
 }
 
@@ -115,6 +125,7 @@ function errorResponse(scope: string, error: unknown): Response {
     ok: false,
     error: status >= 500 ? 'Internal server error' : errorMessage(error),
     code,
+    ...(error instanceof ApiError && error.conflicts ? { conflicts: error.conflicts } : {}),
     requestId,
   }, status)
 }
@@ -138,7 +149,24 @@ function dbErrorStatus(error: unknown): number {
 }
 
 export function throwDb(error: unknown): never {
+  const conflicts = rosterHoldConflicts(error)
+  if (conflicts) throw new ApiError(errorMessage(error), 409, 'roster_hold', conflicts)
   throw new ApiError(errorMessage(error), dbErrorStatus(error), dbErrorCode(error))
+}
+
+function rosterHoldConflicts(error: unknown): RosterHoldConflict[] | null {
+  if (!error || typeof error !== 'object') return null
+  const details = (error as { details?: unknown }).details
+  if (typeof details !== 'string') return null
+  try {
+    const parsed = JSON.parse(details) as { code?: unknown; conflicts?: unknown }
+    if (parsed?.code === 'roster_hold' && Array.isArray(parsed.conflicts)) {
+      return parsed.conflicts as RosterHoldConflict[]
+    }
+  } catch {
+    return null
+  }
+  return null
 }
 
 const MAX_JSON_BODY_BYTES = 64 * 1024

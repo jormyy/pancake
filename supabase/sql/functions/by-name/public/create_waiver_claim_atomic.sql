@@ -177,6 +177,23 @@ BEGIN
     END IF;
   END IF;
 
+  PERFORM private.assert_trade_roster_holds(
+    p_league_id,
+    v_season_id,
+    p_member_id,
+    jsonb_build_object(
+      'addPlayerId', p_player_id,
+      'dropPlayerIds', CASE WHEN p_drop_player_id IS NULL THEN '[]'::jsonb ELSE to_jsonb(ARRAY[p_drop_player_id]) END,
+      'toIr', COALESCE(p_to_ir, false),
+      'toTaxi', COALESCE(p_to_taxi, false)
+    ),
+    'add',
+    NULL,
+    false,
+    p_member_id,
+    NULL
+  );
+
   IF EXISTS (
     SELECT 1
       FROM waiver_claims

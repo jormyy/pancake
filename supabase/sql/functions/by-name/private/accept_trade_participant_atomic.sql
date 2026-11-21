@@ -21,10 +21,6 @@ DECLARE
 BEGIN
   PERFORM set_config('pancake.trade_write','true',true);
   PERFORM set_config('lock_timeout','100ms',true);
-  -- Read first, lock parties and players in the order every roster mutation
-  -- uses, then lock the trade row: a drop that expires this offer holds the
-  -- member and player locks while it updates the trade, so taking the trade
-  -- row first would deadlock against it.
   SELECT *
     INTO v_trade
     FROM trades
@@ -90,8 +86,6 @@ BEGIN
     END IF;
   END LOOP;
 
-  -- Accepted completion owns its trade row before team locks. A stale pending
-  -- action must not wait on that row while holding its team locks.
   SELECT *
     INTO v_trade
     FROM trades
@@ -168,7 +162,8 @@ BEGIN
     p_trade_id,
     v_trade.league_id,
     v_trade.league_season_id,
-    CASE WHEN v_all_accepted THEN NULL ELSE p_accepting_member_id END
+    CASE WHEN v_all_accepted THEN NULL ELSE p_accepting_member_id END,
+    p_accepting_member_id
   );
 
   IF EXISTS (

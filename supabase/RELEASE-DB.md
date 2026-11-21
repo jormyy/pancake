@@ -246,8 +246,19 @@ The [trade curve report](../docs/trade-curve.md) records the real trades, roster
 
 ## Release order for this release
 
-The supplied production head is `20261214011100`, with 789 migrations.
-This release adds only `20261214011200_auto_manage_ir_service.sql`, for 790 migrations.
+The supplied production head is `20261214011200`, with 790 migrations.
+That head assumes the Auto Lineup IR release below is applied first; confirm it with a read-only ledger dry run before applying.
+This release adds `20261214011300_trade_roster_holds.sql` and `20261214011400_trade_hold_perspective_and_shrinking_writes.sql`, for 792 migrations.
+Database, then Edge, then merge the frontend.
+Release the `api` Edge function for the new `/waivers/roster-hold-check` and `/trades/<id>/retract-acceptance` routes.
+`process-waivers` needs no redeploy because its source is unchanged since `33069cfc`.
+
+## Release order for the earlier Auto Lineup IR release
+
+This section describes the Auto Lineup IR release that comes before the trade roster holds release above.
+
+The supplied production head was `20261214011100`, with 789 migrations.
+That release adds only `20261214011200_auto_manage_ir_service.sql`, for 790 migrations.
 A read-only ledger dry run showed it as the only pending migration.
 Apply it through the guarded dry run and push.
 Verify the new functions, grants, and that nothing else changed with read-only checks.
@@ -1681,4 +1692,22 @@ Swap advice names a usable partner, a locked or reserved partner, or a cut when 
 It returns an empty notice list when the setting is off or the caller is not a member.
 IR and taxi over-capacity are not reachable through supported write paths, so `private.roster_problems` keeps its existing problem kinds.
 Run `npm run test:db:auto-manage-ir` and `npm run test:db:auto-manage-ir-concurrency` on a private stack.
+Regenerate database types, the function catalog, and release attestations.
+
+## Trade roster holds
+
+Apply `20261214011300_trade_roster_holds.sql` after `20261214011200`.
+`20261214011400_trade_hold_perspective_and_shrinking_writes.sql` names the holding team in every conflict, gives a non-holder the holding team's message, and allows shrinking writes with a transaction-scoped baseline.
+The migration replaces `private.assert_accepted_trade_capacity` with a per-trade hold check and adds `private.trade_hold_roster`, `private.trade_hold_conflict`, `private.trade_hold_conflicts`, `private.assert_trade_roster_holds`, and `private.assert_trade_acceptance_holds`.
+A team holds roster room from the moment its `trade_participants.accepted_at` is set; the proposer is accepted on send.
+The projected roster is the current roster plus every trade with status `accepted`.
+Each pending trade the team has accepted is checked independently against that projected roster, so overlapping offers never add their holds.
+A unanimous-making acceptance commits the trade and rechecks every participant's other holds.
+`public.trade_roster_hold_check` is the read-only warning used before a claim or add.
+`public.retract_trade_acceptance_atomic` clears only the caller's acceptance and keeps the trade pending.
+Every blocked write path raises `PT409` with `DETAIL` `{"code":"roster_hold","conflicts":[...]}`; the Edge route returns HTTP 409 with `code: 'roster_hold'` and the conflicts array.
+`public.create_waiver_claim_atomic` and `public.edit_waiver_claim_atomic` now reject a claim that would consume a held spot.
+Waiver execution already converts the hold rejection into a clean `failed_roster` claim, so the next claim proceeds.
+The function catalog gains the new signatures; existing signatures, owners, and grants are unchanged.
+Run `npm run test:db:trade-roster-holds` and `npm run test:db:trade-roster-holds-concurrency` on a private stack.
 Regenerate database types, the function catalog, and release attestations.

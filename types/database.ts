@@ -7273,6 +7273,10 @@ export type Database = {
         Returns: undefined
       }
       retention_dashboard: { Args: never; Returns: Json }
+      retract_trade_acceptance_atomic: {
+        Args: { p_member_id: string; p_trade_id: string; p_user_id: string }
+        Returns: Json
+      }
       revoke_push_token_atomic: {
         Args: { p_revocation_hash: string; p_token: string }
         Returns: boolean
@@ -7616,6 +7620,17 @@ export type Database = {
           p_user_id: string
         }
         Returns: undefined
+      }
+      trade_roster_hold_check: {
+        Args: {
+          p_add_player_id?: string
+          p_drop_player_ids?: string[]
+          p_member_id: string
+          p_to_ir?: boolean
+          p_to_taxi?: boolean
+          p_user_id: string
+        }
+        Returns: Json
       }
       trade_value_review_overrides: {
         Args: never

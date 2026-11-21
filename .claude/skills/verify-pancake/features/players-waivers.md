@@ -9,6 +9,7 @@ Managers find players, inspect rankings and news, and submit or revise waiver cl
 - `players-news` opens player news.
 - `waiver-claim` submits a claim with a FAAB bid.
 - `waiver-manage` edits or cancels a pending claim.
+- `waiver-roster-hold` warns when an accepted trade needs the roster spot a claim would take.
 
 ## How to get to it (user POV)
 
@@ -29,6 +30,7 @@ Preconditions:
 - **Claim.** Open Player052 and choose its visible Claim action. Require Waiver Claim. Run `BROWSER fill '[aria-label="FAAB bid amount"]' '2'`. Choose a legal drop if requested, then run `BROWSER click '[aria-label="Submit waiver claim"]'`.
 - **Persist.** Require the pending claim in the waiver view and a matching `waiver_claims` row with bid 2. Reopen it, change the bid, and choose `Save waiver claim`.
 - **Cancel.** Use the claim’s visible cancel control and confirm. Require its removal from pending claims and terminal stored status.
+- **Roster hold.** Seed with `node tools/verify/seed-trade-roster-holds.mjs "$EVIDENCE" --case=free-agent-pool`. Submit a claim without a drop and require the immediate roster-hold warning before submit; add a drop and require the claim to be accepted. Seed `--case=waiver-before-hold`, run the waiver processor, and require the claim to fail with the roster-hold message, no FAAB or priority change, and the next claim to proceed.
 - **Narrow view.** Repeat filters and claim review at 375×812. Require the submit action to remain reachable.
 
 ## Gotchas

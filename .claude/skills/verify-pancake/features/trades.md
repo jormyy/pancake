@@ -11,6 +11,7 @@ Managers build offers, review assets, analyze trades, and manage received or sen
 - `trade-history` shows completed trade details.
 - `trade-block` manages trade-block listings.
 - `trade-player-stats` opens existing profiles and keeps selection separate.
+- `trade-roster-holds` warns about, retracts, and releases the roster room an accepted trade needs.
 
 ## How to get to it (user POV)
 
@@ -38,6 +39,7 @@ Preconditions:
   `--mode=net-neutral` sends one player back, so the full team accepts without a plan.
   Seeding writes are setup, not proof. Proof is stored state from `observe.mjs`: `trades.status`, `trade_participants.accepted_at` and `drop_player_ids`, `roster_players` counts per team, and `roster_transactions`.
 - **Withdraw.** Sign in as proposer and withdraw a pending offer. Require it to leave pending views.
+- **Roster holds.** Seed with `node tools/verify/seed-trade-roster-holds.mjs "$EVIDENCE" --case=three-team`. The near-full team has accepted and the middle team has accepted. Sign in as the full team, open the offer, and require the roster-hold warning to name the accepted trade. Add a drop and accept; require `accepted` and the planned drop. Retract the acceptance and require `accepted_at` cleared, the trade still pending, and the other acceptances kept. Accept again and require `accepted`. Seed `--case=overlapping` and require both offers to show the same team accepted without adding their holds; make one unanimous and require the 409 `roster_hold` conflict for the other, then retract the other acceptance and require the first to complete. Every blocked write path returns 409 with `code: 'roster_hold'` and the `conflicts` array.
 - **Analyze and history.** Open the analyzer from a trade and from its section. Require asset identities and results. Open History and compare a completed offer’s assets and date.
 - **Trade block.** Open its section, list a rostered player, reopen, and remove the listing. Verify stored listing changes.
 

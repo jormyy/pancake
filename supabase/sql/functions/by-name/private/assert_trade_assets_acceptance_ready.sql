@@ -6,7 +6,8 @@ CREATE OR REPLACE FUNCTION private.assert_trade_assets_acceptance_ready(
   p_trade_id uuid,
   p_league_id uuid,
   p_league_season_id uuid,
-  p_only_member_id uuid DEFAULT NULL
+  p_only_member_id uuid DEFAULT NULL,
+  p_actor_member_id uuid DEFAULT NULL
 )
 RETURNS void
 LANGUAGE plpgsql
@@ -23,7 +24,7 @@ BEGIN
     END IF;
   END LOOP;
   PERFORM private.validate_trade_rosters(p_trade_id, p_only_member_id);
-  PERFORM private.assert_accepted_trade_capacity(p_league_id,p_league_season_id,participant.member_id,p_trade_id)
+  PERFORM private.assert_trade_acceptance_holds(p_league_id,p_league_season_id,participant.member_id,p_trade_id,p_only_member_id IS NULL,p_actor_member_id)
     FROM trade_participants participant WHERE participant.trade_id=p_trade_id
       AND (p_only_member_id IS NULL OR participant.member_id=p_only_member_id);
   PERFORM 1
