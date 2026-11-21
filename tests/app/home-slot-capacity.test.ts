@@ -19,7 +19,7 @@ const mocks = vi.hoisted(() => ({
     lineup: { starters: [{ slotType: 'PG', player: null as LineupPlayer | null }], bench: [] as LineupPlayer[], benchSlots: 3, ir: [], taxi: [] },
     league: { id: 'league', roster_size: 20, ir_slots: 2, taxi_slots: 2 },
     refreshHome: vi.fn(async () => {}), refreshAnnouncements: vi.fn(async () => {}),
-    setSelected: vi.fn(), setSelectedDate: vi.fn(), loadLineups: vi.fn(),
+    setSelectedDate: vi.fn(), loadLineups: vi.fn(),
     selectedDate: '2026-10-11', lineupError: false,
     freshness: 'fresh',
     announcementsLoaded: true, announcementRead: vi.fn(),
@@ -48,9 +48,7 @@ vi.mock('@/hooks/use-matchup-data', () => ({ useMatchupData: () => ({
     myLineup: mocks.lineupError ? null : mocks.lineup, oppLineup: mocks.lineupError ? null : mocks.lineup, lineupError: mocks.lineupError,
     setSelectedDate: mocks.setSelectedDate, loadLineups: mocks.loadLineups, matchupRef: { current: { id: 'matchup' } },
 }) }))
-vi.mock('@/hooks/use-lineup-actions', () => ({ useLineupActions: () => ({ setSelected: mocks.setSelected, setAutoSetModalVisible: vi.fn() }) }))
 vi.mock('@/hooks/use-draft-room-launcher', () => ({ useDraftRoomLauncher: () => ({ openDraftRoom: vi.fn() }) }))
-vi.mock('@/lib/lineup', () => ({ getLineupMoveTargetState: () => null }))
 vi.mock('@/lib/supabase', () => ({ supabase: {} }))
 vi.mock('@/lib/score-breakdown', () => ({ lineupStatColumns: () => [] }))
 vi.mock('@/lib/shared/dates', () => ({ todayET: () => '2026-10-11' }))
@@ -62,7 +60,6 @@ vi.mock('@/components/Scoreboard', () => ({ Scoreboard: 'Scoreboard' }))
 vi.mock('@/components/ScoreCard', () => ({ ScoreCard: 'ScoreCard' }))
 vi.mock('@/components/DaySelector', () => ({ DaySelector: 'DaySelector' }))
 vi.mock('@/components/AutoSetModal', () => ({ AutoSetModal: 'AutoSetModal' }))
-vi.mock('@/components/ActivationOverflowModal', () => ({ ActivationOverflowModal: 'ActivationOverflowModal' }))
 vi.mock('@/components/ScoreBreakdownSheet', () => ({ ScoreBreakdownSheet: 'ScoreBreakdownSheet' }))
 vi.mock('@/components/LeagueSwitcher', () => ({ LeagueSwitcher: 'LeagueSwitcher' }))
 vi.mock('@/components/MatchupRow', () => ({ MatchupColumnHeader: 'MatchupColumnHeader', MatchupRow: 'MatchupRow', statLineupWidth: () => 800 }))
@@ -173,8 +170,12 @@ it('shows a recent complete game display during the initial live refresh', async
 })
 
 it('opens the manual editor from the auto-set sheet', async () => {
+    populatedStarters()
     await mount()
     const sheet = screen.root.findByType('AutoSetModal' as React.ElementType)
+    expect(sheet.props.visible).toBe(false)
+    await act(async () => screen.root.findAllByProps({ accessibilityLabel: 'Open auto-set lineup options' })[0].props.onPress())
+    expect(sheet.props.visible).toBe(true)
     expect(sheet.props.onToday).toBeUndefined()
     expect(sheet.props.onWholeWeek).toBeUndefined()
     expect(sheet.props.onRestOfSeason).toBeUndefined()

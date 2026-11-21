@@ -80,17 +80,17 @@ export const checkWebEmptySlots = (target, captures, env) => runWithScenarioReso
     await pressWebControl(target, page.getByRole('button', { name: 'Sign In', exact: true }))
     await page.waitForURL((url) => url.pathname === '/')
     await pinLeague()
-    await page.getByRole('button', { name: 'Select empty BE slot 1', exact: true }).waitFor()
-    assert.equal(await page.getByRole('button', { name: /^Select empty BE slot/ }).count(), 3)
-    assert.equal(await page.getByRole('button', { name: /^Select empty IR slot/ }).count(), 2)
-    assert.equal(await page.getByRole('button', { name: /^Select empty TX slot/ }).count(), 2)
+    await page.locator('[aria-label="Empty BE slot 1"]').waitFor()
+    assert.equal(await page.locator('[aria-label^="Empty BE slot "]').count(), 3)
+    assert.equal(await page.locator('[aria-label^="Empty IR slot "]').count(), 2)
+    assert.equal(await page.locator('[aria-label^="Empty TX slot "]').count(), 2)
     checked.push({ route: '/', label: 'BE / IR / taxi', expected: [3, 2, 2], actual: [3, 2, 2] })
     await page.waitForFunction(() => Boolean(navigator.serviceWorker.controller))
     await reloadWebTarget(page)
     await pinLeague()
-    await page.getByRole('button', { name: 'Select empty BE slot 1', exact: true }).waitFor()
+    await page.locator('[aria-label="Empty BE slot 1"]').waitFor()
     const frames = await waitForWebTargetGeometry(page, {
-      mobile: target.mobile, populatedSelector: '[aria-label="Select empty BE slot 1"]', requireFirstContent: true,
+      mobile: target.mobile, populatedSelector: '[aria-label="Empty BE slot 1"]', requireFirstContent: true,
     }).finally(async () => {
       await writeFile(path.join(captures, 'slots-home-frames.json'), `${JSON.stringify(await page.evaluate(() => Reflect.get(window, '__webTargetFrames')))}\n`)
     })
@@ -116,11 +116,11 @@ export const checkWebEmptySlots = (target, captures, env) => runWithScenarioReso
       await context.setOffline(true)
       await reloadWebTarget(page)
       await page.getByText("Couldn't load your matchup", { exact: true }).waitFor()
-      assert.equal(await page.getByRole('button', { name: /^Select empty BE slot/ }).count(), 0)
+      assert.equal(await page.locator('[aria-label^="Empty BE slot "]').count(), 0)
       await page.screenshot({ path: path.join(captures, 'slots-home-legacy-offline.png'), fullPage: true })
     } finally { await context.setOffline(false) }
-    await page.getByRole('button', { name: 'Select empty BE slot 1', exact: true }).waitFor()
-    assert.equal(await page.getByRole('button', { name: /^Select empty BE slot/ }).count(), 3)
+    await page.locator('[aria-label="Empty BE slot 1"]').waitFor()
+    assert.equal(await page.locator('[aria-label^="Empty BE slot "]').count(), 3)
     await page.waitForFunction((key) => JSON.parse(localStorage.getItem(key)).value.myLineup.benchSlots === 3, homeCacheKey)
     checked.push({ route: '/', label: 'legacy-cache-capacity-recovery', offline: 'unknown capacity is not displayed as zero', restored: 3 })
     for (const [name, route] of [['roster', '/roster'], ['team', `/team-roster?memberId=${fixture.recipient.id}`]]) {
@@ -157,10 +157,10 @@ export const checkWebEmptySlots = (target, captures, env) => runWithScenarioReso
     await page.getByRole('button', { name: 'Empty PG slot', exact: true }).waitFor()
     assert.equal(await page.getByRole('button', { name: 'Empty bench slot', exact: true }).count(), 3)
     await visit('/')
-    await page.getByRole('button', { name: 'Select empty BE slot 1', exact: true }).waitFor()
-    assert.equal(await page.getByRole('button', { name: /^Select empty BE slot/ }).count(), 3)
-    assert.equal(await page.getByRole('button', { name: /^Select empty IR slot/ }).count(), 2)
-    assert.equal(await page.getByRole('button', { name: /^Select empty TX slot/ }).count(), 2)
+    await page.locator('[aria-label="Empty BE slot 1"]').waitFor()
+    assert.equal(await page.locator('[aria-label^="Empty BE slot "]').count(), 3)
+    assert.equal(await page.locator('[aria-label^="Empty IR slot "]').count(), 2)
+    assert.equal(await page.locator('[aria-label^="Empty TX slot "]').count(), 2)
     checked.push({ route: 'all four surfaces', label: 'offseason capacities', expected: [4, 3, 2, 2], actual: [4, 3, 2, 2] })
     await apply(0, 0, 0, 0)
     for (const route of ['/roster', `/team-roster?memberId=${fixture.recipient.id}`, '/lineup']) {
@@ -169,7 +169,7 @@ export const checkWebEmptySlots = (target, captures, env) => runWithScenarioReso
     }
     await visit('/')
     await page.getByRole('heading', { name: /^Weeks? .* matchup$/ }).waitFor()
-    const emptyHome = page.getByRole('button', { name: /^Select empty (BE|IR|TX|PG) slot/ })
+    const emptyHome = page.locator('[aria-label^="Empty BE slot "],[aria-label^="Empty IR slot "],[aria-label^="Empty TX slot "],[aria-label^="Empty PG slot "]')
     for (let attempt = 0; await emptyHome.count() > 0 && attempt < 120; attempt += 1) await page.waitForTimeout(250)
     assert.equal(await emptyHome.count(), 0, 'Zero-capacity Home must hide empty slot sections')
     checked.push({ route: '/', label: 'zero-capacity-empty-slots', expected: 0, actual: 0 })

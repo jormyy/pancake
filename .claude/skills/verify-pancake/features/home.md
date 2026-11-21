@@ -8,6 +8,7 @@ Home shows the selected day’s matchup, scores, starters, and lineup controls.
 - `home-day` changes the displayed day and its lineup.
 - `home-autoset` opens lineup options.
 - `home-links` selects other matchups and opens player details.
+- `home-positions` shows every slot, filled or empty, as a plain position label.
 
 ## How to get to it (user POV)
 
@@ -27,6 +28,7 @@ Preconditions:
 - **Options.** Run `BROWSER click '[aria-label="Open auto-set lineup options"]'`. Require the `Auto-set lineup` sheet and `Edit lineup manually`. Capture it, then select `Edit lineup manually` and require the Lineup page.
 - **Return path.** Use the visible back control, then select Home. Require the same teams and selected date.
 - **Details.** Select another seeded matchup, require its two teams and read-only lineup, then return to your matchup. Select `Open E2E Player001 player profile` and require the matching player page.
+- **Positions.** Save `node tools/verify/observe.mjs "$EVIDENCE"`, then tap filled and empty labels such as `[aria-label="BE slot, E2E Player009"]` and `[aria-label="Empty UTIL slot 9"]`. Require no selection outline, no dialog, no `Select ` labels, and unchanged `weekly_lineups` in a second observation. Each empty slot keeps its own `Empty <slot> slot <n>` label.
 - **Narrow view.** Run `BROWSER set viewport 375 812`, repeat day selection and the sheet, and capture both states.
 
 ## Gotchas
@@ -37,3 +39,4 @@ Preconditions:
 - The current sheet contains manual editing. Daily automation controls live inside Lineup.
 - A missing current matchup fails this journey, even if an old matchup opens.
 - Home appears as the `Matchup` link in the browser accessibility tree.
+- Lineup moves live only in Lineup, reached from Roster or the Auto-set sheet. Matchup positions never select or swap players.

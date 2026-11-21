@@ -37,16 +37,18 @@ function payload() {
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 let screen: ReactTestRenderer | undefined
 afterEach(async () => { await act(async () => screen?.unmount()); screen = undefined; state.canBack = true; vi.clearAllMocks() })
-it('renders the shared Home components with read-only rows and no lineup actions', async () => {
+it('renders the shared Home components with plain position labels and no lineup actions', async () => {
     await act(async () => { screen = create(React.createElement(OtherMatchupScreen)) })
     expect(screen!.root.findByType(ScoreCard).props.matchup).toEqual(matchup)
     expect(screen!.root.findByType(MatchupForecastSummary).props.myMemberId).toBe('a')
     const lineup = screen!.root.findByType(MatchupLineupView)
-    expect(lineup.props.readOnly).toBe(true)
+    expect(lineup.props.hideSlotCounts).toBe(true)
     expect(lineup.props.autoSetControl).toBeUndefined()
-    const slots = screen!.root.findAll(node => typeof node.type === 'string' && String(node.props['aria-label'] ?? '').startsWith('Select '))
-    expect(slots.length).toBeGreaterThan(0)
-    for (const slot of slots) expect(slot.props['aria-disabled']).toBe(true)
+    const hosts = screen!.root.findAll(node => typeof node.type === 'string')
+    expect(hosts.filter(node => String(node.props['aria-label'] ?? '').startsWith('Select '))).toEqual([])
+    const position = hosts.find(node => node.props['aria-label'] === 'PG slot, Jayson Tatum')!
+    expect(position.props.role).toBeUndefined()
+    expect(position.props.onClick).toBeUndefined()
     await act(async () => screen!.root.findByType(DaySelector).props.onSelect('2026-10-28'))
     expect(state.setDate).toHaveBeenCalledWith('2026-10-28')
 })

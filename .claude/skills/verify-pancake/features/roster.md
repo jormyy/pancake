@@ -12,6 +12,7 @@ Roster shows starters, bench, injured reserve, taxi players, and each team’s p
 - `roster-ir-auto` resolves a healthy IR occupant through the Auto Lineup IR journey.
 - `roster-taxi` promotes a taxi player to the active roster.
 - `roster-drop` drops an unlocked player after confirmation.
+- `roster-move` opens Lineup with a player selected for a slot move.
 
 ## How to get to it (user POV)
 
