@@ -150,17 +150,8 @@ export async function auditWebPanelActions({ check, env, season, target, page, p
         await db(fixture.admin.from('leagues').update({ status: 'active' }).eq('id', fixture.league.id))
       }
       await signIn(fixture)
-      const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
-      const week = await db(fixture.admin.from('season_weeks').select('week_number').eq('season_year', fixture.currentSeason.season_year)
-        .lte('week_start', today).gte('week_end', today).single())
-      await db(fixture.admin.from('matchups').insert({ league_id: fixture.league.id, league_season_id: fixture.currentSeason.id,
-        week_number: week.week_number, home_member_id: fixture.proposer.id, away_member_id: fixture.recipient.id }))
-      await db(fixture.admin.from('players').update({ eligible_positions: ['PG'], position: 'PG' }).eq('id', fixture.recipientPlayer.id))
-      await db(fixture.admin.from('weekly_lineups').insert({ league_id: fixture.league.id, league_season_id: fixture.currentSeason.id,
-        member_id: fixture.recipient.id, player_id: fixture.recipientPlayer.id, week_number: week.week_number, game_date: today, slot_type: 'PG' }))
-      await open('/')
-      const select = () => button(`Select ${source === 'ir' ? 'IR' : 'TX'} slot, ${incoming.display_name}`)
-      const show = async () => { await press(select()); await press(button('Select empty PG slot 1')) }
+      await open('/roster')
+      const show = () => press(button(`Activate ${incoming.display_name}`))
       const roster = () => db(fixture.admin.from('roster_players').select('player_id,is_on_ir,is_on_taxi').eq('league_id', fixture.league.id).eq('member_id', fixture.proposer.id).order('player_id'))
       const beforeCancel = await roster()
       await show()

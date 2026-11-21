@@ -16,6 +16,7 @@ Lineup lets a manager choose starters, pin player roles, and enable daily automa
 
 - Home → Auto-set → Edit lineup manually.
 - Roster → Auto-set → Edit lineup manually.
+- Roster → player actions → `Move <name> in lineup`, which opens Lineup with that player selected.
 - Open a saved `/lineup` link while signed in.
 
 ## Driving it with agent-browser
@@ -34,6 +35,7 @@ Preconditions:
 - **Bench.** Run `BROWSER click '[aria-label="Pin E2E Player008 to bench"]'`. Require Bench visibly selected, `pin=bench`, and no starting assignment.
 - **Dates.** Select another full-date button from the snapshot. Require the other date’s own pin state. Return to today and confirm persistence.
 - **Manual swap.** Pin a player to Start, select their slot, then select an eligible bench player. Require the swap and removal of the contradicted pin.
+- **Roster swap.** On Roster open a bench player's actions (`More actions for <name>` at desktop width, `Open <name>` on phones), choose `Move <name> in lineup`, then choose an enabled `Empty <slot> slot`. Require a new `weekly_lineups` row for that slot and the player in that slot after reopening Roster.
 - **Other controls.** Toggle the automatic daily switch, reopen, and compare `lineup_optimizer_settings`.
 - **Auto IR.** Use the [Auto Lineup IR](auto-lineup-ir.md) journey to seed a case, trigger the background optimizer, and require the returned moves or notices on this screen.
 - **Narrow view.** At 375×812, repeat the Start/Auto/Bench controls and confirm each remains reachable without horizontal clipping.

@@ -16,7 +16,7 @@ let screen: ReactTestRenderer
 afterEach(async () => { await act(async () => screen?.unmount()) })
 
 const rowPlayer = (playerId: string, nbaTeam: string, injuryStatus: string | null = null) => ({ rosterPlayerId: playerId, playerId, displayName: playerId, position: 'PG', eligiblePositions: ['PG'], nbaTeam, injuryStatus, nbaId: null })
-const rowProps = () => ({ myPlayer: rowPlayer('Mine', 'TOR', 'DTD'), oppPlayer: rowPlayer('Theirs', 'OKC', 'Out'), slotType: 'PG', selKind: 'starter' as const, selIndex: 0, isSelected: false, onTap: vi.fn(), saving: false, playingTeams: new Set(['TOR', 'OKC']), liveStats: new Map(), liveTeams: new Set<string>(), scoringSettings: {}, teamMatchups: new Map([['TOR', { opponent: 'OKC', isHome: false }], ['OKC', { opponent: 'TOR', isHome: true }]]), compact: true })
+const rowProps = () => ({ myPlayer: rowPlayer('Mine', 'TOR', 'DTD'), oppPlayer: rowPlayer('Theirs', 'OKC', 'Out'), slotType: 'PG', slotIndex: 0, playingTeams: new Set(['TOR', 'OKC']), liveStats: new Map(), liveTeams: new Set<string>(), scoringSettings: {}, teamMatchups: new Map([['TOR', { opponent: 'OKC', isHome: false }], ['OKC', { opponent: 'TOR', isHome: true }]]), compact: true })
 
 it.each(['1629018', 'IOS67', null])('retains valid headshots on wide rows: %s', async nbaId => {
     const props = rowProps()
@@ -24,7 +24,7 @@ it.each(['1629018', 'IOS67', null])('retains valid headshots on wide rows: %s', 
     expect(screen.root.findAllByType('Avatar' as React.ElementType)[0].props.uri).toBe(nbaId === '1629018' ? 'http://127.0.0.1:57121/functions/v1/api/players/headshot/1629018' : undefined)
 })
 
-it('keeps profiles, scores and lineup selection independent', async () => {
+it('opens profiles and scores while positions stay plain labels', async () => {
     const props = rowProps(), onOpenPlayer = vi.fn(), onOpenDetails = vi.fn()
     await act(async () => { screen = create(React.createElement(MatchupRow, { ...props, onOpenPlayer, onOpenDetails })) })
     const press = async (label: string) => act(async () => screen.root.findByProps({ accessibilityLabel: label }).props.onPress())
@@ -32,14 +32,22 @@ it('keeps profiles, scores and lineup selection independent', async () => {
     await press('Open Theirs player profile')
     expect(onOpenPlayer.mock.calls).toEqual([[props.myPlayer], [props.oppPlayer]])
     expect(onOpenDetails).not.toHaveBeenCalled()
-    expect(props.onTap).not.toHaveBeenCalled()
     await press('Score breakdown for Mine')
     await press('Score breakdown for Theirs')
     expect(onOpenDetails).toHaveBeenCalledTimes(2)
     expect(onOpenPlayer).toHaveBeenCalledTimes(2)
-    expect(props.onTap).not.toHaveBeenCalled()
-    await press('Select PG slot, Mine')
-    expect(props.onTap).toHaveBeenCalledExactlyOnceWith({ kind: 'starter', index: 0 })
+    const position = screen.root.findByProps({ accessibilityLabel: 'PG slot, Mine' })
+    expect(position.type).toBe('View')
+    expect(position.props.onPress).toBeUndefined()
+    expect(position.props.accessibilityRole).toBeUndefined()
+    expect(screen.root.findAll(node => String(node.props.accessibilityLabel ?? '').startsWith('Select '))).toEqual([])
+})
+
+it('labels each empty position individually', async () => {
+    await act(async () => { screen = create(React.createElement(MatchupRow, { ...rowProps(), myPlayer: null, slotType: 'BE', slotIndex: 2 })) })
+    const position = screen.root.findByProps({ accessibilityLabel: 'Empty BE slot 3' })
+    expect(position.type).toBe('View')
+    expect(position.findByType('Text' as React.ElementType).props.children).toBe('BE')
 })
 
 it('keeps injuries beside names and games visible without no-game team text', async () => {
@@ -104,21 +112,11 @@ it('bolds only scores from finished games, not live or upcoming ones', async () 
 
 it.each([['PG', true], ['C', true], ['UTIL', true], ['IR', true], ['BE', false], ['TX', false]])('weights the %s slot label heavier: %s, on the same faint tint', async (slotType, strong) => {
     await act(async () => { screen = create(React.createElement(MatchupRow, { ...rowProps(), slotType })) })
-    const chip = screen.root.findAllByType('MotionPressable' as React.ElementType).find(node => String(node.props.accessibilityLabel).startsWith(`Select ${slotType} slot`))!
+    const chip = screen.root.findByProps({ accessibilityLabel: `${slotType} slot, Mine` })
     const fill = Object.assign({}, ...[chip.props.style].flat(Infinity).filter(Boolean)).backgroundColor
     const label = Object.assign({}, ...[chip.findByType('Text' as React.ElementType).props.style].flat(Infinity).filter(Boolean))
     expect(fill).toMatch(/rgba|color-mix/)
     expect(label.fontWeight).toBe(strong ? '900' : '800')
-})
-
-it('keeps read-only slot chips at full color instead of the faded disabled look', async () => {
-    const chip = () => screen.root.findAllByType('MotionPressable' as React.ElementType).find(node => String(node.props.accessibilityLabel).startsWith('Select PG slot'))!
-    await act(async () => { screen = create(React.createElement(MatchupRow, { ...rowProps(), readOnly: true })) })
-    expect(chip().props.disabled).toBe(true)
-    expect(chip().props.disabledOpacity).toBe(1)
-    await act(async () => screen.update(React.createElement(MatchupRow, { ...rowProps(), saving: true })))
-    expect(chip().props.disabled).toBe(true)
-    expect(chip().props.disabledOpacity).toBeUndefined()
 })
 
 it.each([

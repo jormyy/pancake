@@ -51,7 +51,6 @@ it.each([
 const props = (): React.ComponentProps<typeof MatchupLineupView> => ({
     myLineup: { starters: [starter('Mine'), starter('Other')], bench: [player('Bench player')], ir: [], taxi: [] },
     oppLineup: { starters: [starter('Theirs'), starter('Out')], bench: [], ir: [], taxi: [] },
-    selected: null, getTargetState: () => null, onTap: vi.fn(), saving: false,
     playingTeams: new Set(['TOR']), liveTeams: new Set(['TOR']), scoringSettings: settings,
     liveStats: new Map([
         ['Mine', line({ points: 12, assists: 2 })], ['Other', line({ points: 3, rebounds: 3 })],
@@ -94,6 +93,6 @@ it('hides lineup slot counts when viewing another team read-only', async () => {
     const counts = () => screen.root.findAllByType('Text' as React.ElementType).map(node => node.props.children).filter(text => typeof text === 'string' && /^\d+\/\d+$/.test(text))
     await act(async () => { screen = create(React.createElement(MatchupLineupView, props())) })
     expect(counts().length).toBeGreaterThan(0)
-    await act(async () => screen.update(React.createElement(MatchupLineupView, { ...props(), readOnly: true })))
+    await act(async () => screen.update(React.createElement(MatchupLineupView, { ...props(), hideSlotCounts: true })))
     expect(counts()).toEqual([])
 })

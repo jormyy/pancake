@@ -2,7 +2,7 @@ import { useMemo, type ReactNode } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 import { SectionBand } from '@/components/ui/SectionBand'
 import { MatchupColumnHeader, MatchupRow, type MatchupGame } from '@/components/MatchupRow'
-import type { LineupPlayer, LineupMoveData, LineupSelection, LineupMoveTargetState } from '@/lib/lineup'
+import type { LineupPlayer, LineupMoveData } from '@/lib/lineup'
 import type { LiveStatLine } from '@/lib/games'
 import type { StatColumn } from '@/lib/score-breakdown'
 import { formatPoints } from '@/lib/format'
@@ -24,10 +24,6 @@ function LineupHeading() {
 export function MatchupLineupView({
     myLineup,
     oppLineup,
-    selected,
-    getTargetState,
-    onTap,
-    saving,
     playingTeams,
     liveStats,
     liveTeams,
@@ -43,14 +39,10 @@ export function MatchupLineupView({
     daySelector,
     autoSetControl,
     footer,
-    readOnly = false,
+    hideSlotCounts = false,
 }: {
     myLineup: Required<LineupMoveData>
     oppLineup: Required<LineupMoveData>
-    selected: LineupSelection | null
-    getTargetState: (selection: LineupSelection) => LineupMoveTargetState
-    onTap: (sel: LineupSelection) => void
-    saving: boolean
     playingTeams: Set<string>
     liveStats: Map<string, LiveStatLine>
     liveTeams: Set<string>
@@ -66,7 +58,7 @@ export function MatchupLineupView({
     dense: boolean
     daySelector?: ReactNode
     autoSetControl?: ReactNode
-    readOnly?: boolean
+    hideSlotCounts?: boolean
     footer?: ReactNode
 }) {
     const noStarters = !myLineup.starters.some((slot) => slot.player) && !oppLineup.starters.some((slot) => slot.player)
@@ -86,8 +78,7 @@ export function MatchupLineupView({
                     myPlayer: slot.player,
                     oppPlayer: oppLineup.starters[i]?.player ?? null,
                     slotType: slot.slotType,
-                    selKind: 'starter' as const,
-                    selIndex: i,
+                    slotIndex: i,
                     isExtraOppRow: false,
                 })),
             },
@@ -103,8 +94,7 @@ export function MatchupLineupView({
                     myPlayer: myLineup.bench[i] ?? null,
                     oppPlayer: oppLineup.bench[i] ?? null,
                     slotType: 'BE',
-                    selKind: 'bench' as const,
-                    selIndex: i,
+                    slotIndex: i,
                     // Rows past my bench size are open slots I can move a starter into;
                     // only rows past the league's bench size belong to the opponent alone.
                     isExtraOppRow: i >= Math.max(myLineup.bench.length, capacity.bench),
@@ -121,8 +111,7 @@ export function MatchupLineupView({
                     myPlayer: myLineup.ir[i] ?? null,
                     oppPlayer: oppLineup.ir[i] ?? null,
                     slotType: 'IR',
-                    selKind: 'ir' as const,
-                    selIndex: i,
+                    slotIndex: i,
                     isExtraOppRow: false,
                 })),
             },
@@ -137,8 +126,7 @@ export function MatchupLineupView({
                     myPlayer: myLineup.taxi[i] ?? null,
                     oppPlayer: oppLineup.taxi[i] ?? null,
                     slotType: 'TX',
-                    selKind: 'taxi' as const,
-                    selIndex: i,
+                    slotIndex: i,
                     isExtraOppRow: false,
                 })),
             },
@@ -158,7 +146,7 @@ export function MatchupLineupView({
                         <SectionBand label={section.label}
                             variant={section.key === 'starters' && autoSetControl ? 'action' : 'matchup'}
                             labelStyle={{ color: section.color }}
-                            detail={section.key === 'starters' && autoSetControl ? autoSetControl : section.used !== null && !readOnly ? <Text style={styles.lineupSectionCount}>{section.used}</Text> : undefined}
+                            detail={section.key === 'starters' && autoSetControl ? autoSetControl : section.used !== null && !hideSlotCounts ? <Text style={styles.lineupSectionCount}>{section.used}</Text> : undefined}
                         />
                         {section.key === 'starters' && noStarters ? (
                             <Text style={styles.noStarters} accessibilityLabel="No lineups set this day">No lineups set this day</Text>
@@ -171,12 +159,7 @@ export function MatchupLineupView({
                                         myPlayer={row.myPlayer}
                                         oppPlayer={row.oppPlayer}
                                         slotType={row.slotType}
-                                        selKind={row.selKind}
-                                        selIndex={row.selIndex}
-                                        isSelected={selected?.kind === row.selKind && selected.index === row.selIndex}
-                                        onTap={onTap}
-                                        saving={saving}
-                                        readOnly={readOnly}
+                                        slotIndex={row.slotIndex}
                                         playingTeams={playingTeams}
                                         liveStats={liveStats}
                                         liveTeams={liveTeams}
@@ -187,7 +170,6 @@ export function MatchupLineupView({
                                         compact={compact}
                                         dense={dense}
                                         motionDelay={i * 18}
-                                        targetState={getTargetState({ kind: row.selKind, index: row.selIndex })}
                                         statColumns={statColumns}
                                         onOpenDetails={onOpenDetails}
                                         onOpenPlayer={onOpenPlayer}

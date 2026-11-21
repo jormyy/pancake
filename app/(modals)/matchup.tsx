@@ -57,9 +57,8 @@ export default function OtherMatchupScreen() {
                                 <MatchupForecastSummary {...forecastState} myMemberId={matchup.myMemberId} opponentMemberId={matchup.opponentMemberId} />
                             </ScoreCard>
                             {myLineup && oppLineup ? <MatchupLineupView
-                                readOnly
-                                myLineup={myLineup} oppLineup={oppLineup} selected={null} getTargetState={() => null}
-                                onTap={() => {}} saving={false} playingTeams={playingTeams}
+                                hideSlotCounts
+                                myLineup={myLineup} oppLineup={oppLineup} playingTeams={playingTeams}
                                 liveStats={liveSnapshot.liveStats} liveTeams={liveTeams} scoringSettings={settings}
                                 teamMatchups={liveSnapshot.teamMatchups} statColumns={showColumns ? columns : null}
                                 onOpenDetails={setDetails} onOpenPlayer={player => router.push({ pathname: '/player/[id]', params: { id: player.playerId } })}

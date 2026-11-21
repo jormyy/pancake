@@ -1,7 +1,7 @@
 import { useFittedText } from '@/components/ui/useFittedText'
 import { memo, type ReactNode } from 'react'
 import { View, Text, StyleSheet, Platform } from 'react-native'
-import { LineupPlayer, type LineupSelection, type LineupMoveTargetState } from '@/lib/lineup'
+import { LineupPlayer } from '@/lib/lineup'
 import { LiveStatLine } from '@/lib/games'
 import { computeLiveFantasyPoints } from '@/lib/scoring'
 import { POSITION_COLORS } from '@/constants/positions'
@@ -338,12 +338,7 @@ type MatchupRowProps = {
     myPlayer: LineupPlayer | null
     oppPlayer: LineupPlayer | null
     slotType: string
-    selKind: 'starter' | 'bench' | 'ir' | 'taxi'
-    selIndex: number
-    isSelected: boolean
-    onTap: (sel: LineupSelection) => void
-    readOnly?: boolean
-    saving: boolean
+    slotIndex: number
     playingTeams: Set<string>
     liveStats: Map<string, LiveStatLine>
     liveTeams: Set<string>
@@ -354,7 +349,6 @@ type MatchupRowProps = {
     compact?: boolean
     dense?: boolean
     motionDelay?: number
-    targetState?: LineupMoveTargetState
     statColumns?: StatColumn[] | null
     onOpenPlayer?: (player: LineupPlayer) => void
     onOpenDetails?: (row: { myPlayer: LineupPlayer | null; oppPlayer: LineupPlayer | null; slotType: string }) => void
@@ -364,12 +358,7 @@ function MatchupRowImpl({
     myPlayer,
     oppPlayer,
     slotType,
-    selKind,
-    selIndex,
-    isSelected,
-    onTap,
-    saving,
-    readOnly = false,
+    slotIndex,
     playingTeams,
     liveStats,
     liveTeams,
@@ -380,12 +369,10 @@ function MatchupRowImpl({
     compact = false,
     dense = false,
     motionDelay = 0,
-    targetState = null,
     statColumns = null,
     onOpenDetails,
     onOpenPlayer,
 }: MatchupRowProps) {
-    const isSel = isSelected
     const slotColor = slotType === 'IR'
         ? uiColors.accentDanger
         : slotType === 'TX'
@@ -437,31 +424,20 @@ function MatchupRowImpl({
                 />
             </View>
 
-            <MotionPressable
+            <View
                 style={[
                     styles.slotChipCenter,
                     compact && styles.slotChipCenterCompact,
                     { backgroundColor: alpha(slotColor, 0.13) },
-                    isSel && styles.slotChipSelected,
-                    targetState === 'valid' && styles.slotChipTarget,
-                    targetState === 'invalid' && styles.slotChipUnavailable,
-                    saving && { opacity: 0.4 },
                 ]}
-                onPress={readOnly || isExtraOppRow ? undefined : () => onTap({ kind: selKind, index: selIndex })}
-                disabled={readOnly || saving || isExtraOppRow || targetState === 'invalid'}
-                // Read-only chips are labels, not unavailable controls, so they keep full color.
-                disabledOpacity={readOnly || isExtraOppRow ? 1 : undefined}
-                accessibilityRole="button"
-                accessibilityLabel={myPlayer
-                    ? `Select ${slotType} slot, ${myPlayer.displayName}`
-                    : `Select empty ${slotType} slot ${selIndex + 1}`}
-                accessibilityHint={targetState === 'valid' ? `Move the selected player to ${slotType}` : undefined}
-                accessibilityState={{ disabled: readOnly || saving || isExtraOppRow || targetState === 'invalid', selected: isSel }}
+                accessibilityLabel={isExtraOppRow ? undefined : myPlayer
+                    ? `${slotType} slot, ${myPlayer.displayName}`
+                    : `Empty ${slotType} slot ${slotIndex + 1}`}
             >
-                <Text style={[styles.slotChipText, strongSlot && styles.slotChipTextStrong, { color: isSel ? colors.primary : slotColor }]}>
+                <Text style={[styles.slotChipText, strongSlot && styles.slotChipTextStrong, { color: slotColor }]}>
                     {isExtraOppRow ? '—' : slotType}
                 </Text>
-            </MotionPressable>
+            </View>
 
             <View style={[styles.rowSideRight, compact && styles.rowSideRightCompact]}>
                 <PlayerSide
@@ -578,16 +554,11 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         flexShrink: 0,
     },
-    // Phone chips are the tap target for lineup moves, so they stay near 44px,
-    // even on the shortest phones.
     slotChipCenterCompact: {
         width: controlSize.minTouch,
         height: controlSize.minTouch,
         borderRadius: radii.md,
     },
-    slotChipSelected: { borderWidth: 1.5, borderColor: colors.primary },
-    slotChipTarget: { borderWidth: 2, borderColor: colors.success, backgroundColor: colors.successLight },
-    slotChipUnavailable: { opacity: 0.25 },
     slotChipText: { fontSize: fontSize.xs, fontWeight: fontWeight.extrabold, letterSpacing: tracking.tight },
     slotChipTextStrong: { fontWeight: fontWeight.black },
     statCells: { flexDirection: 'row', alignItems: 'center', flexShrink: 0 },

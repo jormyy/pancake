@@ -24,8 +24,8 @@ it.skipIf(!process.env.PANCAKE_LAYOUT_BROWSER)('keeps mirrored long names on one
     })
     const Fixture = () => React.createElement(View, { style: { width: 390, padding: 16 } },
         ...['Victor Wembanyama', 'Nickeil Alexander-Walker', 'Gary Trent Jr.'].map((name, index) => React.createElement(MatchupRow, {
-            key: name, myPlayer: player(name, 'DTD'), oppPlayer: player(name, 'Out'), slotType: 'C', selKind: 'starter', selIndex: index,
-            isSelected: false, onTap: () => {}, saving: false, compact: true, playingTeams: new Set(['SAS']), liveStats: new Map(),
+            key: name, myPlayer: player(name, 'DTD'), oppPlayer: player(name, 'Out'), slotType: 'C', slotIndex: index,
+            compact: true, playingTeams: new Set(['SAS']), liveStats: new Map(),
             liveTeams: new Set<string>(), scoringSettings: {}, teamMatchups: new Map([['SAS', { opponent: 'LAL', isHome: false }]]),
             onOpenPlayer: () => {}, onOpenDetails: () => {},
         })))

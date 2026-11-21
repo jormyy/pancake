@@ -21,7 +21,7 @@ import { Button } from '@/components/ui/Button'
 import { ErrorBanner, Page, usePageMetrics } from '@/components/ui'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
-import { getLineupMoveTargetState, LineupPlayer, type LineupSelection, type LineupMoveTargetState } from '@/lib/lineup'
+import type { LineupPlayer } from '@/lib/lineup'
 import { breakpoints, colors, layout, spacing } from '@/constants/tokens'
 import { DaySelector } from '@/components/DaySelector'
 import { ScoreCard } from '@/components/ScoreCard'
@@ -30,11 +30,9 @@ import { AutoSetModal } from '@/components/AutoSetModal'
 import { statLineupWidth } from '@/components/MatchupRow'
 import { ScoreBreakdownSheet } from '@/components/ScoreBreakdownSheet'
 import { lineupStatColumns } from '@/lib/score-breakdown'
-import { ActivationOverflowModal } from '@/components/ActivationOverflowModal'
 import { useMatchupData } from '@/hooks/use-matchup-data'
 import { getGameDisplayState, readHomeGameDisplay, resolveHomeSurface, saveHomeGameDisplay } from '@/lib/home-surface'
 
-import { useLineupActions } from '@/hooks/use-lineup-actions'
 import { useDraftRoomLauncher } from '@/hooks/use-draft-room-launcher'
 import { adjacentMatchupId } from '@/lib/matchup-navigation'
 
@@ -52,7 +50,7 @@ export default function HomeScreen() {
     const dense = height < 620
     const { openDraftRoom } = useDraftRoomLauncher(league?.id, { notifyOnError: true })
 
-    const { matchup, leagueMatchups, weekDays, selectedDate, setSelectedDate, myLineup, oppLineup, matchupLoading, matchupRefreshing, lineupLoading, lineupError, loadMyLineup, loadLineups, matchupRef, error, refresh, emptyConfirmed, forecastState, liveSnapshot, timezone } = useMatchupData(current, user, league, membershipValidated, membershipError, refreshMemberships)
+    const { matchup, leagueMatchups, weekDays, selectedDate, setSelectedDate, myLineup, oppLineup, matchupLoading, matchupRefreshing, lineupLoading, lineupError, loadLineups, matchupRef, error, refresh, emptyConfirmed, forecastState, liveSnapshot, timezone } = useMatchupData(current, user, league, membershipValidated, membershipError, refreshMemberships)
     const homeActivity = useBrowserReadActivity()
     const lastHomeActivityRevision = useRef(0)
     const refreshHome = refresh
@@ -76,65 +74,29 @@ export default function HomeScreen() {
     const { todaysGames: gameRows = [], liveStats: gameStats, startedTeams: gameStartedTeams, teamMatchups: gameMatchups, freshness = 'fresh' } = liveSnapshot
     const gameSnapshot = useMemo(() => ({ todaysGames: gameRows, liveStats: gameStats, startedTeams: gameStartedTeams, teamMatchups: gameMatchups }), [gameRows, gameStats, gameStartedTeams, gameMatchups])
     const savedGames = useMemo(() => matchup ? readHomeGameDisplay(gameScope, selectedDate, gamePlayers) : null, [matchup, gameScope, selectedDate, gamePlayers])
-    const { todaysGames = [], liveStats, startedTeams, teamMatchups } = !gameRows.length && freshness !== 'fresh' && savedGames ? savedGames : gameSnapshot
+    const { todaysGames = [], liveStats, teamMatchups } = !gameRows.length && freshness !== 'fresh' && savedGames ? savedGames : gameSnapshot
     useEffect(() => {
         if (matchup?.id && freshness === 'fresh') saveHomeGameDisplay(gameScope, selectedDate, gamePlayers, gameSnapshot)
     }, [matchup?.id, freshness, gameScope, selectedDate, gamePlayers, gameSnapshot])
     const { ready: gamesReady, liveTeams } = useMemo(() => getGameDisplayState(todaysGames, freshness), [todaysGames, freshness])
-    const actionContext = useMemo(() => matchup && league ? {
-        memberId: matchup.myMemberId,
-        leagueId: league.id,
-        seasonId: matchup.seasonId,
-        weekNumber: matchup.weekNumber,
-        seasonYear: matchup.seasonYear,
-    } : null, [matchup, league])
-    const reloadLineupForActions = useCallback(async (date: string) => {
-        if (!matchup) return
-        await loadMyLineup(matchup, date)
-    }, [matchup, loadMyLineup])
-
-    const {
-        selected, setSelected, saving,
-        autoSetModalVisible, setAutoSetModalVisible,
-        activationOverflowPending, setActivationOverflowPending, activationOverflowSaving,
-        handleTap, handleOverflowDrop, handleOverflowMoveToIR,
-        handleAutoSet,
-    } = useLineupActions({ actionContext, myLineup, league, selectedDate, startedTeams, reloadLineup: reloadLineupForActions })
+    const [autoSetModalVisible, setAutoSetModalVisible] = useState(false)
 
     const pageRef = useRef<ScrollView>(null)
     const pageScroll = useScrollRestoration(JSON.stringify([user?.id, league?.id, current?.id, selectedDate]), pageRef)
-
-    // Clear selection whenever lineup reloads (tab focus / league change)
-    useEffect(() => {
-        if (matchupLoading) setSelected(null)
-    }, [matchupLoading, setSelected])
 
     const handleDaySelect = useCallback(
         async (date: string) => {
             if (!matchupRef.current) return
             setSelectedDate(date)
-            setSelected(null)
             await loadLineups(matchupRef.current, date)
         },
-        [matchupRef, setSelectedDate, setSelected, loadLineups],
+        [matchupRef, setSelectedDate, loadLineups],
     )
 
     const todayPlayingTeams = useMemo(
         () => new Set(weekDays.find((d) => d.date === selectedDate)?.playingTeams ?? []),
         [weekDays, selectedDate],
     )
-
-    const getTargetState = useCallback((to: LineupSelection): LineupMoveTargetState =>
-        myLineup && league
-            ? getLineupMoveTargetState({
-                  lineup: myLineup,
-                  league,
-                  startedTeams,
-                  from: selected,
-                  to,
-              })
-            : null,
-    [league, myLineup, selected, startedTeams])
 
     const scoringSettings = useMemo(
         () =>
@@ -191,10 +153,6 @@ export default function HomeScreen() {
                         <MatchupLineupView
                             myLineup={myLineup}
                             oppLineup={oppLineup}
-                            selected={selected}
-                            getTargetState={getTargetState}
-                            onTap={handleTap}
-                            saving={saving}
                             playingTeams={todayPlayingTeams}
                             liveStats={liveStats}
                             liveTeams={liveTeams}
@@ -219,8 +177,7 @@ export default function HomeScreen() {
                                     title="Auto-set"
                                     size="inline"
                                     variant="outline"
-                                    onPress={handleAutoSet}
-                                    disabled={saving}
+                                    onPress={() => setAutoSetModalVisible(true)}
                                     accessibilityLabel="Open auto-set lineup options"
                                 />
                             }
@@ -267,17 +224,6 @@ export default function HomeScreen() {
 
             </DeferredContent>
             </ScrollView>
-
-            <ActivationOverflowModal
-                pending={activationOverflowPending}
-                myLineup={myLineup}
-                irSlots={league?.ir_slots ?? 2}
-                allowIR={league?.status !== 'offseason'}
-                saving={activationOverflowSaving}
-                onDrop={handleOverflowDrop}
-                onMoveToIR={handleOverflowMoveToIR}
-                onCancel={() => setActivationOverflowPending(null)}
-            />
 
             <ScoreBreakdownSheet
                 visible={detailsRow != null}
