@@ -787,5 +787,147 @@ BEGIN
 END $$;
 
 
+DO $$
+DECLARE
+  f record;
+  x uuid := gen_random_uuid(); y uuid := gen_random_uuid(); z uuid := gen_random_uuid();
+  u uuid := gen_random_uuid(); v uuid := gen_random_uuid();
+  t1 uuid; t2 uuid;
+BEGIN
+  SELECT * INTO f FROM pg_temp.rules_fixture(3, 9821);
+  UPDATE public.leagues
+     SET roster_size = 2, ir_slots = 0, taxi_slots = 0,
+         trade_veto_mode = 'disabled', trade_veto_window_hours = 0,
+         allow_inactive_trades = true
+   WHERE id = f.league_id;
+  INSERT INTO public.players(id, first_name, last_name, position, eligible_positions)
+    SELECT id, 'Shared', id::text, 'PG', ARRAY['PG'] FROM unnest(ARRAY[x,y,z,u,v]) id;
+  INSERT INTO public.roster_players(league_id, league_season_id, member_id, player_id, acquired_via) VALUES
+    (f.league_id, f.season_id, f.member_ids[1], x, 'verification'),
+    (f.league_id, f.season_id, f.member_ids[2], y, 'verification'),
+    (f.league_id, f.season_id, f.member_ids[2], z, 'verification'),
+    (f.league_id, f.season_id, f.member_ids[3], u, 'verification'),
+    (f.league_id, f.season_id, f.member_ids[3], v, 'verification');
+  t1 := public.propose_trade_atomic(f.league_id, f.season_id, f.member_ids[1], f.member_ids[2],
+    ARRAY[x], ARRAY[y,z], '{}'::uuid[], '{}'::uuid[], NULL, NULL, 0, 0);
+  t2 := public.propose_trade_atomic(f.league_id, f.season_id, f.member_ids[1], f.member_ids[3],
+    ARRAY[x], ARRAY[u,v], '{}'::uuid[], '{}'::uuid[], NULL, NULL, 0, 0);
+  PERFORM public.accept_trade_atomic(t1, f.member_ids[2]);
+  PERFORM pg_temp.check_rules(
+    (SELECT status = 'accepted' FROM public.trades WHERE id = t1)
+    AND (SELECT status = 'withdrawn' FROM public.trades WHERE id = t2)
+    AND (SELECT completion_failure_reason = 'A player in this offer was traded' FROM public.trades WHERE id = t2),
+    'a final yes withdraws the pending offer that shares the moved player');
+  PERFORM public.complete_accepted_trade_atomic(t1);
+  PERFORM pg_temp.check_rules(
+    (SELECT count(*) FROM public.roster_players WHERE league_id = f.league_id AND member_id = f.member_ids[1]) = 2
+    AND (SELECT count(*) FROM public.roster_players WHERE league_id = f.league_id AND member_id = f.member_ids[1] AND player_id IN (y,z)) = 2,
+    'the shared-asset final yes leaves the incoming players on the roster');
+  PERFORM pg_temp.check_rules(
+    jsonb_array_length(public.trade_roster_hold_check(f.member_ids[1], f.user_ids[1])) = 0,
+    'the shared-asset final yes leaves no hold conflict');
+END $$;
+
+DO $$
+DECLARE
+  f record;
+  x uuid := gen_random_uuid(); w uuid := gen_random_uuid();
+  y uuid := gen_random_uuid(); z uuid := gen_random_uuid();
+  u uuid := gen_random_uuid(); v uuid := gen_random_uuid();
+  t1 uuid; t2 uuid;
+BEGIN
+  SELECT * INTO f FROM pg_temp.rules_fixture(3, 9822);
+  UPDATE public.leagues
+     SET roster_size = 3, ir_slots = 0, taxi_slots = 0,
+         trade_veto_mode = 'disabled', trade_veto_window_hours = 0,
+         allow_inactive_trades = true
+   WHERE id = f.league_id;
+  INSERT INTO public.players(id, first_name, last_name, position, eligible_positions)
+    SELECT id, 'Distinct', id::text, 'PG', ARRAY['PG'] FROM unnest(ARRAY[x,w,y,z,u,v]) id;
+  INSERT INTO public.roster_players(league_id, league_season_id, member_id, player_id, acquired_via) VALUES
+    (f.league_id, f.season_id, f.member_ids[1], x, 'verification'),
+    (f.league_id, f.season_id, f.member_ids[1], w, 'verification'),
+    (f.league_id, f.season_id, f.member_ids[2], y, 'verification'),
+    (f.league_id, f.season_id, f.member_ids[2], z, 'verification'),
+    (f.league_id, f.season_id, f.member_ids[3], u, 'verification'),
+    (f.league_id, f.season_id, f.member_ids[3], v, 'verification');
+  t1 := public.propose_trade_atomic(f.league_id, f.season_id, f.member_ids[1], f.member_ids[2],
+    ARRAY[x], ARRAY[y,z], '{}'::uuid[], '{}'::uuid[], NULL, NULL, 0, 0);
+  t2 := public.propose_trade_atomic(f.league_id, f.season_id, f.member_ids[1], f.member_ids[3],
+    ARRAY[w], ARRAY[u,v], '{}'::uuid[], '{}'::uuid[], NULL, NULL, 0, 0);
+  PERFORM pg_temp.reject_rules(
+    format('SELECT public.accept_trade_atomic(%L,%L)', t1, f.member_ids[2]),
+    '%needs the roster spot this trade would use%',
+    'a distinct-asset pending offer still blocks the final yes');
+  PERFORM pg_temp.check_rules(
+    (SELECT status = 'pending' FROM public.trades WHERE id = t1)
+    AND (SELECT status = 'pending' FROM public.trades WHERE id = t2)
+    AND (SELECT accepted_at IS NULL FROM public.trade_participants WHERE trade_id = t1 AND member_id = f.member_ids[2]),
+    'the blocked distinct-asset final yes preserves state');
+END $$;
+
+DO $$
+DECLARE
+  f record;
+  a1 uuid := gen_random_uuid(); b1 uuid := gen_random_uuid(); c1 uuid := gen_random_uuid(); b2 uuid := gen_random_uuid();
+  t_acc uuid; t_new uuid;
+  v_state text; v_detail text; v_msg text;
+BEGIN
+  SELECT * INTO f FROM pg_temp.rules_fixture(3, 9823);
+  UPDATE public.leagues
+     SET roster_size = 2, ir_slots = 0, taxi_slots = 0,
+         trade_veto_mode = 'member_vote', trade_veto_window_hours = 24,
+         allow_inactive_trades = true
+   WHERE id = f.league_id;
+  INSERT INTO public.players(id, first_name, last_name, position, eligible_positions)
+    SELECT id, 'Mask', id::text, 'PG', ARRAY['PG'] FROM unnest(ARRAY[a1,b1,c1,b2]) id;
+  INSERT INTO public.roster_players(league_id, league_season_id, member_id, player_id, acquired_via) VALUES
+    (f.league_id, f.season_id, f.member_ids[1], a1, 'verification'),
+    (f.league_id, f.season_id, f.member_ids[2], b1, 'verification'),
+    (f.league_id, f.season_id, f.member_ids[2], b2, 'verification'),
+    (f.league_id, f.season_id, f.member_ids[3], c1, 'verification');
+  t_acc := public.propose_trade_atomic(f.league_id, f.season_id, f.member_ids[2], f.member_ids[1],
+    ARRAY[b1], '{}'::uuid[], '{}'::uuid[], '{}'::uuid[], NULL, NULL, 0, 1);
+  PERFORM public.accept_trade_atomic(t_acc, f.member_ids[1]);
+  t_new := public.propose_trade_atomic(f.league_id, f.season_id, f.member_ids[3], f.member_ids[1],
+    ARRAY[c1], '{}'::uuid[], '{}'::uuid[], '{}'::uuid[], NULL, NULL, 0, 1);
+  BEGIN
+    PERFORM public.accept_trade_atomic(t_new, f.member_ids[1]);
+  EXCEPTION WHEN OTHERS THEN
+    GET STACKED DIAGNOSTICS v_state = RETURNED_SQLSTATE, v_detail = PG_EXCEPTION_DETAIL, v_msg = MESSAGE_TEXT;
+  END;
+  PERFORM pg_temp.check_rules(
+    v_state = 'PT409'
+    AND (v_detail::jsonb->>'code') = 'roster_hold'
+    AND v_msg LIKE '%Your accepted trade with Rules team 2 needs this roster spot%',
+    'the acceptance raises the named roster hold instead of the reserved-capacity message');
+END $$;
+
+DO $$
+DECLARE
+  f record;
+  a1 uuid := gen_random_uuid(); c1 uuid := gen_random_uuid(); d1 uuid := gen_random_uuid();
+  t_new uuid;
+BEGIN
+  SELECT * INTO f FROM pg_temp.rules_fixture(2, 9824);
+  UPDATE public.leagues
+     SET roster_size = 2, ir_slots = 0, taxi_slots = 0,
+         trade_veto_mode = 'disabled', trade_veto_window_hours = 0,
+         allow_inactive_trades = true
+   WHERE id = f.league_id;
+  INSERT INTO public.players(id, first_name, last_name, position, eligible_positions)
+    SELECT id, 'Own', id::text, 'PG', ARRAY['PG'] FROM unnest(ARRAY[a1,c1,d1]) id;
+  INSERT INTO public.roster_players(league_id, league_season_id, member_id, player_id, acquired_via) VALUES
+    (f.league_id, f.season_id, f.member_ids[1], a1, 'verification'),
+    (f.league_id, f.season_id, f.member_ids[2], c1, 'verification'),
+    (f.league_id, f.season_id, f.member_ids[2], d1, 'verification');
+  t_new := public.propose_trade_atomic(f.league_id, f.season_id, f.member_ids[2], f.member_ids[1],
+    ARRAY[c1,d1], '{}'::uuid[], '{}'::uuid[], '{}'::uuid[], NULL, NULL, 0, 1);
+  PERFORM pg_temp.reject_rules(
+    format('SELECT public.accept_trade_atomic(%L,%L)', t_new, f.member_ids[1]),
+    '%is 1 over the limit of 2%',
+    'a trade that overflows a roster on its own keeps the over-the-limit message');
+END $$;
+
 SELECT count(*) AS passed_checks FROM rules_checks;
 ROLLBACK;

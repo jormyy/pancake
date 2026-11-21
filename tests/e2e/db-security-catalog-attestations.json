@@ -2724,7 +2724,7 @@
     },
     {
       "filename": "20261214011300_trade_roster_holds.sql",
-      "sha256": "34fe87003e0ce51a5bdb8e841babb75f8584e9f5df64218f27e13f437142f521"
+      "sha256": "0b420d673cb546dbdd92db9aee92323603cba587babee6464d0a5200396f99dd"
     }
   ],
   "preMigration": {

@@ -3669,9 +3669,9 @@
     {
       "name": "trade_roster_holds",
       "version": "20261214011300",
-      "statementCount": 18,
-      "statementsSha256": "a2bac52ad2bea57f28bee90ddbb039826eb5f1b5d76bdae93c68d3d86c1fe677",
-      "sha256": "34fe87003e0ce51a5bdb8e841babb75f8584e9f5df64218f27e13f437142f521"
+      "statementCount": 23,
+      "statementsSha256": "0430bc5bb6f2ae3b24a4811e9a0567429fa1c6c6768512ef436bc71513f724b1",
+      "sha256": "0b420d673cb546dbdd92db9aee92323603cba587babee6464d0a5200396f99dd"
     }
   ]
 }

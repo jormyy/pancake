@@ -2,7 +2,7 @@
 -- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
 -- npm run check:db-function-sources verifies every latest migration function has exact source parity.
 
-CREATE OR REPLACE FUNCTION private.validate_trade_rosters(p_trade_id uuid,p_only_member_id uuid DEFAULT NULL)
+CREATE OR REPLACE FUNCTION private.validate_trade_rosters(p_trade_id uuid,p_only_member_id uuid DEFAULT NULL,p_ignore_reserved_capacity boolean DEFAULT false)
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
 DECLARE v_user uuid; v_teams jsonb; v_error text;
 BEGIN
@@ -19,7 +19,8 @@ BEGIN
   v_teams:=public.get_trade_roster_preview(p_trade_id,v_user);
   SELECT string_agg(reason->>'message',' ') INTO v_error FROM jsonb_array_elements(v_teams) team
     CROSS JOIN LATERAL jsonb_array_elements(team->'reasons') reason
-    WHERE p_only_member_id IS NULL OR team->>'memberId'=p_only_member_id::text;
+    WHERE (p_only_member_id IS NULL OR team->>'memberId'=p_only_member_id::text)
+      AND (NOT p_ignore_reserved_capacity OR reason->>'rule' <> 'reserved_capacity');
   IF v_error IS NOT NULL THEN RAISE EXCEPTION '%',v_error USING ERRCODE='PT409',DETAIL=v_teams::text; END IF;
 END;
 $$;

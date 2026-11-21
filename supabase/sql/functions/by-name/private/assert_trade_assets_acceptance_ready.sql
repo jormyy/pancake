@@ -23,7 +23,7 @@ BEGIN
       RAISE EXCEPTION 'Trade participant no longer has enough FAAB for this trade.' USING ERRCODE='PA010';
     END IF;
   END LOOP;
-  PERFORM private.validate_trade_rosters(p_trade_id, p_only_member_id);
+  PERFORM private.validate_trade_rosters(p_trade_id, p_only_member_id, true);
   PERFORM private.assert_trade_acceptance_holds(p_league_id,p_league_season_id,participant.member_id,p_trade_id,p_only_member_id IS NULL,p_actor_member_id)
     FROM trade_participants participant WHERE participant.trade_id=p_trade_id
       AND (p_only_member_id IS NULL OR participant.member_id=p_only_member_id);

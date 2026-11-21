@@ -120,6 +120,8 @@ BEGIN
        AND trade.status = 'pending'
        AND participant.accepted_at IS NOT NULL
        AND (p_include_trade_id IS NULL OR trade.id <> p_include_trade_id)
+       AND (NOT p_commit_trade OR p_include_trade_id IS NULL
+         OR trade.id NOT IN (SELECT withdrawn.trade_id FROM private.pending_trades_withdrawn_by(p_include_trade_id) withdrawn))
      ORDER BY trade.id
   LOOP
     SELECT count(*) FILTER (WHERE NOT on_ir AND NOT on_taxi) AS active,

@@ -203,7 +203,7 @@ BEGIN
   PERFORM pg_temp.check_plan(NOT EXISTS(SELECT 1 FROM roster_players WHERE player_id=v_players[7]),'capacity failure keeps the waived player unowned');
   other_trade:=propose_trade_atomic(league,season,members[1],members[3],ARRAY[v_players[6]],'{}','{}',ARRAY[v_picks[2]]);
   SELECT jsonb_agg(to_jsonb(roster) ORDER BY id) INTO before_rosters FROM roster_players roster WHERE league_season_id=season;
-  PERFORM pg_temp.fail_plan(format('SELECT accept_trade_atomic(%L,%L)',other_trade,members[3]),'accepted trades reserve','second acceptance cannot fill reserved receipt space');
+  PERFORM pg_temp.fail_plan(format('SELECT accept_trade_atomic(%L,%L)',other_trade,members[3]),'needs this roster spot','second acceptance cannot fill reserved receipt space');
   SELECT jsonb_agg(to_jsonb(roster) ORDER BY id) INTO after_rosters FROM roster_players roster WHERE league_season_id=season;
   PERFORM pg_temp.check_plan(before_rosters=after_rosters,'rejected second acceptance has no partial effect');
   PERFORM withdraw_trade_atomic(other_trade,members[1],users[1]);

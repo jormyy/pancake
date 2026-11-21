@@ -1704,6 +1704,8 @@ A team holds roster room from the moment its `trade_participants.accepted_at` is
 The projected roster is the current roster plus every trade with status `accepted`.
 Each pending trade the team has accepted is checked independently against that projected roster, so overlapping offers never add their holds.
 A unanimous-making acceptance commits the trade and rechecks every participant's other holds.
+A unanimous-making acceptance excludes only the pending offers that the same acceptance withdraws because they move the same player or pick; every other pending hold still blocks.
+The acceptance path raises the named roster hold instead of the reserved-capacity preview reason, while a trade that overflows a roster on its own keeps the over-the-limit message.
 `public.trade_roster_hold_check` is the read-only warning used before a claim or add.
 `public.retract_trade_acceptance_atomic` clears only the caller's acceptance and keeps the trade pending.
 Every blocked write path raises `PT409` with `DETAIL` `{"code":"roster_hold","conflicts":[...]}`; the Edge route returns HTTP 409 with `code: 'roster_hold'` and the conflicts array.

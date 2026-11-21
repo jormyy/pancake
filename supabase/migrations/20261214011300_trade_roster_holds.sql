@@ -1,4 +1,5 @@
 DROP FUNCTION IF EXISTS private.assert_trade_assets_acceptance_ready(uuid,uuid,uuid,uuid);
+DROP FUNCTION IF EXISTS private.validate_trade_rosters(uuid,uuid);
 
 CREATE OR REPLACE FUNCTION private.trade_hold_roster(
   p_league_id uuid,
@@ -206,6 +207,28 @@ BEGIN
 END;
 $$;
 
+CREATE OR REPLACE FUNCTION private.pending_trades_withdrawn_by(p_trade_id uuid)
+RETURNS TABLE(trade_id uuid)
+LANGUAGE sql
+STABLE
+SET search_path = public
+AS $$
+  SELECT other.id
+    FROM trades source
+    JOIN trade_items moved ON moved.trade_id = source.id
+    JOIN trades other ON other.league_id = source.league_id
+      AND other.league_season_id = source.league_season_id
+      AND other.id <> source.id
+      AND other.status = 'pending'
+   WHERE source.id = p_trade_id
+     AND (EXISTS (SELECT 1 FROM trade_items item WHERE item.trade_id = other.id
+            AND (item.player_id = moved.player_id OR item.pick_id = moved.pick_id))
+       OR EXISTS (SELECT 1 FROM trade_participants participant WHERE participant.trade_id = other.id
+            AND (moved.player_id = ANY(participant.drop_player_ids)
+              OR participant.roster_moves @> jsonb_build_array(jsonb_build_object('playerId', moved.player_id::text)))))
+   GROUP BY other.id
+$$;
+
 CREATE OR REPLACE FUNCTION private.trade_hold_conflicts(
   p_league_id uuid,
   p_season_id uuid,
@@ -324,6 +347,8 @@ BEGIN
        AND trade.status = 'pending'
        AND participant.accepted_at IS NOT NULL
        AND (p_include_trade_id IS NULL OR trade.id <> p_include_trade_id)
+       AND (NOT p_commit_trade OR p_include_trade_id IS NULL
+         OR trade.id NOT IN (SELECT withdrawn.trade_id FROM private.pending_trades_withdrawn_by(p_include_trade_id) withdrawn))
      ORDER BY trade.id
   LOOP
     SELECT count(*) FILTER (WHERE NOT on_ir AND NOT on_taxi) AS active,
@@ -447,6 +472,29 @@ BEGIN
 END;
 $$;
 
+CREATE OR REPLACE FUNCTION private.validate_trade_rosters(p_trade_id uuid,p_only_member_id uuid DEFAULT NULL,p_ignore_reserved_capacity boolean DEFAULT false)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+DECLARE v_user uuid; v_teams jsonb; v_error text;
+BEGIN
+  PERFORM 1 FROM leagues WHERE id=(SELECT league_id FROM trades WHERE id=p_trade_id) FOR NO KEY UPDATE NOWAIT;
+  PERFORM 1 FROM players WHERE id IN (
+    SELECT player_id FROM trade_items WHERE trade_id=p_trade_id UNION
+    SELECT r.player_id FROM roster_players r JOIN trade_participants t ON t.member_id=r.member_id
+      JOIN trades trade ON trade.id=t.trade_id AND trade.league_season_id=r.league_season_id WHERE t.trade_id=p_trade_id
+  ) ORDER BY id FOR SHARE;
+  PERFORM private.ensure_faab_balance(trade.league_id,trade.league_season_id,participant.member_id)
+    FROM trades trade JOIN trade_participants participant ON participant.trade_id=trade.id
+    WHERE trade.id=p_trade_id ORDER BY participant.sort_order,participant.member_id;
+  SELECT m.user_id INTO v_user FROM trades t JOIN league_members m ON m.id=t.proposer_member_id WHERE t.id=p_trade_id;
+  v_teams:=public.get_trade_roster_preview(p_trade_id,v_user);
+  SELECT string_agg(reason->>'message',' ') INTO v_error FROM jsonb_array_elements(v_teams) team
+    CROSS JOIN LATERAL jsonb_array_elements(team->'reasons') reason
+    WHERE (p_only_member_id IS NULL OR team->>'memberId'=p_only_member_id::text)
+      AND (NOT p_ignore_reserved_capacity OR reason->>'rule' <> 'reserved_capacity');
+  IF v_error IS NOT NULL THEN RAISE EXCEPTION '%',v_error USING ERRCODE='PT409',DETAIL=v_teams::text; END IF;
+END;
+$$;
+
 CREATE OR REPLACE FUNCTION private.assert_trade_assets_acceptance_ready(
   p_trade_id uuid,
   p_league_id uuid,
@@ -468,7 +516,7 @@ BEGIN
       RAISE EXCEPTION 'Trade participant no longer has enough FAAB for this trade.' USING ERRCODE='PA010';
     END IF;
   END LOOP;
-  PERFORM private.validate_trade_rosters(p_trade_id, p_only_member_id);
+  PERFORM private.validate_trade_rosters(p_trade_id, p_only_member_id, true);
   PERFORM private.assert_trade_acceptance_holds(p_league_id,p_league_season_id,participant.member_id,p_trade_id,p_only_member_id IS NULL,p_actor_member_id)
     FROM trade_participants participant WHERE participant.trade_id=p_trade_id
       AND (p_only_member_id IS NULL OR participant.member_id=p_only_member_id);
@@ -540,6 +588,28 @@ BEGIN
      FROM trade_items AS item
     WHERE item.trade_id = p_trade_id
       AND item.pick_id IS NOT NULL;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION private.cancel_pending_trades_for_moved_assets(p_trade_id uuid)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+DECLARE v_other record; v_previous_flag text;
+BEGIN
+  v_previous_flag := private.begin_trade_lifecycle_write();
+  FOR v_other IN
+    SELECT other.id, bool_or(moved.pick_id IS NOT NULL) AS non_player
+    FROM public.trades source JOIN public.trade_items moved ON moved.trade_id=source.id
+    JOIN public.trades other ON other.league_id=source.league_id
+      AND other.league_season_id=source.league_season_id AND other.id<>source.id AND other.status='pending'
+    WHERE source.id=p_trade_id AND source.status IN ('accepted','completed')
+      AND other.id IN (SELECT withdrawn.trade_id FROM private.pending_trades_withdrawn_by(p_trade_id) withdrawn)
+    GROUP BY other.id ORDER BY other.id
+  LOOP
+    UPDATE public.trades SET status='withdrawn',completion_failure_reason=CASE
+      WHEN v_other.non_player THEN 'An asset in this offer was traded' ELSE 'A player in this offer was traded' END
+    WHERE id=v_other.id AND status='pending';
+  END LOOP;
+  PERFORM private.end_trade_lifecycle_write(v_previous_flag);
 END;
 $$;
 
@@ -1397,5 +1467,6 @@ END;
 $$;
 
 REVOKE ALL ON FUNCTION private.trade_hold_roster(uuid,uuid,uuid,uuid[],jsonb),private.trade_hold_counts(uuid,uuid,uuid,jsonb) FROM PUBLIC,anon,authenticated,service_role;
+REVOKE ALL ON FUNCTION private.validate_trade_rosters(uuid,uuid,boolean),private.pending_trades_withdrawn_by(uuid) FROM PUBLIC,anon,authenticated,service_role;
 REVOKE ALL ON FUNCTION public.trade_roster_hold_check(uuid,uuid,uuid,uuid[],boolean,boolean),public.retract_trade_acceptance_atomic(uuid,uuid,uuid) FROM PUBLIC,anon,authenticated;
 GRANT EXECUTE ON FUNCTION public.trade_roster_hold_check(uuid,uuid,uuid,uuid[],boolean,boolean),public.retract_trade_acceptance_atomic(uuid,uuid,uuid) TO service_role;
