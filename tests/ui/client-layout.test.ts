@@ -113,7 +113,7 @@ it.skipIf(!process.env.PANCAKE_LAYOUT_BROWSER).each(['players-case', 'roster-cas
                 expect.soft(geometry.avatar.right).toBeLessThanOrEqual(geometry.name.left)
                 expect.soft(Math.abs((geometry.avatar.top + geometry.avatar.bottom) / 2 - (geometry.row.top + geometry.row.bottom) / 2)).toBeLessThanOrEqual(1)
                 if (geometry.action) expect.soft(Math.abs((geometry.action.top + geometry.action.bottom) / 2 - (geometry.row.top + geometry.row.bottom) / 2)).toBeLessThanOrEqual(1)
-                expect.soft(geometry.tags.map(tag => [tag.text, tag.label])).toEqual([['O', 'Out'], ['R', 'Rookie'], [caseId === 'draft-case' ? 'T:0' : 'T:—', caseId === 'draft-case' ? 'Taxi eligible, 0 career regular-season games' : 'Taxi eligible, career games unknown']])
+                expect.soft(geometry.tags.map(tag => [tag.text, tag.label])).toEqual([['R', 'Rookie'], [caseId === 'draft-case' ? 'T:0' : 'T:—', caseId === 'draft-case' ? 'Taxi eligible, 0 career regular-season games' : 'Taxi eligible, career games unknown']])
                 expect.soft(geometry.positions).toHaveLength(caseId === 'draft-case' ? 1 : 2)
                 expect.soft(geometry.positions[0].left - geometry.team.right).toBeCloseTo(spacing.xxs)
                 expect.soft(geometry.tags[0].left).toBeGreaterThanOrEqual(geometry.positions.at(-1)!.right)

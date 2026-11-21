@@ -16,7 +16,7 @@ const mocks = vi.hoisted(() => ({
     enabled: false, setEnabled: vi.fn(), showAlert: vi.fn(), handleTap: vi.fn(), setSelected: vi.fn(),
     selection: null as { kind: 'starter' | 'bench'; index: number } | null, params: {} as { playerId?: string },
 }))
-vi.mock('react-native', () => ({ useWindowDimensions: () => ({ width: 390, height: 844 }), Platform: { OS: 'ios' }, Pressable: 'Pressable', View: 'View', Text: 'Text', ScrollView: 'ScrollView', Switch: 'Switch', StyleSheet: { create: (v: unknown) => v, flatten: (v: unknown) => Object.assign({}, ...[v].flat(Infinity).filter(Boolean)) } }))
+vi.mock('react-native', () => ({ Image: 'Image', useWindowDimensions: () => ({ width: 390, height: 844 }), Platform: { OS: 'ios' }, Pressable: 'Pressable', View: 'View', Text: 'Text', ScrollView: 'ScrollView', Switch: 'Switch', StyleSheet: { create: (v: unknown) => v, flatten: (v: unknown) => Object.assign({}, ...[v].flat(Infinity).filter(Boolean)) } }))
 vi.mock('expo-router', () => ({ useLocalSearchParams: () => mocks.params, useRouter: () => ({ push: vi.fn() }) }))
 vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => mocks.context }))
 vi.mock('@/hooks/use-auth', () => ({ useAuth: () => ({ user: { id: 'user' } }) }))

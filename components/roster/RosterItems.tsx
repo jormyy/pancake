@@ -15,7 +15,7 @@ import { isIREligible, RosterPlayer } from '@/lib/roster'
 import { getEligiblePositions } from '@/lib/players'
 import { TradePickItem } from '@/lib/trades'
 import { scheduledClaimLabel, scheduledClaimRunAt, WaiverClaim } from '@/lib/waivers'
-import { formatPoints } from '@/lib/format'
+import { formatPoints, formatStat } from '@/lib/format'
 import { rosterSlotLabel } from '@/lib/roster-slots'
 
 
@@ -56,7 +56,7 @@ function PlayerStats({ avgFpts, avgMinutes }: { avgFpts?: number; avgMinutes?: n
     return <Text style={styles.averages}>
         <Text style={styles.fantasyPoints}>{formatPoints(avgFpts ?? 0)} FP</Text>
         {' · '}
-        {`${formatPoints(avgMinutes ?? 0)} mins`}
+        {`${formatStat(avgMinutes ?? 0)} mins`}
     </Text>
 }
 

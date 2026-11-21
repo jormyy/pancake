@@ -38,7 +38,7 @@ async function run(args) {
             const row = page.getByTestId('player-row-content').filter({ has: page.getByText(asset.playerName, { exact: true }) }).first()
             await row.waitFor()
             const actual = await row.getByTestId('player-stats-line').innerText()
-            const expected = `${asset.avgFantasyPoints.toFixed(1)} FP · ${asset.avgMinutesPlayed.toFixed(1)} mins`
+            const expected = `${Math.round(asset.avgFantasyPoints)} FP · ${asset.avgMinutesPlayed.toFixed(1)} mins`
             comparisons.push({ player: asset.playerName, expected, actual })
         }
         const geometry = await page.evaluate(() => ({ width: innerWidth, overflow: document.documentElement.scrollWidth > innerWidth }))

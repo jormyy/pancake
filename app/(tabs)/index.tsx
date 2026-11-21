@@ -1,4 +1,3 @@
-import { useLeagueDay } from '@/hooks/use-league-day'
 import { OtherMatchups } from '@/components/OtherMatchups'
 import { MatchupLineupView } from '@/components/MatchupLineupView'
 import { useScrollRestoration } from '@/lib/scroll-restoration'
@@ -54,7 +53,6 @@ export default function HomeScreen() {
     const { openDraftRoom } = useDraftRoomLauncher(league?.id, { notifyOnError: true })
 
     const { matchup, leagueMatchups, weekDays, selectedDate, setSelectedDate, myLineup, oppLineup, matchupLoading, matchupRefreshing, lineupLoading, lineupError, loadMyLineup, loadLineups, matchupRef, error, refresh, emptyConfirmed, forecastState, liveSnapshot, timezone } = useMatchupData(current, user, league, membershipValidated, membershipError, refreshMemberships)
-    const today = useLeagueDay(timezone)
     const homeActivity = useBrowserReadActivity()
     const lastHomeActivityRevision = useRef(0)
     const refreshHome = refresh
@@ -191,7 +189,6 @@ export default function HomeScreen() {
 
                     {myLineup && oppLineup ? (
                         <MatchupLineupView
-                            showLineupPins={selectedDate === today}
                             myLineup={myLineup}
                             oppLineup={oppLineup}
                             selected={selected}

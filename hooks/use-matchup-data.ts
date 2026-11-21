@@ -75,7 +75,7 @@ export function useMatchupData(current: { id: string; team_name?: string | null;
     const displayMatchups = useMemo(() => {
         const matchups = new Map<string, MatchupGame>(Object.entries(data?.teamMatchups ?? {}))
         for (const game of display?.todaysGames ?? data?.todaysGames ?? []) {
-            const info = { gameTime: gameTimes?.values.get(game.id), status: game.status, timezone: gameTimes?.timezone }
+            const info = { gameTime: gameTimes?.values.get(game.id), status: game.status, statusText: game.game_status_text, timezone: gameTimes?.timezone }
             matchups.set(game.home_team, { opponent: game.away_team, isHome: true, ...info })
             matchups.set(game.away_team, { opponent: game.home_team, isHome: false, ...info })
         }

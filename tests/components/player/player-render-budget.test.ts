@@ -53,5 +53,5 @@ it('retains a recent-game row when a new stat record describes the same NBA game
         ...props, games: [{ ...game, gameId: 'second-stat', points: 21 }], fantasyPointsMap: new Map([['second-stat', 36]]),
     })))
     expect(screen.root.findAllByType('Text' as React.ElementType).some(node => node.props.children === 21)).toBe(true)
-    expect(screen.root.findAllByType('Text' as React.ElementType).some(node => node.props.children === '36.0')).toBe(true)
+    expect(screen.root.findAllByType('Text' as React.ElementType).some(node => node.props.children === '36')).toBe(true)
 })

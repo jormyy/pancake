@@ -6,7 +6,7 @@ import { matchupDailyTotal } from '@/lib/matchup-daily-total'
 import type { LiveStatLine } from '@/lib/games'
 import type { LineupPlayer, LineupSlot } from '@/lib/lineup'
 
-vi.mock('react-native', () => ({ Platform: { OS: 'web' }, View: 'View', Text: 'Text', StyleSheet: { create: (value: unknown) => value }, useWindowDimensions: () => ({ width: 390, height: 844 }) }))
+vi.mock('react-native', () => ({ Image: 'Image', Platform: { OS: 'web' }, View: 'View', Text: 'Text', StyleSheet: { create: (value: unknown) => value }, useWindowDimensions: () => ({ width: 390, height: 844 }) }))
 vi.mock('@/components/Motion', () => ({ LivePulse: 'LivePulse', MotionPressable: 'MotionPressable', MotionView: 'MotionView' }))
 vi.mock('@/components/Avatar', () => ({ Avatar: 'Avatar' }))
 vi.mock('@/components/Badge', () => ({ InjuryBadge: 'InjuryBadge' }))
@@ -65,13 +65,13 @@ const totals = () => ['left', 'right'].map(side => screen.root.findByProps({ tes
 it('puts one band after the starters and before the bench, with matching row totals', async () => {
     await act(async () => { screen = create(React.createElement(MatchupLineupView, props())) })
     expect(screen.root.findAllByProps({ testID: 'matchup-daily-total' })).toHaveLength(1)
-    expect(totals()).toEqual(['23.5', '-2.0'])
+    expect(totals()).toEqual(['24', '-2'])
     const texts = screen.root.findAllByType('Text' as React.ElementType).map(node => node.props.children)
     expect(texts.indexOf('Daily Total')).toBeGreaterThan(texts.indexOf('Out'))
     expect(texts.indexOf('Daily Total')).toBeLessThan(texts.indexOf('Bench'))
-    expect(texts).toContain('16.0')
-    expect(texts).toContain('7.5')
-    expect(texts).toContain('99.0')
+    expect(texts).toContain('16')
+    expect(texts).toContain('8')
+    expect(texts).toContain('99')
 })
 
 it('updates both sides with score revisions, selected-day data, and starter moves', async () => {
@@ -79,13 +79,21 @@ it('updates both sides with score revisions, selected-day data, and starter move
     await act(async () => { screen = create(React.createElement(MatchupLineupView, initial)) })
     const revised = new Map(initial.liveStats).set('Mine', line({ points: 20 })).set('Theirs', line())
     await act(async () => screen.update(React.createElement(MatchupLineupView, { ...initial, liveStats: revised })))
-    expect(totals()).toEqual(['27.5', '0.0'])
+    expect(totals()).toEqual(['28', '0'])
     const moved = { ...initial.myLineup, starters: [starter('Bench player'), starter('Other')], bench: [player('Mine')] }
     await act(async () => screen.update(React.createElement(MatchupLineupView, { ...initial, liveStats: revised, myLineup: moved })))
-    expect(totals()).toEqual(['106.5', '0.0'])
+    expect(totals()).toEqual(['107', '0'])
     await act(async () => screen.update(React.createElement(MatchupLineupView, { ...initial, liveStats: new Map(), liveTeams: new Set<string>() })))
-    expect(totals()).toEqual(['—', '—'])
+    expect(totals()).toEqual(['0', '0'])
     const past = new Map([['Mine', line({ points: 8 })], ['Theirs', line({ points: 17 })]])
     await act(async () => screen.update(React.createElement(MatchupLineupView, { ...initial, liveStats: past, liveTeams: new Set<string>() })))
-    expect(totals()).toEqual(['8.0', '17.0'])
+    expect(totals()).toEqual(['8', '17'])
+})
+
+it('hides lineup slot counts when viewing another team read-only', async () => {
+    const counts = () => screen.root.findAllByType('Text' as React.ElementType).map(node => node.props.children).filter(text => typeof text === 'string' && /^\d+\/\d+$/.test(text))
+    await act(async () => { screen = create(React.createElement(MatchupLineupView, props())) })
+    expect(counts().length).toBeGreaterThan(0)
+    await act(async () => screen.update(React.createElement(MatchupLineupView, { ...props(), readOnly: true })))
+    expect(counts()).toEqual([])
 })

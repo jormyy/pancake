@@ -2,7 +2,7 @@ import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { expect, it, vi } from 'vitest'
 import { compactBadgeTokens } from '@/components/ui/Badge'
-import { INJURY_COLORS } from '@/constants/tokens'
+import { palette } from '@/constants/tokens'
 import { Badge, InjuryBadge } from '@/components/Badge'
 import { PlayerEligibilityContext } from '@/contexts/player-eligibility-context'
 import { PlayerHeader } from '@/components/player/PlayerHeader'
@@ -17,7 +17,7 @@ import { playerRow, rosterPlayer } from '../helpers/fixtures'
 vi.mock('@/components/trades/PendingTradeRosterPlan', () => ({ PendingTradeRosterPlan: () => null }))
 vi.mock('@/hooks/use-league-timezone', () => ({ useLeagueTimezone: () => 'America/Los_Angeles' }))
 
-vi.mock('react-native', () => ({ View: 'View', Text: 'Text', Pressable: 'Pressable', Platform: { OS: 'web' }, StyleSheet: { create: (value: unknown) => value } }))
+vi.mock('react-native', () => ({ Image: 'Image', View: 'View', Text: 'Text', Pressable: 'Pressable', Platform: { OS: 'web' }, StyleSheet: { create: (value: unknown) => value } }))
 vi.mock('@/components/Avatar', () => ({ Avatar: 'Avatar' }))
 vi.mock('@/components/Motion', () => ({ MotionView: 'View', MotionPressable: 'Pressable' }))
 const ageQueries = vi.hoisted(() => ({ read: vi.fn() }))
@@ -63,17 +63,32 @@ it('keeps names separate from accessible abbreviated status tags', async () => {
         item: playerRow({ display_name: 'A very long player name', years_exp: 0, injury_status: 'Out' }),
         currentMemberId: 'member', ownedMap: new Map(), waiverIds: new Set<string>(), isAdding: false, onAdd: () => {}, onPress: () => {},
     }))
-    expect(labels(screen)).toEqual(['O', 'R', 'T:—', 'Yr 1'])
+    expect(labels(screen)).toEqual(['R', 'T:—', 'Yr 1'])
     const tags = screen.root.findAllByType(Badge)
-    expect(tags.map(tag => tag.props.accessibilityLabel)).toEqual(['Out', 'Rookie', 'Taxi eligible, career games unknown', undefined])
+    expect(tags.map(tag => tag.props.accessibilityLabel)).toEqual(['Rookie', 'Taxi eligible, career games unknown', undefined])
     const name = screen.root.findByProps({ testID: 'player-name-line' })
     expect(name.findAllByType(Badge)).toHaveLength(0)
     const metadata = screen.root.findByProps({ testID: 'player-meta-line' })
-    expect(metadata.findAllByType(Badge)).toHaveLength(4)
+    expect(metadata.findAllByType(Badge)).toHaveLength(3)
+    // Out is a tag on the headshot, not a badge in the metadata line.
+    expect(screen.root.findByProps({ testID: 'player-row-avatar' }).findByProps({ testID: 'injury-tag' }).props.accessibilityLabel).toBe('Out')
     await act(async () => screen.unmount())
 })
 
-it.each([['Out', 'O', 'Out'], ['OUT', 'O', 'Out'], ['Day-To-Day', 'DTD', 'Day-To-Day'], ['DTD', 'DTD', 'Day-To-Day'], ['IR', 'IR', 'Injured reserve']])('labels injury %s as %s', async (status, text, accessibilityLabel) => {
+it.each([['Out', 'OUT', 'Out', palette.red600], ['OUT', 'OUT', 'Out', palette.red600], [' gtd ', 'DTD', 'Day-To-Day', palette.amber600], ['Day-To-Day', 'DTD', 'Day-To-Day', palette.amber600], ['DTD', 'DTD', 'Day-To-Day', palette.amber600]])('marks injury %s with a %s tag on the header headshot instead of a badge', async (status, text, label, color) => {
+    const screen = await render(React.createElement(PlayerHeader, {
+        player: { ...rosterPlayer().players, injury_status: status, years_exp: 2, career_regular_season_games: 100, jersey_number: null, dynasty_rank: null, headshot_url: null },
+        rosterStatus: null, leagueActive: true,
+    }))
+    expect(screen.root.findAllByType(Badge).map(tag => tag.props.label)).not.toEqual(expect.arrayContaining([expect.stringMatching(/^(O|DTD)$/)]))
+    const tag = screen.root.findByProps({ testID: 'injury-tag' })
+    expect(tag.props.children).toBe(text)
+    expect(tag.props.accessibilityLabel).toBe(label)
+    expect(Object.assign({}, ...[tag.props.style].flat().filter(Boolean))).toMatchObject({ backgroundColor: color })
+    await act(async () => screen.unmount())
+})
+
+it.each([['IR', 'IR', 'Injured reserve']])('labels injury %s as %s', async (status, text, accessibilityLabel) => {
     const screen = await render(React.createElement(PlayerHeader, {
         player: { ...rosterPlayer().players, injury_status: status, years_exp: 2, career_regular_season_games: 100, jersey_number: null, dynasty_rank: null, headshot_url: null },
         rosterStatus: null, leagueActive: true,
@@ -108,22 +123,19 @@ it.each([64, 65, null])('keeps a taxi occupant career count visible across roste
     await act(async () => screen.unmount())
 })
 
-it.each(['Day-To-Day', 'day-to-day', 'DTD', 'dtd', 'GTD', ' gtd '])('renders %s with the shared red injury color', async status => {
+it.each(['Day-To-Day', 'day-to-day', 'DTD', 'dtd', 'GTD', ' gtd ', 'Out', 'OUT'])('renders no badge for %s, which shows as a headshot tag', async status => {
     const screen = await render(React.createElement(InjuryBadge, { status }))
-    const badge = screen.root.findByType(Badge)
-    expect(badge.props.label).toBe('DTD')
-    expect(badge.props.accessibilityLabel).toBe('Day-To-Day')
-    expect(badge.props.color).toBe(INJURY_COLORS.Out)
+    expect(screen.root.findAllByType(Badge)).toHaveLength(0)
     await act(async () => screen.unmount())
 })
 
 
 it('uses the same smaller token for every compact status badge', async () => {
     const screen = await render(React.createElement(PlayerSearchItem, {
-        item: playerRow({ years_exp: 0, career_regular_season_games: 1, injury_status: 'DTD' }),
+        item: playerRow({ years_exp: 0, career_regular_season_games: 1, injury_status: 'IR' }),
         currentMemberId: 'member', ownedMap: new Map(), waiverIds: new Set<string>(), isAdding: false, onAdd: () => {}, onPress: () => {},
     }))
-    const badges = screen.root.findAllByType(Badge).filter(node => ['DTD', 'R', 'T:1'].includes(node.props.label))
+    const badges = screen.root.findAllByType(Badge).filter(node => ['IR', 'R', 'T:1'].includes(node.props.label))
     expect(badges).toHaveLength(3)
     expect(badges.map(node => node.props.size)).toEqual(['compact', 'compact', 'compact'])
     await act(async () => screen.unmount())

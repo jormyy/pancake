@@ -18,7 +18,7 @@ const state = vi.hoisted(() => ({
     player: vi.fn(), roster: vi.fn(), members: vi.fn(), claim: vi.fn(), bracket: vi.fn(),
     back: vi.fn(), replace: vi.fn(),
 }))
-vi.mock('react-native', () => ({
+vi.mock('react-native', () => ({ Image: 'Image',
     View: 'View', Text: 'Text', Pressable: 'Pressable', TextInput: 'TextInput', ScrollView: 'ScrollView',
     Platform: { OS: 'ios' }, StyleSheet: { create: (styles: unknown) => styles },
     useWindowDimensions: () => ({ width: 1200, height: 900 }),

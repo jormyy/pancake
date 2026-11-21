@@ -84,7 +84,7 @@ vi.mock('@/lib/shared/dates', () => ({ todayET: () => '2026-10-17' }))
 vi.mock('@/lib/league', () => ({ isTradingClosed: () => false }))
 vi.mock('@/lib/format', () => ({
     countLabel: (count: number, noun: string) => `${count} ${noun}`,
-    formatPoints: String,
+    formatPoints: String, formatStat: String,
     playerHeadshotUrl: () => null,
 }))
 vi.mock('@/components/EmptyState', () => ({ EmptyState: 'EmptyState' }))

@@ -71,7 +71,7 @@ await runWithScenarioResourceOwner('UI round four', async resourceOwner => {
                         return { height: node.getBoundingClientRect().height, font: parseFloat(getComputedStyle(text ?? node).fontSize) }
                     })
                     const ages = [...document.querySelectorAll('[aria-label="Age 24"]')].filter(visible).map(node => ({ age: node.textContent, next: node.nextElementSibling?.textContent }))
-                    const gameLines = [...document.querySelectorAll('[data-testid="matchup-game-line"]')].filter(visible).filter(node => node.textContent.includes('WAS @ CLE')).map(node => ({ text: node.textContent, clipped: node.scrollWidth > node.clientWidth, overflowStyle: getComputedStyle(node).textOverflow, nameFont: parseFloat(getComputedStyle(node.closest('[role="button"]')?.querySelector('[data-testid="matchup-player-name"]') ?? node).fontSize), nameWeight: Number(getComputedStyle(node.closest('[role="button"]')?.querySelector('[data-testid="matchup-player-name"]') ?? node).fontWeight), weight: Number(getComputedStyle(node).fontWeight), font: parseFloat(getComputedStyle(node).fontSize) }))
+                    const gameLines = [...document.querySelectorAll('[data-testid="matchup-game-line"]')].filter(visible).filter(node => /^(WAS @ CLE|CLE vs WAS) /.test(node.getAttribute('aria-label') ?? '')).map(line => ({ line, node: [...line.querySelectorAll('div[dir], span, div')].filter(child => child.childElementCount === 0 && child.textContent.trim()).at(-1) ?? line })).map(({ line, node }) => ({ text: line.getAttribute('aria-label'), logos: line.querySelectorAll('img').length, clipped: node.scrollWidth > node.clientWidth, overflowStyle: getComputedStyle(node).textOverflow, nameFont: parseFloat(getComputedStyle(node.closest('[role="button"]')?.querySelector('[data-testid="matchup-player-name"]') ?? node).fontSize), nameWeight: Number(getComputedStyle(node.closest('[role="button"]')?.querySelector('[data-testid="matchup-player-name"]') ?? node).fontWeight), weight: Number(getComputedStyle(node).fontWeight), font: parseFloat(getComputedStyle(node).fontSize) }))
                     return { gameLines, overflow: document.documentElement.scrollWidth > innerWidth, badges, ages, text: document.querySelector('[role="main"]')?.textContent }
                 })
                 await client.page.screenshot({ path: path.join(output, `${targetId}-${name}.png`), fullPage: true })
@@ -81,7 +81,7 @@ await runWithScenarioResourceOwner('UI round four', async resourceOwner => {
                 if (name === 'matchup') {
                     assert.equal(measurements.ages.length, 0, 'Matchup rows omit age')
                     assert.ok(measurements.gameLines.length >= 2)
-                    assert.ok(measurements.gameLines.every(line => line.text === 'WAS @ CLE 4:00 PM' && !line.clipped && line.overflowStyle === 'clip' && line.font > 9 && line.nameFont > 9 && (line.nameFont > line.font || line.nameWeight > line.weight)), `Both sides show the full tip time: ${JSON.stringify(measurements.gameLines)}`)
+                    assert.ok(measurements.gameLines.every(line => /^(WAS @ CLE|CLE vs WAS) 4:00 PM/.test(line.text) && line.logos === 1 && !line.clipped && line.overflowStyle === 'clip' && line.font > 9 && line.nameFont > 9 && (line.nameFont > line.font || line.nameWeight > line.weight)), `Both sides show the full tip time: ${JSON.stringify(measurements.gameLines)}`)
                 }
                 else {
                     assert.ok(measurements.ages.length > 0)

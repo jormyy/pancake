@@ -1,4 +1,4 @@
-import { formatPoints } from '@/lib/format'
+import { formatPoints, formatStat } from '@/lib/format'
 
 type PlayerContextInput = {
     position?: string | null
@@ -14,7 +14,7 @@ export function playerEligiblePositions(player: PlayerContextInput): string[] {
 }
 
 export function playerSeasonContextText(player: PlayerContextInput): string {
-    return `${formatPoints(player.avgFantasyPoints ?? 0)} FP · ${formatPoints(player.avgMinutesPlayed ?? 0)} mins`
+    return `${formatPoints(player.avgFantasyPoints ?? 0)} FP · ${formatStat(player.avgMinutesPlayed ?? 0)} mins`
 }
 
 export function playerAge(birthdate?: string | null, now = new Date()): number | null {

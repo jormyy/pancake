@@ -6,7 +6,7 @@ import { LockedAssetNotice } from '@/components/roster/LockedAssetNotice'
 import { RosterPlayerItem, TaxiPlayerItem } from '@/components/roster/RosterItems'
 import type { RosterPlayer } from '@/lib/roster'
 
-vi.mock('@/lib/format', () => ({ formatPoints: String, playerHeadshotUrl: () => null }))
+vi.mock('@/lib/format', () => ({ formatPoints: String, formatStat: String, playerHeadshotUrl: () => null }))
 vi.mock('@/lib/players', () => ({ getEligiblePositions: () => ['PG'] }))
 vi.mock('@/lib/roster', () => ({ isIREligible: () => true }))
 vi.mock('@/lib/trades', () => ({}))

@@ -2,6 +2,7 @@ import { LockedAssetNotice, LockedActionExplanation } from '@/components/roster/
 import type { AssetLock } from '@/lib/locked-assets'
 import { Button } from '@/components/ui/Button'
 import { PlayerEligibilityTags } from './PlayerEligibilityTags'
+import { InjuryTag } from '@/components/InjuryTag'
 import { View, Text, StyleSheet } from 'react-native'
 import type { ReactNode } from 'react'
 import type { PlayerRosterStatus } from '@/lib/roster'
@@ -70,6 +71,7 @@ export function PlayerHeader({ locks = [], player, rosterStatus, ownTeamName, ac
                 {backControl}
                 <View style={styles.avatarWrap}>
                     <PlayerAvatar name={player.display_name} nbaId={player.nba_id} size={headshotSize} />
+                    <InjuryTag status={player.injury_status} avatarSize={headshotSize} />
                 </View>
                 <Text style={[styles.name, compact && styles.nameCompact]} accessibilityLabel={player.display_name}>{player.display_name}</Text>
                 <View style={styles.actionWrap} aria-busy={busy} accessibilityState={{ busy }} testID="player-action-slot">

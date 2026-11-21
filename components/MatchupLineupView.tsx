@@ -43,7 +43,6 @@ export function MatchupLineupView({
     daySelector,
     autoSetControl,
     footer,
-    showLineupPins = false,
     readOnly = false,
 }: {
     myLineup: Required<LineupMoveData>
@@ -67,7 +66,6 @@ export function MatchupLineupView({
     dense: boolean
     daySelector?: ReactNode
     autoSetControl?: ReactNode
-    showLineupPins?: boolean
     readOnly?: boolean
     footer?: ReactNode
 }) {
@@ -156,10 +154,11 @@ export function MatchupLineupView({
             <View style={styles.lineupRowsContent}>
                 {sections.map((section) => (
                     <View key={section.key} style={styles.lineupSection}>
+                        {/* Slot counts describe your own lineup; another team's matchup is view-only, so they are hidden. */}
                         <SectionBand label={section.label}
                             variant={section.key === 'starters' && autoSetControl ? 'action' : 'matchup'}
                             labelStyle={{ color: section.color }}
-                            detail={section.key === 'starters' && autoSetControl ? autoSetControl : section.used !== null ? <Text style={styles.lineupSectionCount}>{section.used}</Text> : undefined}
+                            detail={section.key === 'starters' && autoSetControl ? autoSetControl : section.used !== null && !readOnly ? <Text style={styles.lineupSectionCount}>{section.used}</Text> : undefined}
                         />
                         {section.key === 'starters' && noStarters ? (
                             <Text style={styles.noStarters} accessibilityLabel="No lineups set this day">No lineups set this day</Text>
@@ -168,7 +167,6 @@ export function MatchupLineupView({
                                 {statColumns ? <MatchupColumnHeader columns={statColumns} /> : null}
                                 {section.rows.map((row, i) => (
                                     <MatchupRow
-                                        showLineupPins={showLineupPins}
                                         key={row.key}
                                         myPlayer={row.myPlayer}
                                         oppPlayer={row.oppPlayer}
@@ -200,11 +198,11 @@ export function MatchupLineupView({
                         {section.key === 'starters' ? (
                             <View testID="matchup-daily-total" style={styles.dailyTotal}>
                                 <Text testID="matchup-daily-total-left" style={styles.dailyTotalScore}>
-                                    {formatPoints(matchupDailyTotal(myLineup.starters, liveStats, scoringSettings))}
+                                    {formatPoints(matchupDailyTotal(myLineup.starters, liveStats, scoringSettings) ?? 0)}
                                 </Text>
                                 <Text style={styles.dailyTotalLabel}>Daily Total</Text>
                                 <Text testID="matchup-daily-total-right" style={styles.dailyTotalScore}>
-                                    {formatPoints(matchupDailyTotal(oppLineup.starters, liveStats, scoringSettings))}
+                                    {formatPoints(matchupDailyTotal(oppLineup.starters, liveStats, scoringSettings) ?? 0)}
                                 </Text>
                             </View>
                         ) : null}

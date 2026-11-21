@@ -101,7 +101,7 @@ describe('player decision summary', () => {
         [{ status: 'taken' as const, ownerTeamName: 'Maple Hoops' }, 'Maple Hoops', []],
     ])('shows roster status and the available actions for %j', async (rosterStatus, status, labels) => {
         await render(React.createElement(PlayerHeader, {
-            player: headerPlayer({ injury_status: 'GTD' }), rosterStatus, leagueActive: true,
+            player: headerPlayer({ injury_status: 'IR' }), rosterStatus, leagueActive: true,
             compact: true,
             action: labels[0] ? { label: 'Action', accessibilityLabel: labels[0], onPress: vi.fn(), disabled: false, busy: false } : null,
             onDrop: rosterStatus.status === 'mine' ? vi.fn() : undefined,
@@ -109,17 +109,17 @@ describe('player decision summary', () => {
         expect(text()).toContain('Player A')
         expect(text()).toContain('LAL')
         expect(text()).toContain(status)
-        expect(screen.root.findAllByType(Badge).map(node => node.props.label)).toContain('DTD')
+        expect(screen.root.findAllByType(Badge).map(node => node.props.label)).toContain('IR')
         expect(screen.root.findByType(type('PosTag')).props.position).toBe('PG')
         expect(screen.root.findAllByType(type('Pressable')).map(node => node.props.accessibilityLabel)).toEqual(labels)
     })
 
     it('keeps rank, experience, and full names visible without layout measurements', async () => {
         await render(React.createElement(PlayerHeader, {
-            player: headerPlayer({ dynasty_rank: 8, years_exp: 6, injury_status: 'GTD' }),
+            player: headerPlayer({ dynasty_rank: 8, years_exp: 6, injury_status: 'IR' }),
             rosterStatus: { status: 'free_agent' }, leagueActive: true, compact: true,
         }))
-        expect(screen.root.findAllByType(Badge).map(node => node.props.label)).toEqual(['DTD', 'Dynasty #8', 'Yr 7'])
+        expect(screen.root.findAllByType(Badge).map(node => node.props.label)).toEqual(['IR', 'Dynasty #8', 'Yr 7'])
         expect(screen.root.findAllByType(type('View')).filter(node => typeof node.props.onLayout === 'function')).toHaveLength(0)
         expect(screen.root.findByProps({ accessibilityLabel: 'Player A' }).props.numberOfLines).toBeUndefined()
     })
@@ -175,10 +175,10 @@ describe('player decision summary', () => {
 
     it('puts injury after positions and keeps the summary on its own line', async () => {
         await render(React.createElement(PlayerHeader, {
-            player: headerPlayer({ nba_team: 'LAC', eligible_positions: ['PG', 'SG', 'SF'], dynasty_rank: 100, injury_status: 'Out' }),
+            player: headerPlayer({ nba_team: 'LAC', eligible_positions: ['PG', 'SG', 'SF'], dynasty_rank: 100, injury_status: 'IR' }),
             rosterStatus: { status: 'free_agent' }, leagueActive: true, compact: true,
         }))
-        const injury = screen.root.findAllByType(Badge).find(node => node.props.label === 'O')!
+        const injury = screen.root.findAllByType(Badge).find(node => node.props.label === 'IR')!
         const core = screen.root.findByProps({ testID: 'player-position-line' })
         expect(core.findAllByType(Badge)).toContain(injury)
         expect(core.findAllByType(type('PosTag'))).toHaveLength(3)
@@ -191,21 +191,21 @@ describe('player decision summary', () => {
             next_game_opponent: 'vs BOS', projection_fantasy_points: 42.8 } as LeagueProjectionRow
         await render(React.createElement(NextProjectionCard, { projection,
             liveGame: { ...game(), live: true, nbaGameId: 'game' }, liveFantasyPoints: 12.4 }))
-        expect(text()).toContain('Live vs BOS · 12.4 FP so far')
-        expect(text()).not.toContain('42.8')
+        expect(text()).toContain('Live vs BOS · 12 FP so far')
+        expect(text()).not.toContain('43 proj')
         await act(async () => screen.update(React.createElement(NextProjectionCard, {
             projection: { ...projection, next_game_date: '2026-10-25', next_game_time: '2026-10-25T23:00:00Z', next_game_opponent: '@ DEN' },
             liveGame: { ...game(), live: true, nbaGameId: 'game' }, liveFantasyPoints: 12.4,
         })))
         expect(text()).not.toContain('@ DEN')
-        expect(text()).toBe('Live vs BOS · 12.4 FP so far')
+        expect(text()).toBe('Live vs BOS · 12 FP so far')
     })
 
     it('removes the next projection at tipoff without polling', async () => {
         const projection = { next_game_date: '2026-10-24', next_game_time: '2026-10-24T18:00:01Z',
             next_game_opponent: 'vs BOS', projection_fantasy_points: 42.8 } as LeagueProjectionRow
         await render(React.createElement(NextProjectionCard, { projection }))
-        expect(text()).toContain('42.8')
+        expect(text()).toContain('43 proj')
         await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
         expect(screen.toJSON()).toBeNull()
     })
@@ -217,7 +217,7 @@ describe('player decision summary', () => {
         }))
         const cells = screen.root.findAll(node => node.props.accessible === true)
         expect(cells).toHaveLength(10)
-        expect(cells[0].props.accessibilityLabel).toBe('42.3 fantasy points per game')
+        expect(cells[0].props.accessibilityLabel).toBe('42 fantasy points per game')
         for (const value of ['FP/G', 'GP', 'MIN', 'PTS', 'REB', 'AST', 'STL', 'BLK', '3PM', 'TO']) expect(text()).toContain(value)
         expect(text()).not.toContain('FG%')
         expect(text()).not.toContain('double-double')
@@ -243,10 +243,10 @@ describe('player decision summary', () => {
             projection_source_label: 'FantasyPros', projection_is_fresh: false,
         } as LeagueProjectionRow
         await render(React.createElement(NextProjectionCard, { projection }))
-        expect(text()).toMatch(/^vs BOS Sat .+ · 42\.8 proj/)
+        expect(text()).toMatch(/^vs BOS Sat .+ · 43 proj/)
         expect(screen.root.findAllByType(type('Text'))[0].props.numberOfLines).toBe(1)
         expect(text()).not.toContain('FantasyPros')
-        expect(text()).toContain('42.8')
+        expect(text()).toContain('43 proj')
         expect(text()).toContain('proj')
     })
 })
@@ -263,9 +263,9 @@ it.each([false, true])('keeps minutes and game paging with compact=%s', async co
     expect(screen.root.findByProps({ testID: 'game-minutes-zero' }).props.children).toBe('0.0')
     expect(text()).toContain('0.0')
     expect(text().indexOf('FP')).toBeLessThan(text().indexOf('MIN'))
-    expect(text()).toContain('45.2')
+    expect(text()).toContain('45')
     expect(text()).toContain('DNP')
-    expect(text()).not.toContain('99.0')
+    expect(text()).not.toContain('99')
     const more = screen.root.findByType(type('Pressable'))
     await act(async () => more.props.onPress())
     expect(onLoadMore).toHaveBeenCalledOnce()
@@ -290,7 +290,7 @@ it('keeps the projection space when the late card arrives or disappears', async 
     const projection = { next_game_date: '2099-10-24', next_game_time: '2099-10-24T23:00:00Z', next_game_opponent: 'vs BOS', projection_fantasy_points: 42.8 } as LeagueProjectionRow
     await act(async () => screen.update(React.createElement(NextProjectionCard, { projection, reserveSpace: true })))
     expect(screen.root.findByProps({ testID: 'player-projection-slot' }).props.style).toBe(initialStyle)
-    expect(text()).toContain('42.8')
+    expect(text()).toContain('43 proj')
     await act(async () => screen.update(React.createElement(NextProjectionCard, { projection: null, reserveSpace: true })))
     expect(screen.root.findByProps({ testID: 'player-projection-slot' }).props.style).toBe(initialStyle)
 })

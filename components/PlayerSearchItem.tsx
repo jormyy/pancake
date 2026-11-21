@@ -8,7 +8,7 @@ import { View, Text, StyleSheet, Pressable } from 'react-native'
 import { memo } from 'react'
 import { claimProcessWeekdayLabel } from '@/lib/waivers'
 import { PlayerRow, getEligiblePositions } from '@/lib/players'
-import { formatPoints } from '@/lib/format'
+import { formatPoints, formatStat } from '@/lib/format'
 import { OwnedEntry } from '@/lib/roster'
 import { colors, componentTokens, controlSize, fontWeight, radii, spacing, table, textStyles, uiColors } from '@/constants/tokens'
 
@@ -88,10 +88,10 @@ function PlayerSearchItemImpl({
             <Text style={[styles.playerMetaScore, item.playing_now && styles.liveLabel]}>
                 {formatPoints(statMode === 'window' ? stats[0]?.value : stats[0]?.value ?? 0)} {item.playing_now ? 'LIVE' : 'FP'}
             </Text>
-            {` · ${formatPoints(stats.find(stat => stat.label === 'MIN')?.value ?? (statMode === 'window' ? null : 0))} mins`}
+            {` · ${formatStat(stats.find(stat => stat.label === 'MIN')?.value ?? (statMode === 'window' ? null : 0))} mins`}
             {statMode === 'window' && item.games_played === 0 ? ' · No games' : null}
             {denseProjectionRow && projectionGame ? ` · ${projectionGame}` : null}
-            {showCompactStats ? compactStats.map(stat => ` · ${stat.label} ${formatPoints(stat.value)}`).join('') : null}
+            {showCompactStats ? compactStats.map(stat => ` · ${stat.label} ${stat.integer ? fmtInt(stat.value) : formatStat(stat.value)}`).join('') : null}
         </Text>
         {statusBadge}
     </View>
@@ -146,10 +146,14 @@ function PlayerSearchItemImpl({
 
 export const PlayerSearchItem = memo(PlayerSearchItemImpl)
 
+function fmtInt(value: number | null | undefined): string {
+    return value == null ? '—' : String(Math.round(value))
+}
+
 function playerStats(item: PlayerRow, statMode: 'season' | 'projection' | 'window') {
     if (statMode === 'projection') {
         return [
-            { label: 'FP', value: item.projection_fantasy_points, highlight: true },
+            { label: 'FP', value: item.projection_fantasy_points, highlight: true, integer: true },
             { label: 'MIN', value: item.projection_minutes },
             { label: 'PTS', value: item.projection_points },
             { label: 'REB', value: item.projection_rebounds },
@@ -165,7 +169,7 @@ function playerStats(item: PlayerRow, statMode: 'season' | 'projection' | 'windo
     return [
         // No fallback to avg_points: rendering plain points as "FP" showed a
         // wrong number that exactly duplicated the PTS column. Null renders "—".
-        { label: 'FP', value: item.avg_fantasy_points, highlight: true },
+        { label: 'FP', value: item.avg_fantasy_points, highlight: true, integer: true },
         { label: 'MIN', value: item.avg_minutes_played },
         { label: 'PTS', value: item.avg_points },
         { label: 'REB', value: item.avg_rebounds },

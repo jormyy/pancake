@@ -17,8 +17,9 @@ type Side = {
 
 function signedPoints(value: number | null): string {
     if (value == null) return '–'
-    if (value === 0) return '0'
-    return `${value > 0 ? '+' : ''}${formatPoints(value)}`
+    const rounded = formatPoints(value)
+    if (rounded === '0') return '0'
+    return `${value > 0 ? '+' : ''}${rounded}`
 }
 
 function sideTotal(side: Side, settings: Record<string, number>): number | null {

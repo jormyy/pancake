@@ -37,7 +37,7 @@ import { EmptyState } from '@/components/EmptyState'
 import { NoLeagueState } from '@/components/NoLeagueState'
 import { Button, ErrorBanner, Page, PageHeader, usePageMetrics } from '@/components/ui'
 
-import { countLabel, formatPoints } from '@/lib/format'
+import { countLabel, formatPoints, formatStat } from '@/lib/format'
 import { ROSTER_SLOT_TAG_WIDTH, RosterClaimItem, RosterPickItem, RosterPlayerItem, RosterSectionBand, RosterSlotTag, TaxiPlayerItem } from '@/components/roster/RosterItems'
 import { RosterPlayerSheet, type RosterSheetAction } from '@/components/roster/RosterPlayerSheet'
 import { getRosterStatusChangeLockMessage } from '@/lib/roster-locks'
@@ -96,7 +96,7 @@ const EMPTY_CLAIMS: WaiverClaim[] = []
 
 function fmtStat(value?: number | null, integer = false): string {
     if (value != null && integer) return String(Math.round(Number(value)))
-    return formatPoints(value)
+    return formatStat(value)
 }
 
 function RosterTableHeader() {
@@ -161,9 +161,9 @@ function RosterTablePlayerItem({
                 <View style={styles.rosterTablePlayerCell}>
                     <PlayerRowContent lineupPin={item.lineupPin} locks={locks} name={item.players.display_name} nbaId={item.players.nba_id} team={item.players.nba_team} positions={positions}
                         birthdate={item.players.birthdate} yearsExp={item.players.years_exp} careerGames={item.players.career_regular_season_games} injuryStatus={item.players.injury_status}
-                        stats={`${fmtStat(avgFpts)} FP · ${fmtStat(stats?.avg_minutes_played)} MIN`} />
+                        stats={`${formatPoints(avgFpts)} FP · ${fmtStat(stats?.avg_minutes_played)} MIN`} />
                 </View>
-                <StatCell style={styles.rosterTableStat} value={avgFpts} highlight />
+                <StatCell style={styles.rosterTableStat} value={avgFpts} highlight integer />
                 <StatCell style={styles.rosterTableStat} value={stats?.avg_minutes_played} />
                 <StatCell style={styles.rosterTableStat} value={stats?.avg_points} />
                 <StatCell style={styles.rosterTableStat} value={stats?.avg_rebounds} />
