@@ -89,7 +89,7 @@ it('updates both sides with score revisions, selected-day data, and starter move
     expect(totals()).toEqual(['8', '17'])
 })
 
-it('hides lineup slot counts when viewing another team read-only', async () => {
+it('hides lineup slot counts when viewing another team', async () => {
     const counts = () => screen.root.findAllByType('Text' as React.ElementType).map(node => node.props.children).filter(text => typeof text === 'string' && /^\d+\/\d+$/.test(text))
     await act(async () => { screen = create(React.createElement(MatchupLineupView, props())) })
     expect(counts().length).toBeGreaterThan(0)

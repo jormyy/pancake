@@ -95,8 +95,8 @@ export function MatchupLineupView({
                     oppPlayer: oppLineup.bench[i] ?? null,
                     slotType: 'BE',
                     slotIndex: i,
-                    // Rows past my bench size are open slots I can move a starter into;
-                    // only rows past the league's bench size belong to the opponent alone.
+                    // Rows past my bench size still show my empty side; only rows past
+                    // the league's bench size belong to the opponent alone.
                     isExtraOppRow: i >= Math.max(myLineup.bench.length, capacity.bench),
                 })),
             },

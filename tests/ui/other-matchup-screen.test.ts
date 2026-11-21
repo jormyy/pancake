@@ -37,7 +37,7 @@ function payload() {
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 let screen: ReactTestRenderer | undefined
 afterEach(async () => { await act(async () => screen?.unmount()); screen = undefined; state.canBack = true; vi.clearAllMocks() })
-it('renders the shared Home components with read-only rows and no lineup actions', async () => {
+it('renders the shared Home components with plain position labels and no lineup actions', async () => {
     await act(async () => { screen = create(React.createElement(OtherMatchupScreen)) })
     expect(screen!.root.findByType(ScoreCard).props.matchup).toEqual(matchup)
     expect(screen!.root.findByType(MatchupForecastSummary).props.myMemberId).toBe('a')
