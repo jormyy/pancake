@@ -1,3 +1,4 @@
+import { formatPoints } from '@/lib/format-points'
 import { ListHeader } from '@/components/ui/ListHeader'
 import { View, Text, ScrollView, Pressable, StyleSheet, Platform } from 'react-native'
 import { memo, useEffect, useRef } from 'react'
@@ -118,7 +119,7 @@ export const GameLogTable = memo(function GameLogTable({
                         </Text>
                         {showFpts && (
                             <Text style={[...fptsCell, fpts != null && styles.fptsValue]} numberOfLines={1}>
-                                {dnp ? 'DNP' : (fpts ?? 0).toFixed(1)}
+                                {dnp ? 'DNP' : formatPoints(fpts ?? 0)}
                             </Text>
                         )}
                         <Text style={numCell} testID={`game-minutes-${g.gameId}`}>

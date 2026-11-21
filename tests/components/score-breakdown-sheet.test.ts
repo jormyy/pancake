@@ -36,7 +36,7 @@ it('shows compact scoring rules until either player has stats, including a zero 
     expect(screen.root.findAllByProps({ accessibilityLabel: 'Scoring rules' })).toHaveLength(0)
     expect(texts()).toContain('Stat')
     expect(texts()).toContain('FP')
-    expect(screen.root.findByProps({ testID: 'score-breakdown-total' }).props.children).toBe('0.0')
+    expect(screen.root.findByProps({ testID: 'score-breakdown-total' }).props.children).toBe('0')
     expect(texts()).toContain(0)
     expect(texts()).toContain('0')
 })

@@ -5,7 +5,7 @@ import { View, Text, Pressable, StyleSheet } from 'react-native'
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { compareStandingsRows, type StandingRow } from '@/lib/scoring'
 import { colors, controlSize, fontSize, fontWeight, layout, spacing, srOnly, table, textStyles } from '@/constants/tokens'
-import { countLabel } from '@/lib/format'
+import { countLabel, formatPoints } from '@/lib/format'
 import { ItemSeparator } from '@/components/ItemSeparator'
 import { EmptyState } from '@/components/EmptyState'
 import { tableStyles } from '@/components/league/leagueTableStyles'
@@ -56,10 +56,10 @@ function standingsRowAccessibilityLabel(item: StandingRow, index: number, isMe: 
         `Rank ${index + 1}`,
         `${item.teamName}${isMe ? ', your team' : ''}`,
         `record ${countLabel(item.wins, 'win')}, ${item.losses} ${item.losses === 1 ? 'loss' : 'losses'}, ${countLabel(item.ties, 'tie')}`,
-        `${item.pointsFor.toFixed(1)} points for`,
+        `${formatPoints(item.pointsFor)} points for`,
     ]
-    if (showMaxPf) parts.push(`${item.maxPointsFor.toFixed(1)} maximum possible points for`)
-    if (showPa) parts.push(`${item.pointsAgainst.toFixed(1)} points against`)
+    if (showMaxPf) parts.push(`${formatPoints(item.maxPointsFor)} maximum possible points for`)
+    if (showPa) parts.push(`${formatPoints(item.pointsAgainst)} points against`)
     parts.push('Open roster')
     return parts.join(', ')
 }
@@ -136,9 +136,9 @@ function StandingsRow({
                 ) : null}
             </View>
             <Text style={[cell, recordCol]} numberOfLines={1}>{standingsRecordLabel(item, showTies)}</Text>
-            <Text style={[cell, pointsCol]} numberOfLines={1}>{item.pointsFor.toFixed(1)}</Text>
-            {showMaxPf ? <Text style={[cell, pointsCol]} numberOfLines={1}>{item.maxPointsFor.toFixed(1)}</Text> : null}
-            {showPa ? <Text style={[cell, pointsCol]} numberOfLines={1}>{item.pointsAgainst.toFixed(1)}</Text> : null}
+            <Text style={[cell, pointsCol]} numberOfLines={1}>{formatPoints(item.pointsFor)}</Text>
+            {showMaxPf ? <Text style={[cell, pointsCol]} numberOfLines={1}>{formatPoints(item.maxPointsFor)}</Text> : null}
+            {showPa ? <Text style={[cell, pointsCol]} numberOfLines={1}>{formatPoints(item.pointsAgainst)}</Text> : null}
         </Pressable>
     )
 }

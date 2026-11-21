@@ -39,10 +39,7 @@ export function yearShort(year: number): string {
     return `'${String(year).slice(2)}`
 }
 
-/** Fantasy points to one decimal, em-dash when absent: 12.3 → "12.3", null → "—" */
-export function formatPoints(value: number | null | undefined): string {
-    return value == null ? '—' : value.toFixed(1)
-}
+export { formatPoints, formatStat } from '@/lib/format-points'
 
 /** "3 picks", "1 pick" — count with pluralized noun */
 export function countLabel(count: number, noun: string): string {

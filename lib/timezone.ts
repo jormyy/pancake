@@ -35,6 +35,13 @@ export function formatLeagueTime(value: string | number | Date, timezone: string
   return formatLeagueDateTime(value, timezone, { hour: 'numeric', minute: '2-digit' })
 }
 
+/** "7:00 PM" in the league's timezone, without the zone label, for tight rows where every time shares it. */
+export function formatLeagueClock(value: string | number | Date, timezone: string = DEFAULT_LEAGUE_TIMEZONE): string {
+  const date = value instanceof Date ? value : new Date(value)
+  if (!Number.isFinite(date.getTime())) return 'unknown'
+  return new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit', timeZone: resolveLeagueTimezone(timezone) }).format(date)
+}
+
 export function todayLeague(timezone?: string | null, now: Date = new Date()): string {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: resolveLeagueTimezone(timezone), year: 'numeric', month: '2-digit', day: '2-digit',

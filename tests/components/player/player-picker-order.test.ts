@@ -4,7 +4,7 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { DropPlayerPickerModal } from '@/components/DropPlayerPickerModal'
 import { rosterPlayer } from '@/tests/helpers/fixtures'
 
-vi.mock('react-native', () => ({ View: 'View', Text: 'Text', Platform: { OS: 'web' }, StyleSheet: { create: (value: unknown) => value } }))
+vi.mock('react-native', () => ({ Image: 'Image', View: 'View', Text: 'Text', Platform: { OS: 'web' }, StyleSheet: { create: (value: unknown) => value } }))
 vi.mock('@/components/player/PlayerAvatar', () => ({ PlayerAvatar: 'PlayerAvatar' }))
 vi.mock('@/components/PosTag', () => ({ PosTag: 'PosTag' }))
 vi.mock('@/components/ui/Button', () => ({ Button: 'Button' }))

@@ -623,7 +623,7 @@ export const componentTokens = {
         compactNameLineHeight: unit(6),
         gameLineHeight: unit(4),
         slotWidth: 52,
-        pointsWidth: 64,
+        pointsWidth: 52,
         statWidth: 34,
         wideStatWidth: 46,
         nameMinWidth: 130,

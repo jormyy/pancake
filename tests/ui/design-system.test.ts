@@ -16,7 +16,7 @@ import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { Sheet } from '@/components/ui/Sheet'
 import { StatCell } from '@/components/ui/StatCell'
 
-vi.mock('react-native', () => ({
+vi.mock('react-native', () => ({ Image: 'Image',
     View: 'View', Text: 'Text', Pressable: 'Pressable', Modal: 'Modal', ScrollView: 'ScrollView', Platform: { OS: 'web' },
     StyleSheet: { create: (value: unknown) => value }, useWindowDimensions: () => ({ width: 390, height: 844 }),
 }))

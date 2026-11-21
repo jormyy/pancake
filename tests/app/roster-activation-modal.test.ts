@@ -3,7 +3,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, expect, it, vi } from 'vitest'
 import { ActivationOverflowModal } from '@/components/ActivationOverflowModal'
 
-vi.mock('react-native', () => ({ Platform: { OS: 'ios' }, View: 'View', Text: 'Text', StyleSheet: { create: (value: unknown) => value } }))
+vi.mock('react-native', () => ({ Image: 'Image', Platform: { OS: 'ios' }, View: 'View', Text: 'Text', StyleSheet: { create: (value: unknown) => value } }))
 vi.mock('@/lib/roster', () => ({ isIREligible: () => true }))
 vi.mock('@/lib/format', () => ({ playerHeadshotUrl: () => null }))
 vi.mock('@/components/Avatar', () => ({ Avatar: 'Avatar' }))

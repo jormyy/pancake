@@ -11,7 +11,7 @@ import type { TransactionRow } from '@/lib/transactions'
 
 const navigation = vi.hoisted(() => ({ push: vi.fn() }))
 vi.mock('expo-router', () => ({ useRouter: () => navigation }))
-vi.mock('react-native', () => ({ Platform: { OS: 'ios' }, StyleSheet: { create: (styles: unknown) => styles },
+vi.mock('react-native', () => ({ Image: 'Image', Platform: { OS: 'ios' }, StyleSheet: { create: (styles: unknown) => styles },
     View: 'View', Text: 'Text', Pressable: 'Pressable', ScrollView: 'ScrollView' }))
 vi.mock('@/components/Motion', () => ({ MotionPressable: 'Pressable' }))
 vi.mock('@/lib/supabase', () => ({ supabase: { from: vi.fn() } }))

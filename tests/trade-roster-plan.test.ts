@@ -74,7 +74,7 @@ describe('trade roster plan', () => {
             avgStatsMap: new Map([['player-a', { avg_minutes_played: 31.5 }]]),
         })) })
         const text = JSON.stringify(renderer!.toJSON())
-        for (const value of ['42.0', '31.5', '27.0', '25.1']) expect(text).toContain(value)
+        for (const value of ['"42"," FP', '31.5', '"27"," FP', '25.1']) expect(text).toContain(value)
     })
 
     it('shows drop choices directly and saves the selected drop', async () => {

@@ -3,7 +3,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, expect, it, vi } from 'vitest'
 import { MatchupRow } from '@/components/MatchupRow'
 
-vi.mock('react-native', () => ({ Platform: { OS: 'web' }, View: 'View', Text: 'Text', StyleSheet: { create: (value: unknown) => value }, useWindowDimensions: () => ({ width: 402, height: 874 }) }))
+vi.mock('react-native', () => ({ Image: 'Image', Platform: { OS: 'web' }, View: 'View', Text: 'Text', StyleSheet: { create: (value: unknown) => value }, useWindowDimensions: () => ({ width: 402, height: 874 }) }))
 vi.mock('@/components/Motion', () => ({ LivePulse: 'LivePulse', MotionPressable: 'MotionPressable', MotionView: 'MotionView' }))
 vi.mock('@/components/Avatar', () => ({ Avatar: 'Avatar' }))
 vi.mock('@/components/Badge', () => ({ InjuryBadge: 'InjuryBadge' }))
@@ -46,12 +46,23 @@ it('keeps injuries beside names and games visible without no-game team text', as
     const props = rowProps()
     await act(async () => { screen = create(React.createElement(MatchupRow, props)) })
     const texts = () => screen.root.findAllByType('Text' as React.ElementType).map(node => node.props.children)
-    expect(texts().filter(text => text === 'TOR @ OKC')).toHaveLength(2)
+    // rowProps: Mine is DTD, Theirs is Out — each gets a tag on the headshot.
+    expect(screen.root.findAllByProps({ testID: 'injury-tag' }).map(tag => [tag.props.children, tag.props.accessibilityLabel])).toEqual([['DTD', 'Day-To-Day'], ['OUT', 'Out']])
+    const lines = screen.root.findAllByProps({ testID: 'matchup-game-line' })
+    expect(lines.map(line => line.props.accessibilityLabel)).toEqual(['TOR @ OKC', 'OKC vs TOR'])
+    // The game line shows the opponent's logo; the player's own logo sits beside their name.
+    expect(lines.map(line => line.findAllByType('Image' as React.ElementType).map(logo => logo.props.accessibilityLabel))).toEqual([['OKC'], ['TOR']])
+    expect(screen.root.findAllByProps({ testID: 'matchup-player-name' }).map(name => name.parent!.findAllByType('Image' as React.ElementType).map(logo => logo.props.accessibilityLabel))).toEqual([['TOR'], ['OKC']])
     for (const badge of screen.root.findAllByType('InjuryBadge' as React.ElementType)) {
         expect(badge.parent!.findAllByType('Text' as React.ElementType).some(node => ['Mine', 'Theirs'].includes(node.props.children))).toBe(true)
     }
     await act(async () => screen.update(React.createElement(MatchupRow, { ...props, playingTeams: new Set<string>(), teamMatchups: new Map<string, { opponent: string; isHome: boolean }>() })))
     expect(texts().join(' ')).not.toMatch(/TOR|OKC|OFF|No game/)
+    // No game: no blank game line, so the name and photo centre in the row.
+    expect(screen.root.findAllByProps({ testID: 'matchup-game-line' })).toHaveLength(0)
+    // A player with no game scores a dash, not a zero.
+    expect(texts().filter(text => text === '-')).toHaveLength(2)
+    expect(texts()).not.toContain('0')
 })
 
 it('renders the game line and tip time together on the first row commit', async () => {
@@ -61,24 +72,71 @@ it('renders the game line and tip time together on the first row commit', async 
         ['CLE', { opponent: 'WAS', isHome: true, gameTime: '2026-10-28T23:00:00Z', timezone: 'America/New_York', status: 'Scheduled' }],
     ]) }
     await act(async () => {
-        screen = create(React.createElement(React.Profiler, { id: 'row', onRender: () => commits.push(screen.root.findAllByType('Text' as React.ElementType).map(node => node.props.children).filter((value): value is string => typeof value === 'string')) }, React.createElement(MatchupRow, props)))
+        screen = create(React.createElement(React.Profiler, { id: 'row', onRender: () => commits.push(screen.root.findAllByProps({ testID: 'matchup-game-line' }).map(node => node.props.accessibilityLabel).filter((value): value is string => typeof value === 'string')) }, React.createElement(MatchupRow, props)))
     })
     expect(commits).toHaveLength(1)
-    expect(commits[0].filter(text => text.startsWith('WAS @ CLE'))).toEqual(['WAS @ CLE 7:00 PM ET', 'WAS @ CLE 7:00 PM ET'])
+    expect(commits[0].filter(text => / (vs|@) /.test(text))).toEqual(['WAS @ CLE 7:00 PM', 'CLE vs WAS 7:00 PM'])
 })
 
-it.each([true, false])('renders today pin tags in compact and wide player rows: %s', async compact => {
+it.each([true, false])('never shows lineup pin tags in matchup rows (compact=%s); pins live on Roster', async compact => {
     const props = rowProps()
     await act(async () => { screen = create(React.createElement(MatchupRow, {
-        ...props, compact, showLineupPins: true,
+        ...props, compact,
         myPlayer: { ...props.myPlayer, lineupPin: 'start' }, oppPlayer: { ...props.oppPlayer, lineupPin: 'bench' },
     })) })
-    expect(screen.root.findAllByType('View' as React.ElementType).filter(node => node.props.accessibilityLabel === 'Pinned to start')).toHaveLength(1)
-    expect(screen.root.findAllByType('View' as React.ElementType).filter(node => node.props.accessibilityLabel === 'Pinned to bench')).toHaveLength(1)
-    await act(async () => screen.update(React.createElement(MatchupRow, {
-        ...props, compact, showLineupPins: false,
-        myPlayer: { ...props.myPlayer, lineupPin: 'start' }, oppPlayer: { ...props.oppPlayer, lineupPin: 'bench' },
-    })))
-    expect(screen.root.findAllByType('View' as React.ElementType).filter(node => node.props.accessibilityLabel === 'Pinned to start')).toHaveLength(0)
-    expect(screen.root.findAllByType('View' as React.ElementType).filter(node => node.props.accessibilityLabel === 'Pinned to bench')).toHaveLength(0)
+    expect(screen.root.findAllByType('View' as React.ElementType).filter(node => /^Pinned to /.test(String(node.props.accessibilityLabel)))).toHaveLength(0)
+})
+
+it('bolds only scores from finished games, not live or upcoming ones', async () => {
+    const props = { ...rowProps(), myPlayer: rowPlayer('Mine', 'TOR'), oppPlayer: rowPlayer('Theirs', 'OKC'), liveTeams: new Set(['OKC']), teamMatchups: new Map([
+        ['TOR', { opponent: 'BOS', isHome: false, status: 'Final' }],
+        ['OKC', { opponent: 'DEN', isHome: true, status: 'InProgress' }],
+    ]) }
+    await act(async () => { screen = create(React.createElement(MatchupRow, props)) })
+    const weight = (name: string) => [screen.root.findByProps({ accessibilityLabel: `Score breakdown for ${name}` }).findByType('Text' as React.ElementType).props.style].flat(Infinity)
+        .reduce((current: string | undefined, style: { fontWeight?: string } | false | null) => style && style.fontWeight ? style.fontWeight : current, undefined)
+    expect(weight('Mine')).toBe('800')
+    expect(weight('Theirs')).toBe('500')
+    await act(async () => screen.update(React.createElement(MatchupRow, { ...props, teamMatchups: new Map([['TOR', { opponent: 'BOS', isHome: false, status: 'Scheduled' }], ['OKC', { opponent: 'DEN', isHome: true, status: 'Final' }]]) })))
+    expect(weight('Mine')).toBe('500')
+    expect(weight('Theirs')).toBe('800')
+})
+
+it.each([['PG', true], ['C', true], ['UTIL', true], ['IR', true], ['BE', false], ['TX', false]])('weights the %s slot label heavier: %s, on the same faint tint', async (slotType, strong) => {
+    await act(async () => { screen = create(React.createElement(MatchupRow, { ...rowProps(), slotType })) })
+    const chip = screen.root.findAllByType('MotionPressable' as React.ElementType).find(node => String(node.props.accessibilityLabel).startsWith(`Select ${slotType} slot`))!
+    const fill = Object.assign({}, ...[chip.props.style].flat(Infinity).filter(Boolean)).backgroundColor
+    const label = Object.assign({}, ...[chip.findByType('Text' as React.ElementType).props.style].flat(Infinity).filter(Boolean))
+    expect(fill).toMatch(/rgba|color-mix/)
+    expect(label.fontWeight).toBe(strong ? '900' : '800')
+})
+
+it('keeps read-only slot chips at full color instead of the faded disabled look', async () => {
+    const chip = () => screen.root.findAllByType('MotionPressable' as React.ElementType).find(node => String(node.props.accessibilityLabel).startsWith('Select PG slot'))!
+    await act(async () => { screen = create(React.createElement(MatchupRow, { ...rowProps(), readOnly: true })) })
+    expect(chip().props.disabled).toBe(true)
+    expect(chip().props.disabledOpacity).toBe(1)
+    await act(async () => screen.update(React.createElement(MatchupRow, { ...rowProps(), saving: true })))
+    expect(chip().props.disabled).toBe(true)
+    expect(chip().props.disabledOpacity).toBeUndefined()
+})
+
+it.each([
+    ['Scheduled', false, undefined, '-'],
+    ['InProgress', true, undefined, '0'],
+    ['Final', false, undefined, '0'],
+    ['Scheduled', false, { didNotPlay: true }, '0'],
+])('shows a dash until the game starts (%s, live %s)', async (status, live, stats, expected) => {
+    const props = { ...rowProps(), myPlayer: rowPlayer('Mine', 'TOR'), oppPlayer: null, liveTeams: new Set(live ? ['TOR'] : []),
+        liveStats: new Map(stats ? [['Mine', stats]] : []),
+        teamMatchups: new Map([['TOR', { opponent: 'OKC', isHome: false, status }]]) }
+    await act(async () => { screen = create(React.createElement(MatchupRow, props as unknown as React.ComponentProps<typeof MatchupRow>)) })
+    expect(screen.root.findByProps({ accessibilityLabel: 'Score breakdown for Mine' }).findByType('Text' as React.ElementType).props.children).toBe(expected)
+})
+
+it.each([true, false])('centres an empty slot on a single line (compact=%s)', async compact => {
+    await act(async () => { screen = create(React.createElement(MatchupRow, { ...rowProps(), oppPlayer: null, compact })) })
+    const body = screen.root.findByProps({ accessibilityLabel: 'No starter' })
+    expect(body.findAllByType('Text' as React.ElementType)).toHaveLength(1)
+    expect(Object.assign({}, ...[body.props.style].flat(Infinity).filter(Boolean)).justifyContent).toBe('center')
 })

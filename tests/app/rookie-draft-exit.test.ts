@@ -18,7 +18,7 @@ const mocks = vi.hoisted(() => ({
     trimOverflow: null as { excess: number; dropList: never[] } | null,
     isCommissioner: false, seasonYear: undefined as number | undefined, isMock: false,
 }))
-vi.mock('react-native', () => ({
+vi.mock('react-native', () => ({ Image: 'Image',
     Platform: { OS: 'web' }, View: 'View', Text: 'Text', TextInput: 'TextInput',
     Modal: 'Modal', ScrollView: 'ScrollView', KeyboardAvoidingView: 'KeyboardAvoidingView',
     useWindowDimensions: () => ({ width: 393, height: 852 }), StyleSheet: { create: (value: unknown) => value },

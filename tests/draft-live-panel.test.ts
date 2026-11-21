@@ -5,7 +5,7 @@ import { AuctionLivePanel } from '@/components/league/draft-room/AuctionLivePane
 import { formatCountdown } from '@/lib/format'
 vi.mock('@/hooks/use-league-timezone', () => ({ useLeagueTimezone: () => 'America/Los_Angeles' }))
 
-vi.mock('react-native', () => ({
+vi.mock('react-native', () => ({ Image: 'Image',
     Platform: { OS: 'web' }, View: 'View', Text: 'Text', TextInput: 'TextInput',
     StyleSheet: { create: (value: unknown) => value },
 }))

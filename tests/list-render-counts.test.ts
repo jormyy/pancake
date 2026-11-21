@@ -10,7 +10,7 @@ vi.mock('@/hooks/use-league-timezone', () => ({ useLeagueTimezone: () => 'Americ
 // the row that stopped) may re-render. Every row re-rendering on each state
 // change is what makes long lists feel sticky on phones.
 
-vi.mock('@/lib/format', () => ({ countLabel: String, formatPoints: String, playerHeadshotUrl: () => null }))
+vi.mock('@/lib/format', () => ({ countLabel: String, formatPoints: String, formatStat: String, playerHeadshotUrl: () => null }))
 vi.mock('@/lib/players', () => ({ getEligiblePositions: () => ['PG'] }))
 vi.mock('@/lib/projections', () => ({ formatProjectionGame: () => null }))
 

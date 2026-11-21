@@ -11,7 +11,7 @@ vi.mock('@/lib/cache/screen-cache', () => ({ cachedScreenView: () => undefined, 
 vi.mock('@/lib/shared/season', () => ({ getCurrentSeasonId: async () => 'season' }))
 
 const mocks = vi.hoisted(() => ({ claim: vi.fn(), read: vi.fn(), injury: null as string | null, size: 1, years: 2, games: 64 as number | null, exits: new Set<string>(), epoch: 0, alert: vi.fn(), params: {} as { dropPlayerId?: string; destination?: string } }))
-vi.mock('react-native', () => ({ View: 'View', Text: 'Text', Pressable: 'Pressable', TextInput: 'TextInput', Switch: 'Switch', ScrollView: 'ScrollView', Platform: { OS: 'web' }, StyleSheet: { create: (styles: unknown) => styles }, useWindowDimensions: () => ({ width: 402, height: 874 }) }))
+vi.mock('react-native', () => ({ Image: 'Image', View: 'View', Text: 'Text', Pressable: 'Pressable', TextInput: 'TextInput', Switch: 'Switch', ScrollView: 'ScrollView', Platform: { OS: 'web' }, StyleSheet: { create: (styles: unknown) => styles }, useWindowDimensions: () => ({ width: 402, height: 874 }) }))
 vi.mock('@expo/vector-icons/MaterialIcons', () => ({ default: 'Icon' }))
 vi.mock('expo-router', () => ({ Stack: { Screen: () => null }, useLocalSearchParams: () => ({ playerId: 'target', ...mocks.params }), useRouter: () => ({ replace: vi.fn() }) }))
 vi.mock('@/hooks/use-auth', () => ({ useAuth: () => ({ user: { id: 'user' } }) }))

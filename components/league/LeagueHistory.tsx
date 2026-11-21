@@ -1,3 +1,4 @@
+import { formatPoints } from '@/lib/format-points'
 import { useMemo, useState } from 'react'
 import { RefreshControl, StyleSheet, Text, View } from 'react-native'
 import { EmptyState } from '@/components/EmptyState'
@@ -54,7 +55,7 @@ export function LeagueHistory({ seasons, onRefresh, refreshing = false }: {
                                     <Text style={textStyles.meta}>Regular-season matchups</Text>
                                 </View>
                                 <View style={styles.stat}>
-                                    <Text style={textStyles.pageTitle}>{selected.stats.pointsFor.toFixed(1)}</Text>
+                                    <Text style={textStyles.pageTitle}>{formatPoints(selected.stats.pointsFor)}</Text>
                                     <Text style={textStyles.meta}>Regular-season points</Text>
                                 </View>
                             </View>
@@ -75,7 +76,7 @@ export function LeagueHistory({ seasons, onRefresh, refreshing = false }: {
                             <View role="list" aria-label="Final season standings">
                                 {selected.standings.map(team => (
                                     <View key={team.memberId} role="listitem"
-                                        accessibilityLabel={`Place ${team.finalRank}, ${team.teamName}, ${team.playoffResult}, record ${recordLabel(team)}, ${team.pointsFor.toFixed(1)} points for, ${team.pointsAgainst.toFixed(1)} points against`}
+                                        accessibilityLabel={`Place ${team.finalRank}, ${team.teamName}, ${team.playoffResult}, record ${recordLabel(team)}, ${formatPoints(team.pointsFor)} points for, ${formatPoints(team.pointsAgainst)} points against`}
                                         style={[styles.row, styles.standing, team.finalRank === 1 && styles.champion]}>
                                         <Text style={[textStyles.tableCell, styles.rank]}>{team.finalRank}</Text>
                                         <View style={styles.team}>
@@ -83,8 +84,8 @@ export function LeagueHistory({ seasons, onRefresh, refreshing = false }: {
                                             <Text style={textStyles.meta}>{team.playoffResult}</Text>
                                         </View>
                                         <Text style={[textStyles.tableCell, styles.record]}>{recordLabel(team)}</Text>
-                                        <Text style={[textStyles.tableCell, styles.points]}>{team.pointsFor.toFixed(1)}</Text>
-                                        <Text style={[textStyles.tableCell, styles.points]}>{team.pointsAgainst.toFixed(1)}</Text>
+                                        <Text style={[textStyles.tableCell, styles.points]}>{formatPoints(team.pointsFor)}</Text>
+                                        <Text style={[textStyles.tableCell, styles.points]}>{formatPoints(team.pointsAgainst)}</Text>
                                     </View>
                                 ))}
                             </View>

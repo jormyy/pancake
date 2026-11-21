@@ -9,7 +9,7 @@ import { colors, uiColors } from '@/constants/tokens'
 import { headerPlayer, playerRow, rosterStatus } from './helpers/fixtures'
 vi.mock('@/hooks/use-league-timezone', () => ({ useLeagueTimezone: () => 'America/Los_Angeles' }))
 
-vi.mock('@/lib/format', () => ({ countLabel: String, formatPoints: String, playerHeadshotUrl: () => null }))
+vi.mock('@/lib/format', () => ({ countLabel: String, formatPoints: String, formatStat: String, playerHeadshotUrl: () => null }))
 vi.mock('@/lib/players', () => ({ getEligiblePositions: () => ['PG'] }))
 vi.mock('@/lib/projections', () => ({ formatProjectionGame: () => null }))
 

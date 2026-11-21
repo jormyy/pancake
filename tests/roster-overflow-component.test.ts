@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { RosterTrimBanner } from '@/components/roster/RosterTrimBanner'
 import type { RosterPlayer } from '@/lib/roster'
 
-vi.mock('react-native', () => ({
+vi.mock('react-native', () => ({ Image: 'Image',
     Platform: { OS: 'ios' },
     Pressable: 'Pressable',
     ScrollView: 'ScrollView',

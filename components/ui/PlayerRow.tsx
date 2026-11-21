@@ -11,6 +11,8 @@ import { Badge } from '@/components/ui/Badge'
 import { usePlayerAge } from '@/hooks/use-player-age'
 import { Avatar } from '@/components/Avatar'
 import { PosTag } from '@/components/PosTag'
+import { TeamLogo } from '@/components/TeamLogo'
+import { InjuryTag } from '@/components/InjuryTag'
 
 export type PlayerRowProps = {
     lineupPin?: LineupPin
@@ -39,11 +41,11 @@ export function PlayerRow({ lineupPin, locks = [], playerId, name, nbaId, headsh
     const displayAge = usePlayerAge(playerId, birthdate, age, nbaId)
     const avatarSize = componentTokens.playerRow[compact ? 'compact' : 'standard'].avatarSize
     return <View style={[styles.row, compact && styles.compactRow]} testID="player-row-content">
-        <View testID="player-row-avatar">{headshotUrl ? <Avatar name={name} uri={headshotUrl} size={avatarSize} /> : <PlayerAvatar name={name} nbaId={nbaId} size={avatarSize} />}</View>
+        <View testID="player-row-avatar">{headshotUrl ? <Avatar name={name} uri={headshotUrl} size={avatarSize} /> : <PlayerAvatar name={name} nbaId={nbaId} size={avatarSize} />}<InjuryTag status={injuryStatus} avatarSize={avatarSize} /></View>
         <View style={[styles.copy, compact && styles.compactCopy]}>
             <Text style={styles.name} testID="player-name-line">{name}</Text>
             <View style={[styles.metadata, compact && styles.compactMetadata]} testID="player-meta-line">
-                {team ? <Text style={styles.team} numberOfLines={1}>{team}</Text> : null}
+                {team ? <TeamLogo key={team} team={team} size={styles.team.lineHeight} textStyle={styles.team} /> : null}
                 {positions.map(position => <PosTag key={position} position={position} />)}
                 <PlayerEligibilityTags yearsExp={yearsExp} careerGames={careerGames} injuryStatus={injuryStatus} onTaxi={onTaxi} />
                 {displayAge != null ? <Badge inline label={`${displayAge}`} accessibilityLabel={`Age ${displayAge}`} color={colors.textMuted} /> : null}

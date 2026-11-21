@@ -12,7 +12,7 @@ vi.mock('@/lib/cache/screen-cache', () => ({ cachedScreenView: () => undefined, 
 vi.mock('@/lib/shared/season', () => ({ getCurrentSeasonId: async () => 'season' }))
 
 const state=vi.hoisted(()=>({owner:'a',waiverMode:'rolling',balance:vi.fn(),claim:vi.fn(),success:vi.fn(),report:vi.fn(),back:vi.fn(),player:vi.fn(),members:vi.fn()}))
-vi.mock('react-native',()=>({View:'View',Text:'Text',Pressable:'Pressable',TextInput:'TextInput',ScrollView:'ScrollView',Platform:{OS:'web'},StyleSheet:{create:(styles:unknown)=>styles},useWindowDimensions:()=>({width:1280,height:900})}))
+vi.mock('react-native',()=>({ Image: 'Image',View:'View',Text:'Text',Pressable:'Pressable',TextInput:'TextInput',ScrollView:'ScrollView',Platform:{OS:'web'},StyleSheet:{create:(styles:unknown)=>styles},useWindowDimensions:()=>({width:1280,height:900})}))
 vi.mock('@expo/vector-icons/MaterialIcons',()=>({default:'Icon'}))
 vi.mock('expo-router',()=>({Stack:{Screen:()=>null},useLocalSearchParams:()=>({playerId:'target'}),useRouter:()=>({push:vi.fn()})}))
 vi.mock('@/hooks/use-auth',()=>({useAuth:()=>({user:{id:state.owner}})}))

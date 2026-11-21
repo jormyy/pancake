@@ -21,7 +21,7 @@ vi.mock('@react-navigation/native', async () => {
 })
 vi.mock('@shopify/flash-list', () => ({ FlashList: 'FlashList' }))
 vi.mock('@expo/vector-icons/MaterialIcons', () => ({ default: 'MaterialIcons' }))
-vi.mock('react-native', () => ({
+vi.mock('react-native', () => ({ Image: 'Image',
     Platform: { OS: 'web' }, View: 'View', Text: 'Text', TextInput: 'TextInput', Pressable: 'Pressable', ScrollView: 'ScrollView',
     StyleSheet: { create: (styles: unknown) => styles },
 }))
@@ -48,7 +48,7 @@ vi.mock('@/lib/realtime', () => ({ reportRealtimeCleanup: vi.fn(), subscribeToTa
 vi.mock('@/lib/lineup', () => ({ getRosterSlotPlan: async () => ({ slots: [], assignments: {} }) }))
 vi.mock('@/lib/shared/season', () => ({ getActiveSeasonId: async () => 'season' }))
 vi.mock('@/lib/league', () => ({ isTradingClosed: () => false, getMemberTransactionState: async () => memberTransactionState({ faabBalance: 100, weeklyAddLimit: 2, weeklyAddCount: 0 }) }))
-vi.mock('@/lib/format', () => ({ countLabel: String, formatPoints: String, playerHeadshotUrl: () => null }))
+vi.mock('@/lib/format', () => ({ countLabel: String, formatPoints: String, formatStat: String, playerHeadshotUrl: () => null }))
 vi.mock('@/components/ui', async () => ({ Page: 'Page', PageHeader: 'PageHeader', Button: (await import('@/components/ui/Button')).Button, Card: (await import('@/components/ui/Card')).Card, usePageMetrics: () => ({ padX: 16, usableWidth: mocks.width }) }))
 vi.mock('@/components/EmptyState', () => ({ EmptyState: 'EmptyState' }))
 vi.mock('@/components/NoLeagueState', () => ({ NoLeagueState: 'NoLeagueState' }))

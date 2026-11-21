@@ -1,3 +1,4 @@
+import { formatPoints } from '@/lib/format-points'
 import { formatLeagueTime, todayLeague } from '@/lib/timezone'
 import { useLeagueTimezone } from '@/hooks/use-league-timezone'
 import { useEffect, useState } from 'react'
@@ -36,8 +37,8 @@ export function NextProjectionCard({ projection, loading = false, reserveSpace =
     const time = next?.next_game_time && tipoff != null && Number.isFinite(tipoff)
         ? formatLeagueTime(date!, timezone) : null
     const summary = liveGame
-        ? `Live ${liveGame.opponent} · ${liveFantasyPoints != null ? `${liveFantasyPoints.toFixed(1)} FP` : `${liveGame.points} PTS`} so far`
-        : [[next?.next_game_opponent, weekday, time].filter(Boolean).join(' '), next?.projection_fantasy_points == null ? '— proj' : `${next.projection_fantasy_points.toFixed(1)} proj`].join(' · ')
+        ? `Live ${liveGame.opponent} · ${liveFantasyPoints != null ? `${formatPoints(liveFantasyPoints)} FP` : `${liveGame.points} PTS`} so far`
+        : [[next?.next_game_opponent, weekday, time].filter(Boolean).join(' '), next?.projection_fantasy_points == null ? '— proj' : `${formatPoints(next.projection_fantasy_points)} proj`].join(' · ')
     const card = (
         <View style={styles.card} aria-busy={loading}>
             <Text style={[styles.summary, liveGame && styles.live]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>{summary}</Text>

@@ -15,7 +15,7 @@ import { themeVariablesCss } from '@/constants/tokens'
 import type { Matchup } from '@/lib/scoring'
 
 const state = vi.hoisted(() => ({ back: vi.fn(), replace: vi.fn(), push: vi.fn(), setDate: vi.fn(), canBack: true }))
-vi.mock('react-native', async () => ({ ...await vi.importActual('react-native-web'), useWindowDimensions: () => ({ width: 390, height: 844 }) }))
+vi.mock('react-native', async () => ({ ...await vi.importActual('react-native-web'), useWindowDimensions: () => ({ width: 390, height: 844 }), Image: 'Image' }))
 vi.mock('@/components/Motion', async () => { const { View, Pressable } = await vi.importActual<typeof import('react-native')>('react-native-web'); return { MotionView: View, MotionPressable: Pressable, LivePulse: View } })
 vi.mock('@/lib/supabase', () => ({ supabase: {} }))
 vi.mock('react-native-safe-area-context', async () => { const { View } = await vi.importActual<typeof import('react-native')>('react-native-web'); return { SafeAreaView: View, useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) } })

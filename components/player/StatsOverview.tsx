@@ -1,3 +1,4 @@
+import { formatPoints } from '@/lib/format-points'
 import { StatCell } from '@/components/ui/StatCell'
 import type { ReactNode } from 'react'
 import { View, Text, StyleSheet } from 'react-native'
@@ -20,7 +21,7 @@ type Props = {
 /** Season averages as one stat strip, fantasy points first. */
 export function StatsOverview({ averages, seasonYear, avgFantasyPoints = null, columns, seasonControl, loading = false, includesLive = false, actions, showFantasy = avgFantasyPoints != null }: Props) {
     const cells = [
-        showFantasy ? { label: 'FP/G', value: (avgFantasyPoints ?? 0).toFixed(1), lead: true } : null,
+        showFantasy ? { label: 'FP/G', value: formatPoints(avgFantasyPoints ?? 0), lead: true } : null,
         { label: 'GP', value: averages ? String(averages.gamesPlayed) : '—' },
         { label: 'MIN', value: (averages?.avgMinutesPlayed ?? 0).toFixed(1) },
         { label: 'PTS', value: averages ? averages.avgPoints.toFixed(1) : '—' },

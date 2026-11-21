@@ -1,11 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import { todayLeague, endOfLeagueDayUTC, DEFAULT_LEAGUE_TIMEZONE, formatLeagueDate, formatLeagueTime, resolveLeagueTimezone, leagueDateTimeInput, parseLeagueDateTime } from '../../lib/timezone'
+import { todayLeague, endOfLeagueDayUTC, DEFAULT_LEAGUE_TIMEZONE, formatLeagueClock, formatLeagueDate, formatLeagueTime, resolveLeagueTimezone, leagueDateTimeInput, parseLeagueDateTime } from '../../lib/timezone'
 
 describe('league timezone formatting', () => {
   it('uses Los Angeles and accepts IANA timezone names', () => {
     expect(DEFAULT_LEAGUE_TIMEZONE).toBe('America/Los_Angeles')
     expect(resolveLeagueTimezone('Europe/London')).toBe('Europe/London')
     expect(resolveLeagueTimezone('Invalid/City')).toBe(DEFAULT_LEAGUE_TIMEZONE)
+  })
+  it('formats a bare clock time in the league timezone without the zone label', () => {
+    expect(formatLeagueClock('2026-10-28T23:00:00Z')).toBe('4:00 PM')
+    expect(formatLeagueClock('2026-10-28T23:00:00Z', 'America/New_York')).toBe('7:00 PM')
+    expect(formatLeagueClock('invalid')).toBe('unknown')
   })
   it('formats the same instant on the correct local day', () => {
     expect(formatLeagueDate('2026-01-02T03:00:00Z')).toBe('Jan 1, 2026')

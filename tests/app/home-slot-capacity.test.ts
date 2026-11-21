@@ -339,13 +339,9 @@ it('places the current week strip below the lineup and opens a read-only matchup
 
 vi.mock('@/lib/timezone', async importOriginal => ({ ...await importOriginal<typeof import('@/lib/timezone')>(), todayLeague: () => '2026-10-11' }))
 
-it('shows lineup pin tags on Home only for today', async () => {
+it('does not ask Home matchup rows to show lineup pin tags', async () => {
     populatedStarters()
     mocks.lineup.starters[0].player!.lineupPin = 'start'
     await mount()
-    expect(rows('PG')[0].props.showLineupPins).toBe(true)
-    expect(rows('PG')[0].props.myPlayer.lineupPin).toBe('start')
-    mocks.selectedDate = '2026-10-12'
-    await act(async () => screen.update(React.createElement(HomeScreen)))
-    expect(rows('PG')[0].props.showLineupPins).toBe(false)
+    expect(rows('PG')[0].props.showLineupPins).toBeUndefined()
 })

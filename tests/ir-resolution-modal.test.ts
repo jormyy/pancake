@@ -3,7 +3,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { expect, it, vi } from 'vitest'
 import { IRResolutionModal } from '@/components/IRResolutionModal'
 import { rosterPlayer } from './helpers/fixtures'
-vi.mock('react-native', () => ({ Platform: { OS: 'ios' }, View: 'View', Text: 'Text', StyleSheet: { create: (s: unknown) => s } }))
+vi.mock('react-native', () => ({ Image: 'Image', Platform: { OS: 'ios' }, View: 'View', Text: 'Text', StyleSheet: { create: (s: unknown) => s } }))
 vi.mock('@/components/Avatar', () => ({ Avatar: 'Avatar' }))
 vi.mock('@/components/ui/Button', () => ({ Button: 'Button' }))
 vi.mock('@/components/ui/Sheet', () => ({ Sheet: 'Sheet' }))

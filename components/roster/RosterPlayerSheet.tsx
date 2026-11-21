@@ -10,7 +10,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native'
 
 import { Sheet } from '@/components/ui/Sheet'
 import { colors, controlSize, fontSize, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
-import { formatPoints } from '@/lib/format'
+import { formatPoints, formatStat } from '@/lib/format'
 import { getEligiblePositions } from '@/lib/players'
 import type { RosterPlayer } from '@/lib/roster'
 import type { RosterAverage } from '@/lib/roster-stats'
@@ -29,9 +29,9 @@ export type RosterSheetAction = {
 }
 
 function statCells(avgFpts: number | undefined, stats: RosterAverage | undefined): [string, string][] {
-    const fmt = (value: number | null | undefined) => (value == null ? '—' : formatPoints(value))
+    const fmt = (value: number | null | undefined) => (value == null ? '—' : formatStat(value))
     return [
-        ['FP', fmt(avgFpts ?? 0)],
+        ['FP', formatPoints(avgFpts ?? 0)],
         ['MIN', fmt(stats?.avg_minutes_played ?? 0)],
         ['PTS', fmt(stats?.avg_points)],
         ['REB', fmt(stats?.avg_rebounds)],
@@ -73,7 +73,7 @@ export function RosterPlayerSheet({
                     <View style={styles.identity}>
                         <PlayerRowContent locks={locks} name={info.display_name} nbaId={info.nba_id} team={info.nba_team} positions={positions}
                             birthdate={info.birthdate} yearsExp={info.years_exp} careerGames={info.career_regular_season_games} injuryStatus={info.injury_status} onTaxi={player?.is_on_taxi}
-                            stats={`${formatPoints(avgFpts ?? 0)} FP · ${formatPoints(stats?.avg_minutes_played ?? 0)} mins${status ? ` · ${status}` : ''}`} />
+                            stats={`${formatPoints(avgFpts ?? 0)} FP · ${formatStat(stats?.avg_minutes_played ?? 0)} mins${status ? ` · ${status}` : ''}`} />
                     </View>
 
                     <View style={styles.statGrid}>

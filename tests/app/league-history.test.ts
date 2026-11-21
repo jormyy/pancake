@@ -85,16 +85,16 @@ describe('League History', () => {
         expect(text()).toContain('Final standings')
         expect(text()).toContain('8-1-1')
         expect(text()).toContain('9-1')
-        expect(text()).toContain('2345.6')
-        expect(text()).toContain('2222.2')
+        expect(text()).toContain('2346')
+        expect(text()).toContain('2222')
         expect(text()).toContain('Runner-up')
-        expect(text()).toContain('4567.8')
+        expect(text()).toContain('4568')
         expect(text()).toContain('Regular-season points')
         expect(text()).not.toContain('Champion 2025')
         const rows = screen!.root.findAll(node => node.props.role === 'listitem')
         expect(rows.map(row => row.props.accessibilityLabel)).toEqual([
-            'Place 1, Champion 2026, Champion, record 8-1-1, 2345.6 points for, 2222.2 points against',
-            'Place 2, Runner-up team, Runner-up, record 9-1-0, 2222.2 points for, 2345.6 points against',
+            'Place 1, Champion 2026, Champion, record 8-1-1, 2346 points for, 2222 points against',
+            'Place 2, Runner-up team, Runner-up, record 9-1-0, 2222 points for, 2346 points against',
         ])
         await act(async () => screen!.root.findByType(host('Button')).props.onPress())
         expect(screen!.root.findAllByType(host('Card'))).toHaveLength(2)
