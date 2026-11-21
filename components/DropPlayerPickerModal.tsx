@@ -10,6 +10,8 @@ import { colors, spacing, table, textStyles } from '@/constants/tokens'
 
 import { Button } from '@/components/ui/Button'
 import { Sheet } from '@/components/ui/Sheet'
+import { RosterHoldWarning } from '@/components/roster/RosterHoldWarning'
+import type { RosterHoldConflict } from '@/lib/waivers'
 
 type Props = {
     visible: boolean
@@ -22,10 +24,14 @@ type Props = {
     onMoveToIR?: (rp: RosterPlayer) => void
     onAdd?: () => void
     onAddToTaxi?: () => void
+    holdConflicts?: RosterHoldConflict[]
+    onWithdrawHold?: (tradeId: string, partnerTeamNames: string[]) => void
+    withdrawingHoldTradeId?: string | null
+    holdNotice?: string | null
     onCancel: () => void
 }
 
-export function DropPlayerPickerModal({ visible, title, roster, dropping, onDrop, onCancel, irMoveCandidates = [], onMoveToIR, onAdd, onAddToTaxi, destinations }: Props) {
+export function DropPlayerPickerModal({ visible, title, roster, dropping, onDrop, onCancel, irMoveCandidates = [], onMoveToIR, onAdd, onAddToTaxi, holdConflicts = [], onWithdrawHold, withdrawingHoldTradeId = null, holdNotice = null, destinations }: Props) {
     const dropGroups = useMemo(() => groupRosterOptions(orderRosterOptions(roster)), [roster])
     const irOptions = useMemo(() => orderRosterOptions(irMoveCandidates), [irMoveCandidates])
     const close = () => {
@@ -34,9 +40,10 @@ export function DropPlayerPickerModal({ visible, title, roster, dropping, onDrop
     return (
         <Sheet visible={visible} onClose={close} title={title}>
             <Text style={styles.subtitle}>{onAdd ? 'Choose where to add this player.' : 'Roster full'}</Text>
+            <RosterHoldWarning conflicts={holdConflicts} onWithdraw={onWithdrawHold} withdrawingTradeId={withdrawingHoldTradeId} notice={holdNotice} />
             {onAdd || onAddToTaxi ? <View style={styles.row}>
-                {onAdd ? <Button title="Add" onPress={onAdd} disabled={dropping !== null} /> : null}
-                {onAddToTaxi ? <Button title="Add to taxi" onPress={onAddToTaxi} disabled={dropping !== null} /> : null}
+                {onAdd ? <Button title="Add" onPress={onAdd} disabled={dropping !== null || holdConflicts.length > 0} /> : null}
+                {onAddToTaxi ? <Button title="Add to taxi" onPress={onAddToTaxi} disabled={dropping !== null || holdConflicts.length > 0} /> : null}
             </View> : null}
             {irMoveCandidates.length > 0 && onMoveToIR ? (
                 <View style={styles.list}>

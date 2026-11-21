@@ -19,6 +19,7 @@ import { useLeagueContext } from '@/contexts/league-context'
 import { useOnlineStatus } from '@/hooks/use-online-status'
 import { usePlayerScreenData } from '@/hooks/use-player-screen-data'
 import { useQuickAdd, type PickupClaimSelection } from '@/hooks/use-quick-add'
+import { useRosterHoldCheck } from '@/hooks/use-roster-hold-check'
 import { sessionGeneration, sessionOwner } from '@/lib/session-cache-registry'
 import { dropPlayer, type RosterPlayer, type PlayerRosterStatus } from '@/lib/roster'
 import { loadPickupState } from '@/lib/roster-add-flow'
@@ -163,6 +164,11 @@ export default function PlayerDetailScreen() {
         taxiSlots: currentLeague?.taxi_slots ?? 0,
         rosterSize: currentLeague?.roster_size ?? 20,
         onClaimInstead: openClaim,
+    })
+    const holdCheck = useRosterHoldCheck({
+        memberId: current?.id,
+        addPlayerId: quickAdd.dropPickerPlayer?.id ?? null,
+        enabled: quickAdd.dropPickerPlayer != null,
     })
 
     function handleDrop() {
@@ -331,6 +337,10 @@ export default function PlayerDetailScreen() {
                 onAddToTaxi={quickAdd.taxiAvailable ? quickAdd.handleAddToTaxi : undefined}
                 irMoveCandidates={quickAdd.irMoveCandidates}
                 onMoveToIR={quickAdd.handleMoveToIRAndAdd}
+                holdConflicts={holdCheck.conflicts}
+                onWithdrawHold={holdCheck.withdraw}
+                withdrawingHoldTradeId={holdCheck.withdrawingTradeId}
+                holdNotice={holdCheck.withdrawNotice}
                 onCancel={() => quickAdd.setDropPickerPlayer(null)}
             />
 

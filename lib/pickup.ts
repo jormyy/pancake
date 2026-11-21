@@ -83,6 +83,11 @@ export function reportPickupError(error: unknown, { refresh, onLimitReached, cla
         onIneligibleIr(message)
         return
     }
+    if (code === RULE_CODES.rosterHold) {
+        refresh?.()
+        showAlert('Roster spot needed', message)
+        return
+    }
     if (code === 'PA006' || code === 'PA007') {
         refresh?.()
         showAlert(code === 'PA006' ? 'Player cannot enter IR' : 'IR is full', message)

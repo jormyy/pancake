@@ -42,6 +42,7 @@ export type TradeCardActions = {
     onReject: () => void
     onVeto: () => void
     onWithdraw: () => void
+    onWithdrawAcceptance?: () => void
 }
 
 export type TradeCardContext = {
@@ -73,6 +74,10 @@ export function tradeCardModel({ trade, myMemberId, tab, tradeVetoMode = 'member
     const canVeto = tab === 'offers' && !isTradeParty && trade.status === 'accepted' && !trade.myVetoed && canVetoBySettings
     const alreadyVetoed = tab === 'offers' && !isTradeParty && trade.status === 'accepted' && trade.myVetoed && canVetoBySettings
     const canRespond = tab === 'offers' && needsMemberAcceptance(trade, myMemberId)
+    const myParticipant = participants.find((participant) => participant.memberId === myMemberId)
+    const acceptedByMe = myParticipant ? myParticipant.acceptedAt != null : isProposer
+    const unanimous = participants.length > 0 && participants.every((participant) => participant.acceptedAt != null)
+    const canRetractAcceptance = tab === 'offers' && trade.status === 'pending' && isTradeParty && acceptedByMe && !unanimous
     const canReject = canRespond && (!trade.isMultiTeam || !isProposer)
     const canEdit = tab === 'offers' && isProposer && trade.status === 'pending'
     const meta = [
@@ -98,6 +103,7 @@ export function tradeCardModel({ trade, myMemberId, tab, tradeVetoMode = 'member
         statusColors: TRADE_STATUS_COLORS[trade.status] ?? TRADE_STATUS_COLORS.pending,
         meta,
         canRespond,
+        canRetractAcceptance,
         canReject,
         canEdit,
         canVeto,
@@ -220,12 +226,14 @@ export function TradeActionButtons({
     if (model.canRespond) {
         buttons.push({ key: 'accept', label: 'Accept', primary: true, a11y: `Accept trade with ${opponent}`, onPress: actions.onAccept })
         if (model.canReject) buttons.push({ key: 'reject', label: 'Reject', a11y: `Reject trade with ${opponent}`, onPress: actions.onReject })
-        buttons.push({
-            key: 'counter',
-            label: 'Counter',
-            a11y: `Counter trade with ${opponent}`,
-            onPress: () => push({ pathname: '/(modals)/propose-trade', params: { counterTradeId: trade.id } }),
-        })
+        if (!model.isProposer) {
+            buttons.push({
+                key: 'counter',
+                label: 'Counter',
+                a11y: `Counter trade with ${opponent}`,
+                onPress: () => push({ pathname: '/(modals)/propose-trade', params: { counterTradeId: trade.id } }),
+            })
+        }
     }
     if (model.canEdit) {
         buttons.push({
@@ -236,6 +244,14 @@ export function TradeActionButtons({
             onPress: () => push({ pathname: '/(modals)/propose-trade', params: { editTradeId: trade.id } }),
         })
         buttons.push({ key: 'withdraw', label: 'Withdraw', a11y: `Withdraw trade with ${opponent}`, onPress: actions.onWithdraw })
+    }
+    if (model.canRetractAcceptance) {
+        buttons.push({
+            key: 'withdraw-acceptance',
+            label: 'Withdraw acceptance',
+            a11y: `Withdraw your acceptance of the trade with ${opponent}`,
+            onPress: actions.onWithdrawAcceptance ?? (() => undefined),
+        })
     }
     if (model.canVeto) {
         buttons.push({
@@ -284,6 +300,7 @@ export function TradeCard({
     onReject,
     onVeto,
     onWithdraw,
+    onWithdrawAcceptance,
     onAnalyze,
     onOpen,
     reviewMode,
@@ -303,6 +320,7 @@ export function TradeCard({
     onReject: () => void
     onVeto: () => void
     onWithdraw: () => void
+    onWithdrawAcceptance?: () => void
     /** Opens the Trade Analyzer prefilled with this trade; rendered in the card header. */
     onAnalyze: () => void
     /** Shows the full trade: a side pane on wide screens, a sheet on phones. */
@@ -366,7 +384,7 @@ export function TradeCard({
             {!reviewMode ? <TradeActionButtons
                 trade={trade}
                 model={model}
-                actions={{ acting: acting || decisionsDisabled, reviewBeforeAccept: Boolean(onOpen), onAccept, onReject, onVeto, onWithdraw }}
+                actions={{ acting: acting || decisionsDisabled, reviewBeforeAccept: Boolean(onOpen), onAccept, onReject, onVeto, onWithdraw, onWithdrawAcceptance }}
                 withTestIds
             /> : null}
         </View>

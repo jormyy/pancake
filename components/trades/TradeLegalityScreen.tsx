@@ -39,7 +39,7 @@ export function TradeLegalityScreen({ trade, memberId, teams, loading, saving, e
             onScroll={event => { if (scrollPosition) scrollPosition.current = event.nativeEvent.contentOffset.y }}
             onContentSizeChange={() => { if (scrollPosition) scrollRef.current?.scrollTo({ y: scrollPosition.current, animated: false }) }}>
             <TradeCard trade={trade} myMemberId={memberId} tab="offers" acting={saving} reviewMode={mode}
-                onAccept={onSubmit} onReject={onClose} onVeto={onClose} onWithdraw={onClose} onAnalyze={onClose} />
+                onAccept={onSubmit} onReject={onClose} onVeto={onClose} onWithdraw={onClose} onWithdrawAcceptance={onClose} onAnalyze={onClose} />
             <View style={styles.status} accessibilityLiveRegion="polite" testID="trade-roster-status">
                 <Text style={[textStyles.rowTitle, { color: loading ? colors.textSecondary : legal ? colors.successDark : colors.dangerDark }]}>
                     {loading ? 'Checking roster…' : legal ? 'Valid roster' : 'Invalid roster'}

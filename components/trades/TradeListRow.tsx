@@ -174,6 +174,7 @@ export const TradeOfferRow = memo(function TradeOfferRow({
     onReject,
     onVeto,
     onWithdraw,
+    onWithdrawAcceptance,
     onAnalyze,
     selected = false,
     brief = false,
@@ -190,6 +191,7 @@ export const TradeOfferRow = memo(function TradeOfferRow({
     onReject: (tradeId: string) => void
     onVeto: (tradeId: string) => void
     onWithdraw: (tradeId: string) => void
+    onWithdrawAcceptance?: (tradeId: string) => void
     onAnalyze: (trade: Trade) => void
     selected?: boolean
     brief?: boolean
@@ -200,7 +202,8 @@ export const TradeOfferRow = memo(function TradeOfferRow({
         tab={tab} tradeVetoMode={tradeVetoMode} isCommissioner={isCommissioner}
         acting={acting} decisionsDisabled={decisionsDisabled} selected={selected} brief={brief} onAccept={() => setAccepting(true)}
         onReject={() => onReject(item.trade.id)} onVeto={() => onVeto(item.trade.id)}
-        onWithdraw={() => onWithdraw(item.trade.id)} onAnalyze={() => onAnalyze(item.trade)}
+        onWithdraw={() => onWithdraw(item.trade.id)} onWithdrawAcceptance={onWithdrawAcceptance ? () => onWithdrawAcceptance(item.trade.id) : undefined}
+        onAnalyze={() => onAnalyze(item.trade)}
         onOpen={onOpen ? () => onOpen(item.trade) : undefined} />
         {accepting ? <PendingTradeRosterPlan trade={item.trade} memberId={myMemberId} onCancel={() => setAccepting(false)}
             onConfirmed={() => { setAccepting(false); onAccept(item.trade) }} /> : null}</>
