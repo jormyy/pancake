@@ -175,6 +175,7 @@ export const TradeOfferRow = memo(function TradeOfferRow({
     onVeto,
     onWithdraw,
     onWithdrawAcceptance,
+    holdReady = false,
     onAnalyze,
     selected = false,
     brief = false,
@@ -192,6 +193,7 @@ export const TradeOfferRow = memo(function TradeOfferRow({
     onVeto: (tradeId: string) => void
     onWithdraw: (tradeId: string) => void
     onWithdrawAcceptance?: (tradeId: string) => void
+    holdReady?: boolean
     onAnalyze: (trade: Trade) => void
     selected?: boolean
     brief?: boolean
@@ -199,7 +201,7 @@ export const TradeOfferRow = memo(function TradeOfferRow({
 }) {
     const [accepting, setAccepting] = useState(false)
     return <><TradeCard trade={item.trade} myMemberId={myMemberId}
-        tab={tab} tradeVetoMode={tradeVetoMode} isCommissioner={isCommissioner}
+        tab={tab} tradeVetoMode={tradeVetoMode} isCommissioner={isCommissioner} holdReady={holdReady}
         acting={acting} decisionsDisabled={decisionsDisabled} selected={selected} brief={brief} onAccept={() => setAccepting(true)}
         onReject={() => onReject(item.trade.id)} onVeto={() => onVeto(item.trade.id)}
         onWithdraw={() => onWithdraw(item.trade.id)} onWithdrawAcceptance={onWithdrawAcceptance ? () => onWithdrawAcceptance(item.trade.id) : undefined}

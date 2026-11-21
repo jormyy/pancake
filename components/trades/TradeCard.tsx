@@ -50,13 +50,14 @@ export type TradeCardContext = {
     trade: Trade
     myMemberId: string
     tab: TradeTabKey
+    holdReady?: boolean
     reviewMode?: 'propose' | 'accept'
     tradeVetoMode?: TradeVetoMode
     isCommissioner?: boolean
 }
 
 /** Everything a card or detail view needs to describe a trade and its actions. */
-export function tradeCardModel({ trade, myMemberId, tab, tradeVetoMode = 'member_vote', isCommissioner = false, timezone }: TradeCardContext) {
+export function tradeCardModel({ trade, myMemberId, tab, holdReady = false, tradeVetoMode = 'member_vote', isCommissioner = false, timezone }: TradeCardContext) {
     const isProposer = trade.proposerMemberId === myMemberId
     const isRecipient = trade.recipientMemberId === myMemberId
     const participants = trade.participants
@@ -77,7 +78,7 @@ export function tradeCardModel({ trade, myMemberId, tab, tradeVetoMode = 'member
     const myParticipant = participants.find((participant) => participant.memberId === myMemberId)
     const acceptedByMe = myParticipant ? myParticipant.acceptedAt != null : isProposer
     const unanimous = participants.length > 0 && participants.every((participant) => participant.acceptedAt != null)
-    const canRetractAcceptance = tab === 'offers' && trade.status === 'pending' && isTradeParty && acceptedByMe && !unanimous
+    const canRetractAcceptance = holdReady && tab === 'offers' && trade.status === 'pending' && isTradeParty && acceptedByMe && !unanimous
     const canReject = canRespond && (!trade.isMultiTeam || !isProposer)
     const canEdit = tab === 'offers' && isProposer && trade.status === 'pending'
     const meta = [
@@ -304,10 +305,12 @@ export function TradeCard({
     onAnalyze,
     onOpen,
     reviewMode,
+    holdReady = false,
 }: {
     trade: Trade
     myMemberId: string
     tab: TradeTabKey
+    holdReady?: boolean
     reviewMode?: 'propose' | 'accept'
     tradeVetoMode?: TradeVetoMode
     isCommissioner?: boolean
@@ -327,7 +330,7 @@ export function TradeCard({
     onOpen?: () => void
 }) {
     const timezone = useLeagueTimezone()
-    const model = tradeCardModel({ trade, myMemberId, tab, tradeVetoMode, isCommissioner, timezone })
+    const model = tradeCardModel({ trade, myMemberId, tab, holdReady, tradeVetoMode, isCommissioner, timezone })
     const pickContext = tradePickContext(trade, myMemberId)
     if (reviewMode === 'propose') model.status = 'Draft'
 

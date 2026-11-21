@@ -57,6 +57,15 @@ export async function checkRosterHold(
     return result.conflicts ?? []
 }
 
+export async function probeRosterHoldReady(memberId: string): Promise<boolean> {
+    try {
+        const result = await apiReadPost<{ conflicts?: unknown }>('/waivers/roster-hold-check', { memberId })
+        return Array.isArray(result.conflicts)
+    } catch {
+        return false
+    }
+}
+
 export async function submitWaiverClaim(
     memberId: string,
     leagueId: string,

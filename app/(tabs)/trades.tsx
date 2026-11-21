@@ -34,6 +34,7 @@ import { useTradeHistoryFeed } from '@/hooks/use-trade-history-feed'
 import { usePendingTradeCount } from '@/hooks/use-pending-trade-count'
 import { useTradeBlock } from '@/hooks/use-trade-block'
 import { useTradeActions } from '@/hooks/use-trade-actions'
+import { useRosterHoldReady } from '@/hooks/use-roster-hold-ready'
 
 import { useAuth } from '@/hooks/use-auth'
 import {
@@ -132,6 +133,7 @@ function TradesScreen() {
         tradeVetoMode: currentLeague?.trade_veto_mode,
         tradeVetoWindowHours: currentLeague?.trade_veto_window_hours,
     })
+    const holdReady = useRosterHoldReady(myMemberId)
     const {
         items: blockItems,
         hasData: blockHasData,
@@ -218,13 +220,14 @@ function TradesScreen() {
                     onAccept={openTradeDetails} onReject={tradeActions.reject}
                     onVeto={tradeActions.veto} onWithdraw={tradeActions.withdraw}
                     onWithdrawAcceptance={tradeActions.retractAcceptance}
+                    holdReady={holdReady}
                     onAnalyze={openAnalyzer} selected={split && item.trade.id === openTrade?.id} brief={split}
                     onOpen={openTradeDetails} />
         }
     }, [blockAvgMap, blockAvgStatsMap, blockBusyId, decisionsDisabled, currentLeague?.trade_veto_mode, gridColumns, handleListPick, handleListPlayer,
         handleRemoveBlockItem, handleSaveBlockNote, isCommissioner, listedPickIds, listedPlayerIds, myMemberId, myTeamName,
         openAnalyzer, openTrade?.id, openTradeDetails, split, tab, tradeActions.busyTradeId, tradeActions.reject,
-        tradeActions.retractAcceptance, tradeActions.veto, tradeActions.withdraw])
+        holdReady, tradeActions.retractAcceptance, tradeActions.veto, tradeActions.withdraw])
 
     const activeTabLoading = tab === 'block' ? !blockDisplayReady || (picksLoading && picks === null)
         : tab === 'history' ? historyLoading && !historyHasData
@@ -290,6 +293,7 @@ function TradesScreen() {
         trade: openTrade,
         myMemberId,
         tab,
+        holdReady,
         tradeVetoMode: currentLeague?.trade_veto_mode ?? 'member_vote',
         isCommissioner,
     } : null

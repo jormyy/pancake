@@ -78,13 +78,19 @@ describe('canWithdrawAcceptance', () => {
     it('hides the action outside the pending window', () => {
         expect(canWithdrawAcceptance(trade({ status: 'accepted' }), 'member-a')).toBe(false)
     })
+
+    it('only offers the action after the hold backend answers', () => {
+        const offer = multi(['2026-08-27T00:00:00Z', null])
+        expect(tradeCardModel({ trade: offer, myMemberId: 'member-a', tab: 'offers' }).canRetractAcceptance).toBe(false)
+        expect(tradeCardModel({ trade: offer, myMemberId: 'member-a', tab: 'offers', holdReady: true }).canRetractAcceptance).toBe(true)
+    })
 })
 
 describe('TradeActionButtons', () => {
     it('shows Withdraw acceptance while other teams decide and calls the retract action', async () => {
         const onWithdrawAcceptance = vi.fn()
         const offer = multi(['2026-08-27T00:00:00Z', null])
-        const model = tradeCardModel({ trade: offer, myMemberId: 'member-a', tab: 'offers' })
+        const model = tradeCardModel({ trade: offer, myMemberId: 'member-a', tab: 'offers', holdReady: true })
         let renderer!: ReactTestRenderer
         await act(async () => {
             renderer = create(React.createElement(TradeActionButtons, {
@@ -102,7 +108,7 @@ describe('TradeActionButtons', () => {
 
     it('hides Withdraw acceptance once the trade is unanimous', async () => {
         const offer = multi(['2026-08-27T00:00:00Z', '2026-08-27T01:00:00Z'])
-        const model = tradeCardModel({ trade: offer, myMemberId: 'member-a', tab: 'offers' })
+        const model = tradeCardModel({ trade: offer, myMemberId: 'member-a', tab: 'offers', holdReady: true })
         let renderer!: ReactTestRenderer
         await act(async () => {
             renderer = create(React.createElement(TradeActionButtons, {
@@ -118,7 +124,7 @@ describe('TradeActionButtons', () => {
 
     it('hides Counter for the proposer after it retracts its acceptance', async () => {
         const offer = multi([null, '2026-08-27T01:00:00Z'])
-        const model = tradeCardModel({ trade: offer, myMemberId: 'member-a', tab: 'offers' })
+        const model = tradeCardModel({ trade: offer, myMemberId: 'member-a', tab: 'offers', holdReady: true })
         expect(model.canRespond).toBe(true)
         expect(model.isProposer).toBe(true)
         let renderer!: ReactTestRenderer
@@ -139,7 +145,7 @@ describe('TradeActionButtons', () => {
 
     it('keeps Counter for a team that did not propose the trade', async () => {
         const offer = multi([null, null])
-        const model = tradeCardModel({ trade: offer, myMemberId: 'member-1', tab: 'offers' })
+        const model = tradeCardModel({ trade: offer, myMemberId: 'member-1', tab: 'offers', holdReady: true })
         expect(model.canRespond).toBe(true)
         expect(model.isProposer).toBe(false)
         let renderer!: ReactTestRenderer
