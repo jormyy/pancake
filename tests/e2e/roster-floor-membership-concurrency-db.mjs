@@ -9,7 +9,7 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
 function query(sql, appName) {
   return new Promise((resolve, reject) => {
-    const child = spawn('psql', [url, '-X', '-qAt', '-v', 'ON_ERROR_STOP=1', '-c', sql], {
+    const child = spawn('psql', [url, '-X', '-qAt', '-v', 'ON_ERROR_STOP=1', ...[sql].flat().flatMap((command) => ['-c', command])], {
       stdio: ['ignore', 'pipe', 'pipe'],
       env: appName ? { ...process.env, PGAPPNAME: appName } : process.env,
     })
@@ -163,7 +163,13 @@ const runFloorFirst = async (year) => {
       DELETE FROM public.waiver_priorities WHERE league_id = ${quote(fixture.league)} AND league_season_id = ${quote(fixture.season)} AND member_id = ${quote(fixture.members[2])};
       DELETE FROM public.matchups WHERE league_id = ${quote(fixture.league)} AND league_season_id = ${quote(fixture.season)} AND (home_member_id = ${quote(fixture.members[2])} OR away_member_id = ${quote(fixture.members[2])});
       COMMIT;`)
-    const floor = query(`BEGIN; SELECT public.process_roster_floor_service(${quote(fixture.league)}, ${quote(fixture.season)}); SELECT pg_advisory_xact_lock(hashtext('membership-floor-hold')); SELECT pg_sleep(4); COMMIT;`, 'floor-hold')
+    const floor = query([
+      'BEGIN',
+      `SELECT public.process_roster_floor_service(${quote(fixture.league)}, ${quote(fixture.season)})`,
+      `SELECT pg_advisory_xact_lock(hashtext('membership-floor-hold'))`,
+      'SELECT pg_sleep(4)',
+      'COMMIT',
+    ], 'floor-hold')
     for (let attempt = 0; attempt < 50 && !(await floorHeld()); attempt += 1) await sleep(100)
     assert(await floorHeld(), 'The floor transaction did not reach its hold.')
     const del = query(`BEGIN; SET LOCAL statement_timeout = '20s'; DELETE FROM public.league_members WHERE id = ${quote(fixture.members[2])} AND league_id = ${quote(fixture.league)}; COMMIT;`, 'member-delete')
