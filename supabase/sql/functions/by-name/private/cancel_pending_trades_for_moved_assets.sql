@@ -13,11 +13,7 @@ BEGIN
     JOIN public.trades other ON other.league_id=source.league_id
       AND other.league_season_id=source.league_season_id AND other.id<>source.id AND other.status='pending'
     WHERE source.id=p_trade_id AND source.status IN ('accepted','completed')
-      AND (EXISTS(SELECT 1 FROM public.trade_items item WHERE item.trade_id=other.id
-        AND (item.player_id=moved.player_id OR item.pick_id=moved.pick_id))
-        OR EXISTS(SELECT 1 FROM public.trade_participants participant WHERE participant.trade_id=other.id
-          AND (moved.player_id=ANY(participant.drop_player_ids)
-            OR participant.roster_moves @> jsonb_build_array(jsonb_build_object('playerId',moved.player_id::text)))))
+      AND other.id IN (SELECT withdrawn.trade_id FROM private.pending_trades_withdrawn_by(p_trade_id) withdrawn)
     GROUP BY other.id ORDER BY other.id
   LOOP
     UPDATE public.trades SET status='withdrawn',completion_failure_reason=CASE

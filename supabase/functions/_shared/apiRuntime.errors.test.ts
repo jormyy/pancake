@@ -71,3 +71,19 @@ Deno.test('an unknown PT code remains an internal error', async () => {
   expect(body.error, 'Internal server error', 'error')
   expect(body.code, undefined, 'code')
 })
+
+Deno.test('a roster hold rejection carries its conflicts and the roster_hold code', async () => {
+  const conflicts = [{
+    tradeId: '11111111-1111-4111-8111-111111111111',
+    holderTeamName: 'E2E Team 1',
+    partnerTeamNames: ['E2E Team 2'],
+    canWithdraw: true,
+    message: 'Your accepted trade with E2E Team 2 needs this roster spot. Add a drop or withdraw your acceptance.',
+  }]
+  const failure = { code: 'PT409', message: conflicts[0].message, details: JSON.stringify({ code: 'roster_hold', conflicts }) }
+  const { status, body } = await respond(() => throwDb(failure))
+  expect(status, 409, 'status')
+  expect(body.error, conflicts[0].message, 'error')
+  expect(body.code, 'roster_hold', 'code')
+  expect((body as { conflicts?: unknown }).conflicts, conflicts, 'conflicts')
+})

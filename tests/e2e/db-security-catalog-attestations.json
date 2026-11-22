@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261214011200",
+  "candidateVersion": "20261214011300",
   "common": {
     "functions": [
       {
@@ -898,7 +898,7 @@
           "strict": false,
           "language": "plpgsql",
           "arguments": "p_claim_id uuid, p_member_id uuid, p_user_id uuid, p_drop_player_id uuid DEFAULT NULL::uuid, p_bid_amount integer DEFAULT 0, p_claim_order integer DEFAULT NULL::integer, p_to_ir boolean DEFAULT NULL::boolean, p_to_taxi boolean DEFAULT NULL::boolean",
-          "bodySha256": "a7d5c29e28cd4aac1bda9e7c3c73b0d63ee2b55894217af6c0d8ea49108707c2",
+          "bodySha256": "c7b61cbf515708f4f8091919afef6f67a351107124c228fc7a927e99eafe05e6",
           "volatility": "v",
           "anonExecute": false,
           "publicExecute": false,
@@ -2721,6 +2721,10 @@
     {
       "filename": "20261214011200_auto_manage_ir_service.sql",
       "sha256": "8d2402a4b326cfdace54ee13f3700eda9cb92aec30acb9b9bd0b71d8cf7a8be1"
+    },
+    {
+      "filename": "20261214011300_trade_roster_holds.sql",
+      "sha256": "0b420d673cb546dbdd92db9aee92323603cba587babee6464d0a5200396f99dd"
     }
   ],
   "preMigration": {

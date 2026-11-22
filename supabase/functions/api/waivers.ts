@@ -1,4 +1,4 @@
-import { assertUuid, invokeInternalFunction, json, optionalBooleanField, optionalIntegerField, optionalUuidField, readJsonObject, requireAdmin, requireUser, stringField, throwDb, uuidField, verifyOwnMember } from '../_shared/apiRuntime.ts'
+import { assertUuid, invokeInternalFunction, json, optionalBooleanField, optionalIntegerField, optionalUuidArrayField, optionalUuidField, readJsonObject, requireAdmin, requireUser, stringField, throwDb, uuidField, verifyOwnMember } from '../_shared/apiRuntime.ts'
 import { supabase } from '../_shared/supabase.ts'
 
 async function createClaim(
@@ -64,6 +64,23 @@ async function reorderClaim(userId: string, claimId: string, body: Record<string
 
 export async function handleWaiverRoute(req: Request, path: string): Promise<Response | null> {
   if (req.method !== 'POST') return null
+
+  if (path === '/waivers/roster-hold-check') {
+    const userId = await requireUser(req)
+    const body = await readJsonObject(req)
+    const memberId = uuidField(body, 'memberId')
+    await verifyOwnMember(userId, memberId)
+    const { data, error } = await supabase.rpc('trade_roster_hold_check', {
+      p_member_id: memberId,
+      p_user_id: userId,
+      p_add_player_id: optionalUuidField(body, 'addPlayerId') ?? undefined,
+      p_drop_player_ids: optionalUuidArrayField(body, 'dropPlayerIds'),
+      p_to_ir: optionalBooleanField(body, 'toIr') ?? false,
+      p_to_taxi: optionalBooleanField(body, 'toTaxi') ?? false,
+    })
+    if (error) throwDb(error)
+    return json({ conflicts: data ?? [] })
+  }
 
   if (path === '/waivers/claims') {
     const userId = await requireUser(req)

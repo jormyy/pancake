@@ -38,6 +38,7 @@ import { playerSeasonFilterOptions, playerAverageLabel } from '@/lib/player-sear
 
 import { currentSeasonYear } from '@/lib/shared/season'
 import { useQuickAdd, type PickupClaimSelection } from '@/hooks/use-quick-add'
+import { useRosterHoldCheck } from '@/hooks/use-roster-hold-check'
 import { addLimitSummary } from '@/lib/pickup'
 import { PlayerRow } from '@/lib/players'
 import { useCallback, useEffect, useState } from 'react'
@@ -208,6 +209,11 @@ function PlayerSearchSection() {
         taxiSlots: currentLeague?.taxi_slots ?? 0,
         rosterSize: currentLeague?.roster_size ?? 20,
         onClaimInstead: openClaim,
+    })
+    const holdCheck = useRosterHoldCheck({
+        memberId: current?.id,
+        addPlayerId: quickAdd.dropPickerPlayer?.id ?? null,
+        enabled: quickAdd.dropPickerPlayer != null,
     })
     const availabilityUpdating = supportSnapshot || playerSupportFetchLoading || playerSupportRefreshing || Boolean(playerSupportError)
     const addBlockedReason = quickAdd.addBlockedReason
@@ -497,6 +503,10 @@ function PlayerSearchSection() {
                 onAddToTaxi={quickAdd.taxiAvailable ? quickAdd.handleAddToTaxi : undefined}
                 irMoveCandidates={quickAdd.irMoveCandidates}
                 onMoveToIR={quickAdd.handleMoveToIRAndAdd}
+                holdConflicts={holdCheck.conflicts}
+                onWithdrawHold={holdCheck.withdraw}
+                withdrawingHoldTradeId={holdCheck.withdrawingTradeId}
+                holdNotice={holdCheck.withdrawNotice}
                 onCancel={() => quickAdd.setDropPickerPlayer(null)}
             />
 

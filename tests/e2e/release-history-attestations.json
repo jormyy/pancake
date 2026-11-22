@@ -3665,6 +3665,13 @@
       "statementCount": 10,
       "statementsSha256": "55260b719b9dc4bf88f1a7e251624292e1ff987391d2d31d58b687bb909df81a",
       "sha256": "8d2402a4b326cfdace54ee13f3700eda9cb92aec30acb9b9bd0b71d8cf7a8be1"
+    },
+    {
+      "name": "trade_roster_holds",
+      "version": "20261214011300",
+      "statementCount": 23,
+      "statementsSha256": "0430bc5bb6f2ae3b24a4811e9a0567429fa1c6c6768512ef436bc71513f724b1",
+      "sha256": "0b420d673cb546dbdd92db9aee92323603cba587babee6464d0a5200396f99dd"
     }
   ]
 }

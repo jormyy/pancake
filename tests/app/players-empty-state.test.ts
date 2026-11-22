@@ -17,6 +17,7 @@ vi.mock('@/hooks/use-player-search', () => ({
     useVisiblePlayerRows: (rows: unknown[]) => ({ rows }), SORT_OPTIONS: [],
 }))
 vi.mock('@/hooks/use-quick-add', () => ({ useQuickAdd: () => ({ dropPickerPlayer: null, irModal: null }) }))
+vi.mock('@/hooks/use-roster-hold-check', () => ({ useRosterHoldCheck: () => ({ conflicts: [], checking: false, recheck: vi.fn(), withdraw: vi.fn(), withdrawingTradeId: null, withdrawNotice: null }) }))
 vi.mock('@/lib/tab-snapshot', () => ({ readTabSnapshot: () => undefined, writeTabSnapshot: vi.fn(), tabSnapshotScope: () => 'owner', tabSnapshotRevision: () => 'revision' }))
 vi.mock('@/lib/player-availability', () => ({ loadPlayerSupport: vi.fn() }))
 vi.mock('@/lib/supabase', () => ({ supabase: {} }))

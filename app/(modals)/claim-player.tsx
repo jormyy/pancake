@@ -40,6 +40,8 @@ import { type MemberTransactionState } from '@/lib/league'
 import { addLimitSummary, claimRosterProblems, pickupDestinations, reportPickupError } from '@/lib/pickup'
 import { blockedActionProps } from '@/lib/a11y'
 import { useAddLimitGate } from '@/hooks/use-add-limit-gate'
+import { useRosterHoldCheck } from '@/hooks/use-roster-hold-check'
+import { RosterHoldWarning } from '@/components/roster/RosterHoldWarning'
 import { colors, controlSize, fontFamily, fontSize, fontWeight, layout, radii, spacing, table, textStyles, uiColors } from '@/constants/tokens'
 import { LoadingState, PageHeader, usePageMetrics } from '@/components/ui'
 import { Card } from '@/components/ui/Card'
@@ -92,6 +94,9 @@ export default function ClaimPlayerScreen() {
     const [savedProcessDate, setSavedProcessDate] = useState<string | null>(null)
     const [loading, setLoading] = useState(!initialCache)
     const [selectedDrop, setSelectedDrop] = useState<RosterPlayer | null>(null)
+    const bodyScrollRef = useRef<ScrollView>(null)
+    const dropSectionY = useRef(0)
+    const firstDropIdRef = useRef<string | null>(null)
     useEffect(() => {
         if (draftOwner?.key !== ownerKey || submittedForm.current === ownerKey) return
         recoveryReady.current = saveEditorDraft('claim', draftOwner.scope, {
@@ -231,6 +236,25 @@ export default function ClaimPlayerScreen() {
     const faab = currentLeague?.waiver_mode === 'faab'
     const balanceUnknown = faab && transactionState == null
     const { addBlockedReason, explainBlock } = useAddLimitGate({ transactionState, refresh: refreshTransactionState })
+    const holdCheck = useRosterHoldCheck({
+        memberId,
+        addPlayerId: playerId,
+        dropPlayerIds: selectedDrop ? [selectedDrop.players.id] : [],
+        toIr,
+        toTaxi,
+        enabled: online && !loading && !!player && !!memberId,
+    })
+
+    const focusDropChooser = useCallback(() => {
+        const id = firstDropIdRef.current
+        if (Platform.OS === 'web' && typeof document !== 'undefined' && id) {
+            const node = document.getElementById(`claim-drop-${id}`)
+            node?.scrollIntoView?.({ block: 'center' })
+            node?.focus?.()
+            return
+        }
+        bodyScrollRef.current?.scrollTo({ y: Math.max(0, dropSectionY.current - spacing.lg), animated: true })
+    }, [])
 
     async function handleSubmit() {
         if ((!online || !canAct()) || submittingRef.current === ownerRef.current) return
@@ -286,7 +310,10 @@ export default function ClaimPlayerScreen() {
             )
             goBack()
         } catch (e) {
-            if (ownerRef.current === owner && !await rosterLegality.report(e)) reportPickupError(e, { refresh: refreshTransactionState })
+            if (ownerRef.current === owner && !await rosterLegality.report(e)) {
+                reportPickupError(e, { refresh: refreshTransactionState })
+                void holdCheck.recheck()
+            }
         } finally {
             if (submittingRef.current === owner) submittingRef.current = null
             if (ownerRef.current === owner) setSubmittingOwner(null)
@@ -296,7 +323,7 @@ export default function ClaimPlayerScreen() {
     const processDateStr = savedProcessDate ? scheduledClaimLabel(savedProcessDate, currentLeague?.timezone) : claimProcessDateLabel(clearsAt, new Date(), currentLeague?.timezone)
     const claimReady = online && canAct() && !loading && !loadError && !!player
     const selectedDropLocks = readAssetLocks(selectedDrop).filter(lock => lock.sourceId !== claimId)
-    const submitDisabled = submitting || !claimReady || balanceUnknown || (needsDrop && !selectedDrop) || selectedDropLocks.length > 0 || placementBlocked
+    const submitDisabled = submitting || !claimReady || balanceUnknown || (needsDrop && !selectedDrop) || selectedDropLocks.length > 0 || placementBlocked || holdCheck.conflicts.length > 0
     const compactDropMode = isCompactLandscape && needsDrop
     // Wide screens put the claim beside the drop list instead of stacking them.
     const twoColumn = needsDrop && !isCompactLandscape && usableWidth >= TWO_COLUMN_MIN
@@ -377,6 +404,11 @@ export default function ClaimPlayerScreen() {
         </>
     }
 
+    function renderHoldWarning() {
+        return <RosterHoldWarning conflicts={holdCheck.conflicts} onPickDrop={myRoster.length > 0 ? focusDropChooser : undefined}
+            onWithdraw={holdCheck.withdraw} withdrawingTradeId={holdCheck.withdrawingTradeId} notice={holdCheck.withdrawNotice} />
+    }
+
     function renderClaimSummary() {
         return (
             <Card style={styles.claimCard}>
@@ -387,6 +419,7 @@ export default function ClaimPlayerScreen() {
                 </View>
                 <Text style={styles.claimFacts}>{claimFacts}</Text>
                 {renderIRChoice()}
+                {renderHoldWarning()}
                 {placementBlocked ? <Text style={styles.claimMeta}>This drop does not free an Active slot. Choose an eligible destination.</Text> : null}
                 {faab ? (
                     <View style={styles.bidRow}>
@@ -410,6 +443,7 @@ export default function ClaimPlayerScreen() {
     }
 
     function renderDropSection() {
+        firstDropIdRef.current = null
         if (myRoster.length === 0) {
             return (
                 <View style={styles.spaceNote}>
@@ -418,7 +452,7 @@ export default function ClaimPlayerScreen() {
             )
         }
         return (
-            <View style={styles.dropSection}>
+            <View style={styles.dropSection} onLayout={event => { dropSectionY.current = event.nativeEvent.layout.y }}>
                 <View style={styles.dropHeading}>
                     {/* Literal casing: browser checks read this label verbatim. */}
                     <Text style={styles.sectionTitle}>
@@ -443,8 +477,10 @@ export default function ClaimPlayerScreen() {
             },taxiExitIds,item) : null
             const noRoom = !isSelected && available != null && !available.active && !available.taxi && !available.ir
             const noRoomReason = noRoom ? `Dropping ${item.players.display_name} does not make room for ${player?.display_name ?? 'this player'}.` : undefined
+            if (firstDropIdRef.current === null && !noRoom && locks.length === 0) firstDropIdRef.current = item.id
             return (
                 <View key={item.id}><AssetSelectionRow locks={locks}
+                    nativeID={`claim-drop-${item.id}`}
                     style={[styles.rosterRow, index > 0 && styles.rosterRowDivider, isSelected && styles.rosterRowSelected, noRoom && styles.rosterRowNoRoom]}
                     onPress={() => {
                         if (noRoomReason) {
@@ -521,6 +557,7 @@ export default function ClaimPlayerScreen() {
                     />
                 ) : twoColumn ? (
                     <ScrollView
+                        ref={bodyScrollRef}
                         style={styles.bodyScroll}
                         contentContainerStyle={[styles.bodyContent, styles.bodyContentWide, { paddingHorizontal: padX }]}
                         keyboardShouldPersistTaps="handled"
@@ -536,12 +573,13 @@ export default function ClaimPlayerScreen() {
                 ) : (
                     <>
                         <ScrollView
+                            ref={bodyScrollRef}
                             style={styles.bodyScroll}
                             contentContainerStyle={[styles.bodyContent, { paddingHorizontal: padX }]}
                             keyboardShouldPersistTaps="handled"
                         >
                             {renderAddLimitNotice()}
-                            {!compactDropMode ? renderClaimSummary() : renderIRChoice()}
+                            {!compactDropMode ? renderClaimSummary() : <>{renderIRChoice()}{renderHoldWarning()}</>}
                             {renderDropSection()}
                         </ScrollView>
                         {bidFooter}

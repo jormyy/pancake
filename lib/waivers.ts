@@ -1,6 +1,6 @@
 import { formatLeagueTime, resolveLeagueTimezone, startOfLeagueDayUTC, todayLeague } from '@/lib/timezone'
 import { assertMutationOnline } from '@/lib/shared/pwa-mutation'
-import { apiPost } from '@/lib/shared/api'
+import { apiPost, apiReadPost } from '@/lib/shared/api'
 import { sessionGeneration } from '@/lib/session-cache-registry'
 import { notifyMemberClaimsChanged } from '@/lib/claim-updates'
 
@@ -27,6 +27,43 @@ export type WaiverClaim = {
     playerYearsExp?: number | null
     playerCareerGames?: number | null
     failureReason: string | null
+}
+
+export type RosterHoldConflict = {
+    tradeId: string
+    holderTeamName: string
+    partnerTeamNames: string[]
+    canWithdraw: boolean
+    message: string
+}
+
+export function rosterHoldPartnerLabel(partnerTeamNames: string[]): string {
+    if (partnerTeamNames.length === 0) return ''
+    if (partnerTeamNames.length === 1) return partnerTeamNames[0]
+    return `${partnerTeamNames.slice(0, -1).join(', ')} and ${partnerTeamNames[partnerTeamNames.length - 1]}`
+}
+
+export async function checkRosterHold(
+    memberId: string,
+    options: { addPlayerId?: string; dropPlayerIds?: string[]; toIr?: boolean; toTaxi?: boolean } = {},
+): Promise<RosterHoldConflict[]> {
+    const result = await apiReadPost<{ conflicts?: RosterHoldConflict[] }>('/waivers/roster-hold-check', {
+        memberId,
+        ...(options.addPlayerId ? { addPlayerId: options.addPlayerId } : {}),
+        ...(options.dropPlayerIds?.length ? { dropPlayerIds: options.dropPlayerIds } : {}),
+        ...(options.toIr ? { toIr: true } : {}),
+        ...(options.toTaxi ? { toTaxi: true } : {}),
+    })
+    return result.conflicts ?? []
+}
+
+export async function probeRosterHoldReady(memberId: string): Promise<boolean> {
+    try {
+        const result = await apiReadPost<{ conflicts?: unknown }>('/waivers/roster-hold-check', { memberId })
+        return Array.isArray(result.conflicts)
+    } catch {
+        return false
+    }
 }
 
 export async function submitWaiverClaim(

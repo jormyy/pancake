@@ -8,6 +8,10 @@ const backend = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, as
   const path = new URL(request.url).pathname
   if (path === '/auth/v1/user') return Response.json({ id: user })
   if (path === '/rest/v1/league_members') return Response.json({ id: member, user_id: user })
+  if (path === '/rest/v1/rpc/trade_roster_hold_check') {
+    calls.push(await request.json())
+    return Response.json([{ tradeId: claim, holderTeamName: 'E2E Team 1', partnerTeamNames: ['E2E Team 2'], canWithdraw: true, message: 'Your accepted trade with E2E Team 2 needs this roster spot. Add a drop or withdraw your acceptance.' }])
+  }
   assert.ok(path === '/rest/v1/rpc/edit_waiver_claim_atomic' || path === '/rest/v1/rpc/create_waiver_claim_atomic')
   calls.push(await request.json())
   return new Response(null, { status: 204 })
@@ -55,6 +59,23 @@ Deno.test('waiver creation forwards the taxi destination and the default IR choi
   assert.equal(response?.status, 200)
   assert.deepEqual(calls.at(-1), { p_member_id: member, p_league_id: claim, p_player_id: user,
     p_user_id: user, p_bid_amount: 0, p_to_ir: false, p_to_taxi: true })
+})
+
+Deno.test('roster hold check forwards the prospective add and returns conflicts', async () => {
+  const path = '/waivers/roster-hold-check'
+  const response = await handleWaiverRoute(new Request(`http://localhost${path}`, {
+    method: 'POST', headers: { authorization: 'Bearer fixture', 'content-type': 'application/json' },
+    body: JSON.stringify({ memberId: member, addPlayerId: user, dropPlayerIds: [claim], toIr: false, toTaxi: true }),
+  }), path)
+  assert.equal(response?.status, 200)
+  assert.deepEqual(calls.at(-1), {
+    p_member_id: member, p_user_id: user, p_add_player_id: user,
+    p_drop_player_ids: [claim], p_to_ir: false, p_to_taxi: true,
+  })
+  const body = await response!.json() as { conflicts: { tradeId: string; canWithdraw: boolean }[] }
+  assert.equal(body.conflicts.length, 1)
+  assert.equal(body.conflicts[0].tradeId, claim)
+  assert.equal(body.conflicts[0].canWithdraw, true)
 })
 
 Deno.test({ name: 'close waiver test server', sanitizeOps: false, sanitizeResources: false, fn: () => backend.shutdown() })

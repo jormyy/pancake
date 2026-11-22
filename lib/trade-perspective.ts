@@ -74,6 +74,22 @@ export function needsMemberAcceptance(
     return trade.recipientMemberId === memberId && trade.proposerMemberId !== memberId
 }
 
+export function canWithdrawAcceptance(
+    trade: Pick<TradePerspectiveInput, 'status' | 'proposerMemberId' | 'recipientMemberId' | 'participants'>,
+    memberId: string,
+): boolean {
+    if (trade.status !== 'pending' || !isTradeParticipant(trade, memberId)) {
+        return false
+    }
+
+    const participant = trade.participants.find((row) => row.memberId === memberId)
+    const accepted = participant ? participant.acceptedAt != null : trade.proposerMemberId === memberId
+    if (!accepted) return false
+
+    if (trade.participants.length === 0) return trade.proposerMemberId === memberId
+    return trade.participants.some((row) => row.acceptedAt == null)
+}
+
 export function isOutgoingTradeForMember(
     trade: Pick<TradePerspectiveInput, 'status' | 'proposerMemberId' | 'recipientMemberId' | 'participants'>,
     memberId: string,

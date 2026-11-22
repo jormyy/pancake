@@ -56,14 +56,11 @@ BEGIN
   trade:=public.propose_trade_atomic(f.league_id,f.season_id,f.member_ids[1],f.member_ids[2],ARRAY[p[1]],'{}','{}',ARRAY[pick]);
   PERFORM public.accept_trade_atomic(trade,f.member_ids[2]);
   other_trade:=public.propose_trade_atomic(f.league_id,f.season_id,f.member_ids[3],f.member_ids[2],ARRAY[p[4]],'{}','{}',ARRAY[other_pick]);
-  PERFORM pg_temp.reject_rules(format('SELECT accept_trade_atomic(%L,%L)',other_trade,f.member_ids[2]),'%accepted trades reserve%','two accepted trades cannot consume the same free slot');
+  PERFORM pg_temp.reject_rules(format('SELECT accept_trade_atomic(%L,%L)',other_trade,f.member_ids[2]),'%needs this roster spot%','two accepted trades cannot consume the same free slot');
   PERFORM public.withdraw_trade_atomic(other_trade,f.member_ids[3],f.user_ids[3]);
-  claim:=public.create_waiver_claim_atomic(f.league_id,f.member_ids[2],p[3],NULL,f.user_ids[2],0,1);
-  UPDATE waiver_claims SET process_date=(now() AT TIME ZONE 'America/New_York')::date-1 WHERE id=claim;
-  PERFORM public.process_next_waiver_claim_atomic((now() AT TIME ZONE 'America/New_York')::date);
-  PERFORM pg_temp.check_rules((SELECT status='failed_roster' AND failure_reason LIKE '%reserve roster capacity%' FROM waiver_claims WHERE id=claim),'waiver cannot spend accepted capacity');
-  PERFORM pg_temp.check_rules(NOT EXISTS(SELECT 1 FROM roster_players WHERE player_id=p[3]),'failed capacity award has no acquisition');
-  PERFORM pg_temp.check_rules(NOT EXISTS(SELECT 1 FROM weekly_add_counts WHERE member_id=f.member_ids[2] AND add_count>0),'failed capacity award consumes no add');
+  PERFORM pg_temp.reject_rules(format('SELECT public.create_waiver_claim_atomic(%L,%L,%L,NULL,%L,0,1)',f.league_id,f.member_ids[2],p[3],f.user_ids[2]),'%needs this roster spot%','a waiver claim cannot spend accepted capacity');
+  PERFORM pg_temp.check_rules(NOT EXISTS(SELECT 1 FROM roster_players WHERE player_id=p[3]),'blocked capacity claim has no acquisition');
+  PERFORM pg_temp.check_rules(NOT EXISTS(SELECT 1 FROM weekly_add_counts WHERE member_id=f.member_ids[2] AND add_count>0),'blocked capacity claim consumes no add');
   PERFORM public.veto_trade_atomic(trade,f.member_ids[3]);
   claim:=public.create_waiver_claim_atomic(f.league_id,f.member_ids[2],p[3],NULL,f.user_ids[2],0,1);
   UPDATE waiver_claims SET process_date=(now() AT TIME ZONE 'America/New_York')::date-1 WHERE id=claim;
