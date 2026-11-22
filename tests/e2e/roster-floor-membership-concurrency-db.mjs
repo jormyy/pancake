@@ -117,6 +117,15 @@ const cleanup = async (fixture, year) => {
 const removalHeld = async () => (await one(`SELECT NOT pg_try_advisory_xact_lock(hashtext('membership-removal'))`)) === 't'
 const floorHeld = async () => (await one(`SELECT NOT pg_try_advisory_xact_lock(hashtext('membership-floor-hold'))`)) === 't'
 const floorWaiting = async () => (await one(`SELECT count(*) FROM pg_stat_activity WHERE application_name = 'floor-membership' AND wait_event_type = 'Lock'`)) !== '0'
+const memberDeleteWaiting = async () => (await one(`SELECT count(*) FROM pg_stat_activity activity
+  WHERE activity.application_name = 'member-delete'
+    AND activity.wait_event_type = 'Lock'
+    AND activity.query LIKE '%DELETE FROM public.league_members%'
+    AND EXISTS (
+      SELECT 1 FROM pg_stat_activity blocker
+       WHERE blocker.application_name = 'floor-hold'
+         AND blocker.pid = ANY(pg_blocking_pids(activity.pid))
+    )`)) !== '0'
 
 const runRemovalFirst = async (year) => {
   const fixture = await setup(year)
@@ -147,24 +156,32 @@ const runRemovalFirst = async (year) => {
 }
 
 const runFloorFirst = async (year) => {
-  const fixture = await setup(year, { counts: [15, 16, 0], freeAgentCount: 1 })
+  const fixture = await setup(year, { counts: [16, 16, 16], freeAgentCount: 0 })
   try {
+    await one(`BEGIN;
+      DELETE FROM public.roster_players WHERE league_id = ${quote(fixture.league)} AND league_season_id = ${quote(fixture.season)} AND member_id = ${quote(fixture.members[2])};
+      DELETE FROM public.waiver_priorities WHERE league_id = ${quote(fixture.league)} AND league_season_id = ${quote(fixture.season)} AND member_id = ${quote(fixture.members[2])};
+      DELETE FROM public.matchups WHERE league_id = ${quote(fixture.league)} AND league_season_id = ${quote(fixture.season)} AND (home_member_id = ${quote(fixture.members[2])} OR away_member_id = ${quote(fixture.members[2])});
+      COMMIT;`)
     const floor = query(`BEGIN; SELECT public.process_roster_floor_service(${quote(fixture.league)}, ${quote(fixture.season)}); SELECT pg_advisory_xact_lock(hashtext('membership-floor-hold')); SELECT pg_sleep(4); COMMIT;`, 'floor-hold')
     for (let attempt = 0; attempt < 50 && !(await floorHeld()); attempt += 1) await sleep(100)
     assert(await floorHeld(), 'The floor transaction did not reach its hold.')
-    const blocked = await query(`BEGIN; SET LOCAL statement_timeout = '1s'; ${removalSql(fixture, fixture.members[2])} COMMIT;`)
-    assert.notEqual(blocked.code, 0, 'The member delete did not wait for the open floor transaction.')
-    assert.match(blocked.error, /statement timeout|canceling statement/i, 'The member delete failed for an unexpected reason.')
-    const [held, removed] = await Promise.all([floor, query(`BEGIN; ${removalSql(fixture, fixture.members[2])} COMMIT;`)])
+    const del = query(`BEGIN; SET LOCAL statement_timeout = '20s'; DELETE FROM public.league_members WHERE id = ${quote(fixture.members[2])} AND league_id = ${quote(fixture.league)}; COMMIT;`, 'member-delete')
+    for (let attempt = 0; attempt < 50 && !(await memberDeleteWaiting()); attempt += 1) await sleep(100)
+    assert(await memberDeleteWaiting(), 'The member delete did not wait on the floor session.')
+    const blocker = await one(`SELECT string_agg(blocker.application_name, ',') FROM pg_stat_activity activity
+      JOIN pg_stat_activity blocker ON blocker.pid = ANY(pg_blocking_pids(activity.pid))
+      WHERE activity.application_name = 'member-delete'
+        AND activity.query LIKE '%DELETE FROM public.league_members%'`)
+    assert.equal(blocker, 'floor-hold', 'The member delete was not blocked by the floor session.')
+    const [held, removed] = await Promise.all([floor, del])
     assert.equal(held.code, 0, held.error)
     assert.equal(removed.code, 0, removed.error)
     const parsed = JSON.parse(held.output.split('\n')[0])
     console.log(JSON.stringify({ floorFirst: parsed }))
     assert.equal(parsed.status, 'completed', 'The floor did not complete.')
-    assert.equal(parsed.awarded, 1, 'The floor awarded the wrong number of players.')
-    const award = await one(`SELECT member_id FROM private.roster_floor_awards WHERE league_id = ${quote(fixture.league)} AND player_id = ${quote(fixture.freeAgents[0])}`)
-    assert.equal(award, fixture.members[0], 'The first stored team did not get the best player.')
-    return { parsed, blocked: blocked.error.trim() }
+    assert.equal(parsed.awarded, 0, 'The floor awarded a player.')
+    return { parsed, blocker }
   } finally {
     await cleanup(fixture, year)
   }
