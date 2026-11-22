@@ -62,7 +62,8 @@ export function IRResolutionModal({ visible, ineligibleIR, activeRoster, rosterS
         try { await action() } finally { setLoadingId(null) }
     }
     function activate(player: RosterPlayer) {
-        if (rosterSize != null && activeRoster.length >= rosterSize) setActivatingPlayer(player)
+        if (rosterSize == null) return
+        if (activeRoster.length >= rosterSize) setActivatingPlayer(player)
         else void run(player, () => onActivate(player))
     }
     function fixes(player: RosterPlayer, reserved: boolean) {

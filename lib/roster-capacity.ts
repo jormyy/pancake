@@ -42,4 +42,3 @@ export function rosterLimits(league: LeagueRosterLimits | null | undefined): Ros
     if (typeof rosterSize !== 'number' || typeof irSlots !== 'number' || typeof taxiSlots !== 'number') return null
     return { rosterSize, irSlots, taxiSlots }
 }
-

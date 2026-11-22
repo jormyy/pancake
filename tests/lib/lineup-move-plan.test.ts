@@ -209,3 +209,68 @@ describe('getLineupMoveTargetState', () => {
         })).toBe('invalid')
     })
 })
+
+describe('unknown league limits', () => {
+    const unknown = {}
+
+    it('refuses IR and taxi activations without executing', () => {
+        const irLineup = lineup({
+            starters: [{ slotType: 'PG', player: null }],
+            ir: [player('ir-guard', ['PG'], { injuryStatus: 'Out' })],
+        })
+        expect(planLineupMove({
+            lineup: irLineup,
+            league: unknown,
+            startedTeams: new Set(),
+            from: { kind: 'ir', index: 0 },
+            to: { kind: 'starter', index: 0 },
+        })).toMatchObject({ kind: 'invalid', title: 'Roster settings loading' })
+        expect(getLineupMoveTargetState({
+            lineup: irLineup,
+            league: unknown,
+            startedTeams: new Set(),
+            from: { kind: 'ir', index: 0 },
+            to: { kind: 'starter', index: 0 },
+        })).toBe('invalid')
+
+        const taxiLineup = lineup({
+            starters: [{ slotType: 'PG', player: null }],
+            taxi: [player('taxi-guard', ['PG'])],
+        })
+        expect(planLineupMove({
+            lineup: taxiLineup,
+            league: unknown,
+            startedTeams: new Set(),
+            from: { kind: 'taxi', index: 0 },
+            to: { kind: 'starter', index: 0 },
+        })).toMatchObject({ kind: 'invalid', title: 'Roster settings loading' })
+        expect(getLineupMoveTargetState({
+            lineup: taxiLineup,
+            league: unknown,
+            startedTeams: new Set(),
+            from: { kind: 'taxi', index: 0 },
+            to: { kind: 'starter', index: 0 },
+        })).toBe('invalid')
+    })
+
+    it('still allows starter and bench swaps', () => {
+        const swapLineup = lineup({
+            starters: [{ slotType: 'PG', player: null }],
+            bench: [player('bench-guard', ['PG'])],
+        })
+        expect(planLineupMove({
+            lineup: swapLineup,
+            league: unknown,
+            startedTeams: new Set(),
+            from: { kind: 'bench', index: 0 },
+            to: { kind: 'starter', index: 0 },
+        })).toEqual({ kind: 'slot-moves', moves: [{ playerId: 'bench-guard', slotType: 'PG' }] })
+        expect(getLineupMoveTargetState({
+            lineup: swapLineup,
+            league: unknown,
+            startedTeams: new Set(),
+            from: { kind: 'bench', index: 0 },
+            to: { kind: 'starter', index: 0 },
+        })).toBe('valid')
+    })
+})

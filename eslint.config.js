@@ -46,6 +46,14 @@ module.exports = defineConfig([
                     selector: `ObjectPattern > Property[key.name=/^(${rosterCapacityNames})$/]`,
                     message: rosterCapacityMessage,
                 },
+                {
+                    selector: `ObjectPattern > Property[key.value=/^(${rosterCapacityNames})$/]`,
+                    message: rosterCapacityMessage,
+                },
+                {
+                    selector: `MemberExpression[computed=true][property.type="TemplateLiteral"][property.expressions.length=0][property.quasis.0.value.cooked=/^(${rosterCapacityNames})$/]`,
+                    message: rosterCapacityMessage,
+                },
             ],
         },
     },

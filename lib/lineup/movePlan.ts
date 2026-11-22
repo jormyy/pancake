@@ -107,13 +107,22 @@ export function planLineupMove({
             }
         }
 
-        const limits = rosterLimits(league)
-        if (irPlayer && !activePlayer && limits && activeRosterCount(lineup) >= limits.rosterSize) {
-            return {
-                kind: 'overflow',
-                rosterPlayerId: irPlayer.rosterPlayerId,
-                source: 'ir',
-                slotType: activationSlotType(lineup, activeSelection, irPlayer),
+        if (irPlayer && !activePlayer) {
+            const limits = rosterLimits(league)
+            if (!limits) {
+                return {
+                    kind: 'invalid',
+                    title: 'Roster settings loading',
+                    message: 'League roster settings are still loading. Try again in a moment.',
+                }
+            }
+            if (activeRosterCount(lineup) >= limits.rosterSize) {
+                return {
+                    kind: 'overflow',
+                    rosterPlayerId: irPlayer.rosterPlayerId,
+                    source: 'ir',
+                    slotType: activationSlotType(lineup, activeSelection, irPlayer),
+                }
             }
         }
 
@@ -140,17 +149,23 @@ export function planLineupMove({
             return { kind: 'invalid', title: 'Taxi entry restricted', message: 'Players enter taxi through a draft, trade, free-agent add or waiver claim.' }
         }
 
-        const limits = rosterLimits(league)
-        if (taxiPlayer && !activePlayer && limits && activeRosterCount(lineup) >= limits.rosterSize) {
-            return {
-                kind: 'overflow',
-                rosterPlayerId: taxiPlayer.rosterPlayerId,
-                source: 'taxi',
-                slotType: activationSlotType(lineup, activeSelection, taxiPlayer),
-            }
-        }
-
         if (taxiPlayer) {
+            const limits = rosterLimits(league)
+            if (!limits) {
+                return {
+                    kind: 'invalid',
+                    title: 'Roster settings loading',
+                    message: 'League roster settings are still loading. Try again in a moment.',
+                }
+            }
+            if (activeRosterCount(lineup) >= limits.rosterSize) {
+                return {
+                    kind: 'overflow',
+                    rosterPlayerId: taxiPlayer.rosterPlayerId,
+                    source: 'taxi',
+                    slotType: activationSlotType(lineup, activeSelection, taxiPlayer),
+                }
+            }
             return {
                 kind: 'activate',
                 activateRosterPlayerId: taxiPlayer.rosterPlayerId,

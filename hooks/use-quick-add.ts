@@ -255,6 +255,7 @@ export function useQuickAdd({
 
     const handleMoveToIRAndAdd = useCallback(async (rosterPlayer: RosterPlayer) => {
         if (!memberId || !leagueId || !dropPickerPlayer || pendingDropAndAdd.current || !ownsState || activeOwnerRef.current !== ownerIdentity) return
+        if (rosterSize == null || taxiSlots == null || irSlots == null) return
         if (explainBlock()) return
         const generation = generationRef.current
         const identity = ownerIdentity
@@ -274,7 +275,7 @@ export function useQuickAdd({
             if (pendingDropAndAdd.current === token) pendingDropAndAdd.current = null
             if (isCurrent(generation, identity)) setDropping(null)
         }
-    }, [memberId, leagueId, dropPickerPlayer, ownsState, explainBlock, ownerIdentity, isCurrent, onChanged, checkIR, addFreeAgent, report])
+    }, [memberId, leagueId, dropPickerPlayer, ownsState, rosterSize, taxiSlots, irSlots, explainBlock, ownerIdentity, isCurrent, onChanged, checkIR, addFreeAgent, report])
 
     const handleIRActivate = useCallback(async (rp: RosterPlayer) => {
         if (!memberId || !leagueId || rosterSize == null) return

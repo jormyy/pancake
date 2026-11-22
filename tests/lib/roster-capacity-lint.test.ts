@@ -47,6 +47,28 @@ describe('roster capacity lint rule', () => {
         expect(messages[0].message).toContain('lib/roster-capacity')
     })
 
+    it('rejects a string-keyed destructure and names the module', async () => {
+        const [result] = await lint("const { 'is_on_ir': onIr } = row\n")
+        const messages = restricted(result.messages)
+
+        expect(messages).toHaveLength(1)
+        expect(messages[0].message).toContain('lib/roster-capacity')
+    })
+
+    it('rejects static template access and names the module', async () => {
+        const [result] = await lint('const onTaxi = row[`is_on_taxi`]\n')
+        const messages = restricted(result.messages)
+
+        expect(messages).toHaveLength(1)
+        expect(messages[0].message).toContain('lib/roster-capacity')
+    })
+
+    it('allows dynamic template access', async () => {
+        const [result] = await lint('const value = row[`${key}_ir`]\n')
+
+        expect(restricted(result.messages)).toEqual([])
+    })
+
     it('allows object literal keys that construct rows', async () => {
         const [result] = await lint('const row = { is_on_ir: true, is_on_taxi: false }\n')
 

@@ -313,7 +313,7 @@ export default function RosterScreen() {
     const rosterSize = limits?.rosterSize ?? 0
     const irSlots = limits?.irSlots ?? 0
     const taxiSlots = limits?.taxiSlots ?? 0
-    const rosterOverflow = activeRosterOverflow(active.length, rosterSize)
+    const rosterOverflow = activeRosterOverflow(active.length, limits?.rosterSize ?? null)
     const lineup = useMemo(() => arrangeActiveRoster(active, data?.slotPlan, rosterSize), [active, data?.slotPlan, rosterSize])
     const startersFilled = lineup.starters.filter((row) => row.player).length
     const benchFilled = lineup.bench.filter((row) => row.player).length
@@ -806,7 +806,7 @@ export default function RosterScreen() {
                 tabs={(
                     <View style={styles.summary}>
                         <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={[styles.summaryText, { minHeight: textStyles.meta.lineHeight, opacity: !data ? 0 : 1 }]} aria-busy={!data} accessibilityState={{ busy: !data }}>
-                            {data ? `${active.length}/${rosterSize} active · ${ir.length}/${irSlots} IR · ${taxi.length}/${taxiSlots} taxi` : ''}
+                            {data ? `${active.length}/${limits?.rosterSize ?? '—'} active · ${ir.length}/${limits?.irSlots ?? '—'} IR · ${taxi.length}/${limits?.taxiSlots ?? '—'} taxi` : ''}
                         </Text>
                     </View>
                 )}
@@ -832,7 +832,7 @@ export default function RosterScreen() {
 
             <RosterTrimBanner
                 players={active}
-                problems={getRosterProblems(roster, rosterSize)}
+                problems={getRosterProblems(roster, limits?.rosterSize ?? null)}
                 onActivate={player => { if (rosterLocation(player) === 'taxi') void handleToggleTaxi(player); else void handleToggleIR(player) }}
                 excess={rosterOverflow}
                 irAvailable={ir.length < irSlots}
