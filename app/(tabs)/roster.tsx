@@ -54,7 +54,7 @@ import { ActivationOverflowModal } from '@/components/ActivationOverflowModal'
 import { arrangeActiveRoster, compareRosterBySlot } from '@/lib/roster-slots'
 import { isTradingClosed } from '@/lib/league'
 import { useDraftRoomLauncher } from '@/hooks/use-draft-room-launcher'
-import { partitionRoster, rosterLimits, rosterLocation } from '@/lib/roster-capacity'
+import { partitionRoster, rosterLimits, rosterLocation, sameRosterLimits, staleRosterLimitsNotice, type RosterLimits } from '@/lib/roster-capacity'
 
 type RosterSlotSection = 'starters' | 'bench' | 'ir' | 'taxi'
 type RosterListItem = (
@@ -282,6 +282,14 @@ export default function RosterScreen() {
         if (cancellingId && !claims.some(claim => claim.id === cancellingId)) setCancellingId(null)
     }, [claims, cancellingId])
     const limits = useMemo(() => rosterLimits(currentLeague), [currentLeague])
+    const limitsRef = useRef(limits)
+    limitsRef.current = limits
+    const limitsStillHold = useCallback((expected: RosterLimits) => {
+        if (sameRosterLimits(expected, limitsRef.current)) return true
+        const notice = staleRosterLimitsNotice(limitsRef.current)
+        showAlert(notice.title, notice.message)
+        return false
+    }, [])
     const rosterLegality = useRosterLegality({ memberId: current?.id, leagueId, limits, onChanged: refresh })
     const pendingClaimCount = claims.filter((claim) => claim.status === 'pending').length
     const avgMap = useMemo(() => data?.avgMap ?? EMPTY_AVG_MAP, [data?.avgMap])
@@ -358,7 +366,7 @@ export default function RosterScreen() {
         const identity = ownerIdentity
         if (!identity || !limits) return
         const lockMessage = onlineRef.current ? await getRosterStatusChangeLockMessage(item) : null
-        if (!isCurrentAction(generation, identity)) return
+        if (!isCurrentAction(generation, identity) || !limitsStillHold(limits)) return
         if (lockMessage) {
             showAlert('Roster locked', lockMessage)
             return
@@ -393,7 +401,7 @@ export default function RosterScreen() {
         confirmAction(title, message, async () => {
             if (!isCurrentAction(generation, identity)) return
             await rosterRecoveryRunnerRef.current(async () => {
-                if (!isCurrentAction(generation, identity)) return
+                if (!isCurrentAction(generation, identity) || !limitsStillHold(limits)) return
                 setTogglingId(item.id)
                 try {
                     await toggleIR(item.id, rosterLocation(item) !== 'ir')
@@ -405,14 +413,14 @@ export default function RosterScreen() {
                 }
             })
         })
-    }, [ownerIdentity, currentLeague, limits, partitioned, load, isCurrentAction])
+    }, [ownerIdentity, currentLeague, limits, partitioned, load, isCurrentAction, limitsStillHold])
 
     const handleToggleTaxi = useCallback(async (item: RosterPlayer) => {
         const generation = actionGenerationRef.current
         const identity = ownerIdentity
         if (!identity || !limits) return
         const lockMessage = onlineRef.current ? await getRosterStatusChangeLockMessage(item) : null
-        if (!isCurrentAction(generation, identity)) return
+        if (!isCurrentAction(generation, identity) || !limitsStillHold(limits)) return
         if (lockMessage) {
             showAlert('Roster locked', lockMessage)
             return
@@ -427,7 +435,7 @@ export default function RosterScreen() {
         confirmRosterActivation({ source: 'taxi', reserveName: item.players.display_name }, async () => {
             if (!isCurrentAction(generation, identity)) return
             await rosterRecoveryRunnerRef.current(async () => {
-                if (!isCurrentAction(generation, identity)) return
+                if (!isCurrentAction(generation, identity) || !limitsStillHold(limits)) return
                 setTaxiingId(item.id)
                 try {
                     await toggleTaxi(item.id, false)
@@ -439,7 +447,7 @@ export default function RosterScreen() {
                 }
             })
         })
-    }, [ownerIdentity, limits, partitioned, load, isCurrentAction])
+    }, [ownerIdentity, limits, partitioned, load, isCurrentAction, limitsStillHold])
 
     function resolveActivationOverflow(freeRosterPlayerId: string, freeAction: 'drop' | 'ir') {
         if (!onlineRef.current) {

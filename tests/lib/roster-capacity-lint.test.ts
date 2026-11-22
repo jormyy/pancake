@@ -76,7 +76,7 @@ describe('roster capacity lint rule', () => {
     })
 
     it('allows assignment targets', async () => {
-        const [result] = await lint("row.is_on_ir = true\nrow['is_on_taxi'] = false\n")
+        const [result] = await lint("row.is_on_ir = true\nrow['is_on_taxi'] = false\nrow[`is_on_ir`] = false\n")
 
         expect(restricted(result.messages)).toEqual([])
     })

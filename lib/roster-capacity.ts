@@ -42,3 +42,14 @@ export function rosterLimits(league: LeagueRosterLimits | null | undefined): Ros
     if (typeof rosterSize !== 'number' || typeof irSlots !== 'number' || typeof taxiSlots !== 'number') return null
     return { rosterSize, irSlots, taxiSlots }
 }
+
+export function sameRosterLimits(expected: RosterLimits | null, current: RosterLimits | null): boolean {
+    return !!expected && !!current && expected.rosterSize === current.rosterSize
+        && expected.irSlots === current.irSlots && expected.taxiSlots === current.taxiSlots
+}
+
+export function staleRosterLimitsNotice(current: RosterLimits | null): { title: string; message: string } {
+    return current
+        ? { title: 'Roster settings changed', message: 'League roster settings changed. Try again.' }
+        : { title: 'Roster settings loading', message: 'League roster settings are still loading. Try again in a moment.' }
+}

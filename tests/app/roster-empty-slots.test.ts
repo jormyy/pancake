@@ -138,10 +138,7 @@ describe('roster empty slots', () => {
         vi.mocked(activateRosterPlayerWithOverflow).mockResolvedValue(undefined)
         vi.mocked(subscribeToTableChanges).mockClear()
         mocks.focusData.refresh.mockReset()
-        mocks.league.status = 'active'
-        mocks.league.roster_size = 20
-        mocks.league.ir_slots = 2
-        mocks.league.taxi_slots = 2
+        mocks.league = { id: 'league-a', roster_size: 20, ir_slots: 2, taxi_slots: 2, status: 'active', waiver_mode: 'rolling' }
         mocks.focusData.loading = false
         mocks.focusData.data = rosterData([])
     })
@@ -309,6 +306,55 @@ describe('roster empty slots', () => {
         await act(async () => screen.unmount())
         await act(async () => release(null))
         expect(activateRosterPlayerWithOverflow).not.toHaveBeenCalled()
+    })
+
+    const reserveOn = (source: 'ir' | 'taxi') => ({ id: 'reserve', is_on_ir: source === 'ir', is_on_taxi: source === 'taxi',
+        players: { id: 'reserve-player', display_name: 'Reserve', eligible_positions: ['PG'] } }) as RosterPlayer
+    const reserveRow = (source: 'ir' | 'taxi') => screen.root.findAllByType((source === 'ir' ? 'RosterPlayerItem' : 'TaxiPlayerItem') as React.ElementType)
+        .find(node => node.props.item.id === 'reserve')!
+    const toggle = (source: 'ir' | 'taxi') => reserveRow(source).props[source === 'ir' ? 'onToggleIR' : 'onToggleTaxi'](reserveOn(source))
+    const changeLimits = async (rosterSize: number | undefined) => {
+        mocks.league = { ...mocks.league, roster_size: rosterSize as number }
+        await act(async () => screen.update(React.createElement(RosterScreen)))
+    }
+
+    it.each([
+        ['ir', undefined, 'Roster settings loading'], ['ir', 21, 'Roster settings changed'],
+        ['taxi', undefined, 'Roster settings loading'], ['taxi', 21, 'Roster settings changed'],
+    ] as const)('does not activate from %s when limits become %s before confirmation', async (source, rosterSize, title) => {
+        mocks.focusData.data = rosterData([reserveOn(source)])
+        await act(async () => { screen = create(React.createElement(RosterScreen)) })
+        await act(async () => toggle(source))
+        expect(confirmAction).toHaveBeenCalledOnce()
+        await changeLimits(rosterSize)
+        await act(async () => vi.mocked(confirmAction).mock.calls[0][2]())
+        expect(toggleIR).not.toHaveBeenCalled()
+        expect(toggleTaxi).not.toHaveBeenCalled()
+        expect(showAlert).toHaveBeenCalledWith(title, expect.any(String))
+    })
+
+    it.each(['ir', 'taxi'] as const)('activates from %s when confirmed with unchanged limits', async source => {
+        mocks.focusData.data = rosterData([reserveOn(source)])
+        await act(async () => { screen = create(React.createElement(RosterScreen)) })
+        await act(async () => toggle(source))
+        await act(async () => screen.update(React.createElement(RosterScreen)))
+        await act(async () => vi.mocked(confirmAction).mock.calls[0][2]())
+        if (source === 'ir') expect(toggleIR).toHaveBeenCalledExactlyOnceWith('reserve', false)
+        else expect(toggleTaxi).toHaveBeenCalledExactlyOnceWith('reserve', false)
+        expect(showAlert).not.toHaveBeenCalled()
+    })
+
+    it.each(['ir', 'taxi'] as const)('does not ask to activate from %s when limits disappear during the lock check', async source => {
+        mocks.focusData.data = rosterData([reserveOn(source)])
+        await act(async () => { screen = create(React.createElement(RosterScreen)) })
+        let release!: (value: null) => void
+        vi.mocked(getRosterStatusChangeLockMessage).mockImplementation(() => new Promise<null>(resolve => { release = resolve }))
+        let pending!: Promise<unknown>
+        await act(async () => { pending = toggle(source) })
+        await changeLimits(undefined)
+        await act(async () => { release(null); await pending })
+        expect(confirmAction).not.toHaveBeenCalled()
+        expect(showAlert).toHaveBeenCalledWith('Roster settings loading', expect.any(String))
     })
 
     it('reports an offline overflow choice without sending or opening confirmation', async () => {

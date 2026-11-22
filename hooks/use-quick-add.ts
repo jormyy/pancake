@@ -13,7 +13,7 @@ import { showAlert, showSuccess } from '@/lib/alert'
 import { getErrorMessage } from '@/lib/shared/errors'
 import type { MemberTransactionState } from '@/lib/league'
 import { getRosterProblems } from '@/lib/roster-problems'
-import { partitionRoster, type RosterLimits } from '@/lib/roster-capacity'
+import { partitionRoster, sameRosterLimits, staleRosterLimitsNotice, type RosterLimits } from '@/lib/roster-capacity'
 
 /** What a pickup needs to know about its player. */
 type QuickAddPlayer = Pick<PlayerRow, 'id' | 'display_name'> & { injury_status?: string | null; years_exp?: number | null; career_regular_season_games?: number | null }
@@ -55,6 +55,10 @@ export function useQuickAdd({
     const rosterSize = limits?.rosterSize
     const irSlots = limits?.irSlots
     const taxiSlots = limits?.taxiSlots
+    const knownLimits = useMemo(() => rosterSize != null && irSlots != null && taxiSlots != null ? { rosterSize, irSlots, taxiSlots } : null,
+        [rosterSize, irSlots, taxiSlots])
+    const limitsRef = useRef(knownLimits)
+    limitsRef.current = knownLimits
     const [adding, setAdding] = useState<string | null>(null)
     const [dropPickerPlayer, setDropPickerPlayer] = useState<QuickAddPlayer | null>(null)
     const [myRoster, setMyRoster] = useState<RosterPlayer[]>([])
@@ -80,6 +84,12 @@ export function useQuickAdd({
     const isCurrent = useCallback((generation: number, identity: string | null) =>
         generationRef.current === generation && activeOwnerRef.current === identity, [])
     const { addBlockedReason, explainBlock } = useAddLimitGate({ transactionState, refresh: onChanged })
+    const limitsStillHold = useCallback((expected: RosterLimits | null) => {
+        if (sameRosterLimits(expected, limitsRef.current)) return true
+        const notice = staleRosterLimitsNotice(limitsRef.current)
+        showAlert(notice.title, notice.message)
+        return false
+    }, [])
 
     useEffect(() => {
         activeOwnerRef.current = ownerIdentity
@@ -142,7 +152,7 @@ export function useQuickAdd({
     // The server decides between an add and a full roster; a full roster opens
     // the drop picker with the roster already in hand.
     const addFreeAgent = useCallback(async (player: QuickAddPlayer, lid: string, roster: RosterPlayer[], toTaxi = false) => {
-        if (!memberId) return
+        if (!memberId || !limitsStillHold(knownLimits)) return
         const generation = generationRef.current
         const identity = ownerIdentity
         setAdding(player.id)
@@ -167,7 +177,7 @@ export function useQuickAdd({
         } finally {
             if (isCurrent(generation, identity)) setAdding((current) => current === player.id ? null : current)
         }
-    }, [memberId, ownerIdentity, onChanged, isCurrent, report, allowIR, irSlots])
+    }, [memberId, ownerIdentity, onChanged, isCurrent, report, allowIR, irSlots, knownLimits, limitsStillHold])
 
     const beginAdd = useCallback(async (player: QuickAddPlayer, lid: string, roster: RosterPlayer[]) => {
         if (rosterSize == null || irSlots == null || taxiSlots == null) return
@@ -238,7 +248,7 @@ export function useQuickAdd({
         setDropping(rosterPlayer.id)
         try {
             const roster = await checkIR(dropPickerPlayer, leagueId, 'claim', rosterPlayer.id)
-            if (!roster || !isCurrent(generation, identity)) return
+            if (!roster || !isCurrent(generation, identity) || !limitsStillHold(knownLimits)) return
             if (!pickupDestinations(dropPickerPlayer, roster, { rosterSize, taxiSlots, irSlots, allowIR }, taxiExits.current, rosterPlayer)[destination]) {
                 showAlert('Select destination', 'This drop does not free space for an eligible pickup in that slot.')
                 return
@@ -251,7 +261,7 @@ export function useQuickAdd({
             if (pendingDropAndAdd.current === token) pendingDropAndAdd.current = null
             if (isCurrent(generation, identity)) setDropping(null)
         }
-    }, [memberId, leagueId, ownerIdentity, dropPickerPlayer, checkIR, isCurrent, explainBlock, report, rosterSize, taxiSlots, irSlots, allowIR, onClaimInstead])
+    }, [memberId, leagueId, ownerIdentity, dropPickerPlayer, checkIR, isCurrent, explainBlock, report, rosterSize, taxiSlots, irSlots, allowIR, onClaimInstead, knownLimits, limitsStillHold])
 
     const handleMoveToIRAndAdd = useCallback(async (rosterPlayer: RosterPlayer) => {
         if (!memberId || !leagueId || !dropPickerPlayer || pendingDropAndAdd.current || !ownsState || activeOwnerRef.current !== ownerIdentity) return
@@ -341,19 +351,32 @@ export function useQuickAdd({
     }, [dropPickerPlayer, leagueId, ownsState, explainBlock, checkIR, addFreeAgent])
 
     const handleResolutionChange = useCallback(async (player: RosterPlayer, moveToIR: boolean) => {
-        if (!memberId || !leagueId || rosterSize == null) return
+        if (!memberId || !leagueId || pendingDropAndAdd.current) return
+        if (moveToIR && !limitsStillHold(knownLimits)) return
         const generation = generationRef.current
         const identity = ownerIdentity
+        const token = Symbol('resolution-change')
+        pendingDropAndAdd.current = token
         try {
             if (moveToIR) await toggleIR(player.id, true)
             else await dropPlayer(player.id)
             if (!isCurrent(generation, identity)) return
-            const { roster, ineligible } = await loadRosterAddGate(memberId, leagueId, undefined, rosterSize)
+            const current = limitsRef.current
+            if (!current || !sameRosterLimits(knownLimits, current)) {
+                setIrModal(null)
+                onChanged()
+                const notice = staleRosterLimitsNotice(current)
+                showAlert(notice.title, notice.message)
+                return
+            }
+            const { roster, ineligible } = await loadRosterAddGate(memberId, leagueId, undefined, current.rosterSize)
             if (isCurrent(generation, identity)) await continueAfterIRResolution(leagueId, roster, ineligible)
         } catch (error) {
             if (isCurrent(generation, identity)) showAlert('Error', getErrorMessage(error))
+        } finally {
+            if (pendingDropAndAdd.current === token) pendingDropAndAdd.current = null
         }
-    }, [memberId, leagueId, ownerIdentity, isCurrent, rosterSize, continueAfterIRResolution])
+    }, [memberId, leagueId, ownerIdentity, isCurrent, knownLimits, limitsStillHold, onChanged, continueAfterIRResolution])
 
     return useMemo(() => ({
         adding: ownsState ? adding : null,

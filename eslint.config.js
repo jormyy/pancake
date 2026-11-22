@@ -51,7 +51,7 @@ module.exports = defineConfig([
                     message: rosterCapacityMessage,
                 },
                 {
-                    selector: `MemberExpression[computed=true][property.type="TemplateLiteral"][property.expressions.length=0][property.quasis.0.value.cooked=/^(${rosterCapacityNames})$/]`,
+                    selector: `MemberExpression[computed=true][property.type="TemplateLiteral"][property.expressions.length=0][property.quasis.0.value.cooked=/^(${rosterCapacityNames})$/]:not(AssignmentExpression > MemberExpression.left)`,
                     message: rosterCapacityMessage,
                 },
             ],
