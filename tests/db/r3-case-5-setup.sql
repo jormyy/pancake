@@ -2,13 +2,21 @@
 DO $$
 DECLARE f record; v_ir uuid; v_game_time timestamptz := now() + interval '5 seconds'; i int; y int;
 BEGIN
+  DELETE FROM public.leagues league
+   USING public.league_seasons season
+   WHERE season.league_id = league.id
+     AND season.season_year IN (9930, 9931);
+  DELETE FROM public.nba_games WHERE season_year IN (9930, 9931);
+  DELETE FROM public.season_weeks WHERE season_year IN (9930, 9931);
   FOREACH y IN ARRAY ARRAY[9930, 9931] LOOP
     SELECT * INTO f FROM pg_temp.rules_fixture(2, y);
     UPDATE public.leagues SET roster_size=20, ir_slots=1, timezone='Pacific/Kiritimati' WHERE id=f.league_id;
     INSERT INTO private.league_roster_policies(league_id, weekly_roster_floor, auto_ir_all_members, floor_activated_at, ir_activated_at)
       VALUES(f.league_id, 16, true, now(), now());
     INSERT INTO public.season_weeks(season_year, week_number, week_start, week_end)
-      VALUES(y, 1, (now() AT TIME ZONE 'America/New_York')::date - 6, (now() AT TIME ZONE 'America/New_York')::date);
+      VALUES(y, 1, (now() AT TIME ZONE 'America/New_York')::date - 6, (now() AT TIME ZONE 'America/New_York')::date)
+      ON CONFLICT ON CONSTRAINT season_weeks_season_year_week_number_key
+      DO UPDATE SET week_start=EXCLUDED.week_start, week_end=EXCLUDED.week_end;
     INSERT INTO public.matchups(league_id, league_season_id, week_number, home_member_id, away_member_id)
       VALUES(f.league_id, f.season_id, 1, f.member_ids[1], f.member_ids[2]);
     INSERT INTO private.waiver_run_settlements(league_id, league_season_id, process_date)

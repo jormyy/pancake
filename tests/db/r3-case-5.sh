@@ -31,8 +31,10 @@ if [ "$IS_ON_IR2" = "t" ] && [ "$WEEK_STATUS" != "completed" ]; then echo "PASS 
 $PSQL -qAt -c "DELETE FROM public.leagues WHERE id IN ('$LEAGUE','$LEAGUE2');" >/dev/null 2>&1
 $PSQL -qAt -c "DELETE FROM public.players WHERE nba_team IN ('ZZ','QQ') AND first_name IN ('Roster','IR');" >/dev/null 2>&1
 $PSQL -qAt -c "DELETE FROM public.nba_games WHERE nba_game_id IN ('0029930001','0029931001');" >/dev/null 2>&1
+$PSQL -qAt -c "DELETE FROM public.season_weeks WHERE season_year IN (9930,9931);" >/dev/null 2>&1
 LEFT=$($PSQL -qAt -c "SELECT count(*) FROM public.leagues WHERE id IN ('$LEAGUE','$LEAGUE2')")
 LEFT2=$($PSQL -qAt -c "SELECT count(*) FROM public.players WHERE nba_team IN ('ZZ','QQ') AND first_name IN ('Roster','IR')")
 LEFT3=$($PSQL -qAt -c "SELECT count(*) FROM public.nba_games WHERE nba_game_id IN ('0029930001','0029931001')")
-if [ "$LEFT" != "0" ] || [ "$LEFT2" != "0" ] || [ "$LEFT3" != "0" ]; then echo "FAIL cleanup"; FAIL=1; fi
+LEFT4=$($PSQL -qAt -c "SELECT count(*) FROM public.season_weeks WHERE season_year IN (9930,9931)")
+if [ "$LEFT" != "0" ] || [ "$LEFT2" != "0" ] || [ "$LEFT3" != "0" ] || [ "$LEFT4" != "0" ]; then echo "FAIL cleanup"; FAIL=1; fi
 exit "$FAIL"

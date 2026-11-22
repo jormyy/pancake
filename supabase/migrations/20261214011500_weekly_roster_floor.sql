@@ -56,7 +56,12 @@ INSERT INTO private.retention_rules(relation_name,retention_rule) VALUES
 ('private.waiver_run_settlements','One settlement per league, season, and process date; league deletion cascades')
 ON CONFLICT(relation_name) DO UPDATE SET retention_rule=EXCLUDED.retention_rule;
 
-CREATE OR REPLACE FUNCTION private.settle_waiver_runs(p_timezone text, p_date date, p_drain_started_at timestamptz)
+CREATE OR REPLACE FUNCTION private.settle_waiver_runs(
+  p_timezone text,
+  p_date date,
+  p_drain_started_at timestamptz,
+  p_league_id uuid DEFAULT NULL
+)
 RETURNS integer
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -72,6 +77,7 @@ BEGIN
     FROM public.leagues league
     JOIN public.league_seasons season ON season.league_id = league.id AND season.is_current
    WHERE COALESCE(league.timezone, 'America/Los_Angeles') = p_timezone
+     AND (p_league_id IS NULL OR league.id = p_league_id)
      AND league.status IN ('active', 'playoffs', 'offseason')
      AND NOT EXISTS (
        SELECT 1 FROM public.waiver_claims claim
@@ -124,6 +130,20 @@ BEGIN
     IF v_row.week_end IS NOT NULL THEN
       v_count := v_count + private.settle_waiver_runs(v_row.timezone, v_row.week_end, p_drain_started_at);
     END IF;
+  END LOOP;
+  FOR v_row IN
+    SELECT league.id AS league_id,
+           COALESCE(league.timezone, 'America/Los_Angeles') AS timezone,
+           week.week_end
+      FROM public.leagues league
+      JOIN public.league_seasons season ON season.league_id = league.id AND season.is_current
+      JOIN private.league_roster_policies policy ON policy.league_id = league.id
+      CROSS JOIN LATERAL private.roster_floor_week(league.id, season.id) week
+     WHERE league.status IN ('active', 'playoffs', 'offseason')
+       AND policy.weekly_roster_floor IS NOT NULL
+       AND policy.floor_activated_at IS NOT NULL
+  LOOP
+    v_count := v_count + private.settle_waiver_runs(v_row.timezone, v_row.week_end, p_drain_started_at, v_row.league_id);
   END LOOP;
   RETURN v_count;
 END;
@@ -832,6 +852,33 @@ END;
 $function$;
 
 
+CREATE OR REPLACE FUNCTION private.roster_floor_week(p_league_id uuid, p_league_season_id uuid)
+RETURNS TABLE (week_number int, week_end date)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+  SELECT weeks.week_number, weeks.week_end
+    FROM public.league_seasons season
+    JOIN public.leagues league ON league.id = season.league_id
+    JOIN public.season_weeks weeks ON weeks.season_year = season.season_year
+   WHERE season.id = p_league_season_id
+     AND season.league_id = p_league_id
+     AND season.is_current
+     AND weeks.week_end <= (now() AT TIME ZONE COALESCE(league.timezone, 'America/Los_Angeles'))::date
+     AND EXISTS (
+       SELECT 1
+         FROM public.matchups matchup
+        WHERE matchup.league_id = p_league_id
+          AND matchup.league_season_id = p_league_season_id
+          AND matchup.week_number = weeks.week_number
+     )
+   ORDER BY weeks.week_end DESC, weeks.week_number DESC
+   LIMIT 1
+$$;
+
+
 CREATE OR REPLACE FUNCTION private.run_league_roster_floor(
   p_league_id uuid,
   p_league_season_id uuid
@@ -918,20 +965,9 @@ BEGIN
   v_zone := COALESCE(v_league.timezone, 'America/Los_Angeles');
   v_league_today := (now() AT TIME ZONE v_zone)::date;
 
-  SELECT weeks.week_number, weeks.week_end
+  SELECT week.week_number, week.week_end
     INTO v_latest_week_number, v_latest_week_end
-    FROM public.season_weeks weeks
-   WHERE weeks.season_year = v_season.season_year
-     AND weeks.week_end <= v_league_today
-     AND EXISTS (
-       SELECT 1
-         FROM public.matchups matchup
-        WHERE matchup.league_id = p_league_id
-          AND matchup.league_season_id = p_league_season_id
-          AND matchup.week_number = weeks.week_number
-     )
-   ORDER BY weeks.week_end DESC, weeks.week_number DESC
-   LIMIT 1;
+    FROM private.roster_floor_week(p_league_id, p_league_season_id) week;
   IF NOT FOUND THEN
     RETURN jsonb_build_object('status', 'skipped', 'reason', 'no_week');
   END IF;
@@ -1605,6 +1641,7 @@ END;
 $$;
 
 REVOKE ALL ON FUNCTION private.roster_floor_week_ready(uuid, uuid, int, date) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION private.roster_floor_week(uuid, uuid) FROM PUBLIC, anon, authenticated, service_role;
 REVOKE ALL ON FUNCTION private.roster_floor_pool(uuid, uuid) FROM PUBLIC, anon, authenticated, service_role;
 REVOKE ALL ON FUNCTION private.run_league_roster_floor(uuid, uuid) FROM PUBLIC, anon, authenticated, service_role;
 REVOKE ALL ON FUNCTION public.process_roster_floor_service(uuid, uuid) FROM PUBLIC, anon, authenticated;
@@ -1612,7 +1649,7 @@ GRANT EXECUTE ON FUNCTION public.process_roster_floor_service(uuid, uuid) TO ser
 REVOKE ALL ON FUNCTION private.roster_floor_player_legal(uuid, uuid, uuid) FROM PUBLIC, anon, authenticated, service_role;
 REVOKE ALL ON FUNCTION private.pre_tipoff_input_fingerprint(date) FROM PUBLIC, anon, authenticated, service_role;
 REVOKE ALL ON FUNCTION private.roster_status_game_started_live(uuid) FROM PUBLIC, anon, authenticated, service_role;
-REVOKE ALL ON FUNCTION private.settle_waiver_runs(text, date, timestamptz) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION private.settle_waiver_runs(text, date, timestamptz, uuid) FROM PUBLIC, anon, authenticated, service_role;
 REVOKE ALL ON FUNCTION public.settle_waiver_runs(text, date, timestamptz) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.settle_waiver_runs(text, date, timestamptz) TO service_role;
 REVOKE ALL ON FUNCTION public.settle_latest_waiver_runs(timestamptz) FROM PUBLIC, anon, authenticated;

@@ -24,6 +24,20 @@ BEGIN
       v_count := v_count + private.settle_waiver_runs(v_row.timezone, v_row.week_end, p_drain_started_at);
     END IF;
   END LOOP;
+  FOR v_row IN
+    SELECT league.id AS league_id,
+           COALESCE(league.timezone, 'America/Los_Angeles') AS timezone,
+           week.week_end
+      FROM public.leagues league
+      JOIN public.league_seasons season ON season.league_id = league.id AND season.is_current
+      JOIN private.league_roster_policies policy ON policy.league_id = league.id
+      CROSS JOIN LATERAL private.roster_floor_week(league.id, season.id) week
+     WHERE league.status IN ('active', 'playoffs', 'offseason')
+       AND policy.weekly_roster_floor IS NOT NULL
+       AND policy.floor_activated_at IS NOT NULL
+  LOOP
+    v_count := v_count + private.settle_waiver_runs(v_row.timezone, v_row.week_end, p_drain_started_at, v_row.league_id);
+  END LOOP;
   RETURN v_count;
 END;
 $$;

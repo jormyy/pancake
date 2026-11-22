@@ -2,7 +2,12 @@
 -- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
 -- npm run check:db-function-sources verifies every latest migration function has exact source parity.
 
-CREATE OR REPLACE FUNCTION private.settle_waiver_runs(p_timezone text, p_date date, p_drain_started_at timestamptz)
+CREATE OR REPLACE FUNCTION private.settle_waiver_runs(
+  p_timezone text,
+  p_date date,
+  p_drain_started_at timestamptz,
+  p_league_id uuid DEFAULT NULL
+)
 RETURNS integer
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -18,6 +23,7 @@ BEGIN
     FROM public.leagues league
     JOIN public.league_seasons season ON season.league_id = league.id AND season.is_current
    WHERE COALESCE(league.timezone, 'America/Los_Angeles') = p_timezone
+     AND (p_league_id IS NULL OR league.id = p_league_id)
      AND league.status IN ('active', 'playoffs', 'offseason')
      AND NOT EXISTS (
        SELECT 1 FROM public.waiver_claims claim

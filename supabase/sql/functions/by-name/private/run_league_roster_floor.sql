@@ -88,20 +88,9 @@ BEGIN
   v_zone := COALESCE(v_league.timezone, 'America/Los_Angeles');
   v_league_today := (now() AT TIME ZONE v_zone)::date;
 
-  SELECT weeks.week_number, weeks.week_end
+  SELECT week.week_number, week.week_end
     INTO v_latest_week_number, v_latest_week_end
-    FROM public.season_weeks weeks
-   WHERE weeks.season_year = v_season.season_year
-     AND weeks.week_end <= v_league_today
-     AND EXISTS (
-       SELECT 1
-         FROM public.matchups matchup
-        WHERE matchup.league_id = p_league_id
-          AND matchup.league_season_id = p_league_season_id
-          AND matchup.week_number = weeks.week_number
-     )
-   ORDER BY weeks.week_end DESC, weeks.week_number DESC
-   LIMIT 1;
+    FROM private.roster_floor_week(p_league_id, p_league_season_id) week;
   IF NOT FOUND THEN
     RETURN jsonb_build_object('status', 'skipped', 'reason', 'no_week');
   END IF;

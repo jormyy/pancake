@@ -12,6 +12,7 @@ CREATE TEMP SEQUENCE r3_case_3;
 CREATE TEMP SEQUENCE r3_case_4;
 CREATE TEMP SEQUENCE r3_case_6;
 CREATE TEMP SEQUENCE r3_case_7;
+CREATE TEMP SEQUENCE r3_case_8;
 CREATE TEMP SEQUENCE r3_case_A;
 CREATE TEMP SEQUENCE r3_case_B;
 CREATE TEMP SEQUENCE r3_case_C;
@@ -77,6 +78,39 @@ BEGIN
       VALUES(f.league_id, f.season_id, 1, f.member_ids[i * 2 - 1], f.member_ids[i * 2]);
   END LOOP;
   league_id := f.league_id; season_id := f.season_id; member_ids := f.member_ids; user_ids := f.user_ids; week_end := v_end;
+  RETURN NEXT;
+END;
+$$;
+
+CREATE FUNCTION pg_temp.floor_missed_week(p_year int, p_teams int, p_floor int, p_policy boolean)
+RETURNS TABLE (league_id uuid, season_id uuid, member_ids uuid[], week1_end date, week2_end date)
+LANGUAGE plpgsql AS $$
+DECLARE f record; v_end date := (now() AT TIME ZONE 'America/New_York')::date; i int;
+BEGIN
+  SELECT * INTO f FROM pg_temp.rules_fixture(p_teams, p_year);
+  UPDATE public.leagues SET roster_size=20, ir_slots=1, timezone='Pacific/Tongatapu' WHERE id=f.league_id;
+  UPDATE public.lineup_optimizer_settings s SET enabled=false, enabled_at=NULL WHERE s.league_id=f.league_id;
+  IF p_policy THEN
+    INSERT INTO private.league_roster_policies(league_id, weekly_roster_floor, auto_ir_all_members, floor_activated_at, ir_activated_at)
+      VALUES(f.league_id, p_floor, true, now(), now());
+  END IF;
+  INSERT INTO private.screen_refresh_queue(league_id, league_season_id, averages_initialized, averages_scoring)
+    SELECT f.league_id, f.season_id, true, league.scoring_settings
+      FROM public.leagues league WHERE league.id = f.league_id
+    ON CONFLICT (league_season_id) DO UPDATE
+      SET averages_initialized = true, averages_scoring = EXCLUDED.averages_scoring;
+  INSERT INTO public.season_weeks(season_year, week_number, week_start, week_end)
+    VALUES(p_year, 1, v_end - 13, v_end - 7),
+          (p_year, 2, v_end - 6, v_end)
+    ON CONFLICT ON CONSTRAINT season_weeks_season_year_week_number_key
+    DO UPDATE SET week_start=EXCLUDED.week_start, week_end=EXCLUDED.week_end;
+  UPDATE public.nba_games SET status='Final', game_time=now() - interval '1 hour' WHERE game_date IN (v_end - 1, v_end);
+  FOR i IN 1..(p_teams / 2) LOOP
+    INSERT INTO public.matchups(league_id, league_season_id, week_number, home_member_id, away_member_id)
+      VALUES(f.league_id, f.season_id, 1, f.member_ids[i * 2 - 1], f.member_ids[i * 2]);
+  END LOOP;
+  league_id := f.league_id; season_id := f.season_id; member_ids := f.member_ids;
+  week1_end := v_end - 7; week2_end := v_end;
   RETURN NEXT;
 END;
 $$;
@@ -281,6 +315,52 @@ ROLLBACK;
 
 BEGIN;
 DO $$
+DECLARE f1 record; f2 record; f3 record; v_result jsonb; v_count int; v_awards int;
+  v_earliest timestamptz; v_claim_player uuid;
+BEGIN
+  SELECT * INTO f1 FROM pg_temp.floor_missed_week(9932, 2, 16, true);
+  SELECT * INTO f2 FROM pg_temp.floor_missed_week(9932, 2, 16, true);
+  SELECT * INTO f3 FROM pg_temp.floor_missed_week(9932, 2, 16, false);
+  PERFORM pg_temp.floor_roster(f1.league_id, f1.season_id, f1.member_ids[1], 15);
+  PERFORM pg_temp.floor_roster(f1.league_id, f1.season_id, f1.member_ids[2], 16);
+  PERFORM pg_temp.floor_free_agent(f1.league_id, f1.season_id, 9932, 'FA', 40);
+  PERFORM pg_temp.floor_roster(f2.league_id, f2.season_id, f2.member_ids[1], 15);
+  PERFORM pg_temp.floor_roster(f2.league_id, f2.season_id, f2.member_ids[2], 16);
+  v_claim_player := pg_temp.floor_free_agent(f2.league_id, f2.season_id, 9932, 'Claim', 10);
+  INSERT INTO public.waiver_claims(league_id, league_season_id, member_id, player_id, priority_at_submission, process_date)
+    VALUES(f2.league_id, f2.season_id, f2.member_ids[1], v_claim_player, 1, f2.week1_end);
+  SELECT min((weeks.week_end + time '00:00') AT TIME ZONE COALESCE(league.timezone, 'America/Los_Angeles'))
+    INTO v_earliest
+    FROM public.leagues league
+    JOIN public.league_seasons season ON season.league_id = league.id AND season.is_current
+    JOIN public.season_weeks weeks ON weeks.season_year = season.season_year
+   WHERE league.status IN ('active', 'playoffs', 'offseason');
+  v_count := public.settle_latest_waiver_runs(v_earliest - interval '1 second');
+  PERFORM pg_temp.check_rules(v_count = 0, 'case 8: drain before local midnight settles nothing');
+  PERFORM pg_temp.check_rules(NOT EXISTS (SELECT 1 FROM private.waiver_run_settlements WHERE league_id=f1.league_id AND process_date=f1.week1_end), 'case 8: no floor-week settlement before local midnight');
+  v_count := public.settle_latest_waiver_runs(now());
+  PERFORM pg_temp.check_rules(EXISTS (SELECT 1 FROM private.waiver_run_settlements WHERE league_id=f1.league_id AND process_date=f1.week1_end), 'case 8: the fallback settles the floor week');
+  PERFORM pg_temp.check_rules(NOT EXISTS (SELECT 1 FROM private.waiver_run_settlements WHERE league_id=f2.league_id AND process_date=f2.week1_end), 'case 8: a pending claim blocks the floor week');
+  PERFORM pg_temp.check_rules(EXISTS (SELECT 1 FROM private.waiver_run_settlements WHERE league_id=f3.league_id AND process_date=f3.week2_end), 'case 8: a policy-off league keeps the legacy settlement');
+  PERFORM pg_temp.check_rules(NOT EXISTS (SELECT 1 FROM private.waiver_run_settlements WHERE league_id=f3.league_id AND process_date=f3.week1_end), 'case 8: a policy-off league gets no floor-week settlement');
+  v_result := private.run_league_roster_floor(f1.league_id, f1.season_id);
+  PERFORM pg_temp.check_rules(v_result->>'status' = 'completed' AND (v_result->>'weekNumber')::int = 1 AND (v_result->>'weekEnd')::date = f1.week1_end, 'case 8: the floor completes the settled week');
+  PERFORM pg_temp.check_rules((v_result->>'awarded')::int = 1, 'case 8: the floor awards once');
+  v_result := private.run_league_roster_floor(f2.league_id, f2.season_id);
+  PERFORM pg_temp.check_rules(v_result->>'status' = 'deferred' AND v_result->>'reason' = 'settlement_pending' AND (v_result->>'weekEnd')::date = f2.week1_end, 'case 8: the blocked floor stays settlement_pending');
+  v_count := public.settle_latest_waiver_runs(now());
+  PERFORM pg_temp.check_rules(v_count = 0, 'case 8: replay inserts nothing');
+  v_result := private.run_league_roster_floor(f1.league_id, f1.season_id);
+  SELECT count(*) INTO v_awards FROM private.roster_floor_awards WHERE league_id=f1.league_id;
+  PERFORM pg_temp.check_rules((v_result->>'awarded')::int = 0 AND v_awards = 1, 'case 8: a second floor run awards nothing more');
+  PERFORM pg_temp.record_case('8');
+  RAISE NOTICE 'PASS case-8';
+END;
+$$;
+ROLLBACK;
+
+BEGIN;
+DO $$
 DECLARE f record; v_token uuid := gen_random_uuid();
 BEGIN
   SELECT * INTO f FROM pg_temp.floor_league(9916, 2, 16, false);
@@ -363,7 +443,7 @@ ROLLBACK;
 DO $$
 DECLARE v_missing text; v_name text; v_called boolean;
 BEGIN
-  FOR v_name IN SELECT unnest(ARRAY['1','1b','2','3','4','6','7','A','B','C','control']) LOOP
+  FOR v_name IN SELECT unnest(ARRAY['1','1b','2','3','4','6','7','8','A','B','C','control']) LOOP
     EXECUTE format('SELECT is_called FROM pg_temp.r3_case_%s', v_name) INTO v_called;
     IF NOT COALESCE(v_called, false) THEN v_missing := concat_ws(',', v_missing, v_name); END IF;
   END LOOP;

@@ -153,6 +153,7 @@ No row or a null floor means the job does nothing.
 The job runs once per scheduled week on the week's `season_weeks.week_end` day, after the league's local midnight waiver run and after that run records durable settlement.
 The source-of-truth chain is `private.enqueue_scheduled_work`/`public.dispatch_work` -> `process-waivers` -> `public.process_due_waiver_claims_atomic` (drained until no due claims remain) -> `public.settle_waiver_runs`.
 `public.settle_waiver_runs` writes `private.waiver_run_settlements` for each league and season whose league-local date has no pending claim due at or before the run and no uncleared wire hold that clears after the run.
+The `public.settle_latest_waiver_runs` fallback also settles each floor league's latest ended matchup week, for that league only, so a missed date-specific run does not leave the floor week `settlement_pending`.
 The Sunday (`week_end`) run is the last scheduled run of the league week: the dispatcher enqueues one waiver run per league-local date, and the next league-local date starts the next week.
 `private.roster_floor_week_ready` requires the settlement row for `process_date = week_end`; a missing row returns `settlement_pending` and the floor retries every 15 minutes on the week_end day.
 A backlog of due claims delays it.
