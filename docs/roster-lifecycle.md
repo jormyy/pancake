@@ -172,6 +172,7 @@ No-stats, teamless, day-to-day, questionable and out players are not in the pool
 It is ranked by `public.player_season_averages.avg_fantasy_points` for the league season, descending, with `player_id` ascending as the tie-break.
 `private.roster_floor_averages_ready` gates every pass before any IR return or award. It requires the league season's `private.screen_refresh_queue` row to be initialized, its `averages_scoring` to equal the league's current `scoring_settings`, and `private.screen_average_dirty` to be empty. It takes no row lock. Instead the pass captures `private.roster_floor_averages_watermark` (cached row count, latest `refreshed_at`, latest `version`) at preflight and rechecks both the readiness predicate and the watermark after every award and again before it marks the week completed; a change raises `PF002` and the whole pass rolls back as `averages_pending`. A scoring change, a delayed average refresh after a stats correction, or an uninitialized or missing cache returns `averages_pending` and awards nobody; absent averages never mean exhaustion.
 The team order holds every member, shuffled once per week, and the order is stored on the week record.
+The pass locks the league's member rows with `FOR KEY SHARE` before it reads the stored order, drops a departed member, appends a member who joined while the week was pending by `joined_at` and `id`, and keeps surviving teams in their stored relative order; a member cannot be deleted between that check and the award writes.
 Teams at or above the floor are skipped at award time.
 Each pass awards at most one player per team; passes repeat until every team reaches the floor or the pool is exhausted.
 A mid-pass deferral rolls back the whole pass, including the IR returns and awards, so the retry recomputes from current state and keeps the round-robin order.
@@ -202,6 +203,8 @@ The global no-live check is repeated at write time.
 
 `tests/db/roster-floor.sql` checks counts, order, pool exhaustion, waiver backlog, games, IR, reservations, ties, unchanged FAAB and claims, drops, and the unenabled control league.
 `tests/db/roster-floor-schedule.sql` checks the queue, dispatch, paused and shed controls, week identity, and readiness.
+`tests/db/roster-floor-membership.sql` checks a departed member, a newcomer, an exhausted pool that keeps surviving stored order ahead of the newcomer, two competing short teams, and a repeat run.
+`tests/e2e/roster-floor-membership-concurrency-db.mjs` checks a removal that commits while the floor waits and a member delete that waits for an open floor transaction.
 `tests/e2e/roster-floor-concurrency-db.mjs` checks repeat and concurrent runs.
 
 ## Weekly add limits

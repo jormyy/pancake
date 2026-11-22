@@ -862,6 +862,8 @@ DECLARE
   v_pass_awarded int;
   v_short boolean;
   v_teams jsonb;
+  v_members uuid[];
+  v_order uuid[];
   v_today date := (now() AT TIME ZONE 'America/New_York')::date;
   v_invocation text := nullif(nullif(current_setting('request.headers', true), '')::jsonb->>'x-pancake-work-key', '');
 BEGIN
@@ -990,6 +992,40 @@ BEGIN
       'weekEnd', v_week_end, 'awarded', 0);
   END IF;
 
+  WITH locked AS (
+    SELECT member.id, member.joined_at
+      FROM public.league_members member
+     WHERE member.league_id = p_league_id
+     ORDER BY member.id
+     FOR KEY SHARE
+  ),
+  ordered AS (
+    SELECT stored.member_id, stored.position
+      FROM unnest(v_week_row.team_order) WITH ORDINALITY AS stored(member_id, position)
+     WHERE stored.member_id IN (SELECT locked.id FROM locked)
+    UNION ALL
+    SELECT newcomer.id, newcomer.position
+      FROM (
+        SELECT locked.id,
+               COALESCE(array_length(v_week_row.team_order, 1), 0)
+                 + row_number() OVER (ORDER BY locked.joined_at, locked.id) AS position
+          FROM locked
+         WHERE NOT (locked.id = ANY(v_week_row.team_order))
+      ) newcomer
+  )
+  SELECT (SELECT COALESCE(array_agg(ordered.member_id ORDER BY ordered.position), ARRAY[]::uuid[]) FROM ordered),
+         (SELECT COALESCE(array_agg(locked.id ORDER BY locked.id), ARRAY[]::uuid[]) FROM locked)
+    INTO v_order, v_members;
+
+  IF v_order IS DISTINCT FROM v_week_row.team_order THEN
+    UPDATE private.roster_floor_weeks
+       SET team_order = v_order
+     WHERE league_id = p_league_id
+       AND league_season_id = p_league_season_id
+       AND week_number = v_week_number;
+    v_week_row.team_order := v_order;
+  END IF;
+
   v_ready := private.roster_floor_week_ready(p_league_id, p_league_season_id, v_week_number, v_week_end);
   IF NOT COALESCE((v_ready->>'ready')::boolean, false) THEN
     UPDATE private.roster_floor_weeks
@@ -1023,10 +1059,7 @@ BEGIN
       RAISE EXCEPTION 'Work lease is no longer current' USING ERRCODE = 'PT409';
     END IF;
     FOR v_member IN
-      SELECT member.id
-        FROM public.league_members member
-       WHERE member.league_id = p_league_id
-       ORDER BY member.id
+      SELECT unnest(v_members) AS id
     LOOP
       PERFORM public.auto_manage_ir_service(p_league_id, p_league_season_id, v_member.id);
     END LOOP;
@@ -1034,7 +1067,7 @@ BEGIN
     LOOP
       v_pass_awarded := 0;
       v_short := false;
-      FOR v_team IN SELECT unnest(v_week_row.team_order) AS member_id LOOP
+      FOR v_team IN SELECT unnest(v_order) AS member_id LOOP
         SELECT count(*)
           INTO v_active
           FROM public.roster_players roster

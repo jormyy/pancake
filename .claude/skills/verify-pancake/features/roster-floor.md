@@ -22,6 +22,7 @@ No other league changes behavior.
 - `roster-floor-averages` defers with `averages_pending` and awards nobody when the league season's average cache is uninitialized, its scoring no longer matches the league, or a stats correction left dirty rows. It takes no row lock; it captures a cache watermark (row count, latest refresh time, latest version) at preflight and rechecks readiness and the watermark after every award and before completion, rolling the whole pass back on a change.
 - `roster-floor-ir-transient` defers with `ir_transient` and rolls back the whole pass when a member's IR return fails transiently, so it never awards a free agent ahead of a healthy legal IR return.
 - `roster-floor-atomic` rolls back the whole pass, including the IR returns and awards, when a game starts mid-pass, so the retry recomputes from current state and keeps the round-robin order.
+- `roster-floor-membership` locks the league's member rows before the pass, drops a departed member from the stored order, appends a member who joined while the week was pending, and keeps surviving teams in their stored relative order.
 - `roster-floor-midnight` settles and runs the week from the database clock crossing the league-local midnight, not from a passed-in future timestamp.
 
 ## How to get to it (user POV)
@@ -59,7 +60,7 @@ Preconditions:
 
 Run these on the disposable stack before the visible journey:
 
-- `npm run test:db:roster-floor`, `npm run test:db:roster-floor-schedule`, `npm run test:db:roster-floor-settlement`, `npm run test:db:roster-floor-revalidation`, and `npm run test:db:roster-floor-concurrency` cover counts, order, pool, waivers, games, IR, reservations, schedule, settlement, revalidation, and repeat runs.
+- `npm run test:db:roster-floor`, `npm run test:db:roster-floor-schedule`, `npm run test:db:roster-floor-settlement`, `npm run test:db:roster-floor-revalidation`, `npm run test:db:roster-floor-membership`, `npm run test:db:roster-floor-membership-concurrency`, and `npm run test:db:roster-floor-concurrency` cover counts, order, pool, waivers, games, IR, reservations, schedule, settlement, revalidation, membership changes, and repeat runs.
 - `npm run test:db:r4-floor-atomic` holds the second-ranked free agent’s lock, lets the first team take the first free agent, crosses an unrelated game’s start, and requires the deferred pass to commit no awards and the retry to keep the round-robin order.
 - `npm run test:db:r3-cases` includes the midnight case: the fixture league’s timezone is chosen so the database clock is already the next day there while the settlement date is the previous day, and the scheduler admits the floor from that clock.
 - `npm run test:db:r5-cases` covers the averages gate (scoring change, delayed refresh, uninitialized cache, exact tie), the explicit activation, and the scoped pre-tipoff lease.
