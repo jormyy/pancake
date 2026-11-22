@@ -2346,6 +2346,7 @@ export type Database = {
           input_fingerprint: string | null
           input_revision: number
           lease_until: string | null
+          scope: string
           status: string
           tipoff_at: string
           token: string
@@ -2358,6 +2359,7 @@ export type Database = {
           input_fingerprint?: string | null
           input_revision?: number
           lease_until?: string | null
+          scope?: string
           status?: string
           tipoff_at: string
           token?: string
@@ -2370,6 +2372,7 @@ export type Database = {
           input_fingerprint?: string | null
           input_revision?: number
           lease_until?: string | null
+          scope?: string
           status?: string
           tipoff_at?: string
           token?: string
@@ -2381,36 +2384,45 @@ export type Database = {
           completed_at: string
           error: string | null
           input_revision: number
+          ir_done: boolean
           league_id: string
           league_season_id: string
           member_id: string
+          scope: string
+          starter_done: boolean
           tipoff_at: string
         }
         Insert: {
           completed_at?: string
           error?: string | null
           input_revision?: number
+          ir_done?: boolean
           league_id: string
           league_season_id: string
           member_id: string
+          scope?: string
+          starter_done?: boolean
           tipoff_at: string
         }
         Update: {
           completed_at?: string
           error?: string | null
           input_revision?: number
+          ir_done?: boolean
           league_id?: string
           league_season_id?: string
           member_id?: string
+          scope?: string
+          starter_done?: boolean
           tipoff_at?: string
         }
         Relationships: [
           {
-            foreignKeyName: "lineup_tipoff_members_tipoff_at_fkey"
-            columns: ["tipoff_at"]
+            foreignKeyName: "lineup_tipoff_members_dispatch_fkey"
+            columns: ["tipoff_at", "scope"]
             isOneToOne: false
             referencedRelation: "lineup_tipoff_dispatches"
-            referencedColumns: ["tipoff_at"]
+            referencedColumns: ["tipoff_at", "scope"]
           },
         ]
       }
@@ -5973,6 +5985,7 @@ export type Database = {
           p_league_id: string
           p_league_season_id: string
           p_member_id: string
+          p_scope?: string
           p_tipoff_at: string
           p_token: string
         }
@@ -6005,6 +6018,17 @@ export type Database = {
           p_league_id: string
           p_league_season_id: string
           p_member_id: string
+        }
+        Returns: Json
+      }
+      auto_manage_ir_tipoff_service: {
+        Args: {
+          p_league_id: string
+          p_league_season_id: string
+          p_member_id: string
+          p_scope?: string
+          p_tipoff_at: string
+          p_token: string
         }
         Returns: Json
       }
@@ -6065,7 +6089,7 @@ export type Database = {
         Returns: boolean
       }
       claim_lineup_tipoff_dispatch: {
-        Args: { p_tipoff_at: string; p_token: string }
+        Args: { p_scope?: string; p_tipoff_at: string; p_token: string }
         Returns: string
       }
       claim_matchup_forecasts: {
@@ -6479,7 +6503,12 @@ export type Database = {
         Returns: undefined
       }
       finish_lineup_tipoff_dispatch: {
-        Args: { p_error?: string; p_tipoff_at: string; p_token: string }
+        Args: {
+          p_error?: string
+          p_scope?: string
+          p_tipoff_at: string
+          p_token: string
+        }
         Returns: undefined
       }
       generate_invite_code: { Args: never; Returns: string }
@@ -6717,14 +6746,32 @@ export type Database = {
           weekly_add_limit: number
         }[]
       }
+      get_pending_auto_ir_members: {
+        Args: {
+          p_excluded_members?: string[]
+          p_game_date: string
+          p_include_enabled?: boolean
+          p_limit?: number
+          p_scope?: string
+          p_tipoff_at?: string
+          p_token?: string
+        }
+        Returns: {
+          league_id: string
+          league_season_id: string
+          member_id: string
+        }[]
+      }
       get_pending_tipoff_members: {
         Args: {
           p_excluded_members?: string[]
           p_limit?: number
+          p_scope?: string
           p_tipoff_at: string
           p_token: string
         }
         Returns: {
+          auto_ir: boolean
           league_id: string
           league_season_id: string
           member_id: string
@@ -6870,6 +6917,17 @@ export type Database = {
           p_to_taxi?: boolean
         }
         Returns: Json
+      }
+      mark_tipoff_ir_member_done: {
+        Args: {
+          p_league_id: string
+          p_league_season_id: string
+          p_member_id: string
+          p_scope?: string
+          p_tipoff_at: string
+          p_token: string
+        }
+        Returns: boolean
       }
       merge_duplicate_players: { Args: never; Returns: undefined }
       merge_players: {
@@ -7036,6 +7094,10 @@ export type Database = {
           status: Database["public"]["Enums"]["waiver_claim_status"]
         }[]
       }
+      process_roster_floor_service: {
+        Args: { p_league_id?: string; p_league_season_id?: string }
+        Returns: Json
+      }
       projection_stat_fantasy_points: {
         Args: {
           p_assists: number
@@ -7159,6 +7221,7 @@ export type Database = {
           p_league_id: string
           p_league_season_id: string
           p_member_id: string
+          p_scope?: string
           p_tipoff_at: string
           p_token: string
         }
@@ -7206,7 +7269,7 @@ export type Database = {
         Returns: undefined
       }
       renew_lineup_tipoff_dispatch: {
-        Args: { p_tipoff_at: string; p_token: string }
+        Args: { p_scope?: string; p_tipoff_at: string; p_token: string }
         Returns: boolean
       }
       renew_live_poll_lease: {
@@ -7496,6 +7559,14 @@ export type Database = {
       set_worker_paused: {
         Args: { p_paused: boolean; p_reason?: string }
         Returns: Json
+      }
+      settle_latest_waiver_runs: {
+        Args: { p_drain_started_at: string }
+        Returns: number
+      }
+      settle_waiver_runs: {
+        Args: { p_date: string; p_drain_started_at: string; p_timezone: string }
+        Returns: number
       }
       start_auction_draft_atomic: {
         Args: {

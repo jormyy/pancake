@@ -3672,6 +3672,41 @@
       "statementCount": 23,
       "statementsSha256": "0430bc5bb6f2ae3b24a4811e9a0567429fa1c6c6768512ef436bc71513f724b1",
       "sha256": "0b420d673cb546dbdd92db9aee92323603cba587babee6464d0a5200396f99dd"
+    },
+    {
+      "name": "league_roster_policies",
+      "version": "20261214011400",
+      "statementCount": 17,
+      "statementsSha256": "b3826633aebfcd765029d30315993f6739313835198b9c19dd300930fea57e32",
+      "sha256": "b8cfecab836c7cbfece38416016351ac6cf7bed0398a043487d1ce2d05e62bfb"
+    },
+    {
+      "name": "weekly_roster_floor",
+      "version": "20261214011500",
+      "statementCount": 43,
+      "statementsSha256": "7bd9b20f6525d128661b0d522b1da5525c203cf2a4ae06bb5902806b4d1bbb78",
+      "sha256": "45eba17732f8e67d2a8c37a600930e6676cf2b53ffa45ce32a373c31871d777d"
+    },
+    {
+      "name": "league_auto_ir_schedule",
+      "version": "20261214011600",
+      "statementCount": 72,
+      "statementsSha256": "b00d8d23748e043aa280f5b498554faaaade79509bf48dcc314240cb0d1359a5",
+      "sha256": "db41e05aadb97675c50430e053497930355aa339a1a572eb6c04072ecf0b5744"
+    },
+    {
+      "name": "enable_official_league_roster_policy",
+      "version": "20261214011700",
+      "statementCount": 1,
+      "statementsSha256": "40707ed9e807094feff62742ad7ff09f9ef5e96c380b543b60720e2c98bf46fc",
+      "sha256": "8fe1e498005a8597ddd575f5e0563a163f049e08b03e0452eee9a590864ecbde"
+    },
+    {
+      "name": "tipoff_mode_aware_completion",
+      "version": "20261214011800",
+      "statementCount": 21,
+      "statementsSha256": "d307bc5eb6c2eba7faa2d0fe5a3cbcf0e0c5d13e5ea7b8e7953e0b5471db545f",
+      "sha256": "d4dc37396f8f1e8d65105ef1e104c7feb8605d91abd04134e175dbae4171abcb"
     }
   ]
 }

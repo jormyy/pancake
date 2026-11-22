@@ -246,6 +246,59 @@ The [trade curve report](../docs/trade-curve.md) records the real trades, roster
 
 ## Release order for this release
 
+The supplied production head is `20261214011300` (`trade_roster_holds`, applied ahead of main by the trade release), with 791 migrations.
+This release adds `20261214011400_league_roster_policies.sql`, `20261214011500_weekly_roster_floor.sql`, `20261214011600_league_auto_ir_schedule.sql`, `20261214011700_enable_official_league_roster_policy.sql`, and `20261214011800_tipoff_mode_aware_completion.sql`, for 796 migrations.
+Apply the five migrations through the guarded dry run and push before either Edge release.
+The five migrations need no frontend release and enable nothing: `floor_activated_at` and `ir_activated_at` stay NULL.
+Each of the two Edge releases and the activation is a separate authorization.
+
+1. **Migrations (inert alone).** The five migrations add the private policy table, the floor tables, pool, service, dispatcher work, the league-wide Auto IR tipoff admission, the pre-tipoff work, the OFFICIAL LEAGUE policy row, and the mode-aware tipoff completion with separate IR and starter receipts. The shared `pre-tipoff` fingerprint stays the legacy 009700 body and excludes activated policy leagues; the scoped `pre-tipoff-policy` fingerprint covers one policy league's members, mode, roster, reservations, pins, slots, projections, and the date's games. Applying the five migrations therefore leaves every open shared window's fingerprint unchanged, and after activation the official league and every other league never reopen each other's completed windows. From SQL alone the tables, functions, and policy row are live, and no roster, lineup, dispatch, or notice changes: `floor_activated_at` and `ir_activated_at` stay NULL, so the floor defers, the daily and pre-tipoff schedulers enqueue nothing new, and the league-wide IR admission stays off. The enable migration inserts the OFFICIAL LEAGUE policy only when that league exists, and a rerun changes nothing. No migration activates the policy. The scoped tipoff admission is fenced on the policy latch: a leftover scoped dispatch after deactivation fails without writing a lineup, IR move, or receipt, and the latch update waits for an in-flight scoped effect.
+2. **`lineup-optimizer` (separately authorized).** Deploy the release build (successor of v61) and verify it before the next step. It adds the league-wide IR admission, the daily IR run on days without a scheduled game, the policy-aware notices, the transient-IR failure contract, the HTTP service/load/timeout retry at the IR boundary, and the mode-aware tipoff completion. The official league's tipoff work is its own `pre-tipoff-policy` work item and dispatch scope, keyed by tipoff and league, with a 45-second lease, a 5-second retry, and no dead-lettering before tipoff; the shared `pre-tipoff` item serves only leagues without an activated policy and keeps the five-minute lease and base backoff. With both latches NULL it does nothing new: `public.get_pending_auto_ir_members` returns no rows and sets no latch, and the schedulers enqueue nothing new.
+3. **`process-waivers` (separately authorized).** Deploy the release build (successor of v77) and verify it before the next step. It adds `public.settle_waiver_runs` and the floor call. With both latches NULL the floor defers with `worker_pending` and awards nobody.
+4. **Activation (separately authorized, run by Forge).** After both workers are deployed and verified, run once:
+   ```sql
+   SELECT private.activate_league_roster_policy('faab8d8f-6a60-4bbc-8f5d-44050b652cdd');
+   ```
+   It sets `floor_activated_at` and `ir_activated_at` together, returns true, is idempotent, and touches only that league. Nothing else activates the policy: no migration, no worker, and no scheduler. A league with no policy row returns false and changes nothing.
+
+If `process-waivers` ships first, the floor stays deferred with `worker_pending` and awards nobody. The daily and pre-tipoff league-wide IR admission and the policy-aware notices stay off until `lineup-optimizer` ships, because both schedulers and both admission functions require `ir_activated_at`. Activation before both scoped workers are live is not safe: the migrated admission refuses an old worker's scoped claim with `PT409`, so the official league's pre-tipoff IR and opt-in starters wait until the scoped workers are deployed and verified. Deploy both scoped workers and verify them before the separately authorized activation.
+
+### Rollback
+
+Roll back the Edge functions first, then clear both latches. Keep the window between the Edge rollback and the SQL clear short.
+
+1. **`process-waivers` and `lineup-optimizer`.** Roll back both Edge functions, then run:
+   ```sql
+   UPDATE private.league_roster_policies
+      SET floor_activated_at = NULL, ir_activated_at = NULL
+    WHERE league_id = 'faab8d8f-6a60-4bbc-8f5d-44050b652cdd';
+   ```
+   During the window the latches are still set, so `private.enqueue_scheduled_work` and `public.dispatch_work` keep enqueueing `roster-floor` items on the ET date equal to `week_end`, one per 15-minute bucket. Dispatch invokes the old `process-waivers` v77, which ignores the body, runs a normal waiver drain and `expire_waiver_wire_logs`, and returns ok, so the item succeeds. The result is extra normal drains on the `week_end` date only, no settlement recorded, no floor, no roster change beyond normal waiver processing, and no failed items. The old `lineup-optimizer` v61 calls `public.auto_manage_ir_service` only for enabled settings, ignores the additive `auto_ir` column from `public.get_pending_tipoff_members`, does not call `public.get_pending_auto_ir_members`, makes no league-wide IR move, changes no policy-aware notice, and sets no starter for a manual team.
+   The official league's pre-tipoff work is a scoped `pre-tipoff-policy` item. The old v61 claims the dispatch without a scope, and `public.claim_lineup_tipoff_dispatch` refuses it with `PT409`, so the old worker does not run that window and cannot duplicate the official league's IR or starters. The official league's pre-tipoff IR and opt-in starters therefore wait until activation is cleared, after which that league returns to the shared `pre-tipoff` item. That wait is the accepted trade-off for never running the old worker against the official league's scoped window.
+2. **Read back.**
+   ```sql
+   SELECT league_id, weekly_roster_floor, auto_ir_all_members, floor_activated_at, ir_activated_at
+     FROM private.league_roster_policies
+    WHERE league_id = 'faab8d8f-6a60-4bbc-8f5d-44050b652cdd';
+   ```
+   Both latches must be NULL. The old workers then receive the policy row with both latches NULL and stay inert.
+
+To stop the dispatcher enqueues without a rollback, delete the policy row or clear both policy columns.
+Release order stays migrations, both workers, verify, then activation; rollback is both workers, then clear both dates.
+Read-only checks: `SELECT league_id, weekly_roster_floor, auto_ir_all_members, floor_activated_at, ir_activated_at FROM private.league_roster_policies;`, `SELECT kind, function_name FROM private.work_kinds WHERE kind = 'roster-floor';`, `SELECT count(*) FROM private.waiver_run_settlements;`, and `SELECT count(*) FROM private.work_items WHERE kind = 'roster-floor' AND status IN ('pending','failed','running');`.
+Floor readback: `SELECT league_id, league_season_id, week_number, week_end, status, last_deferral_reason, last_deferred_at, expired_at FROM private.roster_floor_weeks ORDER BY week_end DESC, week_number DESC;`.
+Pre-tipoff-policy readback: `SELECT id, status, attempts, due_at, last_error, payload->>'tipoffAt' AS tipoff_at, payload->>'leagueId' AS league_id FROM private.work_items WHERE kind = 'pre-tipoff-policy' ORDER BY id DESC;`.
+Activation readback: `SELECT private.league_auto_ir_all_members('faab8d8f-6a60-4bbc-8f5d-44050b652cdd');` must return true only after step 4.
+
+## Release order for the earlier Auto Lineup IR release
+
+This section describes the earlier Auto Lineup IR release, which is already live. It does not apply to the roster policy release above.
+
+The supplied production head is `20261214011100`, with 789 migrations.
+That release added only `20261214011200_auto_manage_ir_service.sql`, for 790 migrations.
+
+## Release order for the trade roster holds release
+
 The supplied production head is `20261214011200`, with 790 migrations.
 That head assumes the Auto Lineup IR release below is applied first; confirm it with a read-only ledger dry run before applying.
 This release adds only `20261214011300_trade_roster_holds.sql`, for 791 migrations.
@@ -263,7 +316,7 @@ A read-only ledger dry run showed it as the only pending migration.
 Apply it through the guarded dry run and push.
 Verify the new functions, grants, and that nothing else changed with read-only checks.
 Then release only the `lineup-optimizer` Edge function.
-No `api` or `refresh-views` deploy and no producer pause are required for this release.
+No `api` or `refresh-views` deploy and no producer pause are required for that release.
 Before `lineup-optimizer` is released, the database function is unused.
 Rolling back `lineup-optimizer` alone restores today's behavior.
 
@@ -1693,6 +1746,44 @@ It returns an empty notice list when the setting is off or the caller is not a m
 IR and taxi over-capacity are not reachable through supported write paths, so `private.roster_problems` keeps its existing problem kinds.
 Run `npm run test:db:auto-manage-ir` and `npm run test:db:auto-manage-ir-concurrency` on a private stack.
 Regenerate database types, the function catalog, and release attestations.
+
+## Weekly roster floor and league-wide Auto IR
+
+The rollout is the five-migration order in [Release order for this release](#release-order-for-this-release): migrations, both scoped Edge releases with verify, then the separately authorized activation. This section describes the feature and its fixtures; it does not add a second rollout.
+`private.league_roster_policies` is the only switch; the enable migration writes one row for OFFICIAL LEAGUE `faab8d8f-6a60-4bbc-8f5d-44050b652cdd` and no other league.
+The enable migration is a no-op when that league is absent, and a rerun changes nothing.
+`private.league_auto_ir_all_members` reads the policy for the Auto IR service and notices reader.
+`private.roster_floor_weeks` stores one row per league, season, and week with the shuffled team order and a `pending`, `completed`, or `expired` status.
+`private.roster_floor_awards` records each awarded player once per week.
+`private.roster_floor_week_ready` waits for the league-local midnight, the week's due claims, and no live game.
+`private.roster_floor_pool` ranks unrostered free agents with a current-season league-scored average, an NBA team, and no injury designation.
+`private.run_league_roster_floor` applies Auto IR to every member, fills short teams to the floor, and marks the week completed.
+A floor add, an Auto IR return, or an Auto IR designation that would use roster or IR room held by an accepted trade is checked immediately with `private.assert_accepted_trade_capacity` and skipped for that team alone, so a held spot never rolls back the rest of the run at commit.
+The team order holds every member, shuffled once per week; teams at or above the floor are skipped at award time.
+A week that cannot finish stays `pending` with `last_deferral_reason` and `last_deferred_at`, and both the dispatcher and `process-waivers` retry it.
+It completes late when its prerequisites clear before the next matchup week's own floor run is due.
+Once that run is due, the older week becomes `expired` with `expired_at` and the next week runs normally.
+A mid-pass game-time deferral rolls back the whole pass, including the IR returns and awards, so the retry recomputes from current state and keeps the round-robin order.
+`public.process_roster_floor_service` runs one league or every enabled league and reports each result.
+`private.enqueue_scheduled_work` and `public.dispatch_work` enqueue `roster-floor` work after the league-local midnight of the week-end day and stop after the week completes.
+`private.enqueue_lineup_optimizer` and `private.enqueue_pre_tipoff_optimizer` require `ir_activated_at`, so a policy row with a NULL latch enqueues nothing new.
+`public.get_pending_auto_ir_members` and `public.mark_tipoff_ir_member_done` admit every member of an enabled league in each pre-tipoff window.
+The daily path of `public.get_pending_auto_ir_members` admits those members on every Eastern date, with or without a scheduled game, and applies IR only.
+`private.pre_tipoff_input_fingerprint` is the shared fingerprint: the legacy 009700 body, unchanged when no policy is activated, with activated policy leagues excluded. `private.pre_tipoff_policy_input_fingerprint` is the scoped fingerprint for one policy league: every member's Auto Lineup mode, scoring, roster size and IR slots, roster with injury status, expected return and career games, IR and taxi flags, trade and claim reservations, pins, slots, projections, and the date's shared NBA games. A return-date correction, a released reservation, or an Auto Lineup flip reopens only that league's completed dispatch; an other-league change reopens only the shared dispatch.
+The official league's tipoff work is a `pre-tipoff-policy` work item and dispatch scope keyed by tipoff and league, with a 45-second lease, a 5-second retry, and no dead-lettering before tipoff.
+The shared `pre-tipoff` item serves only leagues without an activated policy and keeps the five-minute lease and base backoff.
+An old worker is refused the scoped claim with `PT409`, so it cannot duplicate the official league's IR or starters.
+A transient IR failure never writes a durable member receipt; an exhausted retry finishes the dispatch failed and the work item retries with unchanged inputs.
+`public.get_pending_tipoff_members` returns the league-wide `auto_ir` flag, and `public.record_pre_tipoff_lineup_failure` records the same failures.
+Temporary network failures on IR are retried; exhausted retries fail the batch without a member receipt.
+Daily fail-and-retry applies only to the activated policy league.
+The `process-waivers` worker runs the floor after the waiver drain, includes the floor result in its JSON response, and returns HTTP 500 when any league reports failed so the work item retries.
+The `lineup-optimizer` worker calls the league-wide admission in every pre-tipoff window, and the daily run applies the policy through `public.auto_manage_ir_service` on game days and off days.
+After the migrations and before activation, both latches are NULL, so the floor defers, the daily and pre-tipoff schedulers enqueue nothing new, and the league-wide IR admission stays off. The enable migration writes the policy row but sets no latch.
+Rollback is the order in [Release order for this release](#release-order-for-this-release): roll back both Edge functions, then clear both latches. While the latches are still set, the old `lineup-optimizer` v61 cannot claim the official league's scoped `pre-tipoff-policy` dispatch and is refused with `PT409`, so it makes no league-wide IR move and sets no manual starter; the official league's pre-tipoff IR and opt-in starters wait until the latches are cleared and the league returns to the shared `pre-tipoff` item. `tests/db/r6-tipoff-matrix.mts` proves the old worker's shared scope still succeeds, the old worker's scoped claim fails, the new worker handles both scopes, and no roster transaction is duplicated.
+Delete the policy row or clear both columns to stop the dispatcher enqueues without a rollback.
+Run `npm run test:db:r8-tipoff-isolation`, `npm run test:db:r7-mode-aware-tipoff`, `npm run test:db:r7-tipoff-receipt-backfill`, `npm run test:db:r4-cases`, `npm run test:db:r5-cases`, `npm run test:db:lineup-pins`, `npm run test:db:r6-tipoff-matrix`, `npm run test:db:r7-worker-tipoff`, `npm run test:db:league-auto-ir-policy`, `npm run test:db:league-auto-ir-schedule`, `npm run test:db:league-auto-ir-tipoff-concurrency`, `npm run test:db:roster-floor`, `npm run test:db:roster-floor-schedule`, and `npm run test:db:roster-floor-concurrency` on a private stack.
+Run `npm run test:db:autoset-tipoff-integration` first, on the freshly migrated database and before any other recipe: it asserts an empty `public.leagues` table. It needs `SUPABASE_URL`, `SUPABASE_DB_URL`, `PANCAKE_TEST_API_PORT`, `PANCAKE_TEST_DB_PORT`, and a secret key in `PANCAKE_SUPABASE_SECRET_KEY` (or `SUPABASE_SECRET_KEY`). It is flaky on both base and head: its own two concurrent `processDaily` calls contend on the `lineup_optimizer_settings` row while `service_role` carries a 250 ms `lock_timeout`, so one call can fail with `55P03 canceling statement due to lock timeout`. Treat a single `55P03` there as that known race, not a regression.
 
 ## Trade roster holds
 

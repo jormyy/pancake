@@ -194,6 +194,32 @@ Use one bounded transaction and verify inconsistent tuples before reapplication.
 Published migration `supabase/migrations/20261008000002_optimizer_setting_context_writes.sql` defines the exact objects and original grants.
 Recovery must follow the attested release process. Do not edit applied migrations.
 
+## League-wide auto IR
+
+A league policy row with `auto_ir_all_members=true` runs the legal auto-IR resolution for every member, including members whose Auto Lineup is off.
+The policy lives in `private.league_roster_policies` and is read through `private.league_auto_ir_all_members`.
+Leagues without the policy keep the opt-in behavior.
+
+The daily check and each pre-tipoff window resolve IR first, then read the roster again before choosing starters.
+Starters are chosen only for members whose Auto Lineup is on.
+An Auto Lineup off member keeps manual starters; a player moved to IR leaves the lineup and the slot stays empty.
+No auto-drop, taxi move, retroactive swap, or game-time pickup is added.
+
+`private.enqueue_lineup_optimizer` and `private.enqueue_pre_tipoff_optimizer` also qualify a league with the policy and a current season, even when no member has Auto Lineup on.
+`public.get_pending_auto_ir_members` lists policy league members with Auto Lineup off for the daily check or a claimed tipoff window.
+`public.mark_tipoff_ir_member_done` records the IR-only member under the dispatch input revision.
+`public.record_pre_tipoff_lineup_failure` accepts a policy member without a settings row.
+The tipoff window processes each member once, retries transient errors, records failures, and finishes.
+Repeated or concurrent dispatch cannot double-apply because the claim, the receipt, and the IR advisory lock are shared.
+
+A scoped dispatch is valid only while its league's policy is active.
+`private.tipoff_scope_admits` admits a shared scope only for leagues without an active policy and a league scope only for that league while its policy is active.
+Claim, renew, both pending queries, the lineup apply, the scoped IR move, the IR receipt, the failure receipt, and the finish all evaluate it.
+The effects take `FOR SHARE` on the policy row, so a latch update either waits for an in-flight scoped write or the write sees the cleared latch.
+`public.auto_manage_ir_tipoff_service` validates the dispatch token, lease, and scope before calling `public.auto_manage_ir_service` in the same transaction; the daily optimizer keeps calling `public.auto_manage_ir_service` directly.
+A stale scoped result ends the dispatch as failed and writes no starter, IR, or error receipt.
+After deactivation the league's enabled members return to the shared dispatch, and a shared write for a league that became active skips without spinning.
+
 ## Verify scheduled runs
 
 `work-dispatcher` runs every minute (`* * * * *`).

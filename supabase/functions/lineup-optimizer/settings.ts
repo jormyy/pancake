@@ -58,3 +58,20 @@ export async function loadOptimizerSettingEnabled(
   if (error) throw error
   return data?.enabled === true
 }
+
+export async function loadPendingAutoIrMembers(
+  client: SupabaseClient<Database>, date: string,
+  options: { tipoffAt?: string; token?: string; excluded?: string[]; limit?: number; includeEnabled?: boolean; scope?: string } = {},
+): Promise<OptimizerSetting[]> {
+  const { data, error } = await client.rpc('get_pending_auto_ir_members', {
+    p_game_date: date,
+    ...(options.tipoffAt ? { p_tipoff_at: options.tipoffAt } : {}),
+    ...(options.token ? { p_token: options.token } : {}),
+    ...(options.excluded ? { p_excluded_members: options.excluded } : {}),
+    p_limit: options.limit ?? 100,
+    p_include_enabled: options.includeEnabled ?? false,
+    p_scope: options.scope ?? '',
+  })
+  if (error) throw error
+  return data ?? []
+}

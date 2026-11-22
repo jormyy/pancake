@@ -4,6 +4,15 @@ import { startLeaseHeartbeat } from '../_shared/leaseHeartbeat.ts'
 import { renewCurrentWorkLease, withWorkContext } from '../_shared/workContext.ts'
 import { runBounded } from '../_shared/runBounded.ts'
 import { errorMessage, logInternalError } from '../_shared/responses.ts'
+import { isTransientError, transientRpcError } from '../_shared/transientError.ts'
+import { loadPendingAutoIrMembers, type OptimizerSetting } from './settings.ts'
+import { manageIrForTipoffMemberStrict } from './ir.ts'
+
+type TipoffMember = OptimizerSetting & { auto_ir?: boolean }
+
+const FENCE_REFUSAL = 'PT410'
+const isFenceRefusal = (error: unknown) =>
+  !!error && typeof error === 'object' && (error as { code?: unknown }).code === FENCE_REFUSAL
 
 export type TipoffContext = {
   date: string
@@ -72,8 +81,9 @@ export async function processPreTipoff(body: Record<string, unknown>) {
   }
   const tipoffAt = body.tipoffAt
   const token = body.token
+  const scope = typeof body.leagueId === 'string' ? body.leagueId : ''
   const { data: date, error: claimError } = await supabase.rpc('claim_lineup_tipoff_dispatch', {
-    p_tipoff_at: tipoffAt, p_token: token,
+    p_tipoff_at: tipoffAt, p_token: token, p_scope: scope,
   }).abortSignal(AbortSignal.timeout(5000))
   if (claimError) throw claimError
   if (!date) return { optimized: 0, failed: 0, claimed: false, errors: [] as string[], batchFailed: false }
@@ -82,7 +92,7 @@ export async function processPreTipoff(body: Record<string, unknown>) {
   const deadline = setTimeout(() => controller.abort(new Error('Tipoff optimization reached its work deadline')), budget)
   const heartbeat = startLeaseHeartbeat(async () => {
     const { data, error } = await supabase.rpc('renew_lineup_tipoff_dispatch', {
-      p_tipoff_at: tipoffAt, p_token: token,
+      p_tipoff_at: tipoffAt, p_token: token, p_scope: scope,
     }).abortSignal(AbortSignal.timeout(5000))
     if (error) throw error
     return data === true
@@ -91,74 +101,103 @@ export async function processPreTipoff(body: Record<string, unknown>) {
   const failures: string[] = []
   const batchFailures: string[] = []
   const excluded: string[] = []
+  const runMember = async (member: OptimizerSetting, work: () => Promise<void>) => {
+    for (let attempt = 0; attempt < 5; attempt++) {
+      if (controller.signal.aborted) return
+      try {
+        await work()
+        return
+      } catch (error) {
+        if (isFenceRefusal(error)) {
+          controller.abort(error)
+          return
+        }
+        const transient = isTransientError(error)
+        if (attempt < 4 && transient && !controller.signal.aborted) {
+          logInternalError(`lineup-optimizer: retry ${attempt + 1}`, error)
+          try {
+            await renewCurrentWorkLease()
+            await new Promise(resolve => setTimeout(resolve, 100 * 2 ** attempt))
+            await renewCurrentWorkLease()
+          } catch (leaseError) {
+            controller.abort(leaseError)
+            return
+          }
+          continue
+        }
+        if (controller.signal.aborted) return
+        excluded.push(member.member_id)
+        const message = errorMessage(error)
+        logInternalError(`lineup-optimizer: member ${member.member_id}`, error)
+        if (transient) {
+          batchFailures.push(`${member.member_id}: ${message}`)
+          return
+        }
+        failures.push(`${member.member_id}: ${message}`)
+        try {
+          const { error: recordError } = await supabase.rpc('record_pre_tipoff_lineup_failure', {
+            p_tipoff_at: tipoffAt, p_token: token, p_league_id: member.league_id,
+            p_league_season_id: member.league_season_id, p_member_id: member.member_id, p_error: message, p_scope: scope,
+          })
+          if (recordError) throw recordError
+        } catch (recordError) {
+          if (isFenceRefusal(recordError)) {
+            controller.abort(recordError)
+            return
+          }
+          batchFailures.push(`${member.member_id}: ${errorMessage(recordError)}`)
+        }
+        return
+      }
+    }
+  }
+  const applyStarters = async (setting: TipoffMember) => {
+    if (setting.auto_ir) await manageIrForTipoffMemberStrict(setting, { tipoffAt, token, scope })
+    const { data, error, status } = await supabase.rpc('get_pre_tipoff_lineup_context', {
+      p_league_id: setting.league_id, p_league_season_id: setting.league_season_id, p_member_id: setting.member_id,
+    })
+    if (error) throw transientRpcError(error, status)
+    if (!data) throw new Error('Tipoff context is no longer available')
+    const context = data as TipoffContext
+    if (context.date !== date) throw new Error('Tipoff date changed during optimization')
+    const playerIds = tipoffPlayers(context).map(player => player.playerId)
+    const projections = playerIds.length ? await supabase.rpc('get_league_projection_rows', {
+      p_league_id: setting.league_id, p_season_year: context.seasonYear, p_game_date: date,
+      p_view: 'today', p_player_ids: playerIds, p_limit: playerIds.length, p_offset: 0,
+    }).select('player_id,projection_fantasy_points') : { data: [] as Projection[], error: null, status: 200 }
+    if (projections.error) throw transientRpcError(projections.error, projections.status)
+    const { data: changed, error: applyError, status: applyStatus } = await supabase.rpc('apply_pre_tipoff_lineup', {
+      p_tipoff_at: tipoffAt, p_token: token, p_league_id: setting.league_id,
+      p_league_season_id: setting.league_season_id, p_member_id: setting.member_id,
+      p_assignments: tipoffAssignments(context, projections.data ?? []), p_scope: scope,
+    })
+    if (applyError) throw transientRpcError(applyError, applyStatus)
+    if (changed) optimized++
+  }
+  const applyAutoIr = async (member: OptimizerSetting) => {
+    await manageIrForTipoffMemberStrict(member, { tipoffAt, token, scope })
+    const { error, status } = await supabase.rpc('mark_tipoff_ir_member_done', {
+      p_tipoff_at: tipoffAt, p_token: token, p_league_id: member.league_id,
+      p_league_season_id: member.league_season_id, p_member_id: member.member_id, p_scope: scope,
+    })
+    if (error) throw transientRpcError(error, status)
+  }
   try {
     await withWorkContext({ signal: controller.signal }, async () => {
       while (!controller.signal.aborted) {
-        const { data: settings, error: workError } = await supabase.rpc('get_pending_tipoff_members', {
-          p_tipoff_at: tipoffAt, p_token: token, p_excluded_members: excluded, p_limit: 100,
-        })
-        if (workError) throw workError
-        if (!settings?.length) break
-        await runBounded(settings.map(setting => async () => {
-          for (let attempt = 0; attempt < 5; attempt++) {
-            if (controller.signal.aborted) return
-            try {
-              const { data, error } = await supabase.rpc('get_pre_tipoff_lineup_context', {
-                p_league_id: setting.league_id, p_league_season_id: setting.league_season_id, p_member_id: setting.member_id,
-              })
-              if (error) throw error
-              if (!data) throw new Error('Tipoff context is no longer available')
-              const context = data as unknown as TipoffContext
-              if (context.date !== date) throw new Error('Tipoff date changed during optimization')
-              const playerIds = tipoffPlayers(context).map(player => player.playerId)
-              const projections = playerIds.length ? await supabase.rpc('get_league_projection_rows', {
-                p_league_id: setting.league_id, p_season_year: context.seasonYear, p_game_date: date,
-                p_view: 'today', p_player_ids: playerIds, p_limit: playerIds.length, p_offset: 0,
-              }).select('player_id,projection_fantasy_points') : { data: [], error: null }
-              if (projections.error) throw projections.error
-              const { data: changed, error: applyError } = await supabase.rpc('apply_pre_tipoff_lineup', {
-                p_tipoff_at: tipoffAt, p_token: token, p_league_id: setting.league_id,
-                p_league_season_id: setting.league_season_id, p_member_id: setting.member_id,
-                p_assignments: tipoffAssignments(context, projections.data ?? []),
-              })
-              if (applyError) throw applyError
-              if (changed) optimized++
-              return
-            } catch (error) {
-              const code = error && typeof error === 'object' && 'code' in error ? error.code : null
-              const transient = ['55P03', '40P01', '40001', '57014'].includes(String(code))
-                || (!code && (/^FetchError: TimeoutError:/.test(errorMessage(error))
-                  || (error instanceof Error && error.name === 'TimeoutError')))
-              if (attempt < 4 && transient && !controller.signal.aborted) {
-                logInternalError(`lineup-optimizer: retry ${attempt + 1}`, error)
-                try {
-                  await renewCurrentWorkLease()
-                  await new Promise(resolve => setTimeout(resolve, 100 * 2 ** attempt))
-                  await renewCurrentWorkLease()
-                } catch (leaseError) {
-                  controller.abort(leaseError)
-                  return
-                }
-                continue
-              }
-              if (controller.signal.aborted) return
-              excluded.push(setting.member_id)
-              const message = errorMessage(error)
-              failures.push(`${setting.member_id}: ${message}`)
-              logInternalError(`lineup-optimizer: member ${setting.member_id}`, error)
-              try {
-                const { error: recordError } = await supabase.rpc('record_pre_tipoff_lineup_failure', {
-                  p_tipoff_at: tipoffAt, p_token: token, p_league_id: setting.league_id,
-                  p_league_season_id: setting.league_season_id, p_member_id: setting.member_id, p_error: message,
-                })
-                if (recordError) throw recordError
-              } catch (recordError) {
-                batchFailures.push(`${setting.member_id}: ${errorMessage(recordError)}`)
-              }
-              return
-            }
-          }
-        }), 1)
+        const [settingsResult, autoIr] = await Promise.all([
+          supabase.rpc('get_pending_tipoff_members', {
+            p_tipoff_at: tipoffAt, p_token: token, p_excluded_members: excluded, p_limit: 100, p_scope: scope,
+          }),
+          loadPendingAutoIrMembers(supabase, date, { tipoffAt, token, excluded, limit: 100, scope }),
+        ])
+        if (settingsResult.error) throw settingsResult.error
+        const settings = settingsResult.data ?? []
+        if (!settings.length && !autoIr.length) break
+        await runBounded([
+          ...settings.map(setting => () => runMember(setting, () => applyStarters(setting))),
+          ...autoIr.map(member => () => runMember(member, () => applyAutoIr(member))),
+        ], 1)
       }
     })
   } catch (error) {
@@ -169,7 +208,7 @@ export async function processPreTipoff(body: Record<string, unknown>) {
   }
   if (controller.signal.aborted) batchFailures.push(errorMessage(controller.signal.reason))
   const { error: finishError } = await supabase.rpc('finish_lineup_tipoff_dispatch', {
-    p_tipoff_at: tipoffAt, p_token: token, ...(batchFailures.length ? { p_error: batchFailures.join('\n') } : {}),
+    p_tipoff_at: tipoffAt, p_token: token, p_scope: scope, ...(batchFailures.length ? { p_error: batchFailures.join('\n') } : {}),
   }).abortSignal(AbortSignal.timeout(5000))
   if (finishError) batchFailures.push(errorMessage(finishError))
   const errors = [...failures, ...batchFailures]

@@ -25,6 +25,7 @@ const selects = {
   matchups: 'league_season_id,week_number,matchup_type,home_member_id,away_member_id,home_points,away_points,winner_member_id,is_finalized',
   standings: 'league_season_id,member_id,week_number,wins,losses,ties,points_for,points_against',
   waiver_claims: 'id,member_id,player_id,bid_amount,status',
+  player_season_averages: 'league_season_id,season_year,player_id,avg_fantasy_points,version,refreshed_at',
   trades: 'id,proposer_member_id,recipient_member_id,status,is_multi_team,accepted_at,completed_at,veto_window_expires_at,completion_failure_reason',
   trade_participants: 'trade_id,member_id,sort_order,accepted_at,drop_player_ids,roster_moves',
   trade_items: 'trade_id,player_id,pick_id,faab_amount,from_member_id,to_member_id',

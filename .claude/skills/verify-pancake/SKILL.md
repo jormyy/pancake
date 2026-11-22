@@ -255,6 +255,7 @@ node tools/verify/observe.mjs "$EVIDENCE" > "$EVIDENCE/auto-ir-after.json"
 Cases are `open-slot`, `full-bench-swap`, `no-legal-swap`, `swap-available`, `swap-locked`, `uncertain`, `locked`, `taxi-ineligible`, `incumbent-exchange`, `incumbent-tie`, `incumbent-boundary-tie`, and `incumbent-unknown`.
 The seeder reshapes E2E Team 1, enables that member’s lineup optimizer, and prints the involved player names, ids, counts, and expected moves or notices as JSON.
 Re-running a case resets and reapplies it.
+Run `npm run test:db:r7-mode-aware-tipoff` and `deno test --allow-env --allow-net --allow-read supabase/functions/lineup-optimizer/irHttpRetry.test.ts` before the visible journey.
 The trigger posts to the local Edge route with the run’s generated internal token, which is never printed.
 The Lineup screen path is the visible Auto lineup control; the background path is the trigger command.
 Notices are never stored: open Lineup without touching any Start/Auto/Bench control and require the notice, then close and reopen it and require the same notice again.
@@ -264,3 +265,28 @@ For `no-legal-swap`, `swap-available`, `uncertain`, `taxi-ineligible`, `incumben
 For `incumbent-exchange`, require the 60-day contender on IR, the 7-day incumbent active, and the 30-day incumbent still on IR.
 For `full-bench-swap` and `swap-available`, also exercise the IR resolution sheet’s `Swap with injured player` option.
 The seeder writes plain fixture rows, so it works before the SQL service and optimizer lanes integrate; behavior assertions wait for that integration.
+
+## Weekly roster floor
+
+Use the `roster-floor` journey in [Weekly roster floor](features/roster-floor.md).
+Seed one count on a fresh disposable stack:
+
+```sh
+node tools/verify/seed-roster-floor.mjs "$EVIDENCE" --count=14
+node tools/verify/observe.mjs "$EVIDENCE" > "$EVIDENCE/roster-floor-before.json"
+node tools/verify/trigger-roster-floor.mjs "$EVIDENCE"
+node tools/verify/observe.mjs "$EVIDENCE" > "$EVIDENCE/roster-floor-after.json"
+```
+
+Counts are `14`, `15`, `16`, and `17`.
+The seeder sets the fixture league’s floor policy and activates it through `private.activate_league_roster_policy`, reshapes E2E Team 1 to the requested active count, fills the other teams to 16, and creates six free agents with real `player_game_stats`.
+It then builds the averages cache through the project’s own refresh (`private.refresh_queue_screen_views` then `private.refresh_player_averages`) and records the week’s settlement through `private.settle_waiver_runs`.
+It prints the involved players and counts as JSON together with `activated`, `averagesReady`, `weekReady`, and `settled`, and it fails unless all four are true.
+Re-running the same count resets and reapplies it.
+The trigger posts to the local `process-waivers` Edge route with the run’s generated internal token, which is never printed.
+Require E2E Team 1 at 16 active, the expected `fa_add` transactions, and the week record `completed` in the after observation.
+The trigger exits non-zero when the week record is not `completed`, so a `worker_pending`, `averages_pending`, or `settlement_pending` deferral is a visible failure rather than a silent no-op.
+The trigger prints `before`, `after`, and `delta` counts for the fixture league and every league.
+Require `delta.awards`, `delta.transactions`, and `delta.rosterPlayers` equal to the expected add count on the first run.
+Run the trigger again and require all three deltas at zero and every other league’s delta at zero.
+Open Roster and require 16 active players, then repeat at 375×812.

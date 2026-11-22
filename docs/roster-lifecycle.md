@@ -97,6 +97,24 @@ It returns `enabled` and an empty notice list when the setting is off or the cal
 The app reads it when Lineup opens, regains focus, or changes a pin or optimizer run.
 Notices are never stored.
 
+## League-wide Auto IR
+
+`private.league_roster_policies.auto_ir_all_members` with `ir_activated_at` set makes every member of the league eligible for Auto IR, including members with Auto Lineup off.
+The daily run admits those members on every Eastern date, with or without a scheduled NBA game, and applies IR only; a manual member never receives a starter change.
+The pre-tipoff run admits them in each tipoff window and applies IR before any starter choice.
+`public.get_pending_auto_ir_members` requires the activation latch, so a policy row with a NULL latch admits nobody.
+`private.enqueue_lineup_optimizer` and `private.enqueue_pre_tipoff_optimizer` also require the latch, so the schedulers enqueue nothing new until the explicit activation action runs.
+`private.activate_league_roster_policy(league_id)` is that action: it sets `floor_activated_at` and `ir_activated_at` together, is idempotent, and touches one league. No migration, worker, or scheduler activates the policy, so an all-manual league starts only after the documented activation step.
+The pre-tipoff fingerprint includes every input `private.plan_auto_ir` reads: roster membership, injury status and expected return, IR and taxi flags, league roster size and IR slots, and trade and claim reservations.
+A return-date correction or a released reservation therefore reopens a completed dispatch.
+A transient IR failure (lock contention, serialization failure, statement timeout, or a fetch timeout) is retried inside the run and never writes a durable member receipt.
+If the retries are exhausted, the dispatch finishes failed and the work item retries with unchanged inputs; a later attempt performs the move once contention clears.
+`public.auto_manage_ir_service` reports each move's SQLSTATE in `skipped`. For a league with the activated policy, a transient SQLSTATE (`55P03`, `40001`, `40P01`, `57014`) re-raises and rolls back the whole member pass, so the worker sees a failure instead of a skip. Ordinary skips (capacity, asset locks, trade reservations, injury uncertainty) still return normally and complete the run.
+The official league's tipoff work is its own `pre-tipoff-policy` work item and dispatch scope, keyed by tipoff and league, with a 45-second lease, a 5-second retry, and no dead-lettering before tipoff, so a worker that disappears is replaced inside the window.
+The shared `pre-tipoff` item serves only leagues without an activated policy and keeps the five-minute lease and base backoff.
+An old worker is refused the scoped claim with `PT409`, so it cannot duplicate the official league's IR or starters.
+Daily fail-and-retry applies only to the activated policy league.
+
 ## Continuous waivers
 
 Every available player requires a scheduled claim. No ordinary pickup changes ownership immediately.
@@ -127,6 +145,64 @@ The shared form also edits bids, destinations, and conditional drops.
 
 `test:db:continuous-faab` checks pending ownership, awards, balances, priority, retries, and stale-client rejection.
 `test:db:continuous-faab-schedule` checks cutoff and daylight saving boundaries.
+
+## Weekly roster floor
+
+A league opts in through `private.league_roster_policies.weekly_roster_floor`.
+No row or a null floor means the job does nothing.
+The job runs once per scheduled week on the week's `season_weeks.week_end` day, after the league's local midnight waiver run and after that run records durable settlement.
+The source-of-truth chain is `private.enqueue_scheduled_work`/`public.dispatch_work` -> `process-waivers` -> `public.process_due_waiver_claims_atomic` (drained until no due claims remain) -> `public.settle_waiver_runs`.
+`public.settle_waiver_runs` writes `private.waiver_run_settlements` for each league and season whose league-local date has no pending claim due at or before the run and no uncleared wire hold that clears after the run.
+The Sunday (`week_end`) run is the last scheduled run of the league week: the dispatcher enqueues one waiver run per league-local date, and the next league-local date starts the next week.
+`private.roster_floor_week_ready` requires the settlement row for `process_date = week_end`; a missing row returns `settlement_pending` and the floor retries every 15 minutes on the week_end day.
+A backlog of due claims delays it.
+It never runs while an NBA game is in progress and never adds a player whose game has started.
+A game counts as in progress when its status is `Scheduled` or `InProgress`, `private.lineup_game_available` accepts its status text, and its status is InProgress or its `game_time` or `started_at` has passed, for today or yesterday in Eastern time.
+Postponed and cancelled games do not block.
+A week that cannot finish stays `pending` in `private.roster_floor_weeks` with `last_deferral_reason` and `last_deferred_at`, and both the dispatcher and `process-waivers` retry it.
+It completes late when its prerequisites clear before the next matchup week's own floor run is due.
+Once that run is due, the older week becomes `expired` with `expired_at` and the next week runs normally.
+A completed week is recorded and never re-opened; a failed or deferred attempt rolls back fully and retries.
+
+The run first applies `public.auto_manage_ir_service` to every member, then counts active players.
+Teams with fewer than the floor active players receive adds up to exactly the floor; teams at or above it are never touched.
+The target is capped by `leagues.roster_size`.
+The pool is unrostered players in the league season with a current-season league-scored average (`public.player_season_averages.avg_fantasy_points IS NOT NULL`), an NBA team, and no injury designation (`players.injury_status IS NULL`, the Players search healthy filter), with no open waiver hold, no pending claim, no pre-draft rookie block, no trade reservation, and no started game.
+No-stats, teamless, day-to-day, questionable and out players are not in the pool, so an exhausted pool means no such player remains.
+It is ranked by `public.player_season_averages.avg_fantasy_points` for the league season, descending, with `player_id` ascending as the tie-break.
+`private.roster_floor_averages_ready` gates every pass before any IR return or award. It requires the league season's `private.screen_refresh_queue` row to be initialized, its `averages_scoring` to equal the league's current `scoring_settings`, and `private.screen_average_dirty` to be empty. It takes no row lock. Instead the pass captures `private.roster_floor_averages_watermark` (cached row count, latest `refreshed_at`, latest `version`) at preflight and rechecks both the readiness predicate and the watermark after every award and again before it marks the week completed; a change raises `PF002` and the whole pass rolls back as `averages_pending`. A scoring change, a delayed average refresh after a stats correction, or an uninitialized or missing cache returns `averages_pending` and awards nobody; absent averages never mean exhaustion.
+The team order holds every member, shuffled once per week, and the order is stored on the week record.
+Teams at or above the floor are skipped at award time.
+Each pass awards at most one player per team; passes repeat until every team reaches the floor or the pool is exhausted.
+A mid-pass deferral rolls back the whole pass, including the IR returns and awards, so the retry recomputes from current state and keeps the round-robin order.
+A roster change between attempts cannot fill a team past the floor.
+
+Adds use `acquired_via = 'roster_floor'` and write a `fa_add` roster transaction.
+They leave FAAB, claims, waiver priority, and weekly add counts unchanged.
+The free-agent insert guard (`PA002`) stays in force for every other path.
+Nothing refills on a drop, trade, or IR change; only the weekly job adds.
+The job takes the league, then member, then player advisory locks in the same order as the waiver processor.
+`private.enqueue_scheduled_work` and `public.dispatch_work` enqueue a `roster-floor` work item every 15 minutes; the item invokes the `process-waivers` worker, which drains claims, records settlement, and then calls `public.process_roster_floor_service`.
+The floor stays inert until `private.activate_league_roster_policy` sets `floor_activated_at` and `ir_activated_at`; no worker sets either latch.
+The floor needs both latches because it must perform the healthy IR returns before it awards.
+The daily and pre-tipoff league-wide IR admission needs `ir_activated_at` for the same reason.
+When a member's IR pass fails transiently, the floor returns `deferred` with `ir_transient` and rolls back the whole pass, so it never awards a free agent ahead of a healthy legal IR return.
+
+Release order: (1) the five migrations are inert alone: the tables, functions, and OFFICIAL LEAGUE policy row are live, and no roster, lineup, dispatch, or notice changes, because both latches stay NULL and the schedulers require them; (2) deploy the release `lineup-optimizer`; (3) deploy the release `process-waivers`; (4) run `SELECT private.activate_league_roster_policy('faab8d8f-6a60-4bbc-8f5d-44050b652cdd');` once, separately authorized and run by Forge, after both workers are deployed and verified. If `process-waivers` ships first, the floor stays deferred with `worker_pending` and awards nobody.
+
+Rollback is exact and ordered: roll back both Edge functions first, then clear both latches. Keep the window short.
+1. `UPDATE private.league_roster_policies SET floor_activated_at = NULL, ir_activated_at = NULL WHERE league_id = 'faab8d8f-6a60-4bbc-8f5d-44050b652cdd';`. During the window the latches are still set, so `enqueue_scheduled_work` and `dispatch_work` keep enqueueing `roster-floor` items on the ET date equal to `week_end`, one per 15-minute bucket; dispatch invokes the old v77, which ignores the body, runs a normal waiver drain and `expire_waiver_wire_logs`, and returns ok, so the item succeeds. Extra normal drains on the `week_end` date only, no settlement recorded, no floor, no roster change beyond normal waiver processing, no failed items. The old v61 manages only enabled settings, ignores the additive `auto_ir` column, makes no league-wide IR move, changes no policy-aware notice, and sets no starter for a manual team. The deactivation fence makes a leftover scoped tipoff dispatch fail without writing a lineup, IR move, or receipt: the latch update waits for an in-flight scoped effect, and every later scoped effect is refused with `PT410`.
+2. Read back: `SELECT league_id, weekly_roster_floor, auto_ir_all_members, floor_activated_at, ir_activated_at FROM private.league_roster_policies WHERE league_id = 'faab8d8f-6a60-4bbc-8f5d-44050b652cdd';`. Both latches must be NULL.
+During the window the official league's pre-tipoff work is a scoped `pre-tipoff-policy` item; the old v61 claims it without a scope and is refused with `PT409`, so it does not run that window and cannot duplicate the official league's IR or starters. The official league's pre-tipoff IR and opt-in starters wait until activation is cleared, after which that league returns to the shared `pre-tipoff` item. That wait is the accepted trade-off.
+
+Operator fork: the shipped policy allows late catch-up of week N until week N+1's run is due; the alternative would expire week N at the end of its week-end day, so no week-N add could land inside week N+1. The alternative is not implemented.
+Readback: `SELECT league_id, league_season_id, week_number, week_end, status, last_deferral_reason, last_deferred_at, expired_at FROM private.roster_floor_weeks ORDER BY week_end DESC, week_number DESC;` and `SELECT id, status, attempts, due_at, last_error, payload->>'tipoffAt' AS tipoff_at, payload->>'leagueId' AS league_id FROM private.work_items WHERE kind = 'pre-tipoff-policy' ORDER BY id DESC;`.
+After the member and player locks, `private.roster_floor_player_legal` rechecks health, claims, wire holds, trade reservations, roster membership, asset eligibility, and the per-player game lock with `clock_timestamp()`; an ineligible top candidate moves to the next legal player.
+The global no-live check is repeated at write time.
+
+`tests/db/roster-floor.sql` checks counts, order, pool exhaustion, waiver backlog, games, IR, reservations, ties, unchanged FAAB and claims, drops, and the unenabled control league.
+`tests/db/roster-floor-schedule.sql` checks the queue, dispatch, paused and shed controls, week identity, and readiness.
+`tests/e2e/roster-floor-concurrency-db.mjs` checks repeat and concurrent runs.
 
 ## Weekly add limits
 
@@ -212,6 +288,9 @@ npm run test:db:waiver-window
 npm run test:db:dynasty-rules
 npm run test:db:continuous-faab
 npm run test:db:continuous-faab-schedule
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/roster-floor.sql
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/roster-floor-schedule.sql
+node tests/e2e/roster-floor-concurrency-db.mjs
 psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/inactive-trade-block.sql
 npm run test:db:trade-roster-plans
 npm run test:db:trade-plan-moves-capacity

@@ -26,6 +26,8 @@ tools/verify/browser.sh "$EVIDENCE" screenshot "$EVIDENCE/home-390.png"
 node tools/verify/observe.mjs "$EVIDENCE" > "$EVIDENCE/database-before.json"
 node tools/verify/seed-auto-ir.mjs "$EVIDENCE" --case=open-slot
 node tools/verify/trigger-lineup-optimizer.mjs "$EVIDENCE"
+node tools/verify/seed-roster-floor.mjs "$EVIDENCE" --count=14
+node tools/verify/trigger-roster-floor.mjs "$EVIDENCE"
 tools/verify/browser.sh "$EVIDENCE" set viewport 375 812
 tools/verify/cleanup.sh "$EVIDENCE"
 test -s "$EVIDENCE/home-390.png"
@@ -42,8 +44,11 @@ Use `node tools/verify/capture.mjs EVIDENCE FEATURE LABEL` to save a snapshot, s
 `seed-auto-ir.mjs EVIDENCE --case=NAME` reshapes E2E Team 1 into one Auto Lineup IR case and prints the involved players, counts, and expected moves or notices as JSON.
 Cases are `open-slot`, `full-bench-swap`, `no-legal-swap`, `swap-available`, `swap-locked`, `uncertain`, `locked`, `taxi-ineligible`, `incumbent-exchange`, `incumbent-tie`, `incumbent-boundary-tie`, and `incumbent-unknown`.
 It enables that member’s lineup optimizer and is idempotent per case.
-`trigger-lineup-optimizer.mjs EVIDENCE [--date=YYYY-MM-DD] [--mode=daily|pre_tipoff]` posts to the run’s local Edge route with the generated internal token and prints the optimizer JSON.
+`trigger-lineup-optimizer.mjs EVIDENCE [--date=YYYY-MM-DD] [--mode=daily|pre_tipoff] [--tipoff=ISO] [--candidate-injury=healthy|out]` posts to the run’s local Edge route with the generated internal token and prints the optimizer JSON plus the stored dispatch, member, transaction, lineup, and IR rows.
+For an activated policy league it creates the league-scope dispatch and posts `leagueId`; otherwise it uses the shared scope.
 The token is read from `functions.env` and never printed.
+`seed-roster-floor.mjs EVIDENCE [--count=14|15|16|17] [--team=NAME]` sets the fixture league’s floor policy, reshapes the named team to the requested active count, fills the other teams to 16, and prints the involved players and counts as JSON.
+`trigger-roster-floor.mjs EVIDENCE` posts to the run’s local `process-waivers` Edge route with the generated internal token and prints the week record, team counts, and the before/after/delta award, transaction, and roster counts for the fixture league and every league.
 
 ## Isolation and evidence
 
@@ -87,6 +92,7 @@ Rerunning cleanup is supported; doctor rejects an already cleaned run.
 | Waivers | One pending bid and unrostered players for new claims |
 | Trades | One pending two-team offer |
 | Auto Lineup IR | `seed-auto-ir.mjs` reshapes E2E Team 1 into one named IR case and enables its optimizer |
+| Weekly roster floor | `seed-roster-floor.mjs` sets the fixture league’s floor policy and reshapes E2E Team 1 to one count |
 | Drafts | Seeded auction and rookie draft; startup auction completes for season play |
 | Past season | Completed season with two regular-season games, a final, standings, and expected history results |
 

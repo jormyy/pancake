@@ -1,3 +1,7 @@
+-- Canonical SQL source for public.start_work_invocation.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION public.start_work_invocation(
   p_invocation_key uuid,
   p_function_name text
@@ -29,7 +33,8 @@ BEGIN
       AND invocation_key=p_invocation_key AND status='running' AND lease_until>clock_timestamp()
     FOR UPDATE SKIP LOCKED
   )
-  UPDATE private.work_items item SET lease_until=clock_timestamp()+interval '5 minutes'
+  UPDATE private.work_items item SET lease_until=clock_timestamp()+
+      CASE WHEN item.kind='pre-tipoff-policy' THEN interval '45 seconds' ELSE interval '5 minutes' END
     FROM unlocked WHERE item.id=unlocked.id;
   IF NOT FOUND AND NOT EXISTS(
     SELECT 1 FROM private.work_items WHERE id=v_inv.work_item_id AND lease_token=v_inv.work_lease_token

@@ -15,6 +15,7 @@ AS $function$
 DECLARE
   v_member_id uuid;
   v_enabled boolean;
+  v_league_auto_ir boolean;
   v_plan jsonb;
 BEGIN
   SELECT member.id INTO v_member_id
@@ -31,7 +32,8 @@ BEGIN
    WHERE league_id = p_league_id
      AND league_season_id = p_league_season_id
      AND member_id = v_member_id;
-  IF NOT COALESCE(v_enabled, false) THEN
+  v_league_auto_ir := private.league_auto_ir_all_members(p_league_id);
+  IF NOT COALESCE(v_enabled, false) AND NOT v_league_auto_ir THEN
     RETURN jsonb_build_object('enabled', false, 'notices', '[]'::jsonb);
   END IF;
 

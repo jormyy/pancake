@@ -222,10 +222,10 @@ BEGIN
      OR public.claim_lineup_tipoff_dispatch(v_tipoff,v_token) IS DISTINCT FROM v_date THEN RAISE EXCEPTION 'Late news at tipoff never refreshes unlocked slots'; END IF;
   v_assignments:=jsonb_build_array(jsonb_build_object('player_id',v_pg,'slot_type','PG','week_number',1,'is_auto_set',true));
   PERFORM public.apply_pre_tipoff_lineup(v_tipoff,v_token,v_league,v_season,v_member,
-    v_assignments||jsonb_build_array(jsonb_build_object('player_id',v_fallback,'slot_type','UTIL','week_number',1,'is_auto_set',true)));
+    v_assignments||jsonb_build_array(jsonb_build_object('player_id',v_fallback,'slot_type','UTIL','week_number',1,'is_auto_set',true)),'');
   IF EXISTS(SELECT 1 FROM public.weekly_lineups WHERE member_id=v_member AND player_id=v_c)
      OR NOT EXISTS(SELECT 1 FROM public.weekly_lineups WHERE id=v_id AND set_at=v_set_at) THEN RAISE EXCEPTION 'Late news keeps unlocked Out or moves locked Out'; END IF;
-  IF public.apply_pre_tipoff_lineup(v_tipoff,v_token,v_league,v_season,v_member,'[]') THEN RAISE EXCEPTION 'News revision retry repeats its write'; END IF;
+  IF public.apply_pre_tipoff_lineup(v_tipoff,v_token,v_league,v_season,v_member,'[]','') THEN RAISE EXCEPTION 'News revision retry repeats its write'; END IF;
   PERFORM public.finish_lineup_tipoff_dispatch(v_tipoff,v_token);
   UPDATE public.players SET injury_status=NULL WHERE id=v_c;
   PERFORM public.auto_set_lineup_service_atomic(v_member,v_league,v_season,v_date,
@@ -236,17 +236,17 @@ BEGIN
   SELECT token INTO v_token FROM public.lineup_tipoff_dispatches WHERE tipoff_at=v_tipoff;
   IF public.claim_lineup_tipoff_dispatch(v_tipoff,v_token) IS DISTINCT FROM v_date THEN RAISE EXCEPTION 'Post-dispatch postponement never claims fresh work'; END IF;
   BEGIN
-    PERFORM public.apply_pre_tipoff_lineup(v_tipoff,v_old_token,v_league,v_season,v_member,v_assignments);
+    PERFORM public.apply_pre_tipoff_lineup(v_tipoff,v_old_token,v_league,v_season,v_member,v_assignments,'');
     RAISE EXCEPTION 'An older input revision still applies';
   EXCEPTION WHEN serialization_failure THEN NULL; END;
   PERFORM public.apply_pre_tipoff_lineup(v_tipoff,v_token,v_league,v_season,v_member,
-    v_assignments||jsonb_build_array(jsonb_build_object('player_id',v_fallback,'slot_type','UTIL','week_number',1,'is_auto_set',true)));
+    v_assignments||jsonb_build_array(jsonb_build_object('player_id',v_fallback,'slot_type','UTIL','week_number',1,'is_auto_set',true)),'');
   IF EXISTS(SELECT 1 FROM public.weekly_lineups WHERE member_id=v_member AND player_id=v_c)
      OR NOT EXISTS(SELECT 1 FROM public.weekly_lineups WHERE id=v_id AND set_at=v_set_at) THEN RAISE EXCEPTION 'Post-dispatch postponement leaves an unlocked starter or moves a lock'; END IF;
   DELETE FROM public.season_weeks WHERE season_year=2199;
   v_context:=public.get_pre_tipoff_lineup_context(v_league,v_season,v_member);
   IF v_context IS NULL OR v_context->'weekNumber'<>'null'::jsonb THEN RAISE EXCEPTION 'Missing week silently removes eligible team'; END IF;
-  IF has_function_privilege('authenticated','public.apply_pre_tipoff_lineup(timestamptz,uuid,uuid,uuid,uuid,jsonb)','EXECUTE')
+  IF has_function_privilege('authenticated','public.apply_pre_tipoff_lineup(timestamptz,uuid,uuid,uuid,uuid,jsonb,text)','EXECUTE')
      OR has_table_privilege('authenticated','public.lineup_tipoff_members','SELECT') THEN RAISE EXCEPTION 'Internal dispatch is public'; END IF;
 END;
 $$;

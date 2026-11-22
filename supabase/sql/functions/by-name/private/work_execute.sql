@@ -4,7 +4,7 @@
 
 CREATE OR REPLACE FUNCTION private.work_execute(p_id bigint,p_token uuid)
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
-DECLARE v_item private.work_items%ROWTYPE; v_function text; v_payload jsonb; v_tipoff timestamptz; v_chunk jsonb; v_claim jsonb; v_started timestamptz;
+DECLARE v_item private.work_items%ROWTYPE; v_function text; v_payload jsonb; v_tipoff timestamptz; v_scope text; v_chunk jsonb; v_claim jsonb; v_started timestamptz;
   v_previous text:=coalesce(current_setting('pancake.work_id',true),'');
 BEGIN
   SELECT * INTO v_item FROM private.work_items WHERE id=p_id AND lease_token=p_token AND status='running' AND lease_until>now();
@@ -33,13 +33,14 @@ BEGIN
     RETURN;
   END IF;
   IF v_item.kind='league-inventory-hint-drain' AND (v_payload->>'delay')::int=0 THEN v_function:=NULL; END IF;
-  IF v_item.kind='pre-tipoff' THEN
+  IF v_item.kind IN ('pre-tipoff','pre-tipoff-policy') THEN
     v_tipoff:=(v_payload->>'tipoffAt')::timestamptz;
+    v_scope:=COALESCE(v_payload->>'leagueId','');
     IF v_tipoff<=now()-interval '1 minute' THEN RAISE EXCEPTION 'Tipoff window has closed'; END IF;
-    INSERT INTO public.lineup_tipoff_dispatches(tipoff_at,game_date) VALUES(v_tipoff,(v_tipoff AT TIME ZONE 'America/New_York')::date) ON CONFLICT DO NOTHING;
+    INSERT INTO public.lineup_tipoff_dispatches(tipoff_at,scope,game_date) VALUES(v_tipoff,v_scope,(v_tipoff AT TIME ZONE 'America/New_York')::date) ON CONFLICT DO NOTHING;
     UPDATE public.lineup_tipoff_dispatches SET status='queued',token=p_token,attempts=attempts+1,
       lease_until=v_item.lease_until,error=NULL,input_revision=input_revision+(input_fingerprint IS DISTINCT FROM v_payload->>'fingerprint')::int,
-      input_fingerprint=v_payload->>'fingerprint' WHERE tipoff_at=v_tipoff;
+      input_fingerprint=v_payload->>'fingerprint' WHERE tipoff_at=v_tipoff AND scope=v_scope;
     v_payload:=(v_payload-'fingerprint')||jsonb_build_object('token',p_token);
   END IF;
   IF v_function IS NOT NULL THEN

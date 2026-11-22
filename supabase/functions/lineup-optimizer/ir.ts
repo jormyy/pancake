@@ -1,4 +1,5 @@
 import { supabase } from '../_shared/supabase.ts'
+import { TRANSIENT_HTTP_STATUSES, TRANSIENT_SQLSTATES, TransientHttpError } from '../_shared/transientError.ts'
 import type { OptimizerSetting } from './settings.ts'
 
 type IrMove = {
@@ -10,6 +11,7 @@ type IrMove = {
 type IrSkipped = {
   playerId: string
   reason: string
+  sqlstate?: string
 }
 
 type IrNotice = {
@@ -27,19 +29,67 @@ export type IrOutcome = {
 
 export const EMPTY_IR_OUTCOME: IrOutcome = { moves: [], skipped: [], notices: [] }
 
+class TransientIrError extends Error {
+  code: string
+
+  constructor(code: string, message: string) {
+    super(message)
+    this.name = 'TransientIrError'
+    this.code = code
+  }
+}
+
 type IrRpc = (name: 'auto_manage_ir_service', args: {
   p_league_id: string
   p_league_season_id: string
   p_member_id: string
-}) => PromiseLike<{ data: unknown; error: { message: string } | null }>
+}) => PromiseLike<{ data: unknown; error: { message: string; code?: string } | null; status?: number }>
+
+export type TipoffIrFence = {
+  tipoffAt: string
+  token: string
+  scope: string
+}
+
+type FencedIrRpc = (name: 'auto_manage_ir_tipoff_service', args: {
+  p_tipoff_at: string
+  p_token: string
+  p_league_id: string
+  p_league_season_id: string
+  p_member_id: string
+  p_scope: string
+}) => PromiseLike<{ data: unknown; error: { message: string; code?: string } | null; status?: number }>
 
 async function manageIr(setting: OptimizerSetting): Promise<IrOutcome> {
-  const { data, error } = await (supabase.rpc as unknown as IrRpc)('auto_manage_ir_service', {
+  const { data, error, status } = await (supabase.rpc as unknown as IrRpc)('auto_manage_ir_service', {
     p_league_id: setting.league_id,
     p_league_season_id: setting.league_season_id,
     p_member_id: setting.member_id,
   })
-  if (error) throw error
+  if (error) {
+    if (typeof status === 'number' && TRANSIENT_HTTP_STATUSES.has(status)) {
+      throw new TransientHttpError(status, error.message)
+    }
+    throw error
+  }
+  return normalizeIrOutcome(data)
+}
+
+async function manageIrFenced(setting: OptimizerSetting, fence: TipoffIrFence): Promise<IrOutcome> {
+  const { data, error, status } = await (supabase.rpc as unknown as FencedIrRpc)('auto_manage_ir_tipoff_service', {
+    p_tipoff_at: fence.tipoffAt,
+    p_token: fence.token,
+    p_league_id: setting.league_id,
+    p_league_season_id: setting.league_season_id,
+    p_member_id: setting.member_id,
+    p_scope: fence.scope,
+  })
+  if (error) {
+    if (typeof status === 'number' && TRANSIENT_HTTP_STATUSES.has(status)) {
+      throw new TransientHttpError(status, error.message)
+    }
+    throw error
+  }
   return normalizeIrOutcome(data)
 }
 
@@ -50,6 +100,20 @@ export async function manageIrForMember(setting: OptimizerSetting): Promise<IrOu
     console.error('[lineup-optimizer] IR management failed', { setting, error })
     return EMPTY_IR_OUTCOME
   }
+}
+
+export async function manageIrForMemberStrict(setting: OptimizerSetting): Promise<IrOutcome> {
+  const outcome = await manageIr(setting)
+  const transient = outcome.skipped.find((skip) => skip.sqlstate && TRANSIENT_SQLSTATES.has(skip.sqlstate))
+  if (transient?.sqlstate) throw new TransientIrError(transient.sqlstate, transient.reason)
+  return outcome
+}
+
+export async function manageIrForTipoffMemberStrict(setting: OptimizerSetting, fence: TipoffIrFence): Promise<IrOutcome> {
+  const outcome = await manageIrFenced(setting, fence)
+  const transient = outcome.skipped.find((skip) => skip.sqlstate && TRANSIENT_SQLSTATES.has(skip.sqlstate))
+  if (transient?.sqlstate) throw new TransientIrError(transient.sqlstate, transient.reason)
+  return outcome
 }
 
 function normalizeIrOutcome(value: unknown): IrOutcome {
@@ -65,7 +129,8 @@ function normalizeIrOutcome(value: unknown): IrOutcome {
       }]
     }),
     skipped: rows(record.skipped).flatMap((row) => typeof row.playerId === 'string' && typeof row.reason === 'string'
-      ? [{ playerId: row.playerId, reason: row.reason }]
+      ? [{ playerId: row.playerId, reason: row.reason,
+          ...(typeof row.sqlstate === 'string' ? { sqlstate: row.sqlstate } : {}) }]
       : []),
     notices: rows(record.notices).flatMap((row) => typeof row.playerId === 'string' && typeof row.playerName === 'string' &&
       typeof row.reason === 'string' && typeof row.action === 'string'
