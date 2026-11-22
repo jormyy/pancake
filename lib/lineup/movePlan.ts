@@ -1,6 +1,7 @@
 import { canPlaySlot } from '@/constants/slots'
 import type { LineupPlayer, LineupSlot, LineupSlotMove } from './read'
 import { isIREligible } from '@pancake/core'
+import { rosterLimits, type LeagueRosterLimits } from '@/lib/roster-capacity'
 
 export type LineupSelection =
     | { kind: 'starter'; index: number }
@@ -65,7 +66,7 @@ export function planLineupMove({
     to,
 }: {
     lineup: LineupMoveData
-    league: { roster_size?: number; taxi_slots?: number }
+    league: LeagueRosterLimits
     startedTeams: ReadonlySet<string>
     from: LineupSelection
     to: LineupSelection
@@ -106,7 +107,8 @@ export function planLineupMove({
             }
         }
 
-        if (irPlayer && !activePlayer && activeRosterCount(lineup) >= (league.roster_size ?? 20)) {
+        const limits = rosterLimits(league)
+        if (irPlayer && !activePlayer && limits && activeRosterCount(lineup) >= limits.rosterSize) {
             return {
                 kind: 'overflow',
                 rosterPlayerId: irPlayer.rosterPlayerId,
@@ -138,7 +140,8 @@ export function planLineupMove({
             return { kind: 'invalid', title: 'Taxi entry restricted', message: 'Players enter taxi through a draft, trade, free-agent add or waiver claim.' }
         }
 
-        if (taxiPlayer && !activePlayer && activeRosterCount(lineup) >= (league.roster_size ?? 20)) {
+        const limits = rosterLimits(league)
+        if (taxiPlayer && !activePlayer && limits && activeRosterCount(lineup) >= limits.rosterSize) {
             return {
                 kind: 'overflow',
                 rosterPlayerId: taxiPlayer.rosterPlayerId,
@@ -183,7 +186,7 @@ export function getLineupMoveTargetState({
     to,
 }: {
     lineup: LineupMoveData
-    league: { roster_size?: number; taxi_slots?: number }
+    league: LeagueRosterLimits
     startedTeams: ReadonlySet<string>
     from: LineupSelection | null
     to: LineupSelection

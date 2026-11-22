@@ -2,6 +2,9 @@
 const { defineConfig } = require('eslint/config')
 const expoConfig = require('eslint-config-expo/flat')
 
+const rosterCapacityMessage = 'Read roster location and limits through lib/roster-capacity (rosterLocation/partitionRoster/rosterLimits); inline is_on_ir/is_on_taxi checks counted taxi players as active in PR #5.'
+const rosterCapacityNames = 'is_on_ir|is_on_taxi|roster_size|ir_slots|taxi_slots'
+
 module.exports = defineConfig([
     expoConfig,
     {
@@ -24,6 +27,26 @@ module.exports = defineConfig([
         files: ['tests/lib/*.test.ts'],
         rules: {
             'import/first': 'off',
+        },
+    },
+    {
+        files: ['app/**/*.{ts,tsx}', 'components/**/*.{ts,tsx}', 'hooks/**/*.{ts,tsx}', 'contexts/**/*.{ts,tsx}', 'lib/**/*.{ts,tsx}'],
+        ignores: ['lib/roster-capacity.ts', 'lib/league.ts', 'lib/commissioner-settings-draft.ts'],
+        rules: {
+            'no-restricted-syntax': ['error',
+                {
+                    selector: `MemberExpression[property.name=/^(${rosterCapacityNames})$/]:not(AssignmentExpression > MemberExpression.left)`,
+                    message: rosterCapacityMessage,
+                },
+                {
+                    selector: `MemberExpression[computed=true][property.value=/^(${rosterCapacityNames})$/]:not(AssignmentExpression > MemberExpression.left)`,
+                    message: rosterCapacityMessage,
+                },
+                {
+                    selector: `ObjectPattern > Property[key.name=/^(${rosterCapacityNames})$/]`,
+                    message: rosterCapacityMessage,
+                },
+            ],
         },
     },
 ])

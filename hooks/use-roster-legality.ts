@@ -4,12 +4,12 @@ import { resolveRosterAddIRConflict, swapHealthyIrWithInjured } from '@/lib/rost
 import { getRosterProblems } from '@/lib/roster-problems'
 import { RULE_CODES, errorCode, getErrorMessage } from '@/lib/shared/errors'
 import { showAlert } from '@/lib/alert'
+import { partitionRoster, type RosterLimits } from '@/lib/roster-capacity'
 
-export function useRosterLegality({ memberId, leagueId, rosterSize = 20, irSlots = 2, onChanged }: {
+export function useRosterLegality({ memberId, leagueId, limits, onChanged }: {
     memberId?: string | null
     leagueId?: string | null
-    rosterSize?: number
-    irSlots?: number
+    limits: RosterLimits | null
     onChanged?: () => unknown
 }) {
     const identity = JSON.stringify([memberId, leagueId])
@@ -25,13 +25,14 @@ export function useRosterLegality({ memberId, leagueId, rosterSize = 20, irSlots
         if (!memberId || !leagueId || !current()) return false
         const roster = knownRoster ?? await getRoster(memberId, leagueId)
         if (!current()) return false
-        if (getRosterProblems(roster, rosterSize).length || message) {
+        if (!limits) return true
+        if (getRosterProblems(roster, limits.rosterSize).length || message) {
             setSnapshot({ owner: requestOwner, roster, message })
             return false
         }
         setSnapshot(null)
         return true
-    }, [memberId, leagueId, current, rosterSize, requestOwner])
+    }, [memberId, leagueId, current, limits, requestOwner])
     const report = useCallback(async (error: unknown) => {
         if (![RULE_CODES.ineligibleIr, RULE_CODES.ineligibleTaxi].some(code => code === errorCode(error))) return false
         try { await check(undefined, getErrorMessage(error)) } catch (readError) { if (current()) showAlert('Error', getErrorMessage(readError)) }
@@ -51,25 +52,26 @@ export function useRosterLegality({ memberId, leagueId, rosterSize = 20, irSlots
         } finally { if (running.current?.token === token) running.current = null }
     }, [current, check, onChanged, requestOwner])
     const activate = async (player: RosterPlayer, drop?: RosterPlayer) => {
-        if (!memberId || !leagueId) return
-        const result = await resolveRosterAddIRConflict({ memberId, leagueId, activatePlayer: player, dropPlayer: drop, rosterSize })
+        if (!memberId || !leagueId || !limits) return
+        const result = await resolveRosterAddIRConflict({ memberId, leagueId, activatePlayer: player, dropPlayer: drop, rosterSize: limits.rosterSize })
         if (result.status === 'locked') throw new Error(result.message)
     }
     const swapWithInjured = async (healthyIrPlayer: RosterPlayer, injuredPlayer: RosterPlayer) => {
-        if (!memberId || !leagueId) return
-        const result = await swapHealthyIrWithInjured({ memberId, leagueId, healthyIrPlayer, injuredPlayer, rosterSize })
+        if (!memberId || !leagueId || !limits) return
+        const result = await swapHealthyIrWithInjured({ memberId, leagueId, healthyIrPlayer, injuredPlayer, rosterSize: limits.rosterSize })
         if (result.status === 'locked') throw new Error(result.message)
     }
     const roster = snapshot?.owner === requestOwner ? snapshot.roster : []
+    const partitioned = partitionRoster(roster)
     return {
         check,
         report,
         modalProps: {
             visible: snapshot?.owner === requestOwner,
-            ineligibleIR: getRosterProblems(roster, rosterSize).flatMap(problem => problem.player ? [problem.player] : []),
-            activeRoster: roster.filter(player => !player.is_on_ir && !player.is_on_taxi),
-            rosterSize,
-            irAvailable: roster.filter(player => player.is_on_ir).length < irSlots,
+            ineligibleIR: limits ? getRosterProblems(roster, limits.rosterSize).flatMap(problem => problem.player ? [problem.player] : []) : [],
+            activeRoster: partitioned.active,
+            rosterSize: limits?.rosterSize,
+            irAvailable: limits ? partitioned.ir.length < limits.irSlots : false,
             serverMessage: snapshot?.owner === requestOwner ? snapshot.message : null,
             pendingPlayerName: '',
             onActivate: (player: RosterPlayer) => resolve(() => activate(player)),

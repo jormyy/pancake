@@ -31,10 +31,12 @@ import { SettingsRow, SettingsToggle } from '@/components/settings/SettingsGroup
 
 import { ErrorBanner } from '@/components/ui/ErrorBanner'
 import { LoadingState } from '@/components/ui/LoadingState'
+import { rosterLimits } from '@/lib/roster-capacity'
 
 export default function RookieDraftRoomScreen() {
     const { draftId } = useLocalSearchParams<{ draftId: string }>()
     const { current, currentLeague, isCommissioner } = useLeagueContext()
+    const limits = rosterLimits(currentLeague)
     const router = useRouter()
     const { width, height } = useWindowDimensions()
     const compactLandscape = width >= 600 && height < 500
@@ -75,7 +77,7 @@ export default function RookieDraftRoomScreen() {
         draftId,
         memberId: myMemberId,
         leagueId: currentLeague?.id,
-        rosterSize: currentLeague?.roster_size ?? 20,
+        rosterSize: limits?.rosterSize ?? null,
     })
 
     const { handleStopDraft, handleResetDraft, handlePauseDraft, handleResumeDraft, adminBusy } =

@@ -16,7 +16,7 @@ vi.mock('react-native',()=>({ Image: 'Image',View:'View',Text:'Text',Pressable:'
 vi.mock('@expo/vector-icons/MaterialIcons',()=>({default:'Icon'}))
 vi.mock('expo-router',()=>({Stack:{Screen:()=>null},useLocalSearchParams:()=>({playerId:'target'}),useRouter:()=>({push:vi.fn()})}))
 vi.mock('@/hooks/use-auth',()=>({useAuth:()=>({user:{id:state.owner}})}))
-vi.mock('@/contexts/league-context',()=>({useLeagueContext:()=>({current:{id:'member-'+state.owner},currentLeague:{id:'league-'+state.owner,roster_size:20,waiver_mode:state.waiverMode}})}))
+vi.mock('@/contexts/league-context',()=>({useLeagueContext:()=>({current:{id:'member-'+state.owner},currentLeague:{id:'league-'+state.owner,roster_size:20,ir_slots:2,taxi_slots:0,waiver_mode:state.waiverMode}})}))
 vi.mock('@/hooks/use-online-status',()=>({useOnlineStatus:()=>true}))
 vi.mock('@/components/ui/useGoBack',()=>({useGoBack:()=>state.back}))
 vi.mock('@/components/ui',()=>({LoadingState:'LoadingState',usePageMetrics:()=>({padX:16,usableWidth:1200}),PageHeader:({actions}:{actions:React.ReactNode})=>React.createElement('Header',null,actions)}))

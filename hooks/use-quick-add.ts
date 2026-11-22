@@ -13,6 +13,7 @@ import { showAlert, showSuccess } from '@/lib/alert'
 import { getErrorMessage } from '@/lib/shared/errors'
 import type { MemberTransactionState } from '@/lib/league'
 import { getRosterProblems } from '@/lib/roster-problems'
+import { partitionRoster, type RosterLimits } from '@/lib/roster-capacity'
 
 /** What a pickup needs to know about its player. */
 type QuickAddPlayer = Pick<PlayerRow, 'id' | 'display_name'> & { injury_status?: string | null; years_exp?: number | null; career_regular_season_games?: number | null }
@@ -31,9 +32,7 @@ type IRModalState = {
 } | null
 
 type QuickAddOptions = {
-    taxiSlots?: number
-    rosterSize?: number
-    irSlots?: number
+    limits: RosterLimits | null
     allowIR?: boolean
     memberId: string | undefined
     leagueId: string | null
@@ -47,14 +46,15 @@ type QuickAddOptions = {
 export function useQuickAdd({
     memberId,
     leagueId,
-    irSlots = 2,
-    taxiSlots = 0,
-    rosterSize = 20,
+    limits,
     allowIR = true,
     onChanged,
     transactionState,
     onClaimInstead,
 }: QuickAddOptions) {
+    const rosterSize = limits?.rosterSize
+    const irSlots = limits?.irSlots
+    const taxiSlots = limits?.taxiSlots
     const [adding, setAdding] = useState<string | null>(null)
     const [dropPickerPlayer, setDropPickerPlayer] = useState<QuickAddPlayer | null>(null)
     const [myRoster, setMyRoster] = useState<RosterPlayer[]>([])
@@ -107,7 +107,7 @@ export function useQuickAdd({
     // opens the IR modal, which continues the pickup once IR is clear.
     const checkIR = useCallback(
         async (player: QuickAddPlayer, lid: string, action: PickupAction, excludeRosterId?: string): Promise<RosterPlayer[] | null> => {
-            if (!memberId) return null
+            if (!memberId || rosterSize == null || taxiSlots == null) return null
             const generation = generationRef.current
             const identity = ownerIdentity
             try {
@@ -147,12 +147,12 @@ export function useQuickAdd({
         const identity = ownerIdentity
         setAdding(player.id)
         try {
-            const toIr = !toTaxi && allowIR && canAddToIR(player.injury_status, roster, irSlots)
+            const toIr = !toTaxi && allowIR && irSlots != null && canAddToIR(player.injury_status, roster, irSlots)
             const result = toTaxi ? await addFreeAgentOrRequestDrop(memberId, lid, player.id, roster, false, true)
                 : await addFreeAgentOrRequestDrop(memberId, lid, player.id, roster, toIr)
             if (!isCurrent(generation, identity)) return
             if (result.status === 'roster_full') {
-                setOpenIR(allowIR && hasOpenIRSlot(roster, irSlots))
+                setOpenIR(allowIR && irSlots != null && hasOpenIRSlot(roster, irSlots))
                 setMyRoster(result.roster)
                 setPlacementRoster(roster)
                 setDropPickerPlayer(player)
@@ -170,12 +170,13 @@ export function useQuickAdd({
     }, [memberId, ownerIdentity, onChanged, isCurrent, report, allowIR, irSlots])
 
     const beginAdd = useCallback(async (player: QuickAddPlayer, lid: string, roster: RosterPlayer[]) => {
+        if (rosterSize == null || irSlots == null || taxiSlots == null) return
         const toIr = allowIR && canAddToIR(player.injury_status, roster, irSlots)
-        const canTaxi = !toIr && taxiSlots > roster.filter(row => row.is_on_taxi).length
+        const canTaxi = !toIr && taxiSlots > partitionRoster(roster).taxi.length
             && isTaxiEligible(player.years_exp ?? null, player.career_regular_season_games ?? null) && !taxiExits.current.has(player.id)
         setTaxiAvailable(canTaxi)
         if (!canTaxi) { await addFreeAgent(player, lid, roster); return }
-        const active = roster.filter(row => !row.is_on_ir && !row.is_on_taxi)
+        const active = partitionRoster(roster).active
         setPlacementRoster(roster)
         setMyRoster(active.length >= rosterSize ? roster : [])
         setDropPickerPlayer(player)
@@ -183,7 +184,7 @@ export function useQuickAdd({
     }, [allowIR, irSlots, taxiSlots, rosterSize, addFreeAgent])
 
     const continueAfterIRResolution = useCallback(async (lid: string, roster: RosterPlayer[], remaining: RosterPlayer[]) => {
-        if (remaining.length > 0 || getRosterProblems(roster, rosterSize).length > 0) {
+        if (remaining.length > 0 || (rosterSize != null && getRosterProblems(roster, rosterSize).length > 0)) {
             setIrModal((prev) => prev ? { ...prev, ineligible: remaining, roster } : null)
             return
         }
@@ -224,7 +225,7 @@ export function useQuickAdd({
     }, [memberId, leagueId, checkIR, onClaimInstead])
 
     const handleDropAndAdd = useCallback(async (rosterPlayer: RosterPlayer, destination: PickupDestination = 'active') => {
-        if (!memberId || !dropPickerPlayer || !leagueId || activeOwnerRef.current !== ownerIdentity || pendingDropAndAdd.current) return
+        if (!memberId || !dropPickerPlayer || !leagueId || rosterSize == null || taxiSlots == null || irSlots == null || activeOwnerRef.current !== ownerIdentity || pendingDropAndAdd.current) return
         if (explainBlock()) {
             setDropPickerPlayer(null)
             return
@@ -276,7 +277,7 @@ export function useQuickAdd({
     }, [memberId, leagueId, dropPickerPlayer, ownsState, explainBlock, ownerIdentity, isCurrent, onChanged, checkIR, addFreeAgent, report])
 
     const handleIRActivate = useCallback(async (rp: RosterPlayer) => {
-        if (!memberId || !leagueId) return
+        if (!memberId || !leagueId || rosterSize == null) return
         const generation = generationRef.current
         const identity = ownerIdentity
         try {
@@ -293,7 +294,7 @@ export function useQuickAdd({
     }, [memberId, leagueId, ownerIdentity, continueAfterIRResolution, isCurrent, rosterSize])
 
     const handleDropAndIRActivate = useCallback(async (toDrop: RosterPlayer, activatePlayer: RosterPlayer) => {
-        if (!memberId || !leagueId) return
+        if (!memberId || !leagueId || rosterSize == null) return
         const generation = generationRef.current
         const identity = ownerIdentity
         try {
@@ -310,7 +311,7 @@ export function useQuickAdd({
     }, [memberId, leagueId, ownerIdentity, continueAfterIRResolution, isCurrent, rosterSize])
 
     const handleSwapWithInjured = useCallback(async (healthyIrPlayer: RosterPlayer, injuredPlayer: RosterPlayer) => {
-        if (!memberId || !leagueId) return
+        if (!memberId || !leagueId || rosterSize == null) return
         const generation = generationRef.current
         const identity = ownerIdentity
         try {
@@ -339,7 +340,7 @@ export function useQuickAdd({
     }, [dropPickerPlayer, leagueId, ownsState, explainBlock, checkIR, addFreeAgent])
 
     const handleResolutionChange = useCallback(async (player: RosterPlayer, moveToIR: boolean) => {
-        if (!memberId || !leagueId) return
+        if (!memberId || !leagueId || rosterSize == null) return
         const generation = generationRef.current
         const identity = ownerIdentity
         try {
@@ -361,7 +362,7 @@ export function useQuickAdd({
         irModal: ownsState ? irModal : null, setIrModal,
         addBlockedReason,
         taxiAvailable: ownsState && taxiAvailable,
-        canAddActive: ownsState && placementRoster.filter(row => !row.is_on_ir && !row.is_on_taxi).length < rosterSize,
+        canAddActive: ownsState && rosterSize != null && partitionRoster(placementRoster).active.length < rosterSize,
         handleAddToTaxi: () => handlePlacement(true),
         handleAddActive: () => handlePlacement(false),
         handleResolutionDrop: (player: RosterPlayer) => handleResolutionChange(player, false),
@@ -369,11 +370,11 @@ export function useQuickAdd({
         handleAdd,
         handleClaim,
         handleDropAndAdd,
-        dropDestinations: (drop: RosterPlayer) => dropPickerPlayer
+        dropDestinations: (drop: RosterPlayer) => dropPickerPlayer && rosterSize != null && taxiSlots != null && irSlots != null
             ? pickupDestinations(dropPickerPlayer, placementRoster, { rosterSize, taxiSlots, irSlots, allowIR }, taxiExits.current, drop)
             : { active: false, taxi: false, ir: false },
         handleMoveToIRAndAdd,
-        irMoveCandidates: ownsState && openIR ? myRoster.filter(player => !player.is_on_ir && !player.is_on_taxi && isIREligible(player.players.injury_status)) : [],
+        irMoveCandidates: ownsState && openIR ? partitionRoster(myRoster).active.filter(player => isIREligible(player.players.injury_status)) : [],
         handleIRActivate,
         handleDropAndIRActivate,
         handleSwapWithInjured,

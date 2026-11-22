@@ -19,7 +19,7 @@ const Probe = ({ source = 'taxi', full = false, date = '2026-10-24' }: { source?
         bench: full ? [player('Active')] : [], ir: source === 'ir' ? [player('Reserve')] : [],
         taxi: source === 'taxi' ? [player('Reserve')] : [] }), [source, full])
     actions = useLineupActions({ actionContext: { memberId: 'member', leagueId: 'league', seasonId: 'season', weekNumber: 1, seasonYear: 2026 },
-        myLineup: lineup, league: { roster_size: 1 }, selectedDate: date, startedTeams: new Set(), reloadLineup: async () => {} })
+        myLineup: lineup, league: { roster_size: 1, ir_slots: 2, taxi_slots: 1 }, selectedDate: date, startedTeams: new Set(), reloadLineup: async () => {} })
     return null
 }
 beforeEach(() => { vi.clearAllMocks(); mocks.activate.mockResolvedValue(undefined) })

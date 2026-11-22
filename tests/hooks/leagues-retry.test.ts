@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({
     userId: null as string | null,
     online: true,
     fetch: vi.fn(),
-    cached: [] as { id: string; leagues: { id: string } }[],
+    cached: [] as { id: string; leagues: { id: string; roster_size: number; ir_slots: number; taxi_slots: number } }[],
 }))
 vi.mock('@/hooks/use-auth', () => ({ useAuth: () => ({ user: mocks.userId ? { id: mocks.userId } : null }) }))
 vi.mock('@/hooks/use-online-status', () => ({ useOnlineStatus: () => mocks.online }))
@@ -27,7 +27,7 @@ vi.mock('@/lib/realtime', () => ({
 
 let screen: ReactTestRenderer | null
 let latest: ReturnType<typeof useLeagues>
-const rows = [{ id: 'member', leagues: { id: 'league' } }]
+const rows = [{ id: 'member', leagues: { id: 'league', roster_size: 20, ir_slots: 2, taxi_slots: 0 } }]
 const Probe = () => { latest = useLeagues(); return null }
 const advance = async (ms: number) => { await act(async () => { await vi.advanceTimersByTimeAsync(ms) }) }
 const mount = async () => { await act(async () => { screen = create(React.createElement(Probe)) }) }

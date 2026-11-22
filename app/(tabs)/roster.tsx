@@ -54,6 +54,7 @@ import { ActivationOverflowModal } from '@/components/ActivationOverflowModal'
 import { arrangeActiveRoster, compareRosterBySlot } from '@/lib/roster-slots'
 import { isTradingClosed } from '@/lib/league'
 import { useDraftRoomLauncher } from '@/hooks/use-draft-room-launcher'
+import { partitionRoster, rosterLimits, rosterLocation } from '@/lib/roster-capacity'
 
 type RosterSlotSection = 'starters' | 'bench' | 'ir' | 'taxi'
 type RosterListItem = (
@@ -144,7 +145,7 @@ function RosterTablePlayerItem({
         : item.players.position
           ? [item.players.position]
           : []
-    const canIR = item.is_on_ir || allowIR && isIREligible(item.players.injury_status)
+    const canIR = rosterLocation(item) === 'ir' || allowIR && isIREligible(item.players.injury_status)
 
     return (
         <View><View style={styles.rosterTableRow}>
@@ -184,9 +185,9 @@ function RosterTablePlayerItem({
                 ) : canIR ? (
                     <Pressable style={styles.tableActionButton} onPress={() => onToggleIR(item)} disabled={actionDisabled}
                         accessibilityRole="button"
-                        accessibilityLabel={`${item.is_on_ir ? 'Activate' : 'Move to IR'} ${item.players.display_name}`}
+                        accessibilityLabel={`${rosterLocation(item) === 'ir' ? 'Activate' : 'Move to IR'} ${item.players.display_name}`}
                         accessibilityState={{ disabled: actionDisabled }} accessibilityHint={assetLockReason(locks)}>
-                        <Text style={[styles.tableActionText, actionDisabled && styles.tableActionTextDisabled]}>{item.is_on_ir ? 'Activate' : 'IR'}</Text>
+                        <Text style={[styles.tableActionText, actionDisabled && styles.tableActionTextDisabled]}>{rosterLocation(item) === 'ir' ? 'Activate' : 'IR'}</Text>
                     </Pressable>
                 ) : null}
                 <Pressable
@@ -280,7 +281,8 @@ export default function RosterScreen() {
     useEffect(() => {
         if (cancellingId && !claims.some(claim => claim.id === cancellingId)) setCancellingId(null)
     }, [claims, cancellingId])
-    const rosterLegality = useRosterLegality({ memberId: current?.id, leagueId, rosterSize: currentLeague?.roster_size ?? 20, irSlots: currentLeague?.ir_slots ?? 2, onChanged: refresh })
+    const limits = useMemo(() => rosterLimits(currentLeague), [currentLeague])
+    const rosterLegality = useRosterLegality({ memberId: current?.id, leagueId, limits, onChanged: refresh })
     const pendingClaimCount = claims.filter((claim) => claim.status === 'pending').length
     const avgMap = useMemo(() => data?.avgMap ?? EMPTY_AVG_MAP, [data?.avgMap])
     const avgStatsMap = useMemo(() => data?.avgStatsMap ?? EMPTY_STATS_MAP, [data?.avgStatsMap])
@@ -296,13 +298,10 @@ export default function RosterScreen() {
     const twoPane = columnWidth >= TABLE_MIN_WIDTH + spacing['3xl'] + layout.railWidth
     const { openDraftRoom } = useDraftRoomLauncher(leagueId, { notifyOnError: true })
 
-    const active = useMemo(() => {
-        return roster
-            .filter((p) => !p.is_on_ir && !p.is_on_taxi)
-            .sort(compareRosterBySlot)
-    }, [roster])
-    const ir = useMemo(() => [...roster.filter((p) => p.is_on_ir)].sort(compareRosterBySlot), [roster])
-    const taxi = useMemo(() => [...roster.filter((p) => p.is_on_taxi)].sort(compareRosterBySlot), [roster])
+    const partitioned = useMemo(() => partitionRoster(roster), [roster])
+    const active = useMemo(() => [...partitioned.active].sort(compareRosterBySlot), [partitioned])
+    const ir = useMemo(() => [...partitioned.ir].sort(compareRosterBySlot), [partitioned])
+    const taxi = useMemo(() => [...partitioned.taxi].sort(compareRosterBySlot), [partitioned])
     const activationRoster = useMemo(() => {
         const toLineupPlayer = (item: RosterPlayer) => ({
             lineupPin: item.lineupPin, rosterPlayerId: item.id, playerId: item.players.id, displayName: item.players.display_name,
@@ -311,9 +310,9 @@ export default function RosterScreen() {
         })
         return { starters: [], bench: active.map(toLineupPlayer), ir: ir.map(toLineupPlayer), taxi: [] }
     }, [active, ir])
-    const rosterSize = currentLeague?.roster_size ?? 20
-    const irSlots = currentLeague?.ir_slots ?? 2
-    const taxiSlots = currentLeague?.taxi_slots ?? 3
+    const rosterSize = limits?.rosterSize ?? 0
+    const irSlots = limits?.irSlots ?? 0
+    const taxiSlots = limits?.taxiSlots ?? 0
     const rosterOverflow = activeRosterOverflow(active.length, rosterSize)
     const lineup = useMemo(() => arrangeActiveRoster(active, data?.slotPlan, rosterSize), [active, data?.slotPlan, rosterSize])
     const startersFilled = lineup.starters.filter((row) => row.player).length
@@ -357,7 +356,7 @@ export default function RosterScreen() {
     const handleToggleIR = useCallback(async (item: RosterPlayer) => {
         const generation = actionGenerationRef.current
         const identity = ownerIdentity
-        if (!identity) return
+        if (!identity || !limits) return
         const lockMessage = onlineRef.current ? await getRosterStatusChangeLockMessage(item) : null
         if (!isCurrentAction(generation, identity)) return
         if (lockMessage) {
@@ -365,31 +364,29 @@ export default function RosterScreen() {
             return
         }
 
-        const irSlots = currentLeague?.ir_slots ?? 2
-        const activeSlots = currentLeague?.roster_size ?? 20
         const name = item.players.display_name
 
-        if (!item.is_on_ir) {
+        if (rosterLocation(item) !== 'ir') {
             if (currentLeague?.status === 'offseason') return
             if (!isIREligible(item.players.injury_status)) {
                 showAlert('Not IR Eligible', 'Only players with Out or IR designations can be placed on IR.')
                 return
             }
-            const currentIR = roster.filter((p) => p.is_on_ir).length
-            if (currentIR >= irSlots) {
-                showAlert('IR Full', `You only have ${countLabel(irSlots, 'IR slot')}.`)
+            const currentIR = partitioned.ir.length
+            if (currentIR >= limits.irSlots) {
+                showAlert('IR Full', `You only have ${countLabel(limits.irSlots, 'IR slot')}.`)
                 return
             }
         } else {
-            const activeCount = roster.filter((p) => !p.is_on_ir && !p.is_on_taxi).length
-            if (activeCount >= activeSlots) {
+            const activeCount = partitioned.active.length
+            if (activeCount >= limits.rosterSize) {
                 setActivationPending({ rosterPlayerId: item.id, source: 'ir' })
                 return
             }
         }
 
-        const title = item.is_on_ir ? 'Activate from IR?' : 'Move to IR?'
-        const message = item.is_on_ir
+        const title = rosterLocation(item) === 'ir' ? 'Activate from IR?' : 'Move to IR?'
+        const message = rosterLocation(item) === 'ir'
             ? `Move ${name} back to your active roster?`
             : `Move ${name} to the injured reserve slot?`
 
@@ -399,7 +396,7 @@ export default function RosterScreen() {
                 if (!isCurrentAction(generation, identity)) return
                 setTogglingId(item.id)
                 try {
-                    await toggleIR(item.id, !item.is_on_ir)
+                    await toggleIR(item.id, rosterLocation(item) !== 'ir')
                     if (isCurrentAction(generation, identity)) await load()
                 } catch (e) {
                     if (isCurrentAction(generation, identity)) showAlert('Error', getErrorMessage(e))
@@ -408,12 +405,12 @@ export default function RosterScreen() {
                 }
             })
         })
-    }, [ownerIdentity, currentLeague, roster, load, isCurrentAction])
+    }, [ownerIdentity, currentLeague, limits, partitioned, load, isCurrentAction])
 
     const handleToggleTaxi = useCallback(async (item: RosterPlayer) => {
         const generation = actionGenerationRef.current
         const identity = ownerIdentity
-        if (!identity) return
+        if (!identity || !limits) return
         const lockMessage = onlineRef.current ? await getRosterStatusChangeLockMessage(item) : null
         if (!isCurrentAction(generation, identity)) return
         if (lockMessage) {
@@ -421,10 +418,9 @@ export default function RosterScreen() {
             return
         }
 
-        if (!item.is_on_taxi) return
-        const activeSlots = currentLeague?.roster_size ?? 20
-        const activeCount = roster.filter((p) => !p.is_on_ir && !p.is_on_taxi).length
-        if (activeCount >= activeSlots) {
+        if (rosterLocation(item) !== 'taxi') return
+        const activeCount = partitioned.active.length
+        if (activeCount >= limits.rosterSize) {
             setActivationPending({ rosterPlayerId: item.id, source: 'taxi' })
             return
         }
@@ -443,7 +439,7 @@ export default function RosterScreen() {
                 }
             })
         })
-    }, [ownerIdentity, currentLeague, roster, load, isCurrentAction])
+    }, [ownerIdentity, limits, partitioned, load, isCurrentAction])
 
     function resolveActivationOverflow(freeRosterPlayerId: string, freeAction: 'drop' | 'ir') {
         if (!onlineRef.current) {
@@ -595,7 +591,7 @@ export default function RosterScreen() {
             accessibilityLabel: `View ${name} player page`,
             onPress: run(() => push(`/player/${item.players.id}`)),
         }]
-        if (!item.is_on_ir && !item.is_on_taxi && rosterOverflow === 0) {
+        if (rosterLocation(item) === 'active' && rosterOverflow === 0) {
             actions.push({
                 key: 'lineup',
                 label: 'Move in lineup',
@@ -604,13 +600,13 @@ export default function RosterScreen() {
                 onPress: run(() => push(`/(modals)/lineup?playerId=${encodeURIComponent(item.players.id)}`)),
             })
         }
-        if (item.is_on_taxi) {
+        if (rosterLocation(item) === 'taxi') {
             actions.push({ key: 'taxi', label: 'Activate from taxi squad', icon: 'arrow-upward', onPress: run(() => { void handleToggleTaxi(item) }) })
         } else {
-            if (item.is_on_ir || currentLeague?.status !== 'offseason' && isIREligible(item.players.injury_status)) {
+            if (rosterLocation(item) === 'ir' || currentLeague?.status !== 'offseason' && isIREligible(item.players.injury_status)) {
                 actions.push({
                     key: 'ir',
-                    label: item.is_on_ir ? 'Activate from IR' : 'Move to IR',
+                    label: rosterLocation(item) === 'ir' ? 'Activate from IR' : 'Move to IR',
                     icon: 'local-hospital',
                     onPress: run(() => { void handleToggleIR(item) }),
                 })
@@ -837,7 +833,7 @@ export default function RosterScreen() {
             <RosterTrimBanner
                 players={active}
                 problems={getRosterProblems(roster, rosterSize)}
-                onActivate={player => { if (player.is_on_taxi) void handleToggleTaxi(player); else void handleToggleIR(player) }}
+                onActivate={player => { if (rosterLocation(player) === 'taxi') void handleToggleTaxi(player); else void handleToggleIR(player) }}
                 excess={rosterOverflow}
                 irAvailable={ir.length < irSlots}
                 busyId={trimBusyId}

@@ -9,6 +9,7 @@ import { activateRookieDraftLeague, commissionerSnakePick, makeSnakePick, proces
 import { dropPlayer, getRoster, type RosterPlayer } from '@/lib/roster'
 import { getErrorMessage } from '@/lib/shared/errors'
 import { reportRealtimeCleanup } from '@/lib/realtime'
+import { partitionRoster } from '@/lib/roster-capacity'
 
 type ActiveTab = 'prospects' | 'board'
 type RosterOverflow = {
@@ -31,7 +32,7 @@ export function useRookieDraftRoomController({
     draftId?: string
     memberId?: string
     leagueId?: string
-    rosterSize: number
+    rosterSize: number | null
 }) {
     const memberIdRef = useRef(memberId)
     memberIdRef.current = memberId
@@ -466,7 +467,7 @@ export function useRookieDraftRoomController({
     }, [draftCompleted, draftSeasonIsCurrent])
     useEffect(() => {
         const stableMemberId = memberIdRef.current ?? memberId
-        if (!canAct() || completionError || !draftCompleted || !draftSeasonIsCurrent || !draftLeagueMatches || visibleState?.draft.isMock || picking || !stableMemberId || !leagueId || draftEndCheckedRef.current) return
+        if (!canAct() || completionError || !draftCompleted || !draftSeasonIsCurrent || !draftLeagueMatches || visibleState?.draft.isMock || picking || !stableMemberId || !leagueId || rosterSize == null || draftEndCheckedRef.current) return
 
         draftEndCheckedRef.current = true
         setCompletionError(null)
@@ -479,7 +480,7 @@ export function useRookieDraftRoomController({
             try {
                 const roster = await getRoster(stableMemberId, leagueId, visibleState?.draft.leagueSeasonId)
                 if (!(mutationIsCurrent(generation, identity) && completionEpochRef.current === completionEpoch)) return
-                const active = roster.filter((player) => !player.is_on_ir && !player.is_on_taxi)
+                const active = partitionRoster(roster).active
                 const excess = active.length - rosterSize
                 if (excess > 0) {
                     setTrimOverflow({ excess, dropList: active })
@@ -498,7 +499,7 @@ export function useRookieDraftRoomController({
     }, [draftCompleted, draftSeasonIsCurrent, draftLeagueMatches, visibleState, picking, draftId, leagueId, rosterSize, memberId, load, ownerIdentity, canAct, activity.ready, mutationIsCurrent, completionError])
 
     async function handleTrimDrop(rosterPlayerId: string) {
-        if (!canAct() || !trimOverflow || completionError || trimmingId || !draftCompleted || !draftSeasonIsCurrent || completionPhaseRef.current !== completionPhase || !visibleState || visibleState.draft.isMock || !draftLeagueMatches ||
+        if (!canAct() || !trimOverflow || completionError || trimmingId || !draftCompleted || !draftSeasonIsCurrent || completionPhaseRef.current !== completionPhase || !visibleState || visibleState.draft.isMock || !draftLeagueMatches || rosterSize == null ||
             !ownsActionState || activeOwnerRef.current !== ownerIdentity) return
         const generation = mutationGenerationRef.current
         const identity = ownerIdentity
@@ -515,7 +516,7 @@ export function useRookieDraftRoomController({
             if (stableMemberId && leagueId) {
                 const roster = await getRoster(stableMemberId, leagueId, visibleState?.draft.leagueSeasonId)
                 if (!(mutationIsCurrent(generation, identity) && completionEpochRef.current === completionEpoch)) return
-                const active = roster.filter((player) => !player.is_on_ir && !player.is_on_taxi)
+                const active = partitionRoster(roster).active
                 const excess = active.length - rosterSize
                 setRosterOverflow(null)
                 setRosterForDrop([])
@@ -564,11 +565,8 @@ export function useRookieDraftRoomController({
                         if (!mutationIsCurrent(generation, identity)) return
                         const match = roster.find((rosterPlayer) => rosterPlayer.players?.id === player.id)
                         newRosterPlayerId = match?.id ?? null
-                        dropList = roster.filter(
-                            (rosterPlayer) =>
-                                !rosterPlayer.is_on_ir &&
-                                !rosterPlayer.is_on_taxi &&
-                                rosterPlayer.players?.id !== player.id,
+                        dropList = partitionRoster(roster).active.filter(
+                            (rosterPlayer) => rosterPlayer.players?.id !== player.id,
                         )
                     } catch {
                         if (mutationIsCurrent(generation, identity)) {

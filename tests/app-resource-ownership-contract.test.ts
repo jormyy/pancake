@@ -13,7 +13,7 @@ vi.mock('@/lib/cache/screen-cache', () => ({ cachedScreenView: () => undefined, 
 vi.mock('@/lib/shared/season', () => ({ getCurrentSeasonId: async () => 'season' }))
 
 const state = vi.hoisted(() => ({
-    user: { id: 'actor' }, member: { id: 'member' }, league: { id: 'league', roster_size: 1, waiver_mode: 'faab' },
+    user: { id: 'actor' }, member: { id: 'member' }, league: { id: 'league', roster_size: 1, ir_slots: 2, taxi_slots: 0, waiver_mode: 'faab' },
     visible: true, online: true,
     player: vi.fn(), roster: vi.fn(), members: vi.fn(), claim: vi.fn(), bracket: vi.fn(),
     back: vi.fn(), replace: vi.fn(),
@@ -65,7 +65,7 @@ describe('mounted route resource ownership', () => {
         setSessionOwner('actor')
         state.user = { id: 'actor' }
         state.member = { id: 'member' }
-        state.league = { id: 'league', roster_size: 1, waiver_mode: 'faab' }
+        state.league = { id: 'league', roster_size: 1, ir_slots: 2, taxi_slots: 0, waiver_mode: 'faab' }
         state.visible = true
         state.online = true
         const page = new EventTarget()

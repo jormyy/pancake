@@ -13,6 +13,7 @@ import {
 import { activateRosterPlayerWithLineup, toggleIR } from '@/lib/roster'
 import { todayLeague } from '@/lib/timezone'
 import { leagueTimezone } from '@/lib/league-timezones'
+import type { LeagueRosterLimits } from '@/lib/roster-capacity'
 // RN's Alert.alert is a silent no-op on web; showAlert/confirmAction route
 // through the in-app feedback system on every platform.
 import { showAlert } from '@/lib/alert'
@@ -50,7 +51,7 @@ export function useLineupActions({
     actionContext: LineupActionContext | null | undefined
     actionOwner?: Pick<LineupActionContext, 'memberId' | 'leagueId' | 'seasonId'> | null
     myLineup: LineupMoveData | null
-    league: { roster_size?: number; taxi_slots?: number; timezone?: string } | null
+    league: (LeagueRosterLimits & { timezone?: string }) | null
     selectedDate: string
     startedTeams: Set<string>
     reloadLineup: (date: string) => Promise<void>

@@ -19,12 +19,14 @@ import { getGameDisplayState } from '@/lib/home-surface'
 import { lineupStatColumns } from '@/lib/score-breakdown'
 import type { LineupPlayer } from '@/lib/lineup'
 import { adjacentMatchupId } from '@/lib/matchup-navigation'
+import { rosterLimits } from '@/lib/roster-capacity'
 
 type Details = { myPlayer: LineupPlayer | null; oppPlayer: LineupPlayer | null; slotType: string }
 
 export default function OtherMatchupScreen() {
     const { matchupId, date } = useLocalSearchParams<{ matchupId: string; date?: string }>()
     const { current, currentLeague: league, membershipValidated, membershipError, refresh: refreshMemberships } = useLeagueContext()
+    const limits = useMemo(() => rosterLimits(league), [league])
     const { user } = useAuth()
     const router = useRouter()
     const back = useGoBack('/')
@@ -62,7 +64,7 @@ export default function OtherMatchupScreen() {
                                 liveStats={liveSnapshot.liveStats} liveTeams={liveTeams} scoringSettings={settings}
                                 teamMatchups={liveSnapshot.teamMatchups} statColumns={showColumns ? columns : null}
                                 onOpenDetails={setDetails} onOpenPlayer={player => router.push({ pathname: '/player/[id]', params: { id: player.playerId } })}
-                                capacity={{ bench: myLineup.benchSlots, ir: league?.ir_slots ?? 2, taxi: league?.taxi_slots ?? 3 }}
+                                capacity={{ bench: myLineup.benchSlots, ir: limits?.irSlots ?? 0, taxi: limits?.taxiSlots ?? 0 }}
                                 compact={narrow} dense={height < 620}
                                 daySelector={<DaySelector days={weekDays} selectedDate={selectedDate} onSelect={data.setSelectedDate} compact={compact} />}
                             /> : null}

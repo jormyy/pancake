@@ -14,6 +14,7 @@ import { formatPoints, formatStat } from '@/lib/format'
 import { getEligiblePositions } from '@/lib/players'
 import type { RosterPlayer } from '@/lib/roster'
 import type { RosterAverage } from '@/lib/roster-stats'
+import { rosterLocation } from '@/lib/roster-capacity'
 
 type IconName = ComponentProps<typeof MaterialIcons>['name']
 type PressableState = { hovered?: boolean; pressed?: boolean }
@@ -64,7 +65,8 @@ export function RosterPlayerSheet({
     const locks = readAssetLocks(player)
     const info = player?.players
     const positions = info ? getEligiblePositions(info) : []
-    const status = player?.is_on_ir ? 'On IR' : player?.is_on_taxi ? 'Taxi squad' : null
+    const location = player ? rosterLocation(player) : null
+    const status = location === 'ir' ? 'On IR' : location === 'taxi' ? 'Taxi squad' : null
 
     return (
         <Sheet visible={player != null} onClose={onClose} title={info?.display_name ?? 'Player'}>
@@ -72,7 +74,7 @@ export function RosterPlayerSheet({
                 <View style={styles.body}>
                     <View style={styles.identity}>
                         <PlayerRowContent locks={locks} name={info.display_name} nbaId={info.nba_id} team={info.nba_team} positions={positions}
-                            birthdate={info.birthdate} yearsExp={info.years_exp} careerGames={info.career_regular_season_games} injuryStatus={info.injury_status} onTaxi={player?.is_on_taxi}
+                            birthdate={info.birthdate} yearsExp={info.years_exp} careerGames={info.career_regular_season_games} injuryStatus={info.injury_status} onTaxi={location === 'taxi'}
                             stats={`${formatPoints(avgFpts ?? 0)} FP · ${formatStat(stats?.avg_minutes_played ?? 0)} mins${status ? ` · ${status}` : ''}`} />
                     </View>
 

@@ -38,6 +38,7 @@ import { readStoredAuthState } from '@/lib/supabase'
 import { sessionGeneration } from '@/lib/session-cache-registry'
 import { readLineupSnapshot, saveLineupSnapshot, discardLineupSnapshot, updateLineupOptimizerSnapshot, type LineupSnapshot } from '@/lib/lineup/snapshot'
 import { showAlert } from '@/lib/alert'
+import { rosterLimits } from '@/lib/roster-capacity'
 import { useLocalSearchParams } from 'expo-router'
 import { type ReactNode, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
@@ -216,6 +217,7 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
     const requestedPlayerId = Array.isArray(playerIdParam) ? playerIdParam[0] : playerIdParam
     const { user } = useAuth()
     const { current, currentLeague, online, membershipValidated, membershipError, refresh: refreshLeague } = useLeagueContext()
+    const limits = rosterLimits(currentLeague)
     const userId = user?.id
     const memberId = current?.id
     const leagueId = currentLeague?.id
@@ -800,8 +802,8 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
                 ) : null}
                 </View>
                 {matchingDay && ownsLineup ? ([
-                    { label: 'IR', players: reserves.ir, count: currentLeague?.ir_slots ?? 0 },
-                    { label: 'Taxi', players: reserves.taxi, count: currentLeague?.taxi_slots ?? 0 },
+                    { label: 'IR', players: reserves.ir, count: limits?.irSlots ?? 0 },
+                    { label: 'Taxi', players: reserves.taxi, count: limits?.taxiSlots ?? 0 },
                 ].map(({ label, players, count }) => Math.max(count, players.length) > 0 ? (
                     <View key={label}>
                         <SectionBand variant="plain" label={label} />

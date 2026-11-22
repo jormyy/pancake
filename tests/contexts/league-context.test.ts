@@ -52,6 +52,7 @@ function membership(id: string, leagueId = `league-${id}`): LeagueMembership {
             playoff_start_week: 20,
             roster_size: 20,
             ir_slots: 2,
+            taxi_slots: 2,
         },
     }
 }

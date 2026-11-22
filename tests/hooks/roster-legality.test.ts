@@ -14,7 +14,7 @@ let latest: ReturnType<typeof useRosterLegality>
 const taxi = rosterPlayer({ is_on_taxi: true })
 taxi.players = { ...taxi.players, years_exp: 2, career_regular_season_games: 65 }
 const Probe = ({ member = 'member' }: { member?: string }) => {
-    latest = useRosterLegality({ memberId: member, leagueId: 'league', rosterSize: 1, onChanged: state.changed })
+    latest = useRosterLegality({ memberId: member, leagueId: 'league', limits: { rosterSize: 1, irSlots: 2, taxiSlots: 0 }, onChanged: state.changed })
     return null
 }
 beforeEach(async () => { vi.resetAllMocks(); state.roster.mockResolvedValue([taxi]); state.activate.mockResolvedValue({ status: 'resolved', roster: [], remaining: [] }); await act(async () => { screen = create(React.createElement(Probe)) }) })

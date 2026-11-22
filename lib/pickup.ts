@@ -1,10 +1,11 @@
 import { formatLeagueDateTime } from '@/lib/timezone'
 import { isIREligible, isTaxiEligible } from '@pancake/core'
-import type { RosterOccupancy, RosterPlayer } from '@/lib/roster'
+import type { RosterPlayer } from '@/lib/roster'
 import type { MemberTransactionState } from '@/lib/league'
 import { confirmAction, showAlert } from '@/lib/alert'
 import { RULE_CODES, errorCode, getErrorMessage } from '@/lib/shared/errors'
 import { getRosterProblems, type RosterProblem } from '@/lib/roster-problems'
+import { partitionRoster, type RosterRow } from '@/lib/roster-capacity'
 
 export type AddLimitSource = Pick<MemberTransactionState, 'weeklyAddLimit' | 'weeklyAddCount' | 'addLimitResetsAt' | 'addLimitMessage' | 'addLimitResetsLabel'>
 
@@ -97,11 +98,11 @@ export function reportPickupError(error: unknown, { refresh, onLimitReached, cla
     showAlert(code === RULE_CODES.onWaivers ? ON_WAIVERS_TITLE : 'Error', message)
 }
 
-export function hasOpenIRSlot(roster: RosterOccupancy[], irSlots = 2): boolean {
-    return roster.filter(player => player.is_on_ir).length < irSlots
+export function hasOpenIRSlot(roster: RosterRow[], irSlots: number): boolean {
+    return partitionRoster(roster).ir.length < irSlots
 }
 
-export function canAddToIR(injuryStatus: string | null | undefined, roster: RosterOccupancy[], irSlots = 2): boolean {
+export function canAddToIR(injuryStatus: string | null | undefined, roster: RosterRow[], irSlots: number): boolean {
     return isIREligible(injuryStatus ?? null) && hasOpenIRSlot(roster, irSlots)
 }
 
@@ -115,9 +116,10 @@ export function pickupDestinations(
     drop?: RosterPlayer | null,
 ): Record<PickupDestination, boolean> {
     const remaining = roster.filter(row => row.id !== drop?.id)
+    const { active, taxi } = partitionRoster(remaining)
     return {
-        active: remaining.filter(row => !row.is_on_ir && !row.is_on_taxi).length < limits.rosterSize,
-        taxi: remaining.filter(row => row.is_on_taxi).length < limits.taxiSlots
+        active: active.length < limits.rosterSize,
+        taxi: taxi.length < limits.taxiSlots
             && isTaxiEligible(player.years_exp ?? null, player.career_regular_season_games ?? null) && !taxiExits.has(player.id),
         ir: limits.allowIR && canAddToIR(player.injury_status, remaining, limits.irSlots),
     }

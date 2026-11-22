@@ -28,7 +28,7 @@ import {
 import { ScreenFrame } from '@/components/ui/ScreenFrame'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { Stack, useLocalSearchParams } from 'expo-router'
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useOnlineStatus } from '@/hooks/use-online-status'
 import { useAuth } from '@/hooks/use-auth'
@@ -47,6 +47,7 @@ import { LoadingState, PageHeader, usePageMetrics } from '@/components/ui'
 import { Card } from '@/components/ui/Card'
 import { SectionBand } from '@/components/ui/SectionBand'
 import { showAlert, showSuccess } from '@/lib/alert'
+import { partitionRoster, rosterLimits, rosterLocation } from '@/lib/roster-capacity'
 
 import { EmptyState } from '@/components/EmptyState'
 import { useGoBack } from '@/components/ui/useGoBack'
@@ -64,7 +65,8 @@ export default function ClaimPlayerScreen() {
     const online = useOnlineStatus()
     const goBack = useGoBack('/players')
 
-    const rosterSize = currentLeague?.roster_size ?? 20
+    const limits = useMemo(() => rosterLimits(currentLeague), [currentLeague])
+    const rosterSize = limits?.rosterSize
     const leagueId = currentLeague?.id
     const memberId = current?.id
     const userId = user?.id
@@ -205,7 +207,7 @@ export default function ClaimPlayerScreen() {
         }
         void load()
         return () => { claimLoadSeqRef.current += 1 }
-    }, [leagueId, memberId, playerId, claimId, dropPlayerId, destination, ownerKey, userId, canRead, capture, isCurrent, markReady, blockActions, epoch, loadAttempt, cacheKey, currentLeague?.taxi_slots])
+    }, [leagueId, memberId, playerId, claimId, dropPlayerId, destination, ownerKey, userId, canRead, capture, isCurrent, markReady, blockActions, epoch, loadAttempt, cacheKey, limits?.taxiSlots])
 
     useEffect(() => {
         if (!userId || !memberId || !leagueId || !playerId) return
@@ -218,21 +220,21 @@ export default function ClaimPlayerScreen() {
         setLoadAttempt(value => value + 1)
     }, [blockActions])
 
-    const activeRoster = myRoster.filter((p) => !p.is_on_ir && !p.is_on_taxi)
-    const rosterFull = activeRoster.length >= rosterSize
-    const destinations = player ? pickupDestinations(player, myRoster, {
-        rosterSize, taxiSlots: currentLeague?.taxi_slots ?? 0, irSlots: currentLeague?.ir_slots ?? 2,
+    const activeRoster = partitionRoster(myRoster).active
+    const rosterFull = rosterSize != null && activeRoster.length >= rosterSize
+    const destinations = player && limits ? pickupDestinations(player, myRoster, {
+        rosterSize: limits.rosterSize, taxiSlots: limits.taxiSlots, irSlots: limits.irSlots,
         allowIR: currentLeague?.status !== 'offseason',
     }, taxiExitIds, selectedDrop) : { active: false, taxi: false, ir: false }
     const irEligible = destinations.ir
     const taxiEligible = destinations.taxi
     const toIr = irEligible && (irChoice?.owner === ownerKey ? irChoice.value : true)
     const toTaxi = !toIr && taxiEligible && (taxiChoice?.owner === ownerKey ? taxiChoice.value : rosterFull)
-    const needsDrop = toIr ? myRoster.filter(row => row.is_on_ir).length >= (currentLeague?.ir_slots ?? 2)
-        : toTaxi ? myRoster.filter(row => row.is_on_taxi).length >= (currentLeague?.taxi_slots ?? 0) : rosterFull
-    const inactiveDrop = selectedDrop?.is_on_ir || selectedDrop?.is_on_taxi
+    const needsDrop = limits != null && (toIr ? partitionRoster(myRoster).ir.length >= limits.irSlots
+        : toTaxi ? partitionRoster(myRoster).taxi.length >= limits.taxiSlots : rosterFull)
+    const inactiveDrop = selectedDrop ? rosterLocation(selectedDrop) !== 'active' : false
     const placementBlocked = !toIr && !toTaxi && !destinations.active && selectedDrop !== null
-    const rosterLegality = useRosterLegality({ memberId, leagueId, rosterSize, irSlots: currentLeague?.ir_slots ?? 2, onChanged: refreshTransactionState })
+    const rosterLegality = useRosterLegality({ memberId, leagueId, limits, onChanged: refreshTransactionState })
     const faab = currentLeague?.waiver_mode === 'faab'
     const balanceUnknown = faab && transactionState == null
     const { addBlockedReason, explainBlock } = useAddLimitGate({ transactionState, refresh: refreshTransactionState })
@@ -258,11 +260,11 @@ export default function ClaimPlayerScreen() {
 
     async function handleSubmit() {
         if ((!online || !canAct()) || submittingRef.current === ownerRef.current) return
-        if (!current || !user || !playerId || !currentLeague) return
+        if (!current || !user || !playerId || !currentLeague || !limits) return
         if (loading || !player || loadError) return
         if (balanceUnknown) return
         if (explainBlock()) return
-        if (online && claimRosterProblems(myRoster, rosterSize, selectedDrop).length > 0) {
+        if (online && claimRosterProblems(myRoster, limits.rosterSize, selectedDrop).length > 0) {
             await rosterLegality.check(myRoster)
             return
         }
@@ -390,7 +392,7 @@ export default function ClaimPlayerScreen() {
                     <Text style={styles.bidLabel}>Place on IR</Text>
                     <Text style={styles.claimMeta}>{inactiveDrop ? 'The claim fails if IR becomes unavailable or the pickup loses eligibility.' : 'Needs active roster space if IR becomes unavailable.'}</Text>
                 </View>
-                <Switch value={toIr} onValueChange={value => { setIRChoice({ owner: ownerKey, value }); if (value) { setTaxiChoice({ owner: ownerKey, value: false }); if (selectedDrop && !selectedDrop.is_on_ir && !selectedDrop.is_on_taxi) setSelectedDrop(null) } }}
+                <Switch value={toIr} onValueChange={value => { setIRChoice({ owner: ownerKey, value }); if (value) { setTaxiChoice({ owner: ownerKey, value: false }); if (selectedDrop && rosterLocation(selectedDrop) === 'active') setSelectedDrop(null) } }}
                     accessibilityLabel="Place on IR" disabled={submitting} />
             </View>
         ) : null}
@@ -399,7 +401,7 @@ export default function ClaimPlayerScreen() {
                 <Text style={styles.bidLabel}>Place on taxi</Text>
                 <Text style={styles.claimMeta}>{inactiveDrop ? 'The claim fails if Taxi becomes unavailable or the pickup loses eligibility.' : 'Needs active roster space if taxi becomes unavailable.'}</Text>
             </View>
-            <Switch value={toTaxi} onValueChange={value => { setTaxiChoice({ owner: ownerKey, value }); if (value) { setIRChoice({ owner: ownerKey, value: false }); if (selectedDrop && !selectedDrop.is_on_ir && !selectedDrop.is_on_taxi) setSelectedDrop(null) } }} accessibilityLabel="Place on taxi" disabled={submitting} />
+            <Switch value={toTaxi} onValueChange={value => { setTaxiChoice({ owner: ownerKey, value }); if (value) { setIRChoice({ owner: ownerKey, value: false }); if (selectedDrop && rosterLocation(selectedDrop) === 'active') setSelectedDrop(null) } }} accessibilityLabel="Place on taxi" disabled={submitting} />
         </View> : null}
         </>
     }
@@ -471,8 +473,8 @@ export default function ClaimPlayerScreen() {
         return rows.map((item, index) => {
             const isSelected = selectedDrop?.id === item.id
             const locks = readAssetLocks(item).filter(lock => lock.sourceId !== claimId)
-            const available = player ? pickupDestinations(player,myRoster,{
-                rosterSize,taxiSlots:currentLeague?.taxi_slots ?? 0,irSlots:currentLeague?.ir_slots ?? 2,
+            const available = player && limits ? pickupDestinations(player,myRoster,{
+                rosterSize: limits.rosterSize,taxiSlots: limits.taxiSlots,irSlots: limits.irSlots,
                 allowIR:currentLeague?.status !== 'offseason',
             },taxiExitIds,item) : null
             const noRoom = !isSelected && available != null && !available.active && !available.taxi && !available.ir
@@ -488,9 +490,9 @@ export default function ClaimPlayerScreen() {
                             return
                         }
                         setSelectedDrop(isSelected ? null : item)
-                        if (!isSelected && available && (item.is_on_ir || item.is_on_taxi)) {
-                            setIRChoice({ owner:ownerKey,value:item.is_on_ir && available.ir })
-                            setTaxiChoice({ owner:ownerKey,value:item.is_on_taxi && available.taxi })
+                        if (!isSelected && available && rosterLocation(item) !== 'active') {
+                            setIRChoice({ owner:ownerKey,value:rosterLocation(item) === 'ir' && available.ir })
+                            setTaxiChoice({ owner:ownerKey,value:rosterLocation(item) === 'taxi' && available.taxi })
                         } else if (!isSelected) {
                             setIRChoice({ owner:ownerKey,value:false })
                             setTaxiChoice({ owner:ownerKey,value:false })

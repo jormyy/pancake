@@ -30,6 +30,7 @@ import type { TradeComposerMember } from '@/lib/trade-ui-model'
 import { confirmAction, showAlert, showSuccess } from '@/lib/alert'
 import { getErrorMessage, RequestError } from '@/lib/shared/errors'
 import { getLeagueMembers, isTradingClosed } from '@/lib/league'
+import { rosterLimits } from '@/lib/roster-capacity'
 import {
     buildTradeComposerPayload,
     buildTwoTeamTradeComposerPayload,
@@ -74,6 +75,7 @@ export default function ProposeTradeScreen() {
     useEffect(() => holdPwaUpdate('trade editor', () => recoveryReady.current), [])
     const { user } = useAuth()
     const { current, currentLeague, online } = useLeagueContext()
+    const limits = rosterLimits(currentLeague)
     const { usableWidth } = usePageMetrics()
     // The verdict moves beside the builder only when the builder keeps its columns.
     const sideBySide = usableWidth >= BUILDER_WIDTH + layout.railWidth
@@ -671,7 +673,7 @@ export default function ProposeTradeScreen() {
                     roster: ownPlanRoster.filter(row => !items.some(item => item.kind === 'player' && item.playerId === row.players.id)),
                     value: rosterPlan, onChange: setRosterPlan, avgMap: composer.avgMap, avgStatsMap: composer.avgStatsMap,
                     unavailableMoves: ownRosterPreview?.unavailableMoves, unavailableDestinations: ownRosterPreview?.unavailableDestinations,
-                    allowIR: (currentLeague?.ir_slots ?? 0) > 0, allowTaxi: (currentLeague?.taxi_slots ?? 0) > 0 }} />
+                    allowIR: limits ? limits.irSlots > 0 : false, allowTaxi: limits ? limits.taxiSlots > 0 : false }} />
         </PageFrame>
     }
 

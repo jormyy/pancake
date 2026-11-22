@@ -427,7 +427,7 @@ it('keeps a fresh lineup on focus and rechecks stale or failed reads', async () 
 it('revalidates fresh lineup capacity after league settings change', async () => {
     await mount()
     const reads = mocks.readView.mock.calls.length
-    mocks.context.currentLeague = { id: 'league-a', roster_size: 21 }
+    mocks.context.currentLeague = { id: 'league-a', roster_size: 21, ir_slots: 2, taxi_slots: 3 }
     mocks.lineup.benchSlots = 4
     await act(async () => { screen.update(React.createElement(Component)) })
     expect(mocks.readView).toHaveBeenCalledTimes(reads + 1)
@@ -576,7 +576,7 @@ it('keeps final-game players locked after their live label ends', async () => {
 
 
 it('shows every configured empty starter, IR, and taxi place', async () => {
-    mocks.context.currentLeague = { id: 'league-a', ir_slots: 2, taxi_slots: 3 }
+    mocks.context.currentLeague = { id: 'league-a', roster_size: 20, ir_slots: 2, taxi_slots: 3 }
     await mount()
     expect(screen.root.findAllByProps({ accessibilityLabel: 'Empty PG slot' })).toHaveLength(1)
     expect(screen.root.findAllByProps({ accessibilityLabel: 'Empty ir slot' })).toHaveLength(2)

@@ -7,6 +7,7 @@ import { getRosterProblems, type RosterProblem } from '@/lib/roster-problems'
 import { activateRosterPlayerWithOverflow, addFreeAgent, getRoster, toggleIR, toggleTaxi, getTaxiExitPlayerIds, type PlayerRosterStatus, type RosterOccupancy, type RosterPlayer } from '@/lib/roster'
 import { getRosterStatusChangeLockMessage } from '@/lib/roster-locks'
 import { RULE_CODES, errorCode } from '@/lib/shared/errors'
+import { rosterLocation } from '@/lib/roster-capacity'
 
 
 import type { MemberTransactionState } from '@/lib/league'
@@ -40,7 +41,7 @@ export async function loadPickupState(
     const claimPending = view.roster.claims.some(claim => claim.playerId === playerId && claim.status === 'pending')
     const ownership = (view as PlayerView & { ownership?: { memberId: string; teamName: string; isOnTaxi: boolean } | null; clearsAt?: string | null }).ownership
     const clearsAt = (view as PlayerView & { clearsAt?: string | null }).clearsAt
-    const status: PlayerRosterStatus = own ? { status: 'mine', rosterPlayerId: own.id, isOnTaxi: own.is_on_taxi }
+    const status: PlayerRosterStatus = own ? { status: 'mine', rosterPlayerId: own.id, isOnTaxi: rosterLocation(own) === 'taxi' }
         : ownership ? { status: 'taken', ownerTeamName: ownership.teamName, isOnTaxi: ownership.isOnTaxi }
         : clearsAt ? { status: 'on_waivers', logId: '', clearsAt } : { status: 'free_agent' }
     return { status, transactionState: view.roster.transactionState, claimPending, roster: view.roster.roster }
@@ -88,8 +89,8 @@ export async function resolveRosterAddIRConflict({
     if (lockMessage) return { status: 'locked', message: lockMessage }
 
     if (dropPlayer) {
-        await activateRosterPlayerWithOverflow(activatePlayer.id, activatePlayer.is_on_taxi ? 'taxi' : 'ir', dropPlayer.id, 'drop')
-    } else if (activatePlayer.is_on_taxi) {
+        await activateRosterPlayerWithOverflow(activatePlayer.id, rosterLocation(activatePlayer) === 'taxi' ? 'taxi' : 'ir', dropPlayer.id, 'drop')
+    } else if (rosterLocation(activatePlayer) === 'taxi') {
         await toggleTaxi(activatePlayer.id, false)
     } else {
         await toggleIR(activatePlayer.id, false)

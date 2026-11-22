@@ -13,6 +13,7 @@ import { getErrorMessage } from '@/lib/shared/errors'
 import { TradeLegalityScreen } from './TradeLegalityScreen'
 import { useLeagueContext } from '@/contexts/league-context'
 import { colors } from '@/constants/tokens'
+import { rosterLimits } from '@/lib/roster-capacity'
 
 export function PendingTradeRosterPlan({ trade, memberId, onCancel, onConfirmed }: {
     trade: Trade
@@ -24,6 +25,7 @@ export function PendingTradeRosterPlan({ trade, memberId, onCancel, onConfirmed 
     const scrollPosition = useRef(0)
     const { currentLeague } = useLeagueContext()
     const leagueId = currentLeague?.id
+    const limits = rosterLimits(currentLeague)
     const [plan, setPlan] = useState<TradeRosterPlan>(() => prefillTradeRosterPlan(trade, memberId))
     const owner = JSON.stringify([leagueId, memberId, trade.id])
     const [result, setResult] = useState<{ owner: string; key: string; teams: TradeRosterPreview[] } | null>(null)
@@ -83,7 +85,7 @@ export function PendingTradeRosterPlan({ trade, memberId, onCancel, onConfirmed 
             <TradeLegalityScreen scrollPosition={scrollPosition} trade={trade} memberId={memberId} teams={preview} loading={loading} saving={saving}
                 error={error} onRetry={() => setAttempt(value => value + 1)} onClose={onCancel} onSubmit={confirm} mode="accept"
                 editor={{ incoming, avgMap: stats?.avgMap, avgStatsMap: stats?.avgStatsMap, roster: roster.filter(row => !offered.has(row.players.id)), value: plan, onChange: setPlan,
-                    allowIR: (currentLeague?.ir_slots ?? 0) > 0, allowTaxi: (currentLeague?.taxi_slots ?? 0) > 0,
+                    allowIR: limits ? limits.irSlots > 0 : false, allowTaxi: limits ? limits.taxiSlots > 0 : false,
                     unavailableMoves: own?.unavailableMoves, unavailableDestinations: own?.unavailableDestinations }} />
         </SafeAreaView>
     </Modal>
