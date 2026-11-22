@@ -39,11 +39,13 @@ class TransientIrError extends Error {
   }
 }
 
+type IrRpcResult = PromiseLike<{ data: unknown; error: { message: string; code?: string } | null; status?: number }>
+
 type IrRpc = (name: 'auto_manage_ir_service', args: {
   p_league_id: string
   p_league_season_id: string
   p_member_id: string
-}) => PromiseLike<{ data: unknown; error: { message: string; code?: string } | null; status?: number }>
+}) => IrRpcResult
 
 export type TipoffIrFence = {
   tipoffAt: string
@@ -58,14 +60,10 @@ type FencedIrRpc = (name: 'auto_manage_ir_tipoff_service', args: {
   p_league_season_id: string
   p_member_id: string
   p_scope: string
-}) => PromiseLike<{ data: unknown; error: { message: string; code?: string } | null; status?: number }>
+}) => IrRpcResult
 
-async function manageIr(setting: OptimizerSetting): Promise<IrOutcome> {
-  const { data, error, status } = await (supabase.rpc as unknown as IrRpc)('auto_manage_ir_service', {
-    p_league_id: setting.league_id,
-    p_league_season_id: setting.league_season_id,
-    p_member_id: setting.member_id,
-  })
+async function irOutcome(request: IrRpcResult): Promise<IrOutcome> {
+  const { data, error, status } = await request
   if (error) {
     if (typeof status === 'number' && TRANSIENT_HTTP_STATUSES.has(status)) {
       throw new TransientHttpError(status, error.message)
@@ -75,22 +73,23 @@ async function manageIr(setting: OptimizerSetting): Promise<IrOutcome> {
   return normalizeIrOutcome(data)
 }
 
+async function manageIr(setting: OptimizerSetting): Promise<IrOutcome> {
+  return irOutcome((supabase.rpc as unknown as IrRpc)('auto_manage_ir_service', {
+    p_league_id: setting.league_id,
+    p_league_season_id: setting.league_season_id,
+    p_member_id: setting.member_id,
+  }))
+}
+
 async function manageIrFenced(setting: OptimizerSetting, fence: TipoffIrFence): Promise<IrOutcome> {
-  const { data, error, status } = await (supabase.rpc as unknown as FencedIrRpc)('auto_manage_ir_tipoff_service', {
+  return irOutcome((supabase.rpc as unknown as FencedIrRpc)('auto_manage_ir_tipoff_service', {
     p_tipoff_at: fence.tipoffAt,
     p_token: fence.token,
     p_league_id: setting.league_id,
     p_league_season_id: setting.league_season_id,
     p_member_id: setting.member_id,
     p_scope: fence.scope,
-  })
-  if (error) {
-    if (typeof status === 'number' && TRANSIENT_HTTP_STATUSES.has(status)) {
-      throw new TransientHttpError(status, error.message)
-    }
-    throw error
-  }
-  return normalizeIrOutcome(data)
+  }))
 }
 
 export async function manageIrForMember(setting: OptimizerSetting): Promise<IrOutcome> {
