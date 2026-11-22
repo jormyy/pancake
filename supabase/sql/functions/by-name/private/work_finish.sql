@@ -7,9 +7,15 @@ RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 DECLARE v_item private.work_items%ROWTYPE;
 BEGIN
   UPDATE private.work_items SET
-    status=CASE WHEN p_error IS NULL THEN 'succeeded' WHEN attempts>=3 THEN 'dead' ELSE 'failed' END,
-    due_at=CASE WHEN p_error IS NULL THEN due_at ELSE now()+make_interval(secs=>least(900,60*power(2,greatest(attempts-1,0))::int)) END,
-    completed_at=CASE WHEN p_error IS NULL OR attempts>=3 THEN now() END,
+    status=CASE WHEN p_error IS NULL THEN 'succeeded'
+      WHEN kind='pre-tipoff-policy' AND (payload->>'tipoffAt')::timestamptz > now() THEN 'failed'
+      WHEN attempts>=3 THEN 'dead' ELSE 'failed' END,
+    due_at=CASE WHEN p_error IS NULL THEN due_at
+      WHEN kind='pre-tipoff-policy' THEN now()+interval '5 seconds'
+      ELSE now()+make_interval(secs=>least(900,60*power(2,greatest(attempts-1,0))::int)) END,
+    completed_at=CASE WHEN p_error IS NULL THEN now()
+      WHEN kind='pre-tipoff-policy' AND (payload->>'tipoffAt')::timestamptz > now() THEN NULL
+      WHEN attempts>=3 THEN now() ELSE NULL END,
     last_error=left(p_error,4000),lease_until=NULL,lease_token=NULL
   WHERE id=p_id AND status='running' AND lease_token=p_token AND lease_until>now()
   RETURNING * INTO v_item;

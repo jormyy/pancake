@@ -33,11 +33,71 @@ Deno.test('waiver processing leaves result notifications to the database trigger
     return Response.json([])
   }
   try {
-    const response = await handler(new Request('http://localhost', { headers: { 'x-internal-function-token': 'waiver-internal-test' } }))
+    const response = await handler(new Request('http://localhost', {
+      method: 'POST',
+      body: JSON.stringify({ timezone: 'America/New_York', date: '2026-11-20' }),
+      headers: { 'x-internal-function-token': 'waiver-internal-test', 'content-type': 'application/json' },
+    }))
     assert.equal(response.status, 200)
-    assert.deepEqual(await response.json(), { ok: true, processed: 4 })
+    assert.deepEqual(await response.json(), { ok: true, processed: 4, rosterFloor: { leagues: [] } })
     assert.deepEqual(queued, [])
   } finally { globalThis.fetch = nativeFetch }
+})
+
+Deno.test('waiver processing runs the roster floor after the drain', async () => {
+  const nativeFetch = globalThis.fetch
+  const calls: string[] = []
+  globalThis.fetch = async input => {
+    const url = new URL(input instanceof Request ? input.url : input)
+    const table = url.pathname.split('/').at(-1)!
+    calls.push(table)
+    if (table === 'process_due_waiver_claims_atomic') {
+      return Response.json(calls.filter(call => call === table).length === 1 ? [{ processed: true }] : [])
+    }
+    if (table === 'count_due_waiver_claims') return Response.json(0)
+    if (table === 'expire_waiver_wire_logs') return Response.json(0)
+    if (table === 'process_roster_floor_service') return Response.json({ leagues: [] })
+    return Response.json([])
+  }
+  try {
+    const response = await handler(new Request('http://localhost', {
+      method: 'POST',
+      body: JSON.stringify({ timezone: 'America/New_York', date: '2026-11-20' }),
+      headers: { 'x-internal-function-token': 'waiver-internal-test', 'content-type': 'application/json' },
+    }))
+    assert.equal(response.status, 200)
+    assert.deepEqual(await response.json(), { ok: true, processed: 1, rosterFloor: { leagues: [] } })
+    assert.ok(calls.includes('settle_waiver_runs'), 'the drain records its settlement')
+    assert.ok(calls.indexOf('settle_waiver_runs') < calls.indexOf('process_roster_floor_service'), 'settlement precedes the floor')
+    assert.equal(calls.at(-1), 'process_roster_floor_service')
+  } finally { globalThis.fetch = nativeFetch }
+})
+
+Deno.test('a failed roster floor league fails the work item with its result', async () => {
+  const nativeFetch = globalThis.fetch
+  const nativeError = console.error
+  let batches = 0
+  console.error = () => {}
+  globalThis.fetch = async input => {
+    const url = new URL(input instanceof Request ? input.url : input)
+    const table = url.pathname.split('/').at(-1)!
+    if (table === 'process_due_waiver_claims_atomic') return Response.json(batches++ === 0 ? [{ processed: true }] : [])
+    if (table === 'count_due_waiver_claims') return Response.json(0)
+    if (table === 'expire_waiver_wire_logs') return Response.json(0)
+    if (table === 'process_roster_floor_service') return Response.json({ leagues: [
+      { status: 'completed', weekNumber: 1 },
+      { status: 'failed', reason: 'boom' },
+    ] })
+    return Response.json([])
+  }
+  try {
+    const response = await handler(new Request('http://localhost', { headers: { 'x-internal-function-token': 'waiver-internal-test' } }))
+    assert.equal(response.status, 500)
+    assert.deepEqual(await response.json(), { ok: false, processed: 1, rosterFloor: { leagues: [
+      { status: 'completed' },
+      { status: 'failed', reason: 'boom' },
+    ] } })
+  } finally { globalThis.fetch = nativeFetch; console.error = nativeError }
 })
 
 Deno.test('waiver batches and expiry do not depend on an Edge notification write', async () => {
@@ -69,7 +129,7 @@ Deno.test('waiver batches and expiry do not depend on an Edge notification write
     const response = await handler(new Request('http://edge.test/process-waivers', { method: 'POST',
       headers: { 'x-internal-function-token': 'waiver-internal-test' } }))
     assert.equal(response.status, 200)
-    assert.deepEqual(await response.json(), { ok: true, processed: 2 })
+    assert.deepEqual(await response.json(), { ok: true, processed: 2, rosterFloor: { leagues: [] } })
     assert.equal(batches, 4)
     assert.equal(queued, 0)
     assert.equal(expired, true)
@@ -94,7 +154,7 @@ Deno.test('waiver batches retry transaction contention before reporting failure'
   try {
     const response = await handler(new Request('http://localhost', { headers: { 'x-internal-function-token': 'waiver-internal-test' } }))
     assert.equal(response.status, 200)
-    assert.deepEqual(await response.json(), { ok: true, processed: 1 })
+    assert.deepEqual(await response.json(), { ok: true, processed: 1, rosterFloor: { leagues: [] } })
     assert.equal(calls, 5)
   } finally { globalThis.fetch = nativeFetch; console.error = nativeError }
 })

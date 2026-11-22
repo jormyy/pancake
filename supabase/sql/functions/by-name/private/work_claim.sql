@@ -49,7 +49,9 @@ BEGIN
       END IF;
     END IF;
     UPDATE private.work_items item SET status='running',attempts=attempts+1,
-      lease_token=gen_random_uuid(),lease_until=clock_timestamp()+interval '5 minutes',invocation_key=NULL
+      lease_token=gen_random_uuid(),
+      lease_until=clock_timestamp()+CASE WHEN item.kind='pre-tipoff-policy' THEN interval '45 seconds' ELSE interval '5 minutes' END,
+      invocation_key=NULL
       WHERE item.id=v_item.id RETURNING item.* INTO v_item;
     IF FOUND THEN
       IF v_item.kind IN('trade-revaluation','trade-revaluation-check','trade-revaluation-scan','forecast-inputs','notification-scan','matchup-forecasts') THEN

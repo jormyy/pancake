@@ -58,6 +58,7 @@ Deno.test('the Edge worker submits intentional no-game fallbacks through apply',
     const name = new URL(request.url).pathname.split('/').at(-1)
     if (name === 'claim_lineup_tipoff_dispatch') return Response.json(context.date)
     if (name === 'get_pending_tipoff_members') return Response.json(batches++ === 0 ? [{ league_id: 'league', league_season_id: 'season', member_id: 'member' }] : [])
+    if (name === 'get_pending_auto_ir_members') return Response.json([])
     if (name === 'get_pre_tipoff_lineup_context') return Response.json(context)
     if (name === 'get_league_projection_rows') return Response.json([])
     if (name === 'apply_pre_tipoff_lineup') {

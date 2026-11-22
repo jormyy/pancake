@@ -60,6 +60,68 @@ Cases: `open-slot`, `full-bench-swap`, `no-legal-swap`, `swap-available`, `swap-
 | `incumbent-boundary-tie` | no roster change | `ir_choice_uncertain` notice with `Choose who moves to IR` |
 | `incumbent-unknown` | no roster change | `ir_choice_uncertain` notice with `Choose who moves to IR` |
 
+## League-wide auto IR
+
+A league whose `private.league_roster_policies` row has `auto_ir_all_members=true` runs the same legal IR resolution for every member, including members whose Auto Lineup is off.
+The daily check and every pre-tipoff window resolve IR first, then read the roster again before choosing starters.
+Starters are chosen only for members whose Auto Lineup is on.
+An Auto Lineup off member keeps manual starters; a player moved to IR leaves the lineup and the slot stays empty.
+Leagues without the policy keep the opt-in behavior.
+
+Sub-features:
+
+- `league-auto-ir-daily` admits every policy member on every Eastern date, including days with no scheduled NBA game, and applies IR only for a manual member.
+- `league-auto-ir-retry` retries a transient IR failure inside the run, writes no durable member receipt, and leaves the dispatch retryable with unchanged inputs. A transient SQLSTATE returned in `skipped` re-raises for a policy league, so the worker sees a failure instead of a skip; an ordinary skip still completes the run. HTTP service, load and timeout statuses (408, 425, 429, 500, 502, 503, 504) are retryable at the IR boundary for the policy path, while a 4xx validation refusal stays a permanent member failure.
+- `league-auto-ir-recovery` runs the official league's tipoff work as its own `pre-tipoff-policy` item and dispatch scope, keyed by tipoff and league, with a 45-second lease, a 5-second retry, and no dead-lettering before tipoff. The shared `pre-tipoff` item serves only leagues without an activated policy and keeps the five-minute lease and base backoff; an old worker is refused the scoped claim with `PT409`.
+- `league-auto-ir-fingerprint` keeps the shared `pre-tipoff` fingerprint as the legacy 009700 body and excludes activated policy leagues, and gives each policy league its own `pre-tipoff-policy` fingerprint over its members' Auto Lineup mode, scoring, roster size and IR slots, roster with injury status, expected return and career games, IR and taxi flags, trade and claim reservations, pins, slots, projections, and the date's games. A return-date correction, a released reservation, or an Auto Lineup flip reopens only that league's completed dispatch; an other-league change reopens only the shared dispatch.
+- `league-auto-ir-completion` keeps IR completion and starter completion as separate receipts. An IR-only pass does not hide the member from starter work after Auto Lineup is enabled, a starter pass does not re-run IR, and a mode-unchanged retry writes nothing.
+- `league-auto-ir-dormancy` requires `ir_activated_at` for the daily and pre-tipoff schedulers and admission, so a policy row with a NULL latch enqueues nothing new.
+- `league-auto-ir-activation` starts an all-manual league only through `private.activate_league_roster_policy(league_id)`, which sets both latches together. No migration, worker, or scheduler activates the policy.
+
+Run `npm run test:db:r8-tipoff-isolation` before the visible journey. It builds a production-head stack, proves the five migrations leave an open shared window's legacy fingerprint and revision unchanged, then proves an official Auto Lineup flip, an official-only injury or reservation, and an other-league eligibility change reopen only their own scope.
+
+Seeder options:
+
+- `--auto-lineup=on|off` sets the member's Auto Lineup switch. The default is `on`.
+- `--league-policy=on|off` writes or removes the league policy row. The default is `off`.
+- `--starter=on|off` puts the case candidate in a free starting slot on the printed `starterDate`. The default is `off`.
+- `--injury=out|healthy` sets the `open-slot` candidate's injury status. The default is `out`.
+- `--locked=on|off` adds a second injured `open-slot` player whose game is already in progress. The default is `off`.
+
+The seeder writes the same JSON to `auto-ir-seed.json` in the evidence directory.
+The trigger reads that file for the candidate and the fixture member.
+
+Trigger options:
+
+- `node tools/verify/trigger-lineup-optimizer.mjs "$EVIDENCE" --mode=daily` posts the daily check for today.
+- `node tools/verify/trigger-lineup-optimizer.mjs "$EVIDENCE" --mode=pre_tipoff --tipoff=<ISO>` creates a game for every roster NBA team at that tipoff, creates the dispatch, then posts the window.
+- `--candidate-injury=healthy|out` changes the seeded candidate's injury status before the window.
+- An activated policy league uses `scope = <league id>` and posts `{mode, tipoffAt, token, leagueId}`. A league without an activated policy uses the shared `scope = ''` and posts no `leagueId`.
+- The tool prints `dispatch` (the row before the request), `stored.dispatch` (the row after), `stored.dispatches` (every scope at that tipoff), `stored.members`, `stored.rosterTransactions`, `stored.lineup`, and `stored.ir`. It exits non-zero unless the stored dispatch is `succeeded`.
+- The claim token is never printed.
+
+Journey:
+
+- **Notice.** Seed `--case=uncertain --auto-lineup=off --league-policy=on`. Open Lineup. Require the `ir_choice_uncertain` notice and `Choose who moves to IR` at 390×844 and 375×812. The switch reads off.
+- **Background IR move.** Seed `--case=open-slot --auto-lineup=off --league-policy=on --starter=on`. Observe before. Open Lineup, select the seeder’s `starterDate`, and require the candidate in the printed `starterSlot` and an empty IR slot. Run the daily trigger. Observe after: the candidate is on IR, the starter row is gone, and the slot is empty. Reopen Lineup, select `starterDate`, and require the empty slot at 390×844 and 375×812.
+- **Staggered tipoffs.** Seed `--case=open-slot --auto-lineup=off --league-policy=on --starter=on --injury=healthy --locked=on`. Run `--mode=pre_tipoff`; require `stored.dispatch.status: succeeded`, `stored.dispatch.scope` equal to the fixture league id, `stored.dispatches` with only that scope, and no `ir_designate` row. Set the candidate Out with `--candidate-injury=out` and run a later `--mode=pre_tipoff`; require an `ir_designate` row for the candidate, the candidate `isOnIr: true`, the candidate’s starter row gone from `stored.lineup`, and the other starter rows unchanged. Require the `lockedInjured` player still `isOnIr: false`.
+- **Auto starters.** Seed `--case=open-slot --auto-lineup=on --league-policy=on --injury=healthy`. Run `--mode=pre_tipoff`; require `stored.lineup` rows with `isAutoSet: true` and the candidate in a starting slot.
+- **Control.** Seed `--case=uncertain --auto-lineup=off --league-policy=off`. Open Lineup and require no notice. Run the daily trigger and require no IR move and no lineup change.
+
+## Database recipes
+
+Run these on the disposable stack before the visible journey:
+
+- `npm run test:db:league-auto-ir-policy`, `npm run test:db:league-auto-ir-schedule`, and `npm run test:db:league-auto-ir-tipoff-concurrency` cover the policy, the schedule, and the tipoff claim.
+- `npm run test:db:auto-manage-ir` and `npm run test:db:auto-manage-ir-concurrency` cover the service and its locks.
+- `npm run test:db:r4-cases` covers the off-day daily admission, the transient retry, the crash recovery lease, the fingerprint inputs, and the NULL-latch dormancy.
+- `npm run test:db:r5-cases` covers the transient-skip contract, the explicit activation of an all-manual league, the scoped lease, and the averages gate.
+- `npm run test:db:r5-red` is the base-compatible red probe for the same four findings.
+- `npm run test:db:r5-ir-transient` holds a real player row past the service lock timeout, requires the IR RPC to fail, the floor to defer with no awards, and the released retry to perform the move and complete the floor for an Auto Lineup team and a manual team.
+- `npm run test:db:r7-mode-aware-tipoff` covers the mode-aware fingerprint, the distinct IR and starter receipts, the disabled-member guard, the idempotent retry, and the old-worker `PT409`.
+- `deno test --allow-env --allow-net --allow-read supabase/functions/lineup-optimizer/preTipoff.test.ts` covers the worker’s transient retry and the later successful attempt.
+- `deno test --allow-env --allow-net --allow-read supabase/functions/lineup-optimizer/irHttpRetry.test.ts` covers the HTTP status retries, the exhausted retry, the abort, the ambiguous response, the business-rule skip, the 4xx refusal, the legacy path, and the daily path.
+
 ## Gotchas
 
 - The seeder is destructive to E2E Team 1; recreate the run before unrelated roster journeys.

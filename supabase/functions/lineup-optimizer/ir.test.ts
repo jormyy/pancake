@@ -47,6 +47,7 @@ function installFetch(config: { log: Call[]; ir?: () => Response; settingEnabled
           ? [{ league_id: 'league', league_season_id: 'season', member_id: 'member' }]
           : [])
       }
+      if (name === 'get_pending_auto_ir_members') return Response.json([])
       if (name === 'apply_pre_tipoff_lineup') return Response.json(true)
       if (name === 'finish_lineup_tipoff_dispatch') return Response.json(null)
       throw new Error(`Unexpected RPC ${name}`)
@@ -141,7 +142,7 @@ Deno.test('manual run skips IR management when the member setting is disabled', 
   } finally { restore() }
 })
 
-Deno.test('pre-tipoff mode never manages IR', async () => {
+Deno.test('pre-tipoff mode never manages IR for leagues without the policy', async () => {
   const log: Call[] = []
   const restore = installFetch({ log })
   try {

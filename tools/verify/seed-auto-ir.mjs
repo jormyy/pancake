@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
-import { readFile } from 'node:fs/promises'
+import { randomUUID } from 'node:crypto'
+import { readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 
 const dir = path.resolve(process.argv[2] ?? '')
@@ -9,10 +10,22 @@ const flag = (name, fallback) => {
   const hit = process.argv.find((arg) => arg.startsWith(`--${name}=`))
   return hit ? hit.slice(name.length + 3) : fallback
 }
-const cases = ['open-slot', 'full-bench-swap', 'no-legal-swap', 'swap-available', 'swap-locked', 'uncertain', 'locked', 'taxi-ineligible', 'incumbent-exchange', 'incumbent-tie', 'incumbent-boundary-tie', 'incumbent-unknown']
+const cases = ['open-slot', 'bench-open-slot', 'starter-open-slot', 'full-bench-swap', 'no-legal-swap', 'swap-available', 'swap-locked', 'uncertain', 'locked', 'taxi-ineligible', 'incumbent-exchange', 'incumbent-tie', 'incumbent-boundary-tie', 'incumbent-unknown']
 const caseName = flag('case', '')
 assert.ok(cases.includes(caseName), `--case=${cases.join('|')}`)
 const team = flag('team', 'E2E Team 1')
+const autoLineup = flag('auto-lineup', 'on')
+const leaguePolicy = flag('league-policy', 'off')
+const starter = flag('starter', 'off')
+const injury = flag('injury', 'out')
+const locked = flag('locked', 'off')
+assert.ok(['on', 'off'].includes(autoLineup), '--auto-lineup=on|off')
+assert.ok(['on', 'off'].includes(leaguePolicy), '--league-policy=on|off')
+assert.ok(['on', 'off'].includes(starter), '--starter=on|off')
+assert.ok(['out', 'healthy'].includes(injury), '--injury=out|healthy')
+assert.ok(['on', 'off'].includes(locked), '--locked=on|off')
+assert.ok(injury === 'out' || caseName === 'open-slot', '--injury=healthy is only for --case=open-slot')
+assert.ok(locked === 'off' || caseName === 'open-slot', '--locked=on is only for --case=open-slot')
 const run = JSON.parse(await readFile(path.join(dir, 'run.json'), 'utf8'))
 assert.equal(run.dir, dir)
 assert.ok(!run.cleanedAt, 'Seed before cleanup')
@@ -63,6 +76,8 @@ const roster = json(`
     'isOnIr', roster.is_on_ir,
     'isOnTaxi', roster.is_on_taxi,
     'nbaTeam', player.nba_team,
+    'position', player.position,
+    'eligiblePositions', player.eligible_positions,
     'yearsExp', player.years_exp,
     'careerGames', player.career_regular_season_games,
     'starter', EXISTS (SELECT 1 FROM weekly_lineups lineup
@@ -81,7 +96,12 @@ assert.ok(roster.length >= 3, `${team} needs at least three roster players`)
 const originalTaxi = roster.find((player) => player.isOnTaxi) ?? null
 const activePool = roster.filter((player) => player.playerId !== originalTaxi?.playerId)
 const bench = activePool.filter((player) => !player.starter)
-const candidate = bench[0] ?? activePool[0]
+const lockedAssets = caseName === 'starter-open-slot'
+  ? new Set(json(`SELECT coalesce(json_agg(asset_id), '[]'::json) FROM private.locked_assets(${q(ctx.leagueId)}, ${q(ctx.seasonId)}, ${q(ctx.memberId)}) WHERE asset_kind = 'player'`))
+  : new Set()
+const candidate = caseName === 'starter-open-slot'
+  ? (activePool.find((player) => (player.eligiblePositions ?? []).includes('PG') && !lockedAssets.has(player.playerId)) ?? bench[0] ?? activePool[0])
+  : (bench[0] ?? activePool[0])
 const occupant = bench.find((player) => player.playerId !== candidate.playerId) ?? activePool.find((player) => player.playerId !== candidate.playerId)
 assert.ok(candidate, `${team} needs an active player for this case`)
 assert.ok(occupant, `${team} needs a second active player for this case`)
@@ -102,12 +122,76 @@ const statements = []
 const expected = { moves: [], notices: [] }
 const involved = []
 
-if (caseName === 'open-slot') {
-  playerUpdates.set(candidate.playerId, { injury_status: 'Out', injury_expected_return: addDays(ctx.today, 14) })
+if (caseName === 'starter-open-slot') {
+  assert.ok((candidate.eligiblePositions ?? []).includes('PG'), `${team} needs a PG-eligible candidate for starter-open-slot`)
+  let replacement = activePool.find((player) => player.playerId !== candidate.playerId
+    && (player.eligiblePositions ?? []).includes('PG') && !player.isOnIr && !player.isOnTaxi && !lockedAssets.has(player.playerId))
+  if (!replacement) {
+    const replacementId = randomUUID()
+    statements.push(`INSERT INTO public.players(id, sportsdata_id, first_name, last_name, position, eligible_positions, injury_status, nba_team)
+      VALUES (${q(replacementId)}, ${q(replacementId)}, 'Verify', 'PG', 'PG', ARRAY['PG'], NULL, 'ZZ');`)
+    statements.push(`INSERT INTO public.roster_players(league_id, league_season_id, member_id, player_id, acquired_via)
+      VALUES (${q(ctx.leagueId)}, ${q(ctx.seasonId)}, ${q(ctx.memberId)}, ${q(replacementId)}, 'draft');`)
+    replacement = { playerId: replacementId, eligiblePositions: ['PG'], isOnIr: false, isOnTaxi: false }
+  }
+  playerUpdates.set(candidate.playerId, { injury_status: 'Out', injury_expected_return: addDays(ctx.today, 14), nba_team: 'ZZ' })
+  playerUpdates.set(replacement.playerId, { nba_team: 'ZZ' })
   leagueUpdates.ir_slots = 1
   leagueUpdates.roster_size = Math.max(20, roster.length + 1)
+  statements.push(`DELETE FROM public.roster_transactions
+    WHERE league_id = ${q(ctx.leagueId)} AND league_season_id = ${q(ctx.seasonId)}
+      AND member_id = ${q(ctx.memberId)} AND transaction_type = 'ir_designate';`)
+  statements.push(`INSERT INTO public.nba_games(season_year, week_number, game_date, game_time, home_team, away_team, status, nba_game_id)
+    VALUES (${ctx.seasonYear}, ${ctx.weekNumber}, ${q(ctx.today)}, now() + interval '2 hours', 'ZZ', 'ZZZ', 'Scheduled', 'verify-auto-ir-starter');`)
   expected.moves.push({ kind: 'designate', designatePlayerId: candidate.playerId })
+  involved.push({ role: 'candidate', playerId: candidate.playerId }, { role: 'replacement', playerId: replacement.playerId })
+} else if (caseName === 'bench-open-slot') {
+  const locked = new Set(json(`SELECT coalesce(json_agg(asset_id), '[]'::json) FROM private.locked_assets(${q(ctx.leagueId)}, ${q(ctx.seasonId)}, ${q(ctx.memberId)}) WHERE asset_kind = 'player'`))
+  const todayLineup = json(`SELECT coalesce(json_agg(json_build_object('playerId', player_id, 'slotType', slot_type)), '[]'::json)
+    FROM weekly_lineups
+    WHERE league_id = ${q(ctx.leagueId)} AND league_season_id = ${q(ctx.seasonId)}
+      AND member_id = ${q(ctx.memberId)} AND game_date = ${q(ctx.today)}`)
+  const starterIds = new Set(todayLineup.map((row) => row.playerId))
+  const benchCandidates = activePool.filter((player) => !starterIds.has(player.playerId) && !locked.has(player.playerId))
+  assert.ok(benchCandidates.length, `${team} needs an unlocked bench player for bench-open-slot`)
+  const chosen = benchCandidates[0]
+  assert.ok(ctx.weekNumber, 'bench-open-slot needs a current season week')
+  const slots = json(`SELECT coalesce(json_agg(slot_type ORDER BY slot_type), '[]'::json)
+    FROM lineup_slot_templates WHERE league_id = ${q(ctx.leagueId)} AND slot_type NOT IN ('BE', 'IR')`)
+  const occupied = new Set(todayLineup.map((row) => row.slotType))
+  const fillers = activePool.filter((player) => player.playerId !== chosen.playerId && !starterIds.has(player.playerId))
+  for (const slot of slots) {
+    if (occupied.has(slot)) continue
+    const filler = fillers.shift()
+    if (!filler) break
+    statements.push(`INSERT INTO weekly_lineups(league_id, league_season_id, member_id, player_id, week_number, game_date, slot_type, is_auto_set)
+      VALUES (${q(ctx.leagueId)}, ${q(ctx.seasonId)}, ${q(ctx.memberId)}, ${q(filler.playerId)}, ${ctx.weekNumber}, ${q(ctx.today)}, ${q(slot)}, false);`)
+    occupied.add(slot)
+  }
+  playerUpdates.set(chosen.playerId, { injury_status: 'Out', injury_expected_return: addDays(ctx.today, 14) })
+  leagueUpdates.ir_slots = 1
+  leagueUpdates.roster_size = Math.max(20, roster.length + 1)
+  statements.push(`DELETE FROM public.roster_transactions
+    WHERE league_id = ${q(ctx.leagueId)} AND league_season_id = ${q(ctx.seasonId)}
+      AND member_id = ${q(ctx.memberId)} AND transaction_type = 'ir_designate';`)
+  expected.moves.push({ kind: 'designate', designatePlayerId: chosen.playerId })
+  involved.push({ role: 'candidate', playerId: chosen.playerId })
+} else if (caseName === 'open-slot') {
+  playerUpdates.set(candidate.playerId, injury === 'out'
+    ? { injury_status: 'Out', injury_expected_return: addDays(ctx.today, 14) }
+    : { injury_status: null, injury_expected_return: 'unknown' })
+  leagueUpdates.ir_slots = 1
+  leagueUpdates.roster_size = Math.max(20, roster.length + 1)
+  if (injury === 'out') expected.moves.push({ kind: 'designate', designatePlayerId: candidate.playerId })
   involved.push({ role: 'candidate', playerId: candidate.playerId })
+  if (locked === 'on') {
+    const lockedPlayer = activePool.find((player) => player.playerId !== candidate.playerId && player.nbaTeam)
+    assert.ok(lockedPlayer, `${team} needs a second active player with an NBA team for --locked=on`)
+    playerUpdates.set(lockedPlayer.playerId, { injury_status: 'Out', injury_expected_return: addDays(ctx.today, 30) })
+    statements.push(`INSERT INTO nba_games(season_year, week_number, game_date, home_team, away_team, status, game_time, nba_game_id)
+      VALUES (${ctx.seasonYear}, ${ctx.weekNumber}, ${q(ctx.today)}, ${q(lockedPlayer.nbaTeam)}, ${q(lockedPlayer.nbaTeam === 'BOS' ? 'NYK' : 'BOS')}, 'InProgress', now() - interval '1 hour', 'verify-auto-ir-locked');`)
+    involved.push({ role: 'lockedInjured', playerId: lockedPlayer.playerId })
+  }
 } else if (caseName === 'full-bench-swap') {
   playerUpdates.set(candidate.playerId, { injury_status: 'Out', injury_expected_return: addDays(ctx.today, 10) })
   playerUpdates.set(occupant.playerId, { injury_status: 'Healthy' })
@@ -242,9 +326,38 @@ if (originalTaxi) {
 for (const [playerId, fields] of playerUpdates) statements.push(`UPDATE players SET ${assignments(fields)} WHERE id = ${q(playerId)};`)
 for (const [rosterPlayerId, fields] of rosterUpdates) statements.push(`UPDATE roster_players SET ${assignments(fields)} WHERE id = ${q(rosterPlayerId)};`)
 if (Object.keys(leagueUpdates).length) statements.push(`UPDATE leagues SET ${assignments(leagueUpdates)} WHERE id = ${q(ctx.leagueId)};`)
-statements.push(`INSERT INTO lineup_optimizer_settings(league_id, league_season_id, member_id, enabled, enabled_at)
-  VALUES (${q(ctx.leagueId)}, ${q(ctx.seasonId)}, ${q(ctx.memberId)}, true, now())
-  ON CONFLICT (league_id, league_season_id, member_id) DO UPDATE SET enabled = true, enabled_at = now();`)
+statements.push(`INSERT INTO lineup_optimizer_settings(league_id, league_season_id, member_id, enabled, enabled_at, last_daily_optimized_date, last_optimized_at)
+  VALUES (${q(ctx.leagueId)}, ${q(ctx.seasonId)}, ${q(ctx.memberId)}, ${autoLineup === 'on'}, ${autoLineup === 'on' ? 'now()' : 'NULL'}, NULL, NULL)
+  ON CONFLICT (league_id, league_season_id, member_id) DO UPDATE SET enabled = EXCLUDED.enabled, enabled_at = EXCLUDED.enabled_at,
+    last_daily_optimized_date = NULL, last_optimized_at = NULL;`)
+let starterSlot = null
+if (starter === 'on') {
+  const slots = json(`SELECT coalesce(json_agg(slot_type ORDER BY slot_type), '[]'::json) FROM lineup_slot_templates
+    WHERE league_id = ${q(ctx.leagueId)} AND slot_type NOT IN ('BE', 'IR')`)
+  assert.ok(slots.length, `${team} needs a starting slot for --starter=on`)
+  assert.ok(ctx.weekNumber, '--starter=on needs a current season week')
+  const occupied = json(`SELECT coalesce(json_agg(DISTINCT slot_type), '[]'::json) FROM weekly_lineups
+    WHERE league_id = ${q(ctx.leagueId)} AND league_season_id = ${q(ctx.seasonId)}
+      AND member_id = ${q(ctx.memberId)} AND game_date = ${q(ctx.today)}
+      AND slot_type NOT IN ('BE', 'IR')`)
+  const eligible = (slot) => slot === 'UTIL' ||
+    (slot === 'G' && candidate.eligiblePositions.some((position) => ['PG', 'SG'].includes(position))) ||
+    (slot === 'F' && candidate.eligiblePositions.some((position) => ['SF', 'PF'].includes(position))) ||
+    candidate.eligiblePositions.includes(slot)
+  const free = slots.filter((slot) => !occupied.includes(slot))
+  starterSlot = free.find(eligible) ?? free[0] ?? slots[0]
+  statements.push(`DELETE FROM weekly_lineups
+    WHERE league_id = ${q(ctx.leagueId)} AND league_season_id = ${q(ctx.seasonId)}
+      AND member_id = ${q(ctx.memberId)} AND game_date = ${q(ctx.today)}
+      AND (player_id = ${q(candidate.playerId)} OR slot_type = ${q(starterSlot)});`)
+  statements.push(`INSERT INTO weekly_lineups(league_id, league_season_id, member_id, player_id, week_number, game_date, slot_type, is_auto_set)
+    VALUES (${q(ctx.leagueId)}, ${q(ctx.seasonId)}, ${q(ctx.memberId)}, ${q(candidate.playerId)}, ${ctx.weekNumber}, ${q(ctx.today)}, ${q(starterSlot)}, false);`)
+}
+statements.push(leaguePolicy === 'on'
+  ? `INSERT INTO private.league_roster_policies(league_id, auto_ir_all_members) VALUES (${q(ctx.leagueId)}, true)
+     ON CONFLICT (league_id) DO UPDATE SET auto_ir_all_members = true;
+     SELECT private.activate_league_roster_policy(${q(ctx.leagueId)});`
+  : `DELETE FROM private.league_roster_policies WHERE league_id = ${q(ctx.leagueId)};`)
 sql(`BEGIN;\n${statements.join('\n')}\nCOMMIT;`)
 
 const final = json(`
@@ -273,7 +386,12 @@ const final = json(`
       JOIN players player ON player.id = roster.player_id
       WHERE roster.league_id = ${q(ctx.leagueId)} AND roster.league_season_id = ${q(ctx.seasonId)} AND roster.member_id = ${q(ctx.memberId)}),
     'optimizerEnabled', (SELECT enabled FROM lineup_optimizer_settings
-      WHERE league_id = ${q(ctx.leagueId)} AND league_season_id = ${q(ctx.seasonId)} AND member_id = ${q(ctx.memberId)}));`)
+      WHERE league_id = ${q(ctx.leagueId)} AND league_season_id = ${q(ctx.seasonId)} AND member_id = ${q(ctx.memberId)}),
+    'leaguePolicy', (SELECT auto_ir_all_members FROM private.league_roster_policies
+      WHERE league_id = ${q(ctx.leagueId)}),
+    'starterRows', ${starterSlot ? `(SELECT count(*) FROM weekly_lineups
+      WHERE league_id = ${q(ctx.leagueId)} AND league_season_id = ${q(ctx.seasonId)}
+        AND member_id = ${q(ctx.memberId)} AND game_date = ${q(ctx.today)} AND slot_type = ${q(starterSlot)})` : 'NULL'});`)
 
 const byId = new Map(final.players.map((player) => [player.playerId, player]))
 const involvedPlayers = involved.map((entry) => {
@@ -283,12 +401,37 @@ const involvedPlayers = involved.map((entry) => {
 })
 const openIrSlots = Math.max(0, final.league.irSlots - final.counts.ir)
 const activeRoom = Math.max(0, final.league.rosterSize - final.counts.active)
-const checks = { optimizerEnabled: final.optimizerEnabled === true }
+const checks = {
+  optimizerEnabled: final.optimizerEnabled === true,
+  leaguePolicy: final.leaguePolicy === true,
+}
+const applied = {
+  optimizerEnabled: final.optimizerEnabled === (autoLineup === 'on'),
+  leaguePolicy: Boolean(final.leaguePolicy) === (leaguePolicy === 'on'),
+}
+if (starter === 'on') checks.starterSlotUnique = final.starterRows === 1
 
-if (caseName === 'open-slot') {
+if (caseName === 'starter-open-slot') {
   checks.candidateIrEligible = involvedPlayers[0].irEligible === true
+  checks.candidateOnBench = involvedPlayers[0].isOnIr === false && involvedPlayers[0].isOnTaxi === false
   checks.irEmpty = final.counts.ir === 0
   checks.openIrSlot = openIrSlots >= 1
+  checks.replacementHealthy = involvedPlayers[1].irEligible === false
+} else if (caseName === 'bench-open-slot') {
+  checks.candidateIrEligible = involvedPlayers[0].irEligible === true
+  checks.candidateOnBench = involvedPlayers[0].isOnIr === false && involvedPlayers[0].isOnTaxi === false
+  checks.irEmpty = final.counts.ir === 0
+  checks.openIrSlot = openIrSlots >= 1
+} else if (caseName === 'open-slot') {
+  checks.candidateInjury = injury === 'out'
+    ? involvedPlayers[0].irEligible === true
+    : involvedPlayers[0].irEligible === false
+  checks.irEmpty = final.counts.ir === 0
+  checks.openIrSlot = openIrSlots >= 1
+  if (locked === 'on') {
+    const lockedPlayer = involvedPlayers.find((player) => player.role === 'lockedInjured')
+    checks.lockedInjured = lockedPlayer.gameLocked === true && lockedPlayer.irEligible === true
+  }
 } else if (caseName === 'full-bench-swap') {
   checks.candidateIrEligible = involvedPlayers[0].irEligible === true
   checks.occupantNotIrEligible = involvedPlayers[1].irEligible === false
@@ -342,9 +485,34 @@ if (caseName === 'open-slot') {
   checks.taxiIneligible = involvedPlayers[0].taxiEligible === false
   checks.taxiOnTaxi = involvedPlayers[0].isOnTaxi === true
 }
-for (const [name, passed] of Object.entries(checks)) assert.ok(passed, `Case ${caseName} failed its ${name} check`)
+for (const [name, passed] of Object.entries(applied)) assert.ok(passed, `Seeder did not apply ${name}`)
+for (const [name, passed] of Object.entries(checks)) {
+  if (name === 'optimizerEnabled' || name === 'leaguePolicy') continue
+  assert.ok(passed, `Case ${caseName} failed its ${name} check`)
+}
+const plan = json(`SELECT private.plan_auto_ir(${q(ctx.leagueId)}, ${q(ctx.seasonId)}, ${q(ctx.memberId)})`)
+if (caseName === 'bench-open-slot' || caseName === 'starter-open-slot') {
+  const moves = Array.isArray(plan.moves) ? plan.moves : []
+  assert.ok(moves.some((move) => move.kind === 'designate' && move.designatePlayerId === involved[0].playerId),
+    `${caseName} plan must designate the candidate: ${JSON.stringify(plan)}`)
+}
+if (caseName === 'open-slot') {
+  const moves = Array.isArray(plan.moves) ? plan.moves : []
+  if (injury === 'out') {
+    assert.ok(moves.some((move) => move.kind === 'designate' && move.designatePlayerId === involved[0].playerId),
+      `open-slot plan must designate the candidate: ${JSON.stringify(plan)}`)
+  } else {
+    assert.ok(!moves.some((move) => move.kind === 'designate'),
+      `open-slot plan must not designate a healthy candidate: ${JSON.stringify(plan)}`)
+  }
+  if (locked === 'on') {
+    const lockedPlayer = involved.find((entry) => entry.role === 'lockedInjured')
+    assert.ok(!moves.some((move) => move.designatePlayerId === lockedPlayer.playerId),
+      `open-slot plan must not designate the game-locked player: ${JSON.stringify(plan)}`)
+  }
+}
 
-console.log(JSON.stringify({
+const output = {
   case: caseName,
   team: ctx.teamName,
   leagueId: ctx.leagueId,
@@ -355,7 +523,19 @@ console.log(JSON.stringify({
   counts: { ...final.counts, openIrSlots, activeRoom },
   involved: involvedPlayers,
   expected,
+  plan,
   checks,
+  applied,
   optimizerEnabled: final.optimizerEnabled,
-}, null, 2))
+  leaguePolicy: final.leaguePolicy,
+  autoLineup,
+  leaguePolicyOption: leaguePolicy,
+  starter,
+  injury,
+  locked,
+  starterDate: starter === 'on' ? ctx.today : null,
+  starterSlot,
+}
+await writeFile(path.join(dir, 'auto-ir-seed.json'), JSON.stringify(output, null, 2), { mode: 0o600 })
+console.log(JSON.stringify(output, null, 2))
 console.error(`Next: node tools/verify/trigger-lineup-optimizer.mjs ${q(dir)}`)

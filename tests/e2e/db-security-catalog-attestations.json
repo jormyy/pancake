@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261214011300",
+  "candidateVersion": "20261214011800",
   "common": {
     "functions": [
       {
@@ -618,7 +618,7 @@
           "strict": false,
           "language": "plpgsql",
           "arguments": "p_now timestamp with time zone DEFAULT now()",
-          "bodySha256": "649dcc8c19d331445917f5f125c48e7bda807f4b923abb3c1bd37f81c7fa4805",
+          "bodySha256": "310a67be1915e1973da62bb60135896064366a9bfb855d499493129f20d42343",
           "volatility": "v",
           "anonExecute": false,
           "publicExecute": false,
@@ -758,7 +758,7 @@
           "strict": false,
           "language": "plpgsql",
           "arguments": "p_limit integer DEFAULT 64",
-          "bodySha256": "4f8b5a24851815048449340a7f02179d6779ec3cc1bb15f8b035168720833718",
+          "bodySha256": "0448470830c66ba84176d9e49e6b3d550850fa6a18dcca36f4857c0e056faddc",
           "volatility": "v",
           "anonExecute": false,
           "publicExecute": false,
@@ -818,7 +818,7 @@
           "strict": false,
           "language": "plpgsql",
           "arguments": "p_id bigint, p_token uuid",
-          "bodySha256": "dad9fa757e7fc35cf362e400b2f568d54f709b960c0d8a5ceff24b69a49d594d",
+          "bodySha256": "d6d4dd98ef741ee236ca785bcff882e2a5690d5ddbc00ca5923ef34b33685f6f",
           "volatility": "v",
           "anonExecute": false,
           "publicExecute": false,
@@ -838,7 +838,7 @@
           "strict": false,
           "language": "plpgsql",
           "arguments": "p_id bigint, p_token uuid, p_error text DEFAULT NULL::text",
-          "bodySha256": "bee06f278c131eb5076ed2d49279bbee9a92d6c7634dd66844c4c7afb0eb7c32",
+          "bodySha256": "b2613d30a48de200d5aacee98f2fbfb4e9154e0b74373ca331a3dff7d908c3c6",
           "volatility": "v",
           "anonExecute": false,
           "publicExecute": false,
@@ -858,7 +858,7 @@
           "strict": false,
           "language": "plpgsql",
           "arguments": "",
-          "bodySha256": "9a5fa3d964dda386f219911c6c27b9406d99f8fe0372dceb35ccc65a860a7ac8",
+          "bodySha256": "ca0ea48e746b7dd69bd4d51f452fc90b4378210177b83867b7b9c5955efeaadc",
           "volatility": "v",
           "anonExecute": false,
           "publicExecute": false,
@@ -938,7 +938,7 @@
           "strict": false,
           "language": "plpgsql",
           "arguments": "p_invocation_key uuid",
-          "bodySha256": "7e35b37ef34aa8c1b6300e2363954204de88411cc3fe1d17adb5dce7f401bce4",
+          "bodySha256": "104ac223abf1b24db3c82aa2a7387407d9a2f978645db6510d64d1ed949a8944",
           "volatility": "v",
           "anonExecute": false,
           "publicExecute": false,
@@ -2725,6 +2725,26 @@
     {
       "filename": "20261214011300_trade_roster_holds.sql",
       "sha256": "0b420d673cb546dbdd92db9aee92323603cba587babee6464d0a5200396f99dd"
+    },
+    {
+      "filename": "20261214011400_league_roster_policies.sql",
+      "sha256": "b8cfecab836c7cbfece38416016351ac6cf7bed0398a043487d1ce2d05e62bfb"
+    },
+    {
+      "filename": "20261214011500_weekly_roster_floor.sql",
+      "sha256": "b98bdf7d9c0d00a4d006b1b7d1323fbc12e7d98ed4d7f9cb6cb66b207409d67c"
+    },
+    {
+      "filename": "20261214011600_league_auto_ir_schedule.sql",
+      "sha256": "db41e05aadb97675c50430e053497930355aa339a1a572eb6c04072ecf0b5744"
+    },
+    {
+      "filename": "20261214011700_enable_official_league_roster_policy.sql",
+      "sha256": "8fe1e498005a8597ddd575f5e0563a163f049e08b03e0452eee9a590864ecbde"
+    },
+    {
+      "filename": "20261214011800_tipoff_mode_aware_completion.sql",
+      "sha256": "d4dc37396f8f1e8d65105ef1e104c7feb8605d91abd04134e175dbae4171abcb"
     }
   ],
   "preMigration": {

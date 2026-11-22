@@ -13,7 +13,7 @@ AS $$
     FROM public.lineup_optimizer_settings s
     JOIN public.league_seasons ls ON ls.id = s.league_season_id AND ls.is_current
     JOIN public.leagues l ON l.id = s.league_id AND l.status IN ('active', 'playoffs')
-    WHERE s.enabled AND EXISTS (
+    WHERE s.enabled AND NOT private.league_auto_ir_all_members(s.league_id) AND EXISTS (
       SELECT 1 FROM public.nba_games g WHERE g.game_date = p_game_date AND g.season_year = ls.season_year
     )
   ), roster AS MATERIALIZED (

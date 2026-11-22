@@ -17,6 +17,7 @@ DECLARE
   v_member league_members%ROWTYPE;
   v_today date := (now() AT TIME ZONE 'America/New_York')::date;
   v_enabled boolean;
+  v_league_auto_ir boolean;
   v_roster_size int;
   v_ir_slots int;
   v_ir_before int;
@@ -52,6 +53,7 @@ DECLARE
   v_ids_after uuid[];
   v_problems_before text[];
   v_problems_after text[];
+  v_transient text;
 BEGIN
   PERFORM pg_advisory_xact_lock(hashtext(p_league_id::text), hashtext(p_member_id::text));
 
@@ -60,7 +62,8 @@ BEGIN
    WHERE league_id = p_league_id
      AND league_season_id = p_league_season_id
      AND member_id = p_member_id;
-  IF NOT COALESCE(v_enabled, false) THEN
+  v_league_auto_ir := private.league_auto_ir_all_members(p_league_id);
+  IF NOT COALESCE(v_enabled, false) AND NOT v_league_auto_ir THEN
     RETURN jsonb_build_object('moves', '[]'::jsonb, 'skipped', '[]'::jsonb, 'notices', '[]'::jsonb);
   END IF;
 
@@ -105,7 +108,8 @@ BEGIN
      AND league_season_id = p_league_season_id
      AND member_id = p_member_id
    FOR SHARE;
-  IF NOT COALESCE(v_enabled, false) THEN
+  v_league_auto_ir := private.league_auto_ir_all_members(p_league_id);
+  IF NOT COALESCE(v_enabled, false) AND NOT v_league_auto_ir THEN
     RETURN jsonb_build_object('moves', '[]'::jsonb, 'skipped', '[]'::jsonb, 'notices', '[]'::jsonb);
   END IF;
 
@@ -142,15 +146,28 @@ BEGIN
 
   FOR v_move IN SELECT * FROM jsonb_array_elements(COALESCE(v_plan->'moves', '[]'::jsonb)) LOOP
     v_kind := v_move->>'kind';
+    IF v_league_auto_ir AND (
+      (v_move ? 'designatePlayerId' AND private.roster_status_game_started_live((v_move->>'designatePlayerId')::uuid))
+      OR (v_move ? 'activatePlayerId' AND private.roster_status_game_started_live((v_move->>'activatePlayerId')::uuid))
+    ) THEN
+      v_skipped := v_skipped || jsonb_build_object(
+        'playerId', COALESCE(v_move->>'designatePlayerId', v_move->>'activatePlayerId'),
+        'reason', 'game_started',
+        'sqlstate', 'P0001'
+      );
+      CONTINUE;
+    END IF;
     IF v_kind = 'designate' THEN
       v_candidate_roster_id := (v_move->>'designateRosterPlayerId')::uuid;
       v_candidate_player_id := (v_move->>'designatePlayerId')::uuid;
       BEGIN
         PERFORM private.assert_asset_unlocked(p_league_id, p_league_season_id, p_member_id, v_candidate_player_id);
         PERFORM private.toggle_ir_for_activation(v_candidate_roster_id, true, v_user_id, NULL);
+        PERFORM private.assert_accepted_trade_capacity(p_league_id, p_league_season_id, p_member_id);
         v_moves := v_moves || jsonb_build_object('kind', 'designate', 'designatePlayerId', v_candidate_player_id);
       EXCEPTION WHEN OTHERS THEN
-        v_skipped := v_skipped || jsonb_build_object('playerId', v_candidate_player_id, 'reason', SQLERRM);
+        IF SQLSTATE IN ('55P03', '40001', '40P01', '57014') THEN v_transient := SQLSTATE; END IF;
+        v_skipped := v_skipped || jsonb_build_object('playerId', v_candidate_player_id, 'reason', SQLERRM, 'sqlstate', SQLSTATE);
       END;
     ELSIF v_kind = 'swap' THEN
       v_swap_kind := v_move->>'swapKind';
@@ -208,13 +225,15 @@ BEGIN
           END LOOP;
           PERFORM private.toggle_ir_for_activation(v_candidate_roster_id, true, v_user_id, v_occupant_roster_id);
           PERFORM private.toggle_ir_for_activation(v_occupant_roster_id, false, v_user_id, NULL);
+          PERFORM private.assert_accepted_trade_capacity(p_league_id, p_league_season_id, p_member_id);
           v_moves := v_moves || jsonb_build_object(
             'kind', 'swap',
             'designatePlayerId', v_candidate_player_id,
             'activatePlayerId', v_occupant_player_id
           );
         EXCEPTION WHEN OTHERS THEN
-          v_skipped := v_skipped || jsonb_build_object('playerId', v_candidate_player_id, 'reason', SQLERRM);
+          IF SQLSTATE IN ('55P03', '40001', '40P01', '57014') THEN v_transient := SQLSTATE; END IF;
+          v_skipped := v_skipped || jsonb_build_object('playerId', v_candidate_player_id, 'reason', SQLERRM, 'sqlstate', SQLSTATE);
         END;
       ELSE
         BEGIN
@@ -231,13 +250,15 @@ BEGIN
           END IF;
           PERFORM private.toggle_ir_for_activation(v_candidate_roster_id, true, v_user_id, v_occupant_roster_id);
           PERFORM private.toggle_ir_for_activation(v_occupant_roster_id, false, v_user_id, NULL);
+          PERFORM private.assert_accepted_trade_capacity(p_league_id, p_league_season_id, p_member_id);
           v_moves := v_moves || jsonb_build_object(
             'kind', 'swap',
             'designatePlayerId', v_candidate_player_id,
             'activatePlayerId', v_occupant_player_id
           );
         EXCEPTION WHEN OTHERS THEN
-          v_skipped := v_skipped || jsonb_build_object('playerId', v_candidate_player_id, 'reason', SQLERRM);
+          IF SQLSTATE IN ('55P03', '40001', '40P01', '57014') THEN v_transient := SQLSTATE; END IF;
+          v_skipped := v_skipped || jsonb_build_object('playerId', v_candidate_player_id, 'reason', SQLERRM, 'sqlstate', SQLSTATE);
         END;
       END IF;
     ELSIF v_kind = 'activate' THEN
@@ -255,12 +276,18 @@ BEGIN
           RAISE EXCEPTION 'Healthy occupant is no longer activatable.' USING ERRCODE = 'P0001';
         END IF;
         PERFORM private.toggle_ir_for_activation(v_occupant_roster_id, false, v_user_id, NULL);
+        PERFORM private.assert_accepted_trade_capacity(p_league_id, p_league_season_id, p_member_id);
         v_moves := v_moves || jsonb_build_object('kind', 'activate', 'activatePlayerId', v_occupant_player_id);
       EXCEPTION WHEN OTHERS THEN
-        v_skipped := v_skipped || jsonb_build_object('playerId', v_occupant_player_id, 'reason', SQLERRM);
+        IF SQLSTATE IN ('55P03', '40001', '40P01', '57014') THEN v_transient := SQLSTATE; END IF;
+        v_skipped := v_skipped || jsonb_build_object('playerId', v_occupant_player_id, 'reason', SQLERRM, 'sqlstate', SQLSTATE);
       END;
     END IF;
   END LOOP;
+
+  IF v_transient IS NOT NULL AND v_league_auto_ir THEN
+    RAISE EXCEPTION 'Auto IR move failed transiently (%)', v_transient USING ERRCODE = v_transient;
+  END IF;
 
   SELECT COALESCE(jsonb_agg(to_jsonb(rp) ORDER BY rp.id), '[]'::jsonb)
     INTO v_taxi_after

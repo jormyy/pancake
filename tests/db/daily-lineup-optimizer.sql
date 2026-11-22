@@ -28,7 +28,7 @@ BEGIN
   PERFORM private.enqueue_lineup_optimizer(morning);
   PERFORM pg_temp.check_rules(NOT EXISTS(SELECT 1 FROM private.work_items WHERE kind='lineup-optimizer'),'no-game date enqueues nothing');
   INSERT INTO public.nba_games(id,nba_game_id,season_year,week_number,game_date,game_time,home_team,away_team,status)
-    VALUES(game,'002'||game,9198,1,d,now()+interval '4 hours','DA1','DA2','Scheduled');
+    VALUES(game,'002'||game,9198,1,d,greatest(now()+interval '4 hours',(d + time '06:30') AT TIME ZONE 'America/New_York'),'DA1','DA2','Scheduled');
   UPDATE public.lineup_optimizer_settings SET enabled=false WHERE league_id=f.league_id;
   PERFORM private.enqueue_lineup_optimizer(morning);
   PERFORM pg_temp.check_rules(NOT EXISTS(SELECT 1 FROM private.work_items WHERE kind='lineup-optimizer'),'disabled teams enqueue nothing');
