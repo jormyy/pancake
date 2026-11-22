@@ -17,12 +17,21 @@ AS $$
 DECLARE
   v_zone text;
   v_today date := (now() AT TIME ZONE 'America/New_York')::date;
+  v_league_today date;
   v_run_at timestamptz;
 BEGIN
   IF p_week_number IS NULL OR p_week_end IS NULL THEN
     RETURN jsonb_build_object('ready', false, 'reason', 'no_week');
   END IF;
-  IF v_today > p_week_end AND EXISTS (
+  SELECT COALESCE(league.timezone, 'America/Los_Angeles')
+    INTO v_zone
+    FROM public.leagues league
+   WHERE league.id = p_league_id;
+  IF v_zone IS NULL THEN
+    RETURN jsonb_build_object('ready', false, 'reason', 'league');
+  END IF;
+  v_league_today := (now() AT TIME ZONE v_zone)::date;
+  IF v_league_today > p_week_end AND EXISTS (
     SELECT 1
       FROM private.roster_floor_weeks week_row
      WHERE week_row.league_id = p_league_id
@@ -32,15 +41,8 @@ BEGIN
   ) THEN
     RETURN jsonb_build_object('ready', false, 'reason', 'week_ended');
   END IF;
-  IF v_today < p_week_end THEN
+  IF v_league_today < p_week_end THEN
     RETURN jsonb_build_object('ready', false, 'reason', 'week_not_started');
-  END IF;
-  SELECT COALESCE(league.timezone, 'America/Los_Angeles')
-    INTO v_zone
-    FROM public.leagues league
-   WHERE league.id = p_league_id;
-  IF v_zone IS NULL THEN
-    RETURN jsonb_build_object('ready', false, 'reason', 'league');
   END IF;
   IF NOT EXISTS (
     SELECT 1

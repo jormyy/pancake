@@ -72,7 +72,7 @@ Run these on the disposable stack before the visible journey:
 - The seeder is destructive to the fixture league; recreate the run before unrelated roster journeys.
 - The seeder sets the fixture league’s `scoring_settings` to a standard scoring object so the refreshed averages are real and ranked; the fixture league otherwise defaults to `{}` and every average would be zero.
 - The seeder refreshes `public.mv_player_season_averages` before `private.refresh_player_averages`, because the cache reads that materialized view.
-- The floor only runs on the Eastern `week_end` day after the league’s local midnight. The seeder sets the fixture league’s timezone to `Pacific/Kiritimati` so the run is due immediately.
+- The floor only runs on the league-local `week_end` day after the league’s local midnight. The seeder sets the fixture league’s timezone to `Pacific/Kiritimati` so the run is due immediately.
 - The seeder fills the other teams to 16 so only E2E Team 1 qualifies; otherwise the shuffled order can exhaust the pool before reaching Team 1.
 - The seeder deletes the fixture league’s week record and awards so a re-run starts a fresh week.
 - The pool excludes no-stats, teamless, day-to-day, questionable and out players; the seeder’s free agents are healthy and scored.

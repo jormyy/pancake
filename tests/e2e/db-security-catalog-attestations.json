@@ -618,7 +618,7 @@
           "strict": false,
           "language": "plpgsql",
           "arguments": "p_now timestamp with time zone DEFAULT now()",
-          "bodySha256": "bc8b564baeeeb9d200aab7f52c6d949abbb33a60abaadbf9e12c6cae49aacd23",
+          "bodySha256": "310a67be1915e1973da62bb60135896064366a9bfb855d499493129f20d42343",
           "volatility": "v",
           "anonExecute": false,
           "publicExecute": false,
@@ -858,7 +858,7 @@
           "strict": false,
           "language": "plpgsql",
           "arguments": "",
-          "bodySha256": "74a84d9cc983046b71bd1697780f45bd3115afd2cce3fd68250bd86ac4318b4d",
+          "bodySha256": "ca0ea48e746b7dd69bd4d51f452fc90b4378210177b83867b7b9c5955efeaadc",
           "volatility": "v",
           "anonExecute": false,
           "publicExecute": false,
@@ -2732,7 +2732,7 @@
     },
     {
       "filename": "20261214011500_weekly_roster_floor.sql",
-      "sha256": "76694fdf9a46f6596b05b1dbaa647071b41dafc5b263fc10a8fbadc408423352"
+      "sha256": "ce410cc4f1ecc43a3173d91ef56ee33130ec8fed28df5d8e4e3527ec3d3f1d04"
     },
     {
       "filename": "20261214011600_league_auto_ir_schedule.sql",

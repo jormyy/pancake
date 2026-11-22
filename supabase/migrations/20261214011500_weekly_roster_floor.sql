@@ -325,12 +325,21 @@ AS $$
 DECLARE
   v_zone text;
   v_today date := (now() AT TIME ZONE 'America/New_York')::date;
+  v_league_today date;
   v_run_at timestamptz;
 BEGIN
   IF p_week_number IS NULL OR p_week_end IS NULL THEN
     RETURN jsonb_build_object('ready', false, 'reason', 'no_week');
   END IF;
-  IF v_today > p_week_end AND EXISTS (
+  SELECT COALESCE(league.timezone, 'America/Los_Angeles')
+    INTO v_zone
+    FROM public.leagues league
+   WHERE league.id = p_league_id;
+  IF v_zone IS NULL THEN
+    RETURN jsonb_build_object('ready', false, 'reason', 'league');
+  END IF;
+  v_league_today := (now() AT TIME ZONE v_zone)::date;
+  IF v_league_today > p_week_end AND EXISTS (
     SELECT 1
       FROM private.roster_floor_weeks week_row
      WHERE week_row.league_id = p_league_id
@@ -340,15 +349,8 @@ BEGIN
   ) THEN
     RETURN jsonb_build_object('ready', false, 'reason', 'week_ended');
   END IF;
-  IF v_today < p_week_end THEN
+  IF v_league_today < p_week_end THEN
     RETURN jsonb_build_object('ready', false, 'reason', 'week_not_started');
-  END IF;
-  SELECT COALESCE(league.timezone, 'America/Los_Angeles')
-    INTO v_zone
-    FROM public.leagues league
-   WHERE league.id = p_league_id;
-  IF v_zone IS NULL THEN
-    RETURN jsonb_build_object('ready', false, 'reason', 'league');
   END IF;
   IF NOT EXISTS (
     SELECT 1
@@ -851,7 +853,10 @@ DECLARE
   v_pending_week_number int;
   v_pending_week_end date;
   v_zone text;
+  v_league_today date;
   v_ready jsonb;
+  v_ir jsonb;
+  v_ir_sqlstate text;
   v_watermark text;
   v_week_row private.roster_floor_weeks%ROWTYPE;
   v_member record;
@@ -911,12 +916,13 @@ BEGIN
   END IF;
 
   v_zone := COALESCE(v_league.timezone, 'America/Los_Angeles');
+  v_league_today := (now() AT TIME ZONE v_zone)::date;
 
   SELECT weeks.week_number, weeks.week_end
     INTO v_latest_week_number, v_latest_week_end
     FROM public.season_weeks weeks
    WHERE weeks.season_year = v_season.season_year
-     AND weeks.week_end <= v_today
+     AND weeks.week_end <= v_league_today
      AND EXISTS (
        SELECT 1
          FROM public.matchups matchup
@@ -936,7 +942,7 @@ BEGIN
    WHERE week_row.league_id = p_league_id
      AND week_row.league_season_id = p_league_season_id
      AND week_row.status = 'pending'
-     AND week_row.week_end <= v_today
+     AND week_row.week_end <= v_league_today
      AND EXISTS (
        SELECT 1
          FROM public.matchups matchup
@@ -1061,7 +1067,15 @@ BEGIN
     FOR v_member IN
       SELECT unnest(v_members) AS id
     LOOP
-      PERFORM public.auto_manage_ir_service(p_league_id, p_league_season_id, v_member.id);
+      v_ir := public.auto_manage_ir_service(p_league_id, p_league_season_id, v_member.id);
+      SELECT skipped->>'sqlstate'
+        INTO v_ir_sqlstate
+        FROM jsonb_array_elements(COALESCE(v_ir->'skipped', '[]'::jsonb)) skipped
+       WHERE skipped->>'sqlstate' IN ('55P03', '40001', '40P01', '57014')
+       LIMIT 1;
+      IF v_ir_sqlstate IS NOT NULL THEN
+        RAISE EXCEPTION 'Auto IR move failed transiently (%)', v_ir_sqlstate USING ERRCODE = v_ir_sqlstate;
+      END IF;
     END LOOP;
 
     LOOP
@@ -1381,7 +1395,7 @@ BEGIN
           AND league.status IN ('active', 'playoffs')
         JOIN public.league_seasons season ON season.league_id = league.id AND season.is_current
         JOIN public.season_weeks weeks ON weeks.season_year = season.season_year
-          AND weeks.week_end <= (p_now AT TIME ZONE 'America/New_York')::date
+          AND weeks.week_end <= (p_now AT TIME ZONE COALESCE(league.timezone, 'America/Los_Angeles'))::date
        WHERE policy.weekly_roster_floor IS NOT NULL
          AND policy.floor_activated_at IS NOT NULL
          AND EXISTS (
@@ -1403,7 +1417,7 @@ BEGIN
              SELECT max(latest.week_end)
                FROM public.season_weeks latest
               WHERE latest.season_year = season.season_year
-                AND latest.week_end <= (p_now AT TIME ZONE 'America/New_York')::date
+                AND latest.week_end <= (p_now AT TIME ZONE COALESCE(league.timezone, 'America/Los_Angeles'))::date
                 AND EXISTS (
                   SELECT 1 FROM public.matchups matchup
                    WHERE matchup.league_id = league.id
@@ -1510,7 +1524,7 @@ BEGIN
           AND league.status IN ('active', 'playoffs')
         JOIN public.league_seasons season ON season.league_id = league.id AND season.is_current
         JOIN public.season_weeks weeks ON weeks.season_year = season.season_year
-          AND weeks.week_end <= (now() AT TIME ZONE 'America/New_York')::date
+          AND weeks.week_end <= (now() AT TIME ZONE COALESCE(league.timezone, 'America/Los_Angeles'))::date
        WHERE policy.weekly_roster_floor IS NOT NULL
          AND policy.floor_activated_at IS NOT NULL
          AND EXISTS (
@@ -1532,7 +1546,7 @@ BEGIN
              SELECT max(latest.week_end)
                FROM public.season_weeks latest
               WHERE latest.season_year = season.season_year
-                AND latest.week_end <= (now() AT TIME ZONE 'America/New_York')::date
+                AND latest.week_end <= (now() AT TIME ZONE COALESCE(league.timezone, 'America/Los_Angeles'))::date
                 AND EXISTS (
                   SELECT 1 FROM public.matchups matchup
                    WHERE matchup.league_id = league.id

@@ -109,7 +109,7 @@ The pre-tipoff fingerprint includes every input `private.plan_auto_ir` reads: ro
 A return-date correction or a released reservation therefore reopens a completed dispatch.
 A transient IR failure (lock contention, serialization failure, statement timeout, or a fetch timeout) is retried inside the run and never writes a durable member receipt.
 If the retries are exhausted, the dispatch finishes failed and the work item retries with unchanged inputs; a later attempt performs the move once contention clears.
-`public.auto_manage_ir_service` reports each move's SQLSTATE in `skipped`. For a league with the activated policy, a transient SQLSTATE (`55P03`, `40001`, `40P01`, `57014`) re-raises and rolls back the whole member pass, so the worker sees a failure instead of a skip. Ordinary skips (capacity, asset locks, trade reservations, injury uncertainty) still return normally and complete the run.
+`public.auto_manage_ir_service` reports each move's SQLSTATE in `skipped`. For a league with the activated policy, a transient SQLSTATE (`55P03`, `40001`, `40P01`, `57014`) re-raises and rolls back the whole member pass, so the worker sees a failure instead of a skip. The floor also treats a transient SQLSTATE in `skipped` as transient, so a floor-only league defers instead of awarding. Ordinary skips (capacity, asset locks, trade reservations, injury uncertainty) still return normally and complete the run.
 The official league's tipoff work is its own `pre-tipoff-policy` work item and dispatch scope, keyed by tipoff and league, with a 45-second lease, a 5-second retry, and no dead-lettering before tipoff, so a worker that disappears is replaced inside the window.
 The shared `pre-tipoff` item serves only leagues without an activated policy and keeps the five-minute lease and base backoff.
 An old worker is refused the scoped claim with `PT409`, so it cannot duplicate the official league's IR or starters.
@@ -187,7 +187,7 @@ The job takes the league, then member, then player advisory locks in the same or
 The floor stays inert until `private.activate_league_roster_policy` sets `floor_activated_at` and `ir_activated_at`; no worker sets either latch.
 The floor needs both latches because it must perform the healthy IR returns before it awards.
 The daily and pre-tipoff league-wide IR admission needs `ir_activated_at` for the same reason.
-When a member's IR pass fails transiently, the floor returns `deferred` with `ir_transient` and rolls back the whole pass, so it never awards a free agent ahead of a healthy legal IR return.
+When a member's IR pass fails transiently, including a transient SQLSTATE reported in the service's `skipped` array, the floor returns `deferred` with `ir_transient` and rolls back the whole pass, so it never awards a free agent ahead of a healthy legal IR return.
 
 Release order: (1) the five migrations are inert alone: the tables, functions, and OFFICIAL LEAGUE policy row are live, and no roster, lineup, dispatch, or notice changes, because both latches stay NULL and the schedulers require them; (2) deploy the release `lineup-optimizer`; (3) deploy the release `process-waivers`; (4) run `SELECT private.activate_league_roster_policy('faab8d8f-6a60-4bbc-8f5d-44050b652cdd');` once, separately authorized and run by Forge, after both workers are deployed and verified. If `process-waivers` ships first, the floor stays deferred with `worker_pending` and awards nobody.
 

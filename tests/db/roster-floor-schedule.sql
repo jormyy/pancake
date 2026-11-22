@@ -82,6 +82,50 @@ END;
 $$;
 
 DO $$
+DECLARE f record; v_zone text; v_et date := (now() AT TIME ZONE 'America/New_York')::date;
+  v_local date; v_work int; v_result jsonb;
+BEGIN
+  SELECT name INTO v_zone
+    FROM pg_timezone_names
+   WHERE (now() AT TIME ZONE name)::date > v_et
+   ORDER BY (now() AT TIME ZONE name)::date DESC, name
+   LIMIT 1;
+  IF v_zone IS NULL THEN
+    RAISE NOTICE 'case: no timezone ahead of New York; skipping';
+    RETURN;
+  END IF;
+  v_local := (now() AT TIME ZONE v_zone)::date;
+  SELECT * INTO f FROM pg_temp.floor_league(9731, 2, 16, v_zone);
+  UPDATE public.season_weeks SET week_start = v_local - 6, week_end = v_local
+   WHERE season_year = 9731 AND week_number = 1;
+  DELETE FROM private.waiver_run_settlements WHERE league_id = f.league_id;
+  INSERT INTO private.waiver_run_settlements(league_id, league_season_id, process_date)
+    VALUES (f.league_id, f.season_id, v_local);
+  UPDATE public.nba_games SET status = 'Final'
+   WHERE game_date IN (v_et - 1, v_et, v_local - 1, v_local);
+  DELETE FROM private.work_items;
+  PERFORM private.enqueue_scheduled_work(date_trunc('hour', now()));
+  SELECT count(*) INTO v_work FROM private.work_items
+   WHERE kind = 'roster-floor' AND league_id = f.league_id;
+  PERFORM pg_temp.check_rules(v_work = 1,
+    'the schedule admits a league whose local week_end is after the Eastern date');
+  v_result := private.run_league_roster_floor(f.league_id, f.season_id);
+  PERFORM pg_temp.check_rules(v_result->>'status' = 'completed',
+    'the floor admits a league whose local week_end is after the Eastern date');
+  DELETE FROM private.roster_floor_weeks WHERE league_id = f.league_id;
+  DELETE FROM private.work_items;
+  UPDATE private.worker_controls SET paused = false, scheduler_last_dispatch_at = NULL WHERE id;
+  UPDATE pg_temp.floor_level SET level = 'paused';
+  PERFORM public.dispatch_work();
+  SELECT count(*) INTO v_work FROM private.work_items
+   WHERE kind = 'roster-floor' AND league_id = f.league_id;
+  PERFORM pg_temp.check_rules(v_work = 1,
+    'dispatch admits a league whose local week_end is after the Eastern date');
+  UPDATE pg_temp.floor_level SET level = 'normal';
+END;
+$$;
+
+DO $$
 DECLARE f record;
 BEGIN
   SELECT * INTO f FROM pg_temp.floor_league(9730, 2, 16);
@@ -167,7 +211,7 @@ BEGIN
     RAISE NOTICE 'case: waiting branch zone=%', v_zone;
     SELECT * INTO f FROM pg_temp.floor_league(9724, 2, 16, v_zone);
     v_ready := private.roster_floor_week_ready(f.league_id, f.season_id, 1, f.week_end);
-    PERFORM pg_temp.check_rules(v_ready->>'reason' = 'waiver_run_pending', 'the floor waits for the league midnight');
+    PERFORM pg_temp.check_rules(v_ready->>'reason' = 'week_not_started', 'a league behind New York has not reached the week_end date');
   ELSE
     RAISE NOTICE 'case: deterministic guard branch';
     SELECT * INTO f FROM pg_temp.floor_league(9724, 2, 16, 'Pacific/Kiritimati');
@@ -189,7 +233,7 @@ BEGIN
     VALUES(f.league_id, f.season_id, 1, f.week_end - 1, 'completed');
   v_ready := private.roster_floor_week_ready(f.league_id, f.season_id, 1, f.week_end - 1);
   PERFORM pg_temp.check_rules(v_ready->>'reason' = 'week_ended', 'a past week is closed');
-  v_ready := private.roster_floor_week_ready(f.league_id, f.season_id, 1, f.week_end + 1);
+  v_ready := private.roster_floor_week_ready(f.league_id, f.season_id, 1, f.week_end + 2);
   PERFORM pg_temp.check_rules(v_ready->>'reason' = 'week_not_started', 'a future week is not open');
 END;
 $$;

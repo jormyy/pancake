@@ -113,7 +113,7 @@ BEGIN
           AND league.status IN ('active', 'playoffs')
         JOIN public.league_seasons season ON season.league_id = league.id AND season.is_current
         JOIN public.season_weeks weeks ON weeks.season_year = season.season_year
-          AND weeks.week_end <= (p_now AT TIME ZONE 'America/New_York')::date
+          AND weeks.week_end <= (p_now AT TIME ZONE COALESCE(league.timezone, 'America/Los_Angeles'))::date
        WHERE policy.weekly_roster_floor IS NOT NULL
          AND policy.floor_activated_at IS NOT NULL
          AND EXISTS (
@@ -135,7 +135,7 @@ BEGIN
              SELECT max(latest.week_end)
                FROM public.season_weeks latest
               WHERE latest.season_year = season.season_year
-                AND latest.week_end <= (p_now AT TIME ZONE 'America/New_York')::date
+                AND latest.week_end <= (p_now AT TIME ZONE COALESCE(league.timezone, 'America/Los_Angeles'))::date
                 AND EXISTS (
                   SELECT 1 FROM public.matchups matchup
                    WHERE matchup.league_id = league.id

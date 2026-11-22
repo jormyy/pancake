@@ -3684,8 +3684,8 @@
       "name": "weekly_roster_floor",
       "version": "20261214011500",
       "statementCount": 43,
-      "statementsSha256": "e429ab546352a1d04e4d9f6632d09069689920b7744c9d171b2e2e777ffca1c4",
-      "sha256": "76694fdf9a46f6596b05b1dbaa647071b41dafc5b263fc10a8fbadc408423352"
+      "statementsSha256": "ed3c2e1d01d80e05d20a523aa784a133b593f9c3807f7630cad2900155f1a6ac",
+      "sha256": "ce410cc4f1ecc43a3173d91ef56ee33130ec8fed28df5d8e4e3527ec3d3f1d04"
     },
     {
       "name": "league_auto_ir_schedule",

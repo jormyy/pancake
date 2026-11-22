@@ -23,7 +23,10 @@ DECLARE
   v_pending_week_number int;
   v_pending_week_end date;
   v_zone text;
+  v_league_today date;
   v_ready jsonb;
+  v_ir jsonb;
+  v_ir_sqlstate text;
   v_watermark text;
   v_week_row private.roster_floor_weeks%ROWTYPE;
   v_member record;
@@ -83,12 +86,13 @@ BEGIN
   END IF;
 
   v_zone := COALESCE(v_league.timezone, 'America/Los_Angeles');
+  v_league_today := (now() AT TIME ZONE v_zone)::date;
 
   SELECT weeks.week_number, weeks.week_end
     INTO v_latest_week_number, v_latest_week_end
     FROM public.season_weeks weeks
    WHERE weeks.season_year = v_season.season_year
-     AND weeks.week_end <= v_today
+     AND weeks.week_end <= v_league_today
      AND EXISTS (
        SELECT 1
          FROM public.matchups matchup
@@ -108,7 +112,7 @@ BEGIN
    WHERE week_row.league_id = p_league_id
      AND week_row.league_season_id = p_league_season_id
      AND week_row.status = 'pending'
-     AND week_row.week_end <= v_today
+     AND week_row.week_end <= v_league_today
      AND EXISTS (
        SELECT 1
          FROM public.matchups matchup
@@ -233,7 +237,15 @@ BEGIN
     FOR v_member IN
       SELECT unnest(v_members) AS id
     LOOP
-      PERFORM public.auto_manage_ir_service(p_league_id, p_league_season_id, v_member.id);
+      v_ir := public.auto_manage_ir_service(p_league_id, p_league_season_id, v_member.id);
+      SELECT skipped->>'sqlstate'
+        INTO v_ir_sqlstate
+        FROM jsonb_array_elements(COALESCE(v_ir->'skipped', '[]'::jsonb)) skipped
+       WHERE skipped->>'sqlstate' IN ('55P03', '40001', '40P01', '57014')
+       LIMIT 1;
+      IF v_ir_sqlstate IS NOT NULL THEN
+        RAISE EXCEPTION 'Auto IR move failed transiently (%)', v_ir_sqlstate USING ERRCODE = v_ir_sqlstate;
+      END IF;
     END LOOP;
 
     LOOP
