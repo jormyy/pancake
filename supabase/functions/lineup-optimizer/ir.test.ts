@@ -42,7 +42,6 @@ function installFetch(config: { log: Call[]; ir?: () => Response; settingEnabled
       }
       if (name === 'apply_daily_lineup') return Response.json(true)
       if (name === 'claim_lineup_tipoff_dispatch') return Response.json(today)
-      if (name === 'activate_league_ir') return Response.json(null)
       if (name === 'get_pending_tipoff_members') {
         return Response.json(tipoffBatches++ === 0
           ? [{ league_id: 'league', league_season_id: 'season', member_id: 'member' }]

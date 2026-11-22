@@ -364,7 +364,7 @@ for (const recordFails of [false, true]) {
       const name = new URL(req.url).pathname.split('/').at(-1)
       const body = await req.json()
       if (name === 'claim_lineup_tipoff_dispatch') return Response.json(context().date)
-    if (name === 'get_pending_tipoff_members') {
+      if (name === 'get_pending_tipoff_members') {
         if (batches++ > 0) assert(JSON.stringify(body.p_excluded_members) === '["bad"]', 'The failed member repeats in the same invocation.')
         return Response.json(batches === 1 ? ['first', 'bad', 'last'].map(member_id => ({ league_id: 'league', league_season_id: 'season', member_id })) : [])
       }
@@ -405,7 +405,7 @@ for (const failingRpc of ['get_pending_tipoff_members', 'finish_lineup_tipoff_di
       const name = new URL(req.url).pathname.split('/').at(-1)
       if (name === failingRpc) return Response.json({ message: 'Dispatch service unavailable' }, { status: 503 })
       if (name === 'claim_lineup_tipoff_dispatch') return Response.json(context().date)
-    if (name === 'get_pending_tipoff_members') return Response.json([])
+      if (name === 'get_pending_tipoff_members') return Response.json([])
       if (name === 'get_pending_auto_ir_members') return Response.json([])
       if (name === 'finish_lineup_tipoff_dispatch') {
         const body = await req.json()
