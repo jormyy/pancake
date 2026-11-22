@@ -14,6 +14,7 @@
     "test:db:league-auto-ir-schedule": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/league-auto-ir-schedule.sql",
     "test:db:league-auto-ir-tipoff-concurrency": "node tests/e2e/league-auto-ir-tipoff-concurrency-db.mjs",
     "test:db:roster-floor": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/roster-floor.sql",
+    "test:db:roster-floor-trade-holds": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/roster-floor-trade-holds.sql",
     "test:db:r3-cases": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -v mode=green -f tests/db/r3-cases.sql",
     "test:db:r3-case-5": "sh tests/db/r3-case-5.sh",
     "test:db:r4-cases": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -v mode=green -f tests/db/r4-cases.sql",
