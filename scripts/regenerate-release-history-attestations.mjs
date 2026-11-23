@@ -166,7 +166,7 @@ const main = () => {
     for (const source of security.sourceMigrations) {
       if (files.find((row) => row.filename === source.filename)?.sha256 !== source.sha256) failures.push(`Security catalog source differs at ${source.filename}`)
     }
-    if (failures.length) throw new Error(failures.join('; '))
+    if (failures.length) throw new Error(`${failures.join('; ')}. Run npm run regenerate:attestations against a local database migrated to the repository head.`)
   } else {
     const target = databaseTarget()
     const query = readFileSync('tests/e2e/release-schema-history.sql', 'utf8')

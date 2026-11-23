@@ -40,4 +40,4 @@ An interrupted response body also returns 7.
 
 See the [public agent guide](https://pancakedynasty.vercel.app/agents.md) for installation and usage.
 Production v2 supports anonymous reads at the default API URL.
-See the [maintainer reference](../../docs/public-cli.md) for coverage, privacy assumptions, verification, and database recovery.
+See the [public API architecture](../../docs/architecture.md#public-api-and-cli) for the privacy boundary and checks.

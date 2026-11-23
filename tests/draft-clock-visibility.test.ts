@@ -8,19 +8,12 @@ import type { DraftState } from '@/lib/draft'
 import type { RookieDraftState } from '@/lib/rookieDraft'
 
 const runtime = vi.hoisted(() => ({
-    state: 'active', listeners: new Set<(state: string) => void>(), auction: vi.fn(), rookie: vi.fn(),
+    visibility: 'visible', auction: vi.fn(), rookie: vi.fn(),
 }))
 vi.mock('@/lib/cache/screen-cache', () => ({ readScreenView: (scope: { params: { draftId: string } }, options?: { checkVersion: boolean }) => scope.params.draftId === 'auction' ? runtime.auction() : options?.checkVersion === false ? Promise.resolve({ prospects: [] }) : runtime.rookie() }))
 vi.mock('@/lib/league-version', () => ({ subscribeLeagueVersion: () => () => {} }))
 vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => ({ currentLeague: { id: 'league' } }) }))
 vi.mock('@react-navigation/native', () => ({ useIsFocused: () => true }))
-vi.mock('react-native', () => ({ AppState: {
-    get currentState() { return runtime.state },
-    addEventListener: (_: string, listener: (state: string) => void) => {
-        runtime.listeners.add(listener)
-        return { remove: () => runtime.listeners.delete(listener) }
-    },
-} }))
 vi.mock('@/lib/persistent-cache', () => ({ readPersistentCache: () => null, writePersistentCache: vi.fn() }))
 vi.mock('@/lib/draft', () => ({
     getDraftState: runtime.auction, getDraftPollRevision: vi.fn(async () => 'stable'),
@@ -47,18 +40,19 @@ const Probe = () => {
     renders += 1
     return null
 }
-async function transition(state: string) {
+const page = Object.defineProperty(new EventTarget(), 'visibilityState', { get: () => runtime.visibility })
+async function transition(state: 'active' | 'background') {
     await act(async () => {
-        runtime.state = state
-        for (const listener of runtime.listeners) listener(state)
+        runtime.visibility = state === 'active' ? 'visible' : 'hidden'
+        page.dispatchEvent(new Event('visibilitychange'))
     })
 }
 beforeEach(() => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2030-01-01T00:00:00Z'))
     setSessionOwner('manager')
-    runtime.state = 'active'
-    runtime.listeners.clear()
+    runtime.visibility = 'visible'
+    vi.stubGlobal('document', page)
     renders = 0
     const deadline = new Date(Date.now() + 60_000).toISOString()
     runtime.auction.mockResolvedValue({
@@ -86,7 +80,7 @@ beforeEach(() => {
         },
     } satisfies RookieDraftState)
 })
-afterEach(async () => { await act(async () => screen?.unmount()); vi.useRealTimers() })
+afterEach(async () => { await act(async () => screen?.unmount()); vi.useRealTimers(); vi.unstubAllGlobals() })
 
 it('keeps countdown values and renders unchanged while the app is hidden, then catches up', async () => {
     await act(async () => { screen = create(React.createElement(Probe)) })

@@ -8,6 +8,40 @@ export type PlayerSearchHealthFilter = 'all' | 'healthy' | 'gtd' | 'out' | 'ir'
 export type PlayerAvailabilityFilter = 'all' | 'free_agents' | 'waivers' | 'rostered' | 'mine'
 export type PlayerPlayingFilter = 'all' | 'today' | 'not_today'
 
+export const PLAYER_POSITION_FILTERS = [
+    { key: 'ALL', label: 'All' },
+    { key: 'PG', label: 'PG' },
+    { key: 'SG', label: 'SG' },
+    { key: 'SF', label: 'SF' },
+    { key: 'PF', label: 'PF' },
+    { key: 'C', label: 'C' },
+    { key: 'G', label: 'G' },
+    { key: 'F', label: 'F' },
+] as const
+export const PLAYER_AVAILABILITY_FILTERS = [
+    { key: 'all', label: 'All players' },
+    { key: 'free_agents', label: 'Free agents' },
+    { key: 'waivers', label: 'On waivers' },
+    { key: 'rostered', label: 'Rostered' },
+    { key: 'mine', label: 'My team' },
+] as const
+export const PLAYER_HEALTH_FILTERS = [
+    { key: 'all', label: 'All' },
+    { key: 'healthy', label: 'Healthy' },
+    { key: 'gtd', label: 'Game-time' },
+    { key: 'out', label: 'Out' },
+    { key: 'ir', label: 'IR' },
+] as const
+export const PLAYER_PLAYING_FILTERS = [
+    { key: 'all', label: 'All' },
+    { key: 'today', label: 'Playing today' },
+    { key: 'not_today', label: 'Not playing' },
+] as const
+export const PLAYER_CLASS_FILTERS = [
+    { key: 'all', label: 'All' },
+    { key: 'rookies', label: 'Rookies only' },
+] as const
+
 export type PlayerSearchParams = {
     query: string
     position: string
@@ -21,7 +55,6 @@ export type PlayerSearchParams = {
     health: PlayerSearchHealthFilter
     sortBy: PlayerSearchSortMode
     sortDir: PlayerSearchSortDir
-    // Stats season (averages, fantasy points, projections). Null means automatic season selection.
     seasonYear: number | null
 }
 
@@ -52,12 +85,10 @@ export const DEFAULT_PLAYER_SEARCH_PARAMS: PlayerSearchParams = {
     seasonYear: null,
 }
 
-/** "2025–26" for the season that ends in 2026, the label the player page uses. */
 function seasonLabel(seasonYear: number): string {
     return `${seasonYear - 1}–${String(seasonYear).slice(2)}`
 }
 
-/** Automatic selection, then the current season and two prior seasons. */
 export function playerSeasonFilterOptions(currentSeason: number): { key: string; label: string }[] {
     return [{ key: 'auto', label: 'Auto' }, ...[0, 1, 2].map((back) => ({ key: String(currentSeason - back), label: seasonLabel(currentSeason - back) }))]
 }
