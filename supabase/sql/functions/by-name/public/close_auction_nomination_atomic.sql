@@ -17,7 +17,22 @@ DECLARE
   v_roster_size int;
   v_active_roster_count int;
   v_can_sell boolean;
+  v_league_id uuid;
+  v_bidder_id uuid;
+  v_player_id uuid;
 BEGIN
+  SELECT draft.league_id, nomination.current_bidder_id, nomination.player_id
+    INTO v_league_id, v_bidder_id, v_player_id
+    FROM nominations AS nomination
+    JOIN drafts AS draft ON draft.id = nomination.draft_id
+   WHERE nomination.id = p_nomination_id;
+
+  IF NOT FOUND THEN
+    RETURN false;
+  END IF;
+
+  PERFORM private.lock_roster_scope(v_league_id, ARRAY[v_bidder_id], ARRAY[v_player_id]);
+
   SELECT *
     INTO v_nom
     FROM nominations
@@ -26,7 +41,9 @@ BEGIN
      AND countdown_expires_at < clock_timestamp()
    FOR UPDATE;
 
-  IF NOT FOUND THEN
+  IF NOT FOUND
+     OR v_nom.current_bidder_id IS DISTINCT FROM v_bidder_id
+     OR v_nom.player_id <> v_player_id THEN
     RETURN false;
   END IF;
 
@@ -43,18 +60,6 @@ BEGIN
   IF v_draft.status <> 'in_progress'::draft_status THEN
     RETURN false;
   END IF;
-
-  IF v_nom.current_bidder_id IS NOT NULL THEN
-    PERFORM pg_advisory_xact_lock(
-      hashtext(v_draft.league_id::text),
-      hashtext(v_nom.current_bidder_id::text)
-    );
-  END IF;
-
-  PERFORM pg_advisory_xact_lock(
-    hashtext(v_draft.league_id::text),
-    hashtext(v_nom.player_id::text)
-  );
 
   SELECT COALESCE(roster_size, 20)
     INTO v_roster_size

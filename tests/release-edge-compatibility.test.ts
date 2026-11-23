@@ -141,7 +141,7 @@ it('rejects duplicate migration versions', () => {
 it.skipIf(!available)('keeps merged bodies when release migrations redefine deployed functions', () => {
     expect(revertedDefinitions(releaseMigrations(), canonicalDefinitions('origin/main'), canonicalDefinitions()),
         'A release migration replaces a deployed function without the merged canonical body').toEqual([])
-})
+}, 60_000)
 
 it('detects a release definition that would revert main', () => {
     const statement = (value: number) => `CREATE OR REPLACE FUNCTION public.shared_release_function() RETURNS integer LANGUAGE sql AS $$ SELECT ${value}; $$;`

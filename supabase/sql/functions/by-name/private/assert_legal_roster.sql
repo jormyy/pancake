@@ -6,7 +6,7 @@ CREATE OR REPLACE FUNCTION private.assert_legal_roster(p_league_id uuid, p_leagu
 RETURNS void LANGUAGE plpgsql SET search_path = '' AS $$
 DECLARE v_kind text; v_message text;
 BEGIN
-  PERFORM pg_advisory_xact_lock(hashtext(p_league_id::text),hashtext(p_member_id::text));
+  PERFORM private.lock_roster_scope(p_league_id, ARRAY[p_member_id], '{}');
   SELECT problem.kind,string_agg(problem.message,' ' ORDER BY problem.player_name,problem.roster_player_id)
     INTO v_kind,v_message FROM private.roster_problems(p_league_id,p_league_season_id,p_member_id) problem
     GROUP BY problem.kind ORDER BY CASE problem.kind WHEN 'ir' THEN 1 WHEN 'taxi' THEN 2 ELSE 3 END LIMIT 1;
