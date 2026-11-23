@@ -61,7 +61,7 @@
     "private.create_multi_team_trade_offer(uuid,uuid,uuid,uuid[],jsonb,text,timestamp with time zone,uuid,uuid,uuid,integer)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.create_trade_offer(uuid,uuid,uuid,uuid,uuid[],uuid[],uuid[],uuid[],text,timestamp with time zone,integer,integer,uuid,uuid,uuid,integer)": {"acl":["PUBLIC|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.current_add_week_number(uuid,uuid)": {"acl":["PUBLIC|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},
-    "private.current_add_week(uuid,uuid)": {"acl":["PUBLIC|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},
+    "private.current_add_week(uuid,uuid,timestamp with time zone)": {"acl":["PUBLIC|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.defer_trade_event()": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.delete_projection_runs(uuid[],integer)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.dispatch_live_matchup_refresh()": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
