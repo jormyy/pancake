@@ -24,8 +24,8 @@ for (const mode of ['manual', 'scheduled', 'future-empty', 'playing-replacement'
       ])
       if (name === 'nba_games') return Response.json([{ season_year: 2099, game_date: date,
         home_team: ['playing-replacement', 'postponed', 'postponed-text', 'manual-start-pin', 'manual-bench-pin', 'scheduled-start-pin', 'scheduled-bench-pin'].includes(mode) ? 'BENCH' : 'LOCK', away_team: 'OTHER',
-        status: mode === 'locked' ? 'InProgress' : mode === 'postponed' ? 'Postponed' : 'Scheduled',
-        game_status_text: mode === 'postponed-text' ? 'PPD' : null, game_time: '2099-01-02T22:00:00Z', started_at: null }])
+        status: mode === 'locked' ? 'InProgress' : 'Scheduled',
+        game_status_text: mode === 'postponed-text' ? 'PPD' : mode === 'postponed' ? 'Postponed' : null, game_time: '2099-01-02T22:00:00Z', started_at: null }])
       if (name === 'roster_players' && staggered) return Response.json([
         { player_id: 'starter', players: { position: 'PG', eligible_positions: ['PG'], nba_team: 'EARLY', injury_status: null } },
         { player_id: 'replacement', players: { position: 'PG', eligible_positions: ['PG'], nba_team: 'LATE', injury_status: null } },

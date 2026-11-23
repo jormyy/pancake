@@ -10,14 +10,11 @@ INSERT INTO terminal_context VALUES(jsonb_build_object(
 CREATE OR REPLACE FUNCTION public.get_prepared_matchup_forecast_context(p_matchup_id uuid)
 RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path='' AS $$ SELECT payload FROM pg_temp.terminal_context $$;
 DO $$
-DECLARE packed jsonb; state text;
+DECLARE packed jsonb;
 BEGIN
-  FOREACH state IN ARRAY ARRAY['Final','Cancelled','Postponed'] LOOP
-    UPDATE terminal_context SET payload=jsonb_set(payload,'{games,0,status}',to_jsonb(state));
-    packed:=public.get_compact_matchup_forecast_context(gen_random_uuid());
-    PERFORM pg_temp.check_rules(packed->'roster'='[]'::jsonb AND packed->'history'='[]'::jsonb,'terminal context removes unused player inputs: '||state);
-    PERFORM pg_temp.check_rules(packed->'teams'->0->1='100'::jsonb AND jsonb_array_length(packed->'games')=1,'terminal context retains score and schedule: '||state);
-  END LOOP;
+  packed:=public.get_compact_matchup_forecast_context(gen_random_uuid());
+  PERFORM pg_temp.check_rules(packed->'roster'='[]'::jsonb AND packed->'history'='[]'::jsonb,'terminal context removes unused player inputs');
+  PERFORM pg_temp.check_rules(packed->'teams'->0->1='100'::jsonb AND jsonb_array_length(packed->'games')=1,'terminal context retains score and schedule');
   UPDATE terminal_context SET payload=jsonb_set(payload,'{games,0,status}','"Scheduled"');
   packed:=public.get_compact_matchup_forecast_context(gen_random_uuid());
   PERFORM pg_temp.check_rules(jsonb_array_length(packed->'roster')=1 AND jsonb_array_length(packed->'history')=1,'a future game retains all player inputs');

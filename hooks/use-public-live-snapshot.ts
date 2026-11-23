@@ -1,8 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { createLivePoller, fetchLiveSnapshot, type LiveSnapshot } from '@pancake/core'
+import { createLivePoller, fetchLiveSnapshot, gamePhase, type LiveSnapshot } from '@pancake/core'
 import { useBrowserReadActivity } from '@/hooks/use-browser-read-activity'
 import { usePanelActivity } from '@/contexts/panel-activity'
 import type { LiveViewGame } from '@/lib/cache/view-types'
+
+export function liveSnapshotDates(games: readonly LiveViewGame[], date: string, now: number): string {
+    return [...new Set(games.filter(game => {
+        const phase = gamePhase(game)
+        return phase === 'live' || phase === 'finalPending'
+            || phase === 'upcoming' && game.game_time != null && Date.parse(game.game_time) <= now
+    }).map(game => game.game_date || date))].sort().join(',')
+}
 
 export function keepNewestGames(previous: LiveSnapshot | null | undefined, next: LiveSnapshot | null): LiveSnapshot | null {
     if (!next) return previous ?? null
@@ -22,12 +30,9 @@ export function usePublicLiveSnapshot(date: string, games: readonly LiveViewGame
     const [snapshots, setSnapshots] = useState<Record<string, LiveSnapshot | null>>({})
     const [time, setTime] = useState(Date.now)
     const pollers = useRef(new Map<string, ReturnType<typeof createLivePoller>>())
-    const datesKey = [...new Set(games.filter(game => game.status === 'InProgress'
-        || game.status === 'Final' && game.stats_synced_at === null
-        || game.status === 'Scheduled' && game.game_time != null && Date.parse(game.game_time) <= Date.now()
-        && !/postpon|cancel/i.test(game.game_status_text ?? '')).map(game => game.game_date || date))].sort().join(',')
+    const datesKey = liveSnapshotDates(games, date, Date.now())
     useEffect(() => {
-        const next = games.filter(game => game.status === 'Scheduled' && game.game_time)
+        const next = games.filter(game => gamePhase(game) === 'upcoming' && game.game_time)
             .map(game => Date.parse(game.game_time!)).filter(value => Number.isFinite(value) && value > Date.now())
         if (!next.length || !enabled) return
         const timer = setTimeout(() => setTime(Date.now()), Math.max(1, Math.min(...next) - Date.now() + 1))

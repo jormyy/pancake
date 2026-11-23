@@ -8,6 +8,7 @@ const lifecycleOwner = require('./eslint/rules/lifecycle-owner')
 const runtimeBoundaries = require('./eslint/rules/runtime-boundaries')
 const easternDay = require('./eslint/rules/eastern-day')
 const pagedReads = require('./eslint/rules/paged-reads')
+const gamePhase = require('./eslint/rules/game-phase')
 
 const edgeShared = 'supabase/functions/_shared'
 const generatedEdgeShared = fs.readdirSync(path.join(__dirname, edgeShared))
@@ -49,6 +50,7 @@ const pancake = {
         'runtime-boundaries': runtimeBoundaries,
         'eastern-day': easternDay,
         'paged-reads': pagedReads,
+        'game-phase': gamePhase,
     },
 }
 
@@ -124,5 +126,11 @@ module.exports = defineConfig([
         ignores: ['**/*.test.ts', '**/*.test.tsx'],
         plugins: { pancake },
         rules: { 'pancake/paged-reads': 'error' },
+    },
+    {
+        files: ['{app,components,contexts,hooks,lib,core/src,supabase/functions}/**/*.{ts,tsx}'],
+        ignores: ['**/*.test.ts', '**/*.test.tsx', 'core/src/live/phase.ts', 'supabase/functions/_shared/gamePhase.ts'],
+        plugins: { pancake },
+        rules: { 'pancake/game-phase': 'error' },
     },
 ])

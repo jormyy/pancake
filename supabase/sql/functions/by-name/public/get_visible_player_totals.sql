@@ -47,6 +47,7 @@ BEGIN
     FROM public.nba_games g
     WHERE g.game_date = (now() AT TIME ZONE 'America/New_York')::date
       AND g.season_year = p_season_year AND g.nba_game_id LIKE '002%'
+      AND private.lineup_game_available(g.status, g.game_status_text)
   )
   SELECT p.id, COALESCE(to_jsonb(t) - 'player_id' - 'season_year', '{}'::jsonb),
     CASE WHEN v_needs_rounding THEN (

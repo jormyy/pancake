@@ -26,6 +26,10 @@ BEGIN
     OR (result.totals->>'games_played')::integer<>1 OR (result.totals->>'double_double')::integer<>1
     OR (result.totals->>'minutes_played')::numeric<>12.75 OR result.game_status<>'InProgress'
     OR result.rounded_fantasy_average IS NOT NULL THEN RAISE EXCEPTION 'Visible totals or game data are incorrect'; END IF;
+  UPDATE nba_games SET status='Scheduled',game_status_text='PPD - postponed' WHERE id=g;
+  IF (SELECT game_status FROM public.get_visible_player_totals(l,ARRAY[p],2097)) IS NOT NULL THEN
+    RAISE EXCEPTION 'A postponed game shows its players as playing'; END IF;
+  UPDATE nba_games SET status='InProgress',game_status_text=NULL WHERE id=g;
   IF (SELECT count(*) FROM public.get_visible_player_totals(l,ARRAY[p,p],2097))<>1 THEN
     RAISE EXCEPTION 'Visible totals duplicate players'; END IF;
   UPDATE player_game_stats SET points=22 WHERE player_id=p;

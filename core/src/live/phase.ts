@@ -1,0 +1,17 @@
+export type GamePhase = 'unavailable' | 'upcoming' | 'live' | 'finalPending' | 'settled'
+
+export type PhaseGame = { status: string | null; game_status_text?: string | null; stats_synced_at?: string | null }
+
+const UNAVAILABLE_TEXT = /postpon|cancel|suspend|(^|[^a-z])ppd([^a-z]|$)/i
+
+export function gameAvailable(game: PhaseGame): boolean {
+    return (game.status === 'Scheduled' || game.status === 'InProgress' || game.status === 'Final')
+        && !UNAVAILABLE_TEXT.test(game.game_status_text ?? '')
+}
+
+export function gamePhase(game: PhaseGame): GamePhase {
+    if (!gameAvailable(game)) return 'unavailable'
+    if (game.status === 'Scheduled') return 'upcoming'
+    if (game.status === 'InProgress') return 'live'
+    return game.stats_synced_at === null ? 'finalPending' : 'settled'
+}

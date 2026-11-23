@@ -1,6 +1,7 @@
 import { supabase } from '../_shared/supabase.ts'
 import { toETDate } from '../_shared/date.ts'
 import { fetchAllPages } from '../_shared/fetchAllPages.ts'
+import { gameAvailable } from '../_shared/gamePhase.ts'
 import { chooseAutoSetAssignments } from './assignments.ts'
 import { MANUAL_DATE_LIMIT, processManualDates, type ManualOptimizationResult } from './manual.ts'
 import { loadEnabledOptimizerSettings, loadOptimizerSettingEnabled, type OptimizerSetting } from './settings.ts'
@@ -551,11 +552,6 @@ function isAvoidedInjury(injuryStatus: string | null): boolean {
   if (!injuryStatus) return false
   const status = injuryStatus.toLowerCase()
   return status === 'out' || status.startsWith('ir')
-}
-
-function gameAvailable(game: GameRow): boolean {
-  return ['Scheduled', 'InProgress', 'Final'].includes(game.status ?? '')
-    && !/postpon|cancel|suspend|(^|[^a-z])ppd([^a-z]|$)/i.test(game.game_status_text ?? '')
 }
 
 function slotsForTemplates(
