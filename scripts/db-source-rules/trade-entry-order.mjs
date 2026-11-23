@@ -63,6 +63,8 @@ const tradeEntryOrderFailures = (key, definition) => {
 export const tradeEntryOrderFailuresIn = (definitions) =>
   [...definitions].flatMap(([key, definition]) => tradeEntryOrderFailures(key, definition))
 
+export default ({ definitions }) => tradeEntryOrderFailuresIn(definitions)
+
 const runCli = async () => {
   const files = process.argv.slice(2)
   const definitions = files.length === 0

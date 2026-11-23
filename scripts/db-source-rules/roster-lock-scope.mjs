@@ -11,6 +11,7 @@ const ROSTER_WRITE_TABLES = new Set(['roster_players', 'waiver_claims'])
 
 const PENDING_TRADE_ENTRY_POINTS = new Set([
   'private.accept_trade_participant_atomic',
+  'private.begin_trade_action',
   'private.guard_accepted_trade_capacity',
   'private.guard_trade_plan_reservations',
   'private.lock_trade_offer_assets',

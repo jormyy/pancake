@@ -2,7 +2,6 @@ import { execFileSync } from 'node:child_process'
 import { mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { tradeEntryOrderFailuresIn } from './db-source-rules/trade-entry-order.mjs'
 
 const ROOT = process.cwd()
 const MIGRATIONS_DIR = path.join(ROOT, 'supabase/migrations')
@@ -466,7 +465,7 @@ export const checkFunctionSources = async () => {
   const latestDefinitions = await latestFunctionDefinitions()
   const checks = await Promise.all([...latestDefinitions.entries()].map(([key, definition]) =>
     checkFunctionSource(key, definition)))
-  const failures = [...checks.flat(), ...tradeEntryOrderFailuresIn(latestDefinitions)]
+  const failures = checks.flat()
 
   const expectedKeys = new Set(latestDefinitions.keys())
   for (const file of await sqlFilesUnder(FUNCTION_SOURCES_DIR)) {
