@@ -186,9 +186,6 @@ function PlayerSearchSection() {
     }, [retrySearch, refreshPlayerSupport])
 
 
-    // ESPN-style column sort: click a stat header to sort the whole pool by it;
-    // click the active one again to flip direction. All stats default to
-    // descending (best first).
     const handleColumnSort = (mode: PlayerSearchSortMode) => {
         if (search.sort.mode === mode) {
             search.sort.setDir((dir) => (dir === 'asc' ? 'desc' : 'asc'))

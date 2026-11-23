@@ -25,7 +25,6 @@ const SURFACE_BG: Record<CardSurface, string> = {
 
 type PressableState = { hovered?: boolean; pressed?: boolean }
 
-/** The single card/surface primitive — bg + border + radius + elevation by role. */
 export function Card({
     children,
     surface = 'card',

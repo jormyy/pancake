@@ -110,9 +110,8 @@ const styles = StyleSheet.create({
     nominateButton: { marginTop: spacing.xs, height: controlSize.button.md.height, backgroundColor: colors.primary, borderRadius: radii.lg,
         borderCurve: 'continuous', justifyContent: 'center', alignItems: 'center' },
     nominateButtonText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.md },
-    // 16px keeps iOS Safari from zooming into the field.
     searchInput: { height: controlSize.field.md, backgroundColor: colors.bgInput, borderRadius: radii.md, borderCurve: 'continuous',
-        borderWidth: 1, borderColor: colors.border, paddingHorizontal: spacing.lg, fontSize: fontSize.lg, marginTop: spacing.xs },
+        borderWidth: 1, borderColor: colors.border, paddingHorizontal: spacing.lg, fontSize: controlSize.field.fontSize, marginTop: spacing.xs },
     playerResult: { minHeight: table.rowHeight, flexDirection: 'row', alignItems: 'center',
         borderTopWidth: 1, borderTopColor: colors.separator, gap: spacing.md },
     playerCopy: { flex: 1, minWidth: 0 },

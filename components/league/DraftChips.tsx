@@ -10,7 +10,7 @@ import {
     type RookieTimerExpiryBehavior,
 } from '@/lib/draft'
 import type { MockDraftRoomKind } from '@/lib/mockDraftRooms'
-import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { controlSize, colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 import { nextRovingIndex } from '@/components/ui/rovingFocus'
 import {
     DRAFT_TIMER_MAX_SECONDS,
@@ -367,8 +367,7 @@ const styles = StyleSheet.create({
     customTimerInput: {
         minHeight: 22,
         padding: spacing.none,
-        // 16px keeps iOS Safari from zooming the page when the field is focused.
-        fontSize: fontSize.lg,
+        fontSize: controlSize.field.fontSize,
         fontWeight: fontWeight.semibold,
         color: colors.textPrimary,
     },

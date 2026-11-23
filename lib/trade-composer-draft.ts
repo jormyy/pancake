@@ -71,7 +71,6 @@ export function clearTradeComposerDraft(): void {
     try {
         draftStorage()?.removeItem(DRAFT_KEY)
     } catch {
-        // Best effort only.
     }
 }
 

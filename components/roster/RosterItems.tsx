@@ -48,7 +48,6 @@ export function RosterSlotTag({ slotType }: { slotType: string }) {
     )
 }
 
-/** Band at the top of a roster section card: label left, optional detail right. */
 export function RosterSectionBand({ label, detail, tone = 'default' }: { label: string; detail?: ReactNode; tone?: 'default' | 'taxi' | 'starters' }) {
     return <SectionBand label={label} detail={detail} tone={tone} />
 }
@@ -466,7 +465,6 @@ const styles = StyleSheet.create({
     claimRow: { paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, gap: spacing.sm },
     claimTop: { flexDirection: 'row', alignItems: 'center', minHeight: controlSize.minTouch, gap: spacing.md },
     claimEditRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-    // 16px text keeps iOS Safari from zooming the page when the field focuses.
     claimBidInput: {
         width: 64,
         minHeight: controlSize.minTouch,
@@ -475,7 +473,7 @@ const styles = StyleSheet.create({
         borderRadius: radii.md,
         borderCurve: 'continuous' as const,
         paddingHorizontal: spacing.sm,
-        fontSize: fontSize.lg,
+        fontSize: controlSize.field.fontSize,
         fontWeight: fontWeight.bold,
         color: colors.textPrimary,
         backgroundColor: colors.bgInput,

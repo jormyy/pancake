@@ -665,7 +665,6 @@ const styles = StyleSheet.create({
         backgroundColor: colors.bgInput,
     },
     bidCurrency: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: colors.textMuted },
-    // 16px keeps iOS Safari from zooming into the field.
     bidInput: { width: 64, minHeight: controlSize.field.md, fontSize: controlSize.field.fontSize, fontWeight: fontWeight.bold, color: colors.textPrimary, textAlign: 'right' },
     bidBalance: { ...textStyles.meta },
 

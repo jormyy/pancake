@@ -3,7 +3,6 @@ import { colors, spacing, textStyles } from '@/constants/tokens'
 
 type Props = { label: string; level?: number; decorative?: boolean }
 
-/** Inline section divider for FlashList / ScrollView lists */
 export function SectionHeader({ label, level = 2, decorative = false }: Props) {
     return (
         <View

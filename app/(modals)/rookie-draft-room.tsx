@@ -259,7 +259,6 @@ export default function RookieDraftRoomScreen() {
                     behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 >
                     <View style={[styles.topDraftPanel, compactLandscape && styles.topDraftPanelCompact]}>
-                        {/* ── Status banner ────────────────────────── */}
                         <View
                             style={[
                                 styles.banner,
@@ -340,7 +339,6 @@ export default function RookieDraftRoomScreen() {
                     {completionError ? <ErrorBanner
                         message={`Could not finish the roster check. ${completionError} Tap to retry.`}
                         onRetry={() => { void refresh() }} /> : null}
-                    {/* ── Tab switcher ─────────────────────────── */}
                     <View style={styles.tabs}>
                         <MotionPressable
                             style={[styles.tab, activeTab === 'prospects' && styles.tabActive]}
@@ -366,7 +364,6 @@ export default function RookieDraftRoomScreen() {
 
                     {activeTab === 'prospects' ? (
                         <>
-                            {/* ── Search bar ───────────────────────── */}
                             <View style={[styles.searchContainer, compactLandscape && styles.searchContainerCompact]}>
                                 <TextInput
                                     style={styles.searchInput}
@@ -380,14 +377,12 @@ export default function RookieDraftRoomScreen() {
                                 />
                             </View>
 
-                            {/* ── Pick error ───────────────────────── */}
                             {pickError && (
                                 <View style={styles.pickErrorBanner}>
                                     <Text style={styles.pickErrorText}>{pickError}</Text>
                                 </View>
                             )}
 
-                            {/* ── Prospects list ───────────────────── */}
                             {prospectsLoadError ? <ErrorBanner message="Could not load prospects. Tap to retry." onRetry={() => { void refresh() }} /> : null}
                             <FlashList
                                 data={prospects}
@@ -415,7 +410,6 @@ export default function RookieDraftRoomScreen() {
                             />
                         </>
                     ) : (
-                        /* ── Pick board ──────────────────────────── */
                         <FlashList
                             data={picks}
                             keyExtractor={(p) => String(p.overallPick)}
@@ -562,8 +556,7 @@ const styles = StyleSheet.create({
         paddingVertical: spacing.none,
         borderRadius: radii.md,
     },
-    // 16px keeps iOS Safari from zooming into the field.
-    searchInput: { flex: 1, height: controlSize.field.md, fontSize: fontSize.lg, color: colors.textPrimary },
+    searchInput: { flex: 1, height: controlSize.field.md, fontSize: controlSize.field.fontSize, color: colors.textPrimary },
 
     emptyProspects: { paddingVertical: spacing['5xl'], alignItems: 'center' },
     pickErrorBanner: {

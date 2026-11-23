@@ -6,7 +6,6 @@ type Props = {
     onRetry: () => void
 }
 
-/** Tap-to-retry load-failure banner shared by the tab screens. */
 export function ErrorBanner({ message = 'Failed to load. Tap to retry.', onRetry }: Props) {
     return (
         <Pressable

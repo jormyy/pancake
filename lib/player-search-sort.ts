@@ -18,7 +18,6 @@ export const PLAYER_SEARCH_SORT_OPTIONS: { key: PlayerSearchSortMode; label: str
     { key: 'gp', label: 'Games Played' },
 ]
 
-// Desktop stat-table column label -> sort mode, so the headers are click-to-sort.
 export const STAT_COLUMN_SORT: Record<string, PlayerSearchSortMode> = {
     FP: 'fpts',
     MIN: 'min',

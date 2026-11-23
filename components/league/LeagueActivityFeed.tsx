@@ -19,7 +19,6 @@ import { Badge } from '@/components/Badge'
 
 import { usePageMetrics } from '@/components/ui'
 
-/** One league transaction. */
 function ActivityRow({ item, isMe, myMemberId, padX = spacing.lg }: { item: TransactionRow; isMe: boolean; myMemberId?: string; padX?: number }) {
     const timezone = useLeagueTimezone()
     const color = TX_COLORS[item.transactionType] ?? colors.textMuted

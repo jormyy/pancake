@@ -26,7 +26,6 @@ const FINAL_NUMERIC_STATS = [
 ] as const satisfies readonly (keyof NBABoxScorePlayer['statistics'])[]
 type PlayerGameStatsInsert = Database['public']['Tables']['player_game_stats']['Insert']
 
-// Returns YYYY-MM-DD for the given Date in America/New_York (ET).
 // nba_games.game_date is ET-keyed; using UTC here misses prime-time games
 // between 0:00 and 5:00 UTC (= 19:00–00:00 ET) where UTC is one day ahead.
 function toETDate(date: Date): string {

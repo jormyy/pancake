@@ -58,7 +58,6 @@ function removeStorageKey(storage: Storage | null, key: string): void {
     try {
         storage.removeItem(key)
     } catch {
-        // Best effort only.
     }
 }
 
@@ -183,7 +182,6 @@ export function clearPersistentCaches(): void {
     try {
         if (storage) for (const key of cacheKeys(storage)) storage.removeItem(key)
     } catch {
-        // Best effort only.
     }
     clearSessionCaches(true)
 }

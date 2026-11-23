@@ -4,7 +4,6 @@ import { ADD_LIMIT_BLOCKED_TITLE, addLimitBlockedReason, type AddLimitSource } f
 
 type AddLimitGateOptions = {
     transactionState: AddLimitSource | null | undefined
-    /** Reloads the weekly add state after a block. */
     refresh?: () => void
 }
 

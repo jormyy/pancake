@@ -32,7 +32,6 @@ export type BreakdownRow = {
     points: number | null
 }
 
-/** The league's scored stats, each with what this stat line earned. */
 export function scoreBreakdown(stats: LiveStatLine | undefined, settings: Record<string, number>): BreakdownRow[] {
     const played = stats != null && !stats.didNotPlay
     return SCORED_STATS
