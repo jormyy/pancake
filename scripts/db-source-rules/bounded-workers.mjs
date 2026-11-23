@@ -115,14 +115,14 @@ const unboundedWorkerFailures = (functions) => [...functions.values()]
       `${fn.key} line ${at.line} LIMIT ${rows} is above ${MAX_WORKER_BATCH} rows: ${UNBOUNDED_FIX}`)
   }))
 
-export default function boundedWorkers(definitions) {
+export default function boundedWorkers({ definitions }) {
   const functions = parse(definitions)
   return [...readLockFailures(functions), ...unboundedWorkerFailures(functions)]
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const { latestFunctionDefinitions } = await import('../check-db-function-sources.mjs')
-  const failures = boundedWorkers(await latestFunctionDefinitions())
+  const failures = boundedWorkers({ definitions: await latestFunctionDefinitions() })
   for (const failure of failures) console.error(`- ${failure}`)
   if (failures.length > 0) process.exitCode = 1
 }

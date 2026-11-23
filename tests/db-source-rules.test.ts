@@ -81,7 +81,7 @@ $$;`] as const
 
 const boundedWorkers = async (...definitions: (readonly [string, string])[]) => {
     const { default: rule } = await import('../scripts/db-source-rules/bounded-workers.mjs')
-    return rule(new Map(definitions))
+    return rule({ definitions: new Map(definitions) })
 }
 
 describe('bounded worker rule', () => {
