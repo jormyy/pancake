@@ -17,7 +17,6 @@ DECLARE
   v_from_member uuid;
   v_to_member uuid;
   v_member_lock uuid;
-  v_lock_player_id uuid;
   v_rows int;
   v_balance int;
   v_item_faab_amount int;
@@ -26,15 +25,7 @@ DECLARE
   v_drop record;
   v_move record;
 BEGIN
-  SELECT *
-    INTO v_trade
-    FROM trades
-   WHERE id = p_trade_id
-   FOR UPDATE;
-
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'Trade not found';
-  END IF;
+  v_trade := private.begin_trade_action(p_trade_id, NULL, NULL, 'complete');
 
   IF v_trade.status <> 'accepted' THEN
     RAISE EXCEPTION 'Trade is not ready to complete';
@@ -43,30 +34,6 @@ BEGIN
   IF v_trade.veto_window_expires_at IS NULL OR v_trade.veto_window_expires_at > now() THEN
     RAISE EXCEPTION 'Trade veto window is still open';
   END IF;
-
-  FOR v_member_lock IN
-    SELECT member_id
-      FROM (
-        VALUES (v_trade.proposer_member_id), (v_trade.recipient_member_id)
-        UNION
-        SELECT participant.member_id
-          FROM trade_participants AS participant
-         WHERE participant.trade_id = p_trade_id
-      ) AS members(member_id)
-     ORDER BY member_id ASC
-  LOOP
-    PERFORM pg_advisory_xact_lock(hashtext(v_trade.league_id::text), hashtext(v_member_lock::text));
-  END LOOP;
-
-  FOR v_lock_player_id IN
-    SELECT DISTINCT player_id FROM (
-      SELECT player_id FROM trade_items WHERE trade_id=p_trade_id AND player_id IS NOT NULL
-      UNION SELECT unnest(drop_player_ids) FROM trade_participants WHERE trade_id=p_trade_id
-      UNION SELECT (move->>'playerId')::uuid FROM trade_participants,jsonb_array_elements(roster_moves) move WHERE trade_id=p_trade_id
-    ) touched ORDER BY player_id ASC
-  LOOP
-    PERFORM pg_advisory_xact_lock(hashtext(v_trade.league_id::text), hashtext(v_lock_player_id::text));
-  END LOOP;
 
   SELECT *
     INTO v_league
@@ -190,8 +157,6 @@ BEGIN
     END IF;
   END LOOP;
 
-  -- A reserved pick may only change hands through this completion; the
-  -- draft_picks guard and the trade status guard honour this mark.
   v_previous_flag := private.begin_trade_lifecycle_write();
   v_previous_applied_trade:=COALESCE(current_setting('pancake.applied_trade_id',true),'');
   PERFORM set_config('pancake.applied_trade_id',p_trade_id::text,true);
@@ -285,11 +250,9 @@ BEGIN
       END IF;
 
       EXCEPTION WHEN SQLSTATE 'P0001' THEN
-        -- A game in progress only delays a taxi destination: keep the accepted trade for a later run.
         IF v_item.to_taxi AND SQLERRM LIKE 'This player''s game has already started%' THEN
           RAISE EXCEPTION 'A taxi destination waits for the player''s game slate to end.' USING ERRCODE='PA011';
         END IF;
-        -- A changed destination precondition expires this trade, not the whole queue.
         RAISE EXCEPTION '% acquisition failed: %',
           CASE WHEN v_item.to_taxi THEN 'Taxi' WHEN v_item.to_ir THEN 'IR' ELSE 'Player' END,
           SQLERRM USING ERRCODE='PA010';
