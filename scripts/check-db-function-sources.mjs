@@ -1,12 +1,13 @@
 import { execFileSync } from 'node:child_process'
 import { mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import { pathToFileURL } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const ROOT = process.cwd()
 const MIGRATIONS_DIR = path.join(ROOT, 'supabase/migrations')
 const FUNCTION_SOURCES_DIR = path.join(ROOT, 'supabase/sql/functions/by-name')
 const FUNCTION_CATALOG_MANIFEST = path.join(ROOT, 'supabase/sql/function-catalog.json')
+const SOURCE_RULES_DIR = fileURLToPath(new URL('./db-source-rules', import.meta.url))
 
 /** @param {string} source */
 export const dollarQuotedStatement = (source) => {
@@ -464,7 +465,14 @@ export const checkFunctionSources = async () => {
     }
   }
 
-  return failures
+  return [...failures, ...await sourceRuleFailures(latestDefinitions)]
+}
+
+/** @param {Map<string, string>} definitions */
+const sourceRuleFailures = async (definitions) => {
+  const files = (await readdir(SOURCE_RULES_DIR).catch(() => [])).filter((file) => file.endsWith('.mjs')).sort()
+  const rules = await Promise.all(files.map((file) => import(pathToFileURL(path.join(SOURCE_RULES_DIR, file)).href)))
+  return rules.flatMap((rule) => rule.default(definitions))
 }
 
 const sqlLiteral = (value) => `'${value.replaceAll("'", "''")}'`

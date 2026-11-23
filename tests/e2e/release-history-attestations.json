@@ -3707,6 +3707,13 @@
       "statementCount": 21,
       "statementsSha256": "d307bc5eb6c2eba7faa2d0fe5a3cbcf0e0c5d13e5ea7b8e7953e0b5471db545f",
       "sha256": "d4dc37396f8f1e8d65105ef1e104c7feb8605d91abd04134e175dbae4171abcb"
+    },
+    {
+      "name": "schedules_as_work_kinds",
+      "version": "20261215110000",
+      "statementCount": 16,
+      "statementsSha256": "f98e537b6357dc646045af4016e628a8f212a89ccad18300f810470658fdd0d6",
+      "sha256": "a537601fe0a2f8c141b86b2a09796073feee7dd22b295e1c5879661dd0394f71"
     }
   ]
 }

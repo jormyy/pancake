@@ -247,7 +247,8 @@ The [trade curve report](../docs/trade-curve.md) records the real trades, roster
 ## Release order for this release
 
 The supplied production head is `20261214011300` (`trade_roster_holds`, applied ahead of main by the trade release), with 791 migrations.
-This release adds `20261214011400_league_roster_policies.sql`, `20261214011500_weekly_roster_floor.sql`, `20261214011600_league_auto_ir_schedule.sql`, `20261214011700_enable_official_league_roster_policy.sql`, and `20261214011800_tipoff_mode_aware_completion.sql`, for 796 migrations.
+This release adds `20261214011400_league_roster_policies.sql`, `20261214011500_weekly_roster_floor.sql`, `20261214011600_league_auto_ir_schedule.sql`, `20261214011700_enable_official_league_roster_policy.sql`, `20261214011800_tipoff_mode_aware_completion.sql`, and `20261215110000_schedules_as_work_kinds.sql`, for 797 migrations.
+`20261215110000_schedules_as_work_kinds.sql` is SQL only. It moves the fixed-time jobs into `private.work_kinds` cadence rows, so a late or skipped dispatcher tick still enqueues each job once per period. It needs no Edge or frontend release.
 Apply the five migrations through the guarded dry run and push before either Edge release.
 The five migrations need no frontend release and enable nothing: `floor_activated_at` and `ir_activated_at` stay NULL.
 Each of the two Edge releases and the activation is a separate authorization.
