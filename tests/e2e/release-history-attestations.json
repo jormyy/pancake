@@ -3707,6 +3707,13 @@
       "statementCount": 21,
       "statementsSha256": "d307bc5eb6c2eba7faa2d0fe5a3cbcf0e0c5d13e5ea7b8e7953e0b5471db545f",
       "sha256": "d4dc37396f8f1e8d65105ef1e104c7feb8605d91abd04134e175dbae4171abcb"
+    },
+    {
+      "name": "roster_action_policy",
+      "version": "20261214110900",
+      "statementCount": 23,
+      "statementsSha256": "64be6f27b670dc064cf54e96adbafe20d98e0e13d5fc18eb97a7b22f69d9e02c",
+      "sha256": "d1e70c433238859048e76cfd05c9a0c0e5898b55d2cd93e3e9f3666b34148a4d"
     }
   ]
 }
