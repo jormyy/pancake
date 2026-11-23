@@ -16,7 +16,6 @@ import {
   markBackfillGameCompleted,
   markBackfillGameFailed,
   mustFetchAllPages,
-  mustSupabase,
   syncBackfillLedgerProgress,
   updateBackfillJob,
 } from './backfillJobs.ts'
