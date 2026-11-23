@@ -49,6 +49,8 @@ It replaces `private.log_league_activity` with a version that takes the visibili
 It moves the fixed-time jobs into `private.work_kinds` cadence rows, so a late or skipped dispatcher tick still enqueues each job once per period. It needs no Edge or frontend release.
 `20261215220000_lineup_day_open.sql` follows it, for 807 migrations.
 It adds `private.assert_lineup_day_open` and redefines the three lineup RPCs in place with the same signatures, so pins and slot moves share the Eastern past-day rule. It needs no Edge or frontend release.
+`20261223130000_single_pick_allocator.sql` follows it, for 808 migrations.
+It makes `private.reconcile_future_picks` the only pick writer, adds the year converters, and redefines the pick RPCs in place with the same signatures and year bounds. It needs no Edge or frontend release.
 Database, then Edge, then merge the frontend.
 The frontend needs no release.
 
