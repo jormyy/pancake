@@ -557,7 +557,8 @@ export function useRookieDraftRoomController({
             const roster = await getRoster(stableMemberId, leagueId, leagueSeasonId)
             if (!isCurrent()) return
             const overflow = activeOverflow(roster)
-            if (!overflow) { deferredTrimRef.current = resumeTrim; return }
+            if (!overflow) { deferredTrimRef.current = resumeTrim; setTrimAwaitingLimits(true); return }
+            setTrimAwaitingLimits(false)
             setRosterOverflow(null)
             setRosterForDrop([])
             setTrimOverflow(overflow.excess <= 0 ? null : overflow)

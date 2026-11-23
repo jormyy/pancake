@@ -29,7 +29,7 @@ export function useRosterLegality({ memberId, leagueId, limits, onChanged }: {
     const mounted = useRef(true)
     useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
     const current = useCallback(() => mounted.current && owner.current === requestOwner, [requestOwner])
-    const check = useCallback(async (knownRoster?: RosterPlayer[], message?: string) => {
+    const check = useCallback(async (knownRoster?: RosterPlayer[], message?: string, needsLimits = true) => {
         if (!memberId || !leagueId || !current()) return false
         const roster = knownRoster ?? await getRoster(memberId, leagueId)
         if (!current()) return false
@@ -39,7 +39,7 @@ export function useRosterLegality({ memberId, leagueId, limits, onChanged }: {
             return false
         }
         setSnapshot(null)
-        return limits != null
+        return !needsLimits || limits != null
     }, [memberId, leagueId, current, limits, requestOwner])
     const report = useCallback(async (error: unknown) => {
         if (!limits) return false

@@ -724,9 +724,34 @@ describe('annual draft trim while roster settings load', () => {
         expect(mocks.drop).toHaveBeenCalledExactlyOnceWith('synthetic-old', 'draft-season', 'annual')
         expect(view.latest.trimOverflow).toBeNull()
         expect(view.latest.completionError).toBeNull()
+        expect(view.latest.trimAwaitingLimits).toBe(true)
         const reads = mocks.getRoster.mock.calls.length
         await act(async () => view.renderer.update(React.createElement(view.Probe, { rosterSize: 1 })))
         expect(mocks.getRoster.mock.calls.length).toBe(reads + 1)
+        expect(view.latest.trimAwaitingLimits).toBe(false)
+        expect(view.latest.trimOverflow).toMatchObject({ excess: 2, rosterSize: 1 })
+        expect(mocks.activate).not.toHaveBeenCalled()
+        await act(async () => { view.renderer.unmount() })
+    })
+
+    it('synthetic roster: after limits disappear mid-drop, a larger returned limit ends the trim without another prompt', async () => {
+        const view = await setup()
+        const dropReply = deferred<undefined>()
+        const removeFromRoster = mocks.drop.getMockImplementation()!
+        mocks.drop.mockImplementationOnce(async (id: string) => {
+            await dropReply.promise
+            await removeFromRoster(id)
+        })
+        let pending!: Promise<void>
+        await act(async () => { pending = view.latest.handleTrimDrop('synthetic-old') })
+        await act(async () => view.renderer.update(React.createElement(view.Probe, { rosterSize: null })))
+        await act(async () => { dropReply.resolve(undefined); await pending })
+        expect(view.latest.trimAwaitingLimits).toBe(true)
+        expect(view.latest.trimOverflow).toBeNull()
+        await act(async () => view.renderer.update(React.createElement(view.Probe, { rosterSize: 3 })))
+        expect(view.latest.trimAwaitingLimits).toBe(false)
+        expect(view.latest.trimOverflow).toBeNull()
+        expect(mocks.drop).toHaveBeenCalledTimes(1)
         expect(mocks.activate).not.toHaveBeenCalled()
         await act(async () => { view.renderer.unmount() })
     })

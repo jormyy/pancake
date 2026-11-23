@@ -129,3 +129,18 @@ it('alerts and closes when a swap is chosen after limits load from an unknown-li
     expect(state.alert).toHaveBeenCalledWith('Roster settings changed', expect.any(String))
     expect(latest.modalProps.visible).toBe(false)
 })
+
+it('lets a capacity-neutral edit through while limits are unknown but still blocks eligibility problems', async () => {
+    await act(async () => screen.update(React.createElement(Probe, { limits: null })))
+    const healthy = [rosterPlayer({ id: 'a' }), rosterPlayer({ id: 'b' })]
+    let allowed = false
+    await act(async () => { allowed = await latest.check(healthy, undefined, false) })
+    expect(allowed).toBe(true)
+    expect(latest.modalProps.visible).toBe(false)
+    await act(async () => { allowed = await latest.check(healthy) })
+    expect(allowed).toBe(false)
+    await act(async () => { allowed = await latest.check([taxi], undefined, false) })
+    expect(allowed).toBe(false)
+    expect(latest.modalProps.visible).toBe(true)
+    expect(latest.modalProps.ineligibleIR).toEqual([taxi])
+})

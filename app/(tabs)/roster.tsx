@@ -30,7 +30,7 @@ import { useOnlineStatus } from '@/hooks/use-online-status'
 import { toggleIR, toggleTaxi, dropPlayer, isIREligible, activateRosterPlayerWithOverflow, RosterPlayer } from '@/lib/roster'
 import { TradePickItem } from '@/lib/trades'
 
-import { cancelWaiverClaim, editWaiverClaim, reorderWaiverClaim, WaiverClaim } from '@/lib/waivers'
+import { cancelWaiverClaim, claimEditChangesRosterCapacity, editWaiverClaim, reorderWaiverClaim, WaiverClaim, type WaiverClaimEdit } from '@/lib/waivers'
 import { EMPTY_AVG_MAP, EMPTY_STATS_MAP, RosterAverage } from '@/lib/roster-stats'
 import { colors, controlSize, fontSize, fontWeight, layout, radii, spacing, table, textStyles } from '@/constants/tokens'
 import { EmptyState } from '@/components/EmptyState'
@@ -542,35 +542,27 @@ export default function RosterScreen() {
         }
     }, [current, ownerIdentity, isCurrentAction, cancellingId])
 
-    const handleEditClaimBid = useCallback(async (claim: WaiverClaim, bidAmount: number) => {
+    const saveClaimEdit = useCallback(async (claim: WaiverClaim, updates: WaiverClaimEdit) => {
         if (!current) return
         const generation = actionGenerationRef.current
         const identity = ownerIdentity
         if (!identity) return
         try {
-            if (!await rosterLegality.check(roster)) return
-            await editWaiverClaim(claim.id, current.id, {
-                dropPlayerId: claim.dropPlayerId,
-                bidAmount,
-            })
+            if (!await rosterLegality.check(roster, undefined, claimEditChangesRosterCapacity(claim, updates))) return
+            await editWaiverClaim(claim.id, current.id, updates)
             return isCurrentAction(generation, identity)
         } catch (e) {
             if (isCurrentAction(generation, identity) && !await rosterLegality.report(e)) showAlert('Error', getErrorMessage(e))
         }
     }, [current, ownerIdentity, isCurrentAction, rosterLegality, roster])
 
+    const handleEditClaimBid = useCallback((claim: WaiverClaim, bidAmount: number) =>
+        saveClaimEdit(claim, { dropPlayerId: claim.dropPlayerId, bidAmount }), [saveClaimEdit])
+
     const handleEditClaimTaxi = useCallback(async (claim: WaiverClaim, toTaxi: boolean) => {
-        if (!current || Boolean(claim.toTaxi) === toTaxi) return
-        const generation = actionGenerationRef.current
-        const identity = ownerIdentity
-        if (!identity) return
-        try {
-            if (!await rosterLegality.check(roster)) return
-            await editWaiverClaim(claim.id, current.id, { dropPlayerId: claim.dropPlayerId, bidAmount: claim.bidAmount, toTaxi, ...(toTaxi ? { toIr: false } : {}) })
-        } catch (error) {
-            if (isCurrentAction(generation, identity) && !await rosterLegality.report(error)) showAlert('Error', getErrorMessage(error))
-        }
-    }, [current, ownerIdentity, isCurrentAction, rosterLegality, roster])
+        if (Boolean(claim.toTaxi) === toTaxi) return
+        await saveClaimEdit(claim, { dropPlayerId: claim.dropPlayerId, bidAmount: claim.bidAmount, toTaxi, ...(toTaxi ? { toIr: false } : {}) })
+    }, [saveClaimEdit])
 
     const handleReorderClaim = useCallback(async (claimId: string, direction: 'up' | 'down') => {
         if (!current) return
