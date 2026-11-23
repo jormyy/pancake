@@ -16,7 +16,7 @@ const message = (userId: string, overrides: Partial<WebPushFanoutMessage> = {}):
 })
 
 Deno.test('web push fanout delivers to every subscription and prunes gone endpoints', async () => {
-  const sent: Array<{ endpoint: string; payload: unknown; urgency?: string }> = []
+  const sent: { endpoint: string; payload: unknown; urgency?: string }[] = []
   let pruned: string[] = []
   const fanout = createWebPushFanout({
     vapid: () => KEYS,

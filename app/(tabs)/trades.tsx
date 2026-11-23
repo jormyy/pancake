@@ -17,7 +17,7 @@ import { SegmentedControl, type SegmentOption } from '@/components/ui/SegmentedC
 import { Button, ErrorBanner, Page, PageHeader, usePageMetrics } from '@/components/ui'
 import { TradeDetailsPanel } from '@/components/trades/TradeDetailsPanel'
 import { tradeCardModel } from '@/components/trades/TradeCard'
-import { normalizeTradeTab, type TradeTabKey } from '@/lib/trade-ui-model'
+import { normalizeTradeTab, TRADE_TABS, type TradeTabKey } from '@/lib/trade-ui-model'
 import {
     TradeBlockListingRow,
     TradeBlockPickRow,
@@ -52,7 +52,6 @@ export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFa
 const TradeAnalyzer = lazy(() => import('@/components/trades/TradeAnalyzer'))
 const STATIC_TRADE_LIMIT = 10
 
-// Offer list width when the open trade sits beside it.
 const SPLIT_LIST_WIDTH = 440
 const SPLIT_MIN_WIDTH = 960
 
@@ -185,7 +184,6 @@ function TradesScreen() {
     const { listData } = screenModel
     const pendingInboxCount = usePendingTradeCount()
     const tradeTab = tab === 'offers' || tab === 'history'
-    // Wide screens keep the offer list and the open trade side by side.
     const split = tradeTab && usableWidth >= SPLIT_MIN_WIDTH
     const gridColumns = tab === 'block' ? blockColumns(usableWidth) : 1
     const listTrades = useMemo(
@@ -234,12 +232,8 @@ function TradesScreen() {
     const activeTabLoading = tab === 'block' ? !blockDisplayReady || (picksLoading && picks === null)
         : tab === 'history' ? historyLoading && !historyHasData
             : loading && !offersHaveData
-    const tabOptions: SegmentOption<TradeTabKey>[] = [
-        { label: 'Offers', value: 'offers', badge: pendingInboxCount > 0 ? pendingInboxCount : undefined },
-        { label: 'Block', value: 'block' },
-        { label: 'History', value: 'history' },
-        { label: 'Analyzer', value: 'analyzer' },
-    ]
+    const tabOptions: SegmentOption<TradeTabKey>[] = TRADE_TABS.map(option =>
+        option.value === 'offers' && pendingInboxCount > 0 ? { ...option, badge: pendingInboxCount } : option)
     const activeResource = tradeScreenResource(tab)
     const activeError = activeResource === 'block' ? blockError || picksError
             : activeResource === 'history' ? historyError
@@ -248,8 +242,6 @@ function TradesScreen() {
         const listReady = tab === 'history' ? historyHasData : tab === 'offers' && offersHaveData
         if (listReady && openTradeId && !split && !activeTabLoading && !activeError && !openTrade) setOpenTradeId(null)
     }, [activeError, activeTabLoading, historyHasData, offersHaveData, openTrade, openTradeId, setOpenTradeId, split, tab])
-    // A failed add/remove or a failed load-more is reported, but it is not a
-    // failed load: the list (and its empty rows) stays as it is.
     const activeActionError = activeResource === 'block' ? blockActionError
         : activeResource === 'trades' ? offersLoadMoreError
             : null
@@ -284,9 +276,6 @@ function TradesScreen() {
     )
 
     if (memberships.length === 0 && leagueLoading) {
-        // Header and tabs match the loaded chrome exactly; the list area stays
-        // blank so content appears fully formed instead of swapping a loading
-        // card for lists.
         return <Page title="Trades">{header(true, () => {})}</Page>
     }
     if (memberships.length === 0) return <NoLeagueState />

@@ -4,6 +4,7 @@ import { acceptTrade, getTradeRosterPreview, retractTradeAcceptance, setTradeRos
 import { confirmAction, showAlert } from '@/lib/alert'
 import type { TradeVetoMode } from '@/types/app'
 import { getErrorMessage } from '@/lib/shared/errors'
+import { useScope } from '@/hooks/use-scope'
 
 export function useTradeActions({
     memberId,
@@ -26,30 +27,15 @@ export function useTradeActions({
 }) {
     const enabledRef = useRef(enabled)
     enabledRef.current = enabled
-    const identity = `${leagueId}:${memberId}`
-    const identityRef = useRef(identity)
-    identityRef.current = identity
-    const mountedRef = useRef(false)
-    const requestSequence = useRef(0)
+    const scope = useScope(leagueId, memberId)
     const mutationInFlight = useRef(false)
     const [busyTradeId, setBusyTradeId] = useState<string | null>(null)
 
     useEffect(() => {
-        mountedRef.current = true
-        requestSequence.current += 1
         mutationInFlight.current = false
         setBusyTradeId(null)
-        return () => {
-            mountedRef.current = false
-            requestSequence.current += 1
-            mutationInFlight.current = false
-        }
-    }, [identity])
-
-    const finishAction = useCallback((requestId: number, ownerIdentity: string, onComplete = onAction) => {
-        if (!mountedRef.current || requestSequence.current !== requestId || identityRef.current !== ownerIdentity) return
-        void Promise.resolve().then(onComplete).catch(() => undefined)
-    }, [onAction])
+        return () => { mutationInFlight.current = false }
+    }, [leagueId, memberId])
 
     const runTerminalAction = useCallback(async (
         tradeId: string,
@@ -57,41 +43,42 @@ export function useTradeActions({
         fallbackMessage: string,
         options: { onComplete?: () => void | Promise<unknown>; onError?: (error: unknown) => Promise<boolean> } = {},
     ) => {
-        if (!enabledRef.current || !mountedRef.current || !memberId || identityRef.current !== identity || mutationInFlight.current) return
+        const ticket = scope.ticket()
+        if (!enabledRef.current || !ticket.live() || !memberId || mutationInFlight.current) return
         mutationInFlight.current = true
-        const requestId = ++requestSequence.current
-        const ownerIdentity = identity
         setBusyTradeId(tradeId)
         try {
             await operation(tradeId, memberId)
-            finishAction(requestId, ownerIdentity, options.onComplete)
+            ticket.commit(() => { void Promise.resolve().then(options.onComplete ?? onAction).catch(() => undefined) })
         } catch (error) {
-            if (mountedRef.current && requestSequence.current === requestId && identityRef.current === ownerIdentity) {
+            if (ticket.live()) {
                 const handled = await options.onError?.(error)
-                if (!handled && mountedRef.current && requestSequence.current === requestId && identityRef.current === ownerIdentity) showAlert('Error', getErrorMessage(error) ?? fallbackMessage)
+                if (!handled) ticket.commit(() => showAlert('Error', getErrorMessage(error) ?? fallbackMessage))
             }
         } finally {
-            if (mountedRef.current && requestSequence.current === requestId) {
+            ticket.commit(() => {
                 mutationInFlight.current = false
                 setBusyTradeId(null)
-            }
+            })
         }
-    }, [finishAction, identity, memberId])
+    }, [scope, memberId, onAction])
 
     const accept = useCallback(async (trade: Trade) => {
-        if (!enabledRef.current || !mountedRef.current || !memberId || !leagueId || mutationInFlight.current) return
+        const ticket = scope.ticket()
+        if (!enabledRef.current || !ticket.live() || !memberId || !leagueId || mutationInFlight.current) return
+        const owned = () => enabledRef.current && ticket.live()
         try {
             if (beforeAccept && !await beforeAccept()) return
         } catch (error) {
-            if (enabledRef.current && mountedRef.current && identityRef.current === identity) showAlert('Error', getErrorMessage(error))
+            if (owned()) showAlert('Error', getErrorMessage(error))
             return
         }
-        if (!enabledRef.current || !mountedRef.current || identityRef.current !== identity) return
+        if (!owned()) return
         let confirmedPlan: TradeRosterPlan | undefined
         let message = ''
         try {
             const teams = await getTradeRosterPreview(trade.id)
-            if (!enabledRef.current || !mountedRef.current || identityRef.current !== identity) return
+            if (!owned()) return
             const invalid = teams.find((team) => team.memberId === memberId && team.error)
             if (invalid) {
                 showAlert('Complete the roster plan', `${invalid.teamName}: ${invalid.error}`)
@@ -102,13 +89,13 @@ export function useTradeActions({
             confirmedPlan = ownPlan.plan
             message = tradeAcceptanceSummary(trade, teams, memberId)
         } catch (error) {
-            if (enabledRef.current && mountedRef.current && identityRef.current === identity) showAlert('Could not check roster plans', getErrorMessage(error))
+            if (owned()) showAlert('Could not check roster plans', getErrorMessage(error))
             return
         }
-        if (!enabledRef.current || !mountedRef.current || identityRef.current !== identity || mutationInFlight.current) return
+        if (!owned() || mutationInFlight.current) return
         return confirmAction('Accept trade?', message,
             () => runTerminalAction(trade.id, (tradeId, ownMemberId) => acceptTrade(tradeId, ownMemberId, confirmedPlan), 'Could not accept trade.', { onError: onRosterError }), 'Accept', false)
-    }, [beforeAccept, identity, leagueId, memberId, onRosterError, runTerminalAction])
+    }, [beforeAccept, scope, leagueId, memberId, onRosterError, runTerminalAction])
 
     const setTaxiDestination = useCallback((trade: Trade, playerId: string, toTaxi: boolean) => {
         const playerIds = trade.routedItems.flatMap((item) => item.kind === 'player' && item.toMemberId === memberId &&

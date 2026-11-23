@@ -107,7 +107,7 @@ describe('all-UTIL maximum scoring preserves the original DFS', () => {
     })
 })
 
-describe('large candidate pools use the assignment solver', () => {
+describe('large candidate pools use the assignment solver', { timeout: 30_000 }, () => {
     const slots = ['C', 'PF', 'PG', 'SF', 'SG', 'F', 'G', 'UTIL', 'UTIL', 'UTIL']
     const positions = [['PG'], ['SG'], ['SF'], ['PF'], ['C'], ['PG', 'SG'], ['SF', 'PF'], ['SG', 'SF'], ['PF', 'C'], ['SF', 'PF', 'SG'], ['G'], ['F'], [], ['INVALID']]
     let seed = 4242

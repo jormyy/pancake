@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261214110900",
+  "candidateVersion": "20261215140000",
   "common": {
     "functions": [
       {
@@ -578,7 +578,7 @@
           "strict": false,
           "language": "sql",
           "arguments": "p_league_id uuid, p_league_season_id uuid, p_player_id uuid, p_member_id uuid DEFAULT NULL::uuid",
-          "bodySha256": "29ce477c9ddc19dcc86698f44d8a11fecb01b755ac0d331bc0c3f19fe511b6be",
+          "bodySha256": "c3ea5ff5f7ab1e73fe31fc4676eba59bf89895352d22443806d6c0a6b05e20ab",
           "volatility": "v",
           "anonExecute": true,
           "publicExecute": true,
@@ -2747,8 +2747,16 @@
       "sha256": "d4dc37396f8f1e8d65105ef1e104c7feb8605d91abd04134e175dbae4171abcb"
     },
     {
-      "filename": "20261214110900_roster_action_policy.sql",
-      "sha256": "d1e70c433238859048e76cfd05c9a0c0e5898b55d2cd93e3e9f3666b34148a4d"
+      "filename": "20261214011900_total_add_week.sql",
+      "sha256": "8ab3428350ed1a189cda20fb1ff35df09e7d2acb120136d7b24f9067db9b44c6"
+    },
+    {
+      "filename": "20261215080000_immutable_lineup_history.sql",
+      "sha256": "126f03726e19626196f40b5d1290321dde37a543f892df2bd4674ca364c72551"
+    },
+    {
+      "filename": "20261215140000_dynasty_rank_owner.sql",
+      "sha256": "be1e0e386c8e2a224b0d7bfe3192d877ff1e59fb082c2d9ee8c6d160949d5719"
     }
   ],
   "preMigration": {

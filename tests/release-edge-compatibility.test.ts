@@ -365,23 +365,7 @@ function requiresDatabaseFirst(mainMigrations: string, clientSource: string, not
 }
 
 it.skipIf(!available)('documents database-first release order for new client dependencies', () => {
-    const baseNotes = readFileSync('supabase/RELEASE-DB.md', 'utf8')
-    const pipelineNotes = baseNotes.match(/^## Pipeline night\n([\s\S]*?)(?=^## |$(?![\s\S]))/m)?.[1] ?? ''
-    const publicNotes = readFileSync('docs/public-cli.md', 'utf8')
-        .match(/^## Public CLI release order\n([\s\S]*?)(?=^## |$(?![\s\S]))/m)?.[1] ?? ''
-    const playerReadNotes = readFileSync('docs/data-flow.md', 'utf8')
-        .match(/^## Player read release order\n([\s\S]*?)(?=^## |$(?![\s\S]))/m)?.[1] ?? ''
-    const tradeReceiptNotes = readFileSync('docs/trade-legality.md', 'utf8')
-        .match(/^## Trade receipt release order\n([\s\S]*?)(?=^## |$(?![\s\S]))/m)?.[1] ?? ''
-    const statsCertificationNotes = readFileSync('docs/live-scores.md', 'utf8')
-        .match(/^## Stats certification release order\n([\s\S]*?)(?=^## |$(?![\s\S]))/m)?.[1] ?? ''
-    const refreshNotes = readFileSync('docs/data-flow.md', 'utf8')
-        .match(/^## Screen refresh\n([\s\S]*?)(?=^## |$(?![\s\S]))/m)?.[1] ?? ''
-    const tradeTaxiNotes = readFileSync('docs/interface-design.md', 'utf8')
-        .match(/^## Trade Taxi release order\n([\s\S]*?)(?=^## |$(?![\s\S]))/m)?.[1] ?? ''
-    const requestNotes = readFileSync('docs/data-flow.md', 'utf8')
-        .match(/^## Free-agent response compatibility\n([\s\S]*?)(?=^## |$(?![\s\S]))/m)?.[1] ?? ''
-    const notes = baseNotes.replace(/^## Release order for this release\n/m, `## Release order for this release\n${pipelineNotes}\n${publicNotes}\n${playerReadNotes}\n${tradeReceiptNotes}\n${statsCertificationNotes}\n${refreshNotes}\n${tradeTaxiNotes}\n${requestNotes}\n`)
+    const notes = readFileSync('supabase/RELEASE-DB.md', 'utf8')
     const releaseSection = notes.match(/^## Release order for this release\n([\s\S]*?)(?=^## |$(?![\s\S]))/m)?.[1] ?? ''
     const productionHead = documentedProductionHead(releaseSection) ?? ''
     const migrations = readdirSync('supabase/migrations').filter(file => file.endsWith('.sql')).sort()

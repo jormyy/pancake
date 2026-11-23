@@ -3709,11 +3709,25 @@
       "sha256": "d4dc37396f8f1e8d65105ef1e104c7feb8605d91abd04134e175dbae4171abcb"
     },
     {
-      "name": "roster_action_policy",
-      "version": "20261214110900",
-      "statementCount": 23,
-      "statementsSha256": "64be6f27b670dc064cf54e96adbafe20d98e0e13d5fc18eb97a7b22f69d9e02c",
-      "sha256": "d1e70c433238859048e76cfd05c9a0c0e5898b55d2cd93e3e9f3666b34148a4d"
+      "name": "total_add_week",
+      "version": "20261214011900",
+      "statementCount": 2,
+      "statementsSha256": "8335cc6820df943ebdd03ffca64519dca2b9cdd930a087402c21a0b8332dd259",
+      "sha256": "8ab3428350ed1a189cda20fb1ff35df09e7d2acb120136d7b24f9067db9b44c6"
+    },
+    {
+      "name": "immutable_lineup_history",
+      "version": "20261215080000",
+      "statementCount": 12,
+      "statementsSha256": "2945d3c9489b014a32cb0b3e844276e415c84c1a8b505dd45925a7b395a4f1b3",
+      "sha256": "126f03726e19626196f40b5d1290321dde37a543f892df2bd4674ca364c72551"
+    },
+    {
+      "name": "dynasty_rank_owner",
+      "version": "20261215140000",
+      "statementCount": 4,
+      "statementsSha256": "671189814405ac035aaf37dcdb3692579666b87daff77fb1fc635fb7b0a0d3dc",
+      "sha256": "be1e0e386c8e2a224b0d7bfe3192d877ff1e59fb082c2d9ee8c6d160949d5719"
     }
   ]
 }

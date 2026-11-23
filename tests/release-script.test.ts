@@ -193,7 +193,7 @@ async function rehearsalFixture() {
   await writeFile(path.join(root, 'supabase/functions/api/index.ts'), 'export const api = 1')
   await writeFile(path.join(root, 'scripts/stamp-edge-release-provenance.mjs'), `export const stampEdgeReleaseProvenance = async ({ commitSha }) => ({ commitSha, edgeArtifactDigest: '${'d'.repeat(64)}' })`)
   await writeFile(path.join(root, cfg.replayReceipt), JSON.stringify(passingReplay()))
-  const logs = ['npm run check:comprehensive', 'npm test'].map((command, index) => ({ command, exitCode: 0, log: `${index}.log`, sha256: sha256('mocked unit fixture') }))
+  const logs = ['npm run check:gate', 'npm run check:comprehensive'].map((command, index) => ({ command, exitCode: 0, log: `${index}.log`, sha256: sha256('mocked unit fixture') }))
   for (const row of logs) await writeFile(path.join(root, row.log), 'mocked unit fixture')
   await writeFile(path.join(root, cfg.checksReceipt), JSON.stringify({ candidate, passed: true, commands: logs }))
   await writeFile(path.join(root, cfg.releaseNotes), 'Mock release notes')
@@ -246,6 +246,18 @@ it('fails the full dry run before backup when replay evidence fails', async () =
   await expect(release(fixture.options, fixture)).rejects.toThrow('not passing')
   expect(fixture.fetch).not.toHaveBeenCalled()
   expect(fixture.run.mock.calls.every(([bin]) => bin === 'git')).toBe(true)
+})
+
+it.each([
+  ['red', (row: { command: string }) => [row.command === 'npm run check:gate' ? { ...row, exitCode: 1 } : row], 'Local checks contain failures'],
+  ['missing', (row: { command: string }) => row.command === 'npm run check:gate' ? [] : [row], 'Missing green check: npm run check:gate'],
+])('refuses a candidate whose merge gate is %s before backup', async (_case, edit, error) => {
+  const fixture = await rehearsalFixture()
+  const file = path.join(fixture.root, fixture.cfg.checksReceipt)
+  const receipt = JSON.parse(await readFile(file, 'utf8'))
+  await writeFile(file, JSON.stringify({ ...receipt, commands: receipt.commands.flatMap(edit) }))
+  await expect(release(fixture.options, fixture)).rejects.toThrow(error)
+  expect(fixture.fetch).not.toHaveBeenCalled()
 })
 
 it('refuses a changed full-check log before backup', async () => {

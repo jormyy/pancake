@@ -1,0 +1,211 @@
+{
+  "tlc": {
+    "version": "1.7.4",
+    "url": "https://github.com/tlaplus/tlaplus/releases/download/v1.7.4/tla2tools.jar",
+    "sha256": "936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88"
+  },
+  "sources": {
+    "functions": "supabase/sql/functions/by-name",
+    "triggers": null
+  },
+  "scope": {
+    "kinds": [
+      "advisory",
+      "select",
+      "dml"
+    ],
+    "resources": [
+      "advisory draft:0",
+      "advisory league:member",
+      "advisory league:player",
+      "row drafts",
+      "row roster_players",
+      "row trades",
+      "row waiver_claims"
+    ]
+  },
+  "maxPathsPerFunction": 2000,
+  "replays": [
+    {
+      "name": "drop-row-lock-first",
+      "badSha": "de0fbd0d",
+      "fixSha": "dcf20444",
+      "bad": "fixtures/drop-row-lock-first/bad",
+      "good": "fixtures/drop-row-lock-first/good",
+      "deadlock": [
+        "public.toggle_ir_atomic",
+        "public.accept_trade_atomic"
+      ]
+    },
+    {
+      "name": "accept-trade-row-first",
+      "badSha": "7ed9e4e9 through 20260827000013",
+      "fixSha": "7ed9e4e9",
+      "bad": "fixtures/accept-trade-row-first/bad",
+      "good": "fixtures/accept-trade-row-first/good",
+      "deadlock": [
+        "private.accept_trade_participant_atomic",
+        "public.drop_player_atomic"
+      ]
+    },
+    {
+      "name": "taxi-destinations-trade-row-first",
+      "badSha": "fe301483 through 20261011000019",
+      "fixSha": "fe301483 through 20261011000021",
+      "bad": "fixtures/taxi-destinations-trade-row-first/bad",
+      "good": "fixtures/taxi-destinations-trade-row-first/good",
+      "deadlock": [
+        "public.set_trade_taxi_destinations_atomic",
+        "private.accept_trade_participant_atomic"
+      ]
+    }
+  ],
+  "knownDeadlocks": [
+    {
+      "reason": "Not live: auto IR and the roster floor stop unless the league is active or in playoffs (auto_manage_ir_service.sql:79, run_league_roster_floor.sql:49). toggle_ir_for_activation takes the rookie-draft lock only for a drafting league (toggle_ir_for_activation.sql:33-46). The model does not track league status.",
+      "deadlocks": [
+        "private.draft_timer_complete_opening_night(int,timestamptz) waits advisory league:player <> private.run_league_roster_floor(uuid,uuid) waits advisory draft:0",
+        "private.draft_timer_complete_opening_night(int,timestamptz) waits advisory league:player <> public.activate_roster_player_with_lineup_atomic(uuid,text,uuid,text,uuid,uuid,uuid,date,int,roster_slot_type) waits advisory draft:0",
+        "private.draft_timer_complete_opening_night(int,timestamptz) waits advisory league:player <> public.auto_manage_ir_service(uuid,uuid,uuid) waits advisory draft:0",
+        "private.draft_timer_complete_opening_night(int,timestamptz) waits advisory league:player <> public.process_roster_floor_service(uuid,uuid) waits advisory draft:0",
+        "private.lock_roster_activation(uuid,text,uuid) waits advisory league:member <> private.run_league_roster_floor(uuid,uuid) waits advisory draft:0",
+        "private.lock_roster_activation(uuid,text,uuid) waits advisory league:member <> public.activate_roster_player_with_lineup_atomic(uuid,text,uuid,text,uuid,uuid,uuid,date,int,roster_slot_type) waits advisory draft:0",
+        "private.lock_roster_activation(uuid,text,uuid) waits advisory league:member <> public.auto_manage_ir_service(uuid,uuid,uuid) waits advisory draft:0",
+        "private.lock_roster_activation(uuid,text,uuid) waits advisory league:member <> public.process_roster_floor_service(uuid,uuid) waits advisory draft:0",
+        "private.make_snake_pick_atomic_internal(uuid,uuid,uuid,boolean,boolean) waits advisory league:player <> private.run_league_roster_floor(uuid,uuid) waits advisory draft:0",
+        "private.make_snake_pick_atomic_internal(uuid,uuid,uuid,boolean,boolean) waits advisory league:player <> public.activate_roster_player_with_lineup_atomic(uuid,text,uuid,text,uuid,uuid,uuid,date,int,roster_slot_type) waits advisory draft:0",
+        "private.make_snake_pick_atomic_internal(uuid,uuid,uuid,boolean,boolean) waits advisory league:player <> public.auto_manage_ir_service(uuid,uuid,uuid) waits advisory draft:0",
+        "private.make_snake_pick_atomic_internal(uuid,uuid,uuid,boolean,boolean) waits advisory league:player <> public.process_roster_floor_service(uuid,uuid) waits advisory draft:0",
+        "private.run_league_roster_floor(uuid,uuid) waits advisory draft:0 <> private.toggle_ir_for_activation(uuid,boolean,uuid,uuid) waits advisory league:member",
+        "private.run_league_roster_floor(uuid,uuid) waits advisory draft:0 <> public.activate_roster_player_with_lineup_atomic(uuid,text,uuid,text,uuid,uuid,uuid,date,int,roster_slot_type) waits advisory league:member",
+        "private.run_league_roster_floor(uuid,uuid) waits advisory draft:0 <> public.activate_roster_player_with_overflow_atomic(uuid,text,uuid,text) waits advisory league:member",
+        "private.run_league_roster_floor(uuid,uuid) waits advisory draft:0 <> public.auto_pick_snake_pick_atomic(uuid,uuid,text,boolean) waits advisory league:player",
+        "private.run_league_roster_floor(uuid,uuid) waits advisory draft:0 <> public.commissioner_snake_pick_atomic(uuid,uuid,uuid,uuid,boolean) waits advisory league:player",
+        "private.run_league_roster_floor(uuid,uuid) waits advisory draft:0 <> public.drop_and_add_free_agent_atomic(uuid,uuid,uuid,uuid) waits advisory league:member",
+        "private.run_league_roster_floor(uuid,uuid) waits advisory draft:0 <> public.drop_player_atomic(uuid) waits advisory league:member",
+        "private.run_league_roster_floor(uuid,uuid) waits advisory draft:0 <> public.drop_player_atomic(uuid,uuid) waits advisory league:member",
+        "private.run_league_roster_floor(uuid,uuid) waits advisory draft:0 <> public.drop_player_atomic(uuid,uuid,uuid) waits advisory league:member",
+        "private.run_league_roster_floor(uuid,uuid) waits advisory draft:0 <> public.make_snake_pick_atomic(uuid,uuid,uuid,boolean) waits advisory league:player",
+        "private.run_league_roster_floor(uuid,uuid) waits advisory draft:0 <> public.process_expired_snake_pick_atomic(uuid) waits advisory league:player",
+        "private.run_league_roster_floor(uuid,uuid) waits advisory draft:0 <> public.process_expired_snake_picks_atomic(int) waits advisory league:player",
+        "private.run_league_roster_floor(uuid,uuid) waits advisory draft:0 <> public.reset_draft_atomic(uuid,uuid) waits row roster_players",
+        "private.run_league_roster_floor(uuid,uuid) waits advisory draft:0 <> public.toggle_ir_atomic(uuid,boolean,uuid) waits advisory league:member",
+        "private.run_league_roster_floor(uuid,uuid) waits advisory draft:0 <> public.toggle_taxi_atomic(uuid,boolean,uuid) waits advisory league:member",
+        "private.run_league_roster_floor(uuid,uuid) waits row drafts <> public.close_auction_nomination_atomic(uuid) waits advisory league:member",
+        "private.run_league_roster_floor(uuid,uuid) waits row drafts <> public.close_auction_nomination_atomic(uuid) waits advisory league:player",
+        "private.run_league_roster_floor(uuid,uuid) waits row drafts <> public.close_expired_auction_nominations_atomic(int) waits advisory league:member",
+        "private.run_league_roster_floor(uuid,uuid) waits row drafts <> public.close_expired_auction_nominations_atomic(int) waits advisory league:player",
+        "private.run_league_roster_floor(uuid,uuid) waits row drafts <> public.create_auction_nomination_atomic(uuid,uuid,uuid,uuid,int) waits advisory league:member",
+        "private.run_league_roster_floor(uuid,uuid) waits row drafts <> public.place_auction_bid_atomic(uuid,uuid,uuid,int,uuid,boolean) waits advisory league:member",
+        "private.toggle_ir_for_activation(uuid,boolean,uuid,uuid) waits advisory league:member <> public.activate_roster_player_with_lineup_atomic(uuid,text,uuid,text,uuid,uuid,uuid,date,int,roster_slot_type) waits advisory draft:0",
+        "private.toggle_ir_for_activation(uuid,boolean,uuid,uuid) waits advisory league:member <> public.auto_manage_ir_service(uuid,uuid,uuid) waits advisory draft:0",
+        "private.toggle_ir_for_activation(uuid,boolean,uuid,uuid) waits advisory league:member <> public.process_roster_floor_service(uuid,uuid) waits advisory draft:0",
+        "public.activate_roster_player_with_lineup_atomic(uuid,text,uuid,text,uuid,uuid,uuid,date,int,roster_slot_type) waits advisory draft:0 <> public.activate_roster_player_with_overflow_atomic(uuid,text,uuid,text) waits advisory league:member",
+        "public.activate_roster_player_with_lineup_atomic(uuid,text,uuid,text,uuid,uuid,uuid,date,int,roster_slot_type) waits advisory draft:0 <> public.auto_pick_snake_pick_atomic(uuid,uuid,text,boolean) waits advisory league:player",
+        "public.activate_roster_player_with_lineup_atomic(uuid,text,uuid,text,uuid,uuid,uuid,date,int,roster_slot_type) waits advisory draft:0 <> public.commissioner_snake_pick_atomic(uuid,uuid,uuid,uuid,boolean) waits advisory league:player",
+        "public.activate_roster_player_with_lineup_atomic(uuid,text,uuid,text,uuid,uuid,uuid,date,int,roster_slot_type) waits advisory draft:0 <> public.drop_and_add_free_agent_atomic(uuid,uuid,uuid,uuid) waits advisory league:member",
+        "public.activate_roster_player_with_lineup_atomic(uuid,text,uuid,text,uuid,uuid,uuid,date,int,roster_slot_type) waits advisory draft:0 <> public.drop_player_atomic(uuid) waits advisory league:member",
+        "public.activate_roster_player_with_lineup_atomic(uuid,text,uuid,text,uuid,uuid,uuid,date,int,roster_slot_type) waits advisory draft:0 <> public.drop_player_atomic(uuid,uuid) waits advisory league:member",
+        "public.activate_roster_player_with_lineup_atomic(uuid,text,uuid,text,uuid,uuid,uuid,date,int,roster_slot_type) waits advisory draft:0 <> public.drop_player_atomic(uuid,uuid,uuid) waits advisory league:member",
+        "public.activate_roster_player_with_lineup_atomic(uuid,text,uuid,text,uuid,uuid,uuid,date,int,roster_slot_type) waits advisory draft:0 <> public.make_snake_pick_atomic(uuid,uuid,uuid,boolean) waits advisory league:player",
+        "public.activate_roster_player_with_lineup_atomic(uuid,text,uuid,text,uuid,uuid,uuid,date,int,roster_slot_type) waits advisory draft:0 <> public.process_expired_snake_pick_atomic(uuid) waits advisory league:player",
+        "public.activate_roster_player_with_lineup_atomic(uuid,text,uuid,text,uuid,uuid,uuid,date,int,roster_slot_type) waits advisory draft:0 <> public.process_expired_snake_picks_atomic(int) waits advisory league:player",
+        "public.activate_roster_player_with_lineup_atomic(uuid,text,uuid,text,uuid,uuid,uuid,date,int,roster_slot_type) waits advisory draft:0 <> public.reset_draft_atomic(uuid,uuid) waits row roster_players",
+        "public.activate_roster_player_with_lineup_atomic(uuid,text,uuid,text,uuid,uuid,uuid,date,int,roster_slot_type) waits advisory draft:0 <> public.toggle_ir_atomic(uuid,boolean,uuid) waits advisory league:member",
+        "public.activate_roster_player_with_lineup_atomic(uuid,text,uuid,text,uuid,uuid,uuid,date,int,roster_slot_type) waits advisory draft:0 <> public.toggle_taxi_atomic(uuid,boolean,uuid) waits advisory league:member",
+        "public.activate_roster_player_with_lineup_atomic(uuid,text,uuid,text,uuid,uuid,uuid,date,int,roster_slot_type) waits advisory league:member <> public.activate_roster_player_with_lineup_atomic(uuid,text,uuid,text,uuid,uuid,uuid,date,int,roster_slot_type) waits advisory draft:0",
+        "public.activate_roster_player_with_lineup_atomic(uuid,text,uuid,text,uuid,uuid,uuid,date,int,roster_slot_type) waits advisory league:member <> public.auto_manage_ir_service(uuid,uuid,uuid) waits advisory draft:0",
+        "public.activate_roster_player_with_lineup_atomic(uuid,text,uuid,text,uuid,uuid,uuid,date,int,roster_slot_type) waits advisory league:member <> public.process_roster_floor_service(uuid,uuid) waits advisory draft:0",
+        "public.activate_roster_player_with_lineup_atomic(uuid,text,uuid,text,uuid,uuid,uuid,date,int,roster_slot_type) waits row drafts <> public.close_auction_nomination_atomic(uuid) waits advisory league:member",
+        "public.activate_roster_player_with_lineup_atomic(uuid,text,uuid,text,uuid,uuid,uuid,date,int,roster_slot_type) waits row drafts <> public.close_auction_nomination_atomic(uuid) waits advisory league:player",
+        "public.activate_roster_player_with_lineup_atomic(uuid,text,uuid,text,uuid,uuid,uuid,date,int,roster_slot_type) waits row drafts <> public.close_expired_auction_nominations_atomic(int) waits advisory league:member",
+        "public.activate_roster_player_with_lineup_atomic(uuid,text,uuid,text,uuid,uuid,uuid,date,int,roster_slot_type) waits row drafts <> public.close_expired_auction_nominations_atomic(int) waits advisory league:player",
+        "public.activate_roster_player_with_lineup_atomic(uuid,text,uuid,text,uuid,uuid,uuid,date,int,roster_slot_type) waits row drafts <> public.create_auction_nomination_atomic(uuid,uuid,uuid,uuid,int) waits advisory league:member",
+        "public.activate_roster_player_with_lineup_atomic(uuid,text,uuid,text,uuid,uuid,uuid,date,int,roster_slot_type) waits row drafts <> public.place_auction_bid_atomic(uuid,uuid,uuid,int,uuid,boolean) waits advisory league:member",
+        "public.activate_roster_player_with_overflow_atomic(uuid,text,uuid,text) waits advisory league:member <> public.auto_manage_ir_service(uuid,uuid,uuid) waits advisory draft:0",
+        "public.activate_roster_player_with_overflow_atomic(uuid,text,uuid,text) waits advisory league:member <> public.process_roster_floor_service(uuid,uuid) waits advisory draft:0",
+        "public.auto_manage_ir_service(uuid,uuid,uuid) waits advisory draft:0 <> public.auto_pick_snake_pick_atomic(uuid,uuid,text,boolean) waits advisory league:player",
+        "public.auto_manage_ir_service(uuid,uuid,uuid) waits advisory draft:0 <> public.commissioner_snake_pick_atomic(uuid,uuid,uuid,uuid,boolean) waits advisory league:player",
+        "public.auto_manage_ir_service(uuid,uuid,uuid) waits advisory draft:0 <> public.drop_and_add_free_agent_atomic(uuid,uuid,uuid,uuid) waits advisory league:member",
+        "public.auto_manage_ir_service(uuid,uuid,uuid) waits advisory draft:0 <> public.drop_player_atomic(uuid) waits advisory league:member",
+        "public.auto_manage_ir_service(uuid,uuid,uuid) waits advisory draft:0 <> public.drop_player_atomic(uuid,uuid) waits advisory league:member",
+        "public.auto_manage_ir_service(uuid,uuid,uuid) waits advisory draft:0 <> public.drop_player_atomic(uuid,uuid,uuid) waits advisory league:member",
+        "public.auto_manage_ir_service(uuid,uuid,uuid) waits advisory draft:0 <> public.make_snake_pick_atomic(uuid,uuid,uuid,boolean) waits advisory league:player",
+        "public.auto_manage_ir_service(uuid,uuid,uuid) waits advisory draft:0 <> public.process_expired_snake_pick_atomic(uuid) waits advisory league:player",
+        "public.auto_manage_ir_service(uuid,uuid,uuid) waits advisory draft:0 <> public.process_expired_snake_picks_atomic(int) waits advisory league:player",
+        "public.auto_manage_ir_service(uuid,uuid,uuid) waits advisory draft:0 <> public.reset_draft_atomic(uuid,uuid) waits row roster_players",
+        "public.auto_manage_ir_service(uuid,uuid,uuid) waits advisory draft:0 <> public.toggle_ir_atomic(uuid,boolean,uuid) waits advisory league:member",
+        "public.auto_manage_ir_service(uuid,uuid,uuid) waits advisory draft:0 <> public.toggle_taxi_atomic(uuid,boolean,uuid) waits advisory league:member",
+        "public.auto_manage_ir_service(uuid,uuid,uuid) waits row drafts <> public.close_auction_nomination_atomic(uuid) waits advisory league:member",
+        "public.auto_manage_ir_service(uuid,uuid,uuid) waits row drafts <> public.close_auction_nomination_atomic(uuid) waits advisory league:player",
+        "public.auto_manage_ir_service(uuid,uuid,uuid) waits row drafts <> public.close_expired_auction_nominations_atomic(int) waits advisory league:member",
+        "public.auto_manage_ir_service(uuid,uuid,uuid) waits row drafts <> public.close_expired_auction_nominations_atomic(int) waits advisory league:player",
+        "public.auto_manage_ir_service(uuid,uuid,uuid) waits row drafts <> public.create_auction_nomination_atomic(uuid,uuid,uuid,uuid,int) waits advisory league:member",
+        "public.auto_manage_ir_service(uuid,uuid,uuid) waits row drafts <> public.place_auction_bid_atomic(uuid,uuid,uuid,int,uuid,boolean) waits advisory league:member",
+        "public.auto_pick_snake_pick_atomic(uuid,uuid,text,boolean) waits advisory league:player <> public.process_roster_floor_service(uuid,uuid) waits advisory draft:0",
+        "public.close_auction_nomination_atomic(uuid) waits advisory league:member <> public.process_roster_floor_service(uuid,uuid) waits row drafts",
+        "public.close_auction_nomination_atomic(uuid) waits advisory league:player <> public.process_roster_floor_service(uuid,uuid) waits row drafts",
+        "public.close_expired_auction_nominations_atomic(int) waits advisory league:member <> public.process_roster_floor_service(uuid,uuid) waits row drafts",
+        "public.close_expired_auction_nominations_atomic(int) waits advisory league:player <> public.process_roster_floor_service(uuid,uuid) waits row drafts",
+        "public.commissioner_snake_pick_atomic(uuid,uuid,uuid,uuid,boolean) waits advisory league:player <> public.process_roster_floor_service(uuid,uuid) waits advisory draft:0",
+        "public.create_auction_nomination_atomic(uuid,uuid,uuid,uuid,int) waits advisory league:member <> public.process_roster_floor_service(uuid,uuid) waits row drafts",
+        "public.drop_and_add_free_agent_atomic(uuid,uuid,uuid,uuid) waits advisory league:member <> public.process_roster_floor_service(uuid,uuid) waits advisory draft:0",
+        "public.drop_player_atomic(uuid) waits advisory league:member <> public.process_roster_floor_service(uuid,uuid) waits advisory draft:0",
+        "public.drop_player_atomic(uuid,uuid) waits advisory league:member <> public.process_roster_floor_service(uuid,uuid) waits advisory draft:0",
+        "public.drop_player_atomic(uuid,uuid,uuid) waits advisory league:member <> public.process_roster_floor_service(uuid,uuid) waits advisory draft:0",
+        "public.make_snake_pick_atomic(uuid,uuid,uuid,boolean) waits advisory league:player <> public.process_roster_floor_service(uuid,uuid) waits advisory draft:0",
+        "public.place_auction_bid_atomic(uuid,uuid,uuid,int,uuid,boolean) waits advisory league:member <> public.process_roster_floor_service(uuid,uuid) waits row drafts",
+        "public.process_expired_snake_pick_atomic(uuid) waits advisory league:player <> public.process_roster_floor_service(uuid,uuid) waits advisory draft:0",
+        "public.process_expired_snake_picks_atomic(int) waits advisory league:player <> public.process_roster_floor_service(uuid,uuid) waits advisory draft:0",
+        "public.process_roster_floor_service(uuid,uuid) waits advisory draft:0 <> public.reset_draft_atomic(uuid,uuid) waits row roster_players",
+        "public.process_roster_floor_service(uuid,uuid) waits advisory draft:0 <> public.toggle_ir_atomic(uuid,boolean,uuid) waits advisory league:member",
+        "public.process_roster_floor_service(uuid,uuid) waits advisory draft:0 <> public.toggle_taxi_atomic(uuid,boolean,uuid) waits advisory league:member"
+      ]
+    },
+    {
+      "reason": "Not live: activate_roster_player_with_overflow_atomic runs the same rookie-draft lookup in lock_roster_activation first. When drop_player_atomic finds a draft, the activation already holds that draft lock. The model does not correlate the two lookups.",
+      "deadlocks": [
+        "private.draft_timer_complete_opening_night(int,timestamptz) waits advisory league:player <> public.activate_roster_player_with_overflow_atomic(uuid,text,uuid,text) waits advisory draft:0",
+        "private.lock_roster_activation(uuid,text,uuid) waits advisory league:member <> public.activate_roster_player_with_overflow_atomic(uuid,text,uuid,text) waits advisory draft:0",
+        "private.make_snake_pick_atomic_internal(uuid,uuid,uuid,boolean,boolean) waits advisory league:player <> public.activate_roster_player_with_overflow_atomic(uuid,text,uuid,text) waits advisory draft:0",
+        "private.toggle_ir_for_activation(uuid,boolean,uuid,uuid) waits advisory league:member <> public.activate_roster_player_with_overflow_atomic(uuid,text,uuid,text) waits advisory draft:0",
+        "public.activate_roster_player_with_lineup_atomic(uuid,text,uuid,text,uuid,uuid,uuid,date,int,roster_slot_type) waits advisory league:member <> public.activate_roster_player_with_overflow_atomic(uuid,text,uuid,text) waits advisory draft:0",
+        "public.activate_roster_player_with_overflow_atomic(uuid,text,uuid,text) waits advisory draft:0 <> public.auto_pick_snake_pick_atomic(uuid,uuid,text,boolean) waits advisory league:player",
+        "public.activate_roster_player_with_overflow_atomic(uuid,text,uuid,text) waits advisory draft:0 <> public.commissioner_snake_pick_atomic(uuid,uuid,uuid,uuid,boolean) waits advisory league:player",
+        "public.activate_roster_player_with_overflow_atomic(uuid,text,uuid,text) waits advisory draft:0 <> public.drop_and_add_free_agent_atomic(uuid,uuid,uuid,uuid) waits advisory league:member",
+        "public.activate_roster_player_with_overflow_atomic(uuid,text,uuid,text) waits advisory draft:0 <> public.drop_player_atomic(uuid) waits advisory league:member",
+        "public.activate_roster_player_with_overflow_atomic(uuid,text,uuid,text) waits advisory draft:0 <> public.drop_player_atomic(uuid,uuid) waits advisory league:member",
+        "public.activate_roster_player_with_overflow_atomic(uuid,text,uuid,text) waits advisory draft:0 <> public.drop_player_atomic(uuid,uuid,uuid) waits advisory league:member",
+        "public.activate_roster_player_with_overflow_atomic(uuid,text,uuid,text) waits advisory draft:0 <> public.make_snake_pick_atomic(uuid,uuid,uuid,boolean) waits advisory league:player",
+        "public.activate_roster_player_with_overflow_atomic(uuid,text,uuid,text) waits advisory draft:0 <> public.process_expired_snake_pick_atomic(uuid) waits advisory league:player",
+        "public.activate_roster_player_with_overflow_atomic(uuid,text,uuid,text) waits advisory draft:0 <> public.process_expired_snake_picks_atomic(int) waits advisory league:player",
+        "public.activate_roster_player_with_overflow_atomic(uuid,text,uuid,text) waits advisory draft:0 <> public.reset_draft_atomic(uuid,uuid) waits row roster_players",
+        "public.activate_roster_player_with_overflow_atomic(uuid,text,uuid,text) waits advisory draft:0 <> public.toggle_ir_atomic(uuid,boolean,uuid) waits advisory league:member",
+        "public.activate_roster_player_with_overflow_atomic(uuid,text,uuid,text) waits advisory draft:0 <> public.toggle_taxi_atomic(uuid,boolean,uuid) waits advisory league:member",
+        "public.activate_roster_player_with_overflow_atomic(uuid,text,uuid,text) waits advisory league:member <> public.activate_roster_player_with_overflow_atomic(uuid,text,uuid,text) waits advisory draft:0",
+        "public.activate_roster_player_with_overflow_atomic(uuid,text,uuid,text) waits row drafts <> public.close_auction_nomination_atomic(uuid) waits advisory league:member",
+        "public.activate_roster_player_with_overflow_atomic(uuid,text,uuid,text) waits row drafts <> public.close_auction_nomination_atomic(uuid) waits advisory league:player",
+        "public.activate_roster_player_with_overflow_atomic(uuid,text,uuid,text) waits row drafts <> public.close_expired_auction_nominations_atomic(int) waits advisory league:member",
+        "public.activate_roster_player_with_overflow_atomic(uuid,text,uuid,text) waits row drafts <> public.close_expired_auction_nominations_atomic(int) waits advisory league:player",
+        "public.activate_roster_player_with_overflow_atomic(uuid,text,uuid,text) waits row drafts <> public.create_auction_nomination_atomic(uuid,uuid,uuid,uuid,int) waits advisory league:member",
+        "public.activate_roster_player_with_overflow_atomic(uuid,text,uuid,text) waits row drafts <> public.place_auction_bid_atomic(uuid,uuid,uuid,int,uuid,boolean) waits advisory league:member"
+      ]
+    },
+    {
+      "reason": "Unconfirmed, possibly live: player merges lock roster rows and then pending waiver claims (merge_players.sql:75, :124). Waiver claim edits lock the claim and then roster rows (edit_waiver_claim_atomic.sql:82, validate_waiver_claim_drop_player.sql:36). Neither takes the player advisory lock first. Fix merge_players to take the league and player advisory locks before its row locks, then rerun with --record-known.",
+      "deadlocks": [
+        "public.assign_player_nba_id_atomic(uuid,text) waits row waiver_claims <> public.edit_waiver_claim_atomic(uuid,uuid,uuid,uuid,int,int,boolean,boolean) waits row roster_players",
+        "public.edit_waiver_claim_atomic(uuid,uuid,uuid,uuid,int,int,boolean,boolean) waits row roster_players <> public.link_player_sources_atomic(text,jsonb,boolean) waits row waiver_claims",
+        "public.edit_waiver_claim_atomic(uuid,uuid,uuid,uuid,int,int,boolean,boolean) waits row roster_players <> public.merge_duplicate_players() waits row waiver_claims",
+        "public.edit_waiver_claim_atomic(uuid,uuid,uuid,uuid,int,int,boolean,boolean) waits row roster_players <> public.merge_players(uuid,uuid) waits row waiver_claims",
+        "public.edit_waiver_claim_atomic(uuid,uuid,uuid,uuid,int,int,boolean,boolean) waits row roster_players <> public.resolve_player_imports_atomic(text,jsonb) waits row waiver_claims"
+      ]
+    },
+    {
+      "reason": "Not live: the model treats every drafts row as one row. Snake timers and picks lock the snake draft; auction bids and nominations lock the auction draft, so the two sides never hold the same draft row.",
+      "deadlocks": [
+        "public.commissioner_snake_pick_atomic(uuid,uuid,uuid,uuid,boolean) waits row drafts <> public.place_auction_bid_atomic(uuid,uuid,uuid,int,uuid,boolean) waits row drafts"
+      ]
+    }
+  ]
+}

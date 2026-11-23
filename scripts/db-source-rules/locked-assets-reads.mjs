@@ -10,8 +10,8 @@ const LOCKED_ASSETS_CALL = /\bprivate\s*\.\s*"?locked_assets"?\s*\(/i
 
 const stripLineComments = (definition) => definition.replace(/--[^\n]*/g, '')
 
-/** @param {Map<string, string>} definitions */
-export default function lockedAssetsReads(definitions) {
+/** @param {{ definitions: Map<string, string> }} input */
+export default function lockedAssetsReads({ definitions }) {
   return [...definitions]
     .filter(([key, definition]) => !LOCKED_ASSETS_READERS.has(key.replace(/\(.*$/, ''))
       && LOCKED_ASSETS_CALL.test(stripLineComments(definition)))

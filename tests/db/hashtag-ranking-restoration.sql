@@ -4,6 +4,7 @@ BEGIN;
 CREATE TEMP TABLE hashtag_fixture AS SELECT * FROM pg_temp.rules_fixture(2, public.current_season_year_et(), 'active');
 CREATE TEMP TABLE hashtag_players AS
   SELECT gen_random_uuid() AS ranked_id, gen_random_uuid() AS trade_only_id;
+ALTER TABLE public.players DISABLE TRIGGER players_dynasty_rank_owner;
 INSERT INTO public.players(id, sportsdata_id, first_name, last_name, nba_team, position,
   dynasty_rank, dynasty_rank_source, dynasty_rank_fetched_at)
 SELECT ranked_id, 'hashtag-restoration-ranked', 'Hashtag', 'Ranked', 'DAL', 'PG'::public.nba_position, 1, 'onenumberhoops.com', now()
@@ -11,6 +12,7 @@ SELECT ranked_id, 'hashtag-restoration-ranked', 'Hashtag', 'Ranked', 'DAL', 'PG'
 UNION ALL
 SELECT trade_only_id, 'hashtag-restoration-trade-only', 'Trade', 'Only', 'DAL', 'PG'::public.nba_position, 2, 'onenumberhoops.com', now()
   FROM hashtag_players;
+ALTER TABLE public.players ENABLE TRIGGER players_dynasty_rank_owner;
 INSERT INTO public.dynasty_rankings(source, source_rank, source_player_name, player_id, points, age, fetched_at)
 SELECT 'hashtagbasketball.com', 9001, 'Hashtag Ranked', ranked_id, 31.7, 22, '2026-10-27 23:00 UTC'::timestamptz FROM hashtag_players
 UNION ALL
