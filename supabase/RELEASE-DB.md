@@ -31,8 +31,8 @@ Do not unschedule a retired per-job cron. Cron calls `public.dispatch_work()` fo
 ## Release order for this release
 
 The supplied production head is `20261214011300` (`trade_roster_holds`), with 791 migrations.
-This release adds five migrations, for 796 migrations:
-`20261214011400_league_roster_policies.sql`, `20261214011500_weekly_roster_floor.sql`, `20261214011600_league_auto_ir_schedule.sql`, `20261214011700_enable_official_league_roster_policy.sql`, and `20261214011800_tipoff_mode_aware_completion.sql`.
+This release adds six migrations, for 797 migrations:
+`20261214011400_league_roster_policies.sql`, `20261214011500_weekly_roster_floor.sql`, `20261214011600_league_auto_ir_schedule.sql`, `20261214011700_enable_official_league_roster_policy.sql`, `20261214011800_tipoff_mode_aware_completion.sql`, and `20261214011900_total_add_week.sql`.
 Database, then Edge, then merge the frontend.
 The frontend needs no release.
 

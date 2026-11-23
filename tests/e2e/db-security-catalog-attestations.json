@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261214011800",
+  "candidateVersion": "20261214011900",
   "common": {
     "functions": [
       {
@@ -2745,6 +2745,10 @@
     {
       "filename": "20261214011800_tipoff_mode_aware_completion.sql",
       "sha256": "d4dc37396f8f1e8d65105ef1e104c7feb8605d91abd04134e175dbae4171abcb"
+    },
+    {
+      "filename": "20261214011900_total_add_week.sql",
+      "sha256": "8ab3428350ed1a189cda20fb1ff35df09e7d2acb120136d7b24f9067db9b44c6"
     }
   ],
   "preMigration": {
