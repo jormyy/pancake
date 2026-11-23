@@ -1,4 +1,5 @@
 BEGIN;
+\ir hold-dispatcher.sql
 \ir rules-support.sql
 UPDATE public.nba_games SET status='Final' WHERE status='InProgress';
 DELETE FROM private.work_items;
