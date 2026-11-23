@@ -36,6 +36,8 @@ This release adds eight migrations, for 799 migrations:
 `20261215150000_roster_action_policy.sql` follows them, for 800 migrations.
 It routes every roster hold check through `private.roster_action_policy`, keeps each guard's current outcome, and needs no Edge or frontend release.
 `20261215160000_forecast_new_week_immediately.sql` follows, for 801 migrations; see [New-week forecasts](#new-week-forecasts).
+`20261215170000_roster_lock_scope.sql` follows it, for 802 migrations.
+It takes every roster lock through `private.lock_roster_scope` in one order, keeps each function's outcome, and needs no Edge or frontend release.
 Database, then Edge, then merge the frontend.
 The frontend needs no release.
 
