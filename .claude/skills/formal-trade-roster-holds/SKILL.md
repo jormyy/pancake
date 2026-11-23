@@ -20,7 +20,7 @@ npm run check:formal:trade-roster-holds
 
 Add `-- --install` once to fetch TLC 1.7.4 into `~/.cache/pancake-formal`; the script checks its sha256.
 It needs Java 11 or later on `PATH`, in `JAVA`, or from Homebrew `openjdk@21`. Set `TLA2TOOLS` to use another copy of the jar.
-CI runs it through `npm run check:formal` in `.github/workflows/formal.yml` on every pull request and push to `main`.
+CI runs it through `npm run check:gate` in `.github/workflows/ci.yml` on every pull request and push to `main`.
 It takes a few seconds and exits 0 only when all five runs match `coverage.json`:
 
 - `every-acceptance`: the current rule, two offers, roster limit 2. No invariant may fail.

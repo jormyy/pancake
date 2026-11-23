@@ -1,4 +1,4 @@
-name: Formal
+name: CI
 
 on:
   pull_request:
@@ -9,13 +9,13 @@ permissions:
   contents: read
 
 concurrency:
-  group: formal-${{ github.ref }}
+  group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  formal:
+  gate:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
@@ -25,11 +25,16 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.7.14
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: npm
       - uses: actions/cache@v4
         with:
           path: ~/.cache/pancake-formal
           key: pancake-formal-${{ hashFiles('tools/formal/*/coverage.json') }}
-      - run: npm run check:formal -- --install
+      - run: npm ci
+      - run: npm run check:gate -- -- --install
