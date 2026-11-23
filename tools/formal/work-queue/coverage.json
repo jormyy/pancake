@@ -1,5 +1,5 @@
 {
-    "syncCommit": "80d37c4af48c093c01956fc55417b0ef94973ca0",
+    "syncCommit": "f18a1a85ffda7899219c6e0ad1113831e580cd55",
     "tlc": {
         "version": "1.7.4",
         "url": "https://github.com/tlaplus/tlaplus/releases/download/v1.7.4/tla2tools.jar",
@@ -72,17 +72,27 @@
             "invariants": ["BackgroundKindsRun"]
         },
         {
-            "name": "88d6380a-empty-forecasts-starve-inputs",
-            "rev": "6029f978^",
-            "fixedBy": "6029f978",
+            "name": "1e696f25-empty-forecasts-starve-inputs",
+            "rev": "1e696f25",
+            "fixedBy": "965ca2d1",
             "scenario": "empty-forecasts",
             "expect": "BackgroundKindsRun",
             "starved": "forecast-inputs",
             "invariants": ["BackgroundKindsRun"]
         },
         {
-            "name": "6029f978-inputs-run-before-empty-forecasts",
-            "rev": "6029f978",
+            "name": "1e696f25-inputs-run-before-empty-forecasts",
+            "rev": "1e696f25",
+            "mutate": {
+                "Background": [
+                    "trade-revaluation",
+                    "trade-revaluation-check",
+                    "trade-revaluation-scan",
+                    "forecast-inputs",
+                    "notification-scan",
+                    "matchup-forecasts"
+                ]
+            },
             "scenario": "empty-forecasts",
             "expect": "pass",
             "invariants": ["BackgroundKindsRun"]
@@ -90,16 +100,17 @@
         {
             "name": "e7bddbc4-strict-due-order",
             "rev": "e7bddbc4",
-            "fixedBy": "4f24d4b1",
+            "fixedBy": "965ca2d1",
             "scenario": "bulk-backlog",
             "expect": "BackgroundKindsRun",
             "starved": "forecast-inputs",
             "invariants": ["BackgroundKindsRun"]
         },
         {
-            "name": "88d6380a-live-poll-behind-cap",
-            "rev": "8bc9e67a^",
-            "fixedBy": "8bc9e67a",
+            "name": "e40ba582-live-poll-behind-cap",
+            "rev": "e40ba582",
+            "mutate": { "LiveFirst": false },
+            "fixedBy": "e40ba582",
             "scenario": "live-night",
             "expect": "LivePollFirst",
             "invariants": ["LivePollFirst"]
