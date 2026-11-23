@@ -561,6 +561,8 @@ Settlement can apply its own plan without releasing another action's locks.
 A successful waiver award cancels other claims that need the same drop.
 
 `private.locked_assets` supplies each lock and its reason.
+`private.roster_action_policy` decides which roster actions each hold blocks.
+Guards ask `private.assert_roster_action_allowed`, and `tests/db/roster-action-matrix.sql` checks every cell against the real triggers.
 Roster, lineup, and waiver snapshots include those locks in the same request.
 The trade asset controls use the roster snapshot.
 Lock changes publish a league version before deferred trade activity finishes.

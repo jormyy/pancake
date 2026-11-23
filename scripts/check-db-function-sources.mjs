@@ -464,7 +464,17 @@ export const checkFunctionSources = async () => {
     }
   }
 
-  return failures
+  return [...failures, ...await sourceRuleFailures(latestDefinitions)]
+}
+
+const SOURCE_RULES_DIR = path.join(ROOT, 'scripts/db-source-rules')
+
+/** @param {Map<string, string>} definitions */
+const sourceRuleFailures = async (definitions) => {
+  const rules = (await readdir(SOURCE_RULES_DIR)).filter((name) => name.endsWith('.mjs')).sort()
+  const results = await Promise.all(rules.map(async (name) =>
+    (await import(pathToFileURL(path.join(SOURCE_RULES_DIR, name)).href)).default(definitions)))
+  return results.flat()
 }
 
 const sqlLiteral = (value) => `'${value.replaceAll("'", "''")}'`

@@ -32,6 +32,7 @@
   "entry": [
     "tools/perf/{run,edge,profile,harness.test}.mjs",
     "tools/verify/{run,run.test,browser,fixture,observe,pick-years,seed-trade-acceptance,seed-trade-roster-holds,seed-auto-ir,seed-roster-floor,trigger-lineup-optimizer,trigger-roster-floor}.mjs",
+    "scripts/db-source-rules/*.mjs",
     "tests/e2e/static-web-server.mjs",
     "tests/e2e/taxi-acquisitions-db.mjs",
     "tests/e2e/validate-production-target.mjs",

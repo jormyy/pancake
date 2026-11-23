@@ -11,7 +11,6 @@ AS $$
 DECLARE
   v_completing_trade_id uuid;
   v_applied_trade_id text:=current_setting('pancake.applied_trade_id',true);
-  lock_reason text;
 BEGIN
   IF OLD.member_id<>NEW.member_id THEN
     SELECT c.related_id INTO v_completing_trade_id FROM private.taxi_acquisition_context c
@@ -38,20 +37,14 @@ BEGIN
   END IF;
   IF (OLD.league_id,OLD.league_season_id,OLD.member_id,OLD.player_id) IS DISTINCT FROM (NEW.league_id,NEW.league_season_id,NEW.member_id,NEW.player_id)
     OR OLD.is_on_ir IS DISTINCT FROM NEW.is_on_ir OR OLD.is_on_taxi IS DISTINCT FROM NEW.is_on_taxi THEN
-    PERFORM private.assert_not_reserved_trade_asset(OLD.league_id, OLD.league_season_id, OLD.member_id, OLD.player_id, NULL, v_completing_trade_id);
-  END IF;
-
-  IF (v_completing_trade_id IS NULL OR OLD.member_id=NEW.member_id) AND ((OLD.league_id,OLD.league_season_id,OLD.member_id,OLD.player_id) IS DISTINCT FROM (NEW.league_id,NEW.league_season_id,NEW.member_id,NEW.player_id)
-    OR OLD.is_on_ir IS DISTINCT FROM NEW.is_on_ir OR OLD.is_on_taxi IS DISTINCT FROM NEW.is_on_taxi) THEN
-    SELECT locked.reason INTO lock_reason FROM private.locked_assets(OLD.league_id, OLD.league_season_id, OLD.member_id) locked
-      WHERE locked.source_kind='claim' AND locked.asset_id=OLD.player_id ORDER BY locked.source_id LIMIT 1;
-    IF lock_reason IS NOT NULL THEN RAISE EXCEPTION '%', lock_reason USING ERRCODE='PA004'; END IF;
-  END IF;
-
-  IF v_completing_trade_id IS NULL AND (
-    (OLD.league_id,OLD.league_season_id,OLD.member_id,OLD.player_id) IS DISTINCT FROM (NEW.league_id,NEW.league_season_id,NEW.member_id,NEW.player_id)
-    OR OLD.is_on_ir IS DISTINCT FROM NEW.is_on_ir OR OLD.is_on_taxi IS DISTINCT FROM NEW.is_on_taxi) THEN
-    PERFORM private.assert_asset_unlocked(OLD.league_id,OLD.league_season_id,OLD.member_id,OLD.player_id);
+    PERFORM private.assert_roster_action_allowed(CASE
+        WHEN v_completing_trade_id IS NOT NULL THEN 'trade_move'
+        WHEN (OLD.league_id,OLD.league_season_id,OLD.member_id,OLD.player_id) IS DISTINCT FROM (NEW.league_id,NEW.league_season_id,NEW.member_id,NEW.player_id) THEN 'transfer'
+        WHEN NEW.is_on_ir AND NOT OLD.is_on_ir THEN 'to_ir'
+        WHEN OLD.is_on_ir AND NOT NEW.is_on_ir THEN 'from_ir'
+        WHEN NEW.is_on_taxi THEN 'to_taxi'
+        ELSE 'from_taxi' END::private.roster_action,
+      OLD.league_id, OLD.league_season_id, OLD.member_id, OLD.player_id, NULL, ARRAY[v_completing_trade_id]);
   END IF;
 
   IF OLD.member_id IS DISTINCT FROM NEW.member_id AND v_completing_trade_id IS NULL AND (
