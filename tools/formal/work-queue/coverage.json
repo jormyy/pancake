@@ -1,0 +1,134 @@
+{
+    "syncCommit": "f18a1a85ffda7899219c6e0ad1113831e580cd55",
+    "tlc": {
+        "version": "1.7.4",
+        "url": "https://github.com/tlaplus/tlaplus/releases/download/v1.7.4/tla2tools.jar",
+        "sha256": "936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88"
+    },
+    "files": [
+        "supabase/sql/functions/by-name/private/work_claim.sql",
+        "supabase/sql/functions/by-name/public/dispatch_work.sql",
+        "supabase/sql/functions/by-name/private/release_stalled_live_poll.sql",
+        "supabase/sql/functions/by-name/private/work_finish.sql",
+        "supabase/sql/functions/by-name/private/work_execute.sql",
+        "supabase/sql/functions/by-name/private/enqueue_live_poll.sql"
+    ],
+    "scenarios": {
+        "live-night": {
+            "MaxHolders": 1,
+            "Burst": 4,
+            "Losses": true,
+            "Backlog": 8,
+            "FairBound": 3,
+            "StallBound": 2
+        },
+        "empty-forecasts": {
+            "MaxHolders": 1,
+            "Burst": 0,
+            "Losses": false,
+            "Backlog": 0,
+            "FairBound": 3,
+            "StallBound": 2
+        },
+        "bulk-backlog": {
+            "MaxHolders": 1,
+            "Burst": 0,
+            "Losses": false,
+            "Backlog": 330,
+            "FairBound": 3,
+            "StallBound": 2
+        },
+        "lost-live-poll": {
+            "MaxHolders": 1,
+            "Burst": 0,
+            "Losses": true,
+            "Backlog": 0,
+            "FairBound": 3,
+            "StallBound": 6
+        }
+    },
+    "runs": [
+        {
+            "name": "current",
+            "scenario": "live-night",
+            "expect": "pass",
+            "invariants": [
+                "LivePollFirst",
+                "StalledLivePollRetries",
+                "BackgroundKindsRun",
+                "NoItemRunsTwice"
+            ]
+        },
+        {
+            "name": "current-empty-forecasts",
+            "scenario": "empty-forecasts",
+            "expect": "pass",
+            "invariants": ["BackgroundKindsRun"]
+        },
+        {
+            "name": "current-bulk-backlog",
+            "scenario": "bulk-backlog",
+            "expect": "pass",
+            "invariants": ["BackgroundKindsRun"]
+        },
+        {
+            "name": "1e696f25-empty-forecasts-starve-inputs",
+            "rev": "1e696f25",
+            "fixedBy": "965ca2d1",
+            "scenario": "empty-forecasts",
+            "expect": "BackgroundKindsRun",
+            "starved": "forecast-inputs",
+            "invariants": ["BackgroundKindsRun"]
+        },
+        {
+            "name": "1e696f25-inputs-run-before-empty-forecasts",
+            "rev": "1e696f25",
+            "mutate": {
+                "Background": [
+                    "trade-revaluation",
+                    "trade-revaluation-check",
+                    "trade-revaluation-scan",
+                    "forecast-inputs",
+                    "notification-scan",
+                    "matchup-forecasts"
+                ]
+            },
+            "scenario": "empty-forecasts",
+            "expect": "pass",
+            "invariants": ["BackgroundKindsRun"]
+        },
+        {
+            "name": "e7bddbc4-strict-due-order",
+            "rev": "e7bddbc4",
+            "fixedBy": "965ca2d1",
+            "scenario": "bulk-backlog",
+            "expect": "BackgroundKindsRun",
+            "starved": "forecast-inputs",
+            "invariants": ["BackgroundKindsRun"]
+        },
+        {
+            "name": "e40ba582-live-poll-behind-cap",
+            "rev": "e40ba582",
+            "mutate": { "LiveFirst": false },
+            "fixedBy": "e40ba582",
+            "scenario": "live-night",
+            "expect": "LivePollFirst",
+            "invariants": ["LivePollFirst"]
+        },
+        {
+            "name": "26634d05-stalled-live-poll",
+            "rev": "e5f16211^",
+            "fixedBy": "e5f16211",
+            "scenario": "lost-live-poll",
+            "expect": "StalledLivePollRetries",
+            "invariants": ["StalledLivePollRetries"]
+        },
+        {
+            "name": "unfenced-finish",
+            "mutate": { "Fenced": false },
+            "scenario": "live-night",
+            "expect": "NoItemRunsTwice",
+            "invariants": ["NoItemRunsTwice"]
+        }
+    ]
+}
