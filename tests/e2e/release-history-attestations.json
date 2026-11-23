@@ -436,6 +436,12 @@
       "name": "set_player_slot_moves_atomic_unchecked",
       "identityArguments": "p_member_id uuid, p_league_id uuid, p_league_season_id uuid, p_game_date date, p_week_number integer, p_moves jsonb",
       "bodySha256": "4bbbdb3a9edacaf208ece8f80e4bf5bf49ff903a3fe822abd1cb552b19d7fd72"
+    },
+    {
+      "version": "20261215170000",
+      "name": "auto_set_lineup_atomic_unchecked",
+      "identityArguments": "p_member_id uuid, p_league_id uuid, p_league_season_id uuid, p_game_date date, p_assignments jsonb",
+      "bodySha256": "f42845bb4819c49dc32bc44072d82cbcedeb9c29a11a83788ee7d92d20fdd7a3"
     }
   ],
   "approvedMigrations": [
@@ -3742,6 +3748,13 @@
       "statementCount": 7,
       "statementsSha256": "c253ebb1928b6cb44fc9202baf26afff677e2e5f8dbef5685db536c3be151de3",
       "sha256": "3816e7ecd08c9c0466e9406667a257381526dfcb06c1da03822af7be11338aa9"
+    },
+    {
+      "name": "roster_lock_scope",
+      "version": "20261215170000",
+      "statementCount": 25,
+      "statementsSha256": "7e07db0864adefb018a10b67f77979b36a333acbe6a8c1f43b856e19ce473a6b",
+      "sha256": "cc3e4c32fbeb0320375f9f788c8e7781140d45b115b7b0e02183b552ba2c8602"
     }
   ]
 }
