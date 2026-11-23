@@ -35,6 +35,7 @@ This release adds eight migrations, for 799 migrations:
 `20261214011400_league_roster_policies.sql`, `20261214011500_weekly_roster_floor.sql`, `20261214011600_league_auto_ir_schedule.sql`, `20261214011700_enable_official_league_roster_policy.sql`, `20261214011800_tipoff_mode_aware_completion.sql`, `20261214011900_total_add_week.sql`, `20261215080000_immutable_lineup_history.sql`, and `20261215140000_dynasty_rank_owner.sql`.
 `20261215150000_roster_action_policy.sql` follows them, for 800 migrations.
 It routes every roster hold check through `private.roster_action_policy`, keeps each guard's current outcome, and needs no Edge or frontend release.
+`20261215160000_forecast_new_week_immediately.sql` follows, for 801 migrations; see [New-week forecasts](#new-week-forecasts).
 Database, then Edge, then merge the frontend.
 The frontend needs no release.
 
@@ -389,3 +390,14 @@ Any other write fails with `players.dynasty_rank is owned by the Hashtag five-ye
 The trigger checks only written rows, so existing rows need no backfill.
 Read-only check before applying: `SELECT count(*) FROM public.players WHERE dynasty_rank_source IS DISTINCT FROM 'hashtagbasketball.com' AND (dynasty_rank IS NOT NULL OR dynasty_rank_source IS NOT NULL);` should return 0.
 Rollback: `DROP TRIGGER players_dynasty_rank_owner ON public.players;`.
+
+## New-week forecasts
+
+`20261215160000_forecast_new_week_immediately.sql` replaces the `private.matchup_forecast_schedule` view, for 801 migrations.
+A started week's matchup with no saved forecast is due at once instead of at the week's first tipoff, so Home stops reading "pending" from the week flip until the first game.
+After that first forecast the tipoff and 30-minute in-game schedule is unchanged, so the cost is one computation per matchup per week.
+The migration also makes refresh requests already parked at a later tipoff for those matchups due now.
+It touches no function, needs no Edge or frontend release, and can apply in any order after `20261214006300`.
+Production already has this view and catch-up: they were applied on 2026-11-23 to fill week 6's forecasts, without recording the migration. The view is `CREATE OR REPLACE` and the catch-up only moves requests that are still parked, so applying the migration again in the release is safe.
+Run `npm run test:db:matchup-forecast-week-start` and `npm run test:db:matchup-forecast-budget` on a private stack.
+Rollback: apply `supabase/rollbacks/20261215160000_forecast_new_week_immediately.sql`.

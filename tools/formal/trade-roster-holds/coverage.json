@@ -62,7 +62,7 @@
   ],
   "migrations": {
     "dir": "supabase/migrations",
-    "through": "20261215150000_roster_action_policy.sql",
-    "sha256": "b124121d1e9b37d51e54c54a6dbea68267cafd8dc0d8eb31b0db83dacd3ace1f"
+    "through": "20261215160000_forecast_new_week_immediately.sql",
+    "sha256": "ff7242d0fb497e8d10d45c326c6cd9691297edfce0c5f2bf30b4eaaa270a045b"
   }
 }
