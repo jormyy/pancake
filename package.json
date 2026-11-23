@@ -63,6 +63,7 @@
     "check:database-types": "node scripts/generate-database-types.mjs --check",
     "check:edge-shared": "node scripts/generate-edge-shared.mjs --check",
     "check:db-function-sources": "node scripts/check-db-function-sources.mjs --check",
+    "check:formal:work-queue": "node tools/formal/work-queue/check.mjs",
     "check:db-function-catalog": "node scripts/check-db-function-sources.mjs --check-catalog",
     "test:db:statistics-catalog": "node tests/db/statistics-catalog-controls.mjs",
     "generate:db-function-catalog": "node scripts/check-db-function-sources.mjs --write-catalog-manifest",
