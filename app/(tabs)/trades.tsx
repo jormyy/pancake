@@ -35,6 +35,7 @@ import { usePendingTradeCount } from '@/hooks/use-pending-trade-count'
 import { useTradeBlock } from '@/hooks/use-trade-block'
 import { useTradeActions } from '@/hooks/use-trade-actions'
 import { useRosterHoldReady } from '@/hooks/use-roster-hold-ready'
+import { rosterLimits } from '@/lib/roster-capacity'
 
 import { useAuth } from '@/hooks/use-auth'
 import {
@@ -122,7 +123,8 @@ function TradesScreen() {
         loadMore: loadMoreHistory,
     } = useTradeHistoryFeed(myMemberId, leagueId, tab === 'history', user?.id ?? null)
     const decisionsDisabled = online && (tradesSnapshot || Boolean(tradesError))
-    const rosterLegality = useRosterLegality({ memberId: myMemberId, leagueId, rosterSize: currentLeague?.roster_size ?? 20, irSlots: currentLeague?.ir_slots ?? 2, onChanged: load })
+    const limits = useMemo(() => rosterLimits(currentLeague), [currentLeague])
+    const rosterLegality = useRosterLegality({ memberId: myMemberId, leagueId, limits, onChanged: load })
     const tradeActions = useTradeActions({
         onRosterError: rosterLegality.report,
         memberId: myMemberId,

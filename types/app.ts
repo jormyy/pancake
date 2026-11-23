@@ -25,8 +25,8 @@ export interface LeagueInfo {
     playoff_round_lengths?: number[] | null
     playoff_total_weeks?: number | null
     playoff_round_weeks?: number[] | null
-    roster_size: number
-    ir_slots: number
+    roster_size?: number
+    ir_slots?: number
     taxi_slots?: number
     trade_deadline?: string | null
     weekly_add_limit?: number | null

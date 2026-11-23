@@ -94,13 +94,18 @@ export async function cancelWaiverClaim(claimId: string, memberId: string): Prom
     if (generation === sessionGeneration()) notifyMemberClaimsChanged(memberId)
 }
 
+export type WaiverClaimEdit = { dropPlayerId: string | null; bidAmount?: number; claimOrder?: number | null; toIr?: boolean; toTaxi?: boolean }
+
+export function claimEditChangesRosterCapacity(claim: Pick<WaiverClaim, 'dropPlayerId' | 'toIr' | 'toTaxi'>, updates: WaiverClaimEdit): boolean {
+    return updates.dropPlayerId !== claim.dropPlayerId
+        || (updates.toIr !== undefined && updates.toIr !== Boolean(claim.toIr))
+        || (updates.toTaxi !== undefined && updates.toTaxi !== Boolean(claim.toTaxi))
+}
+
 export async function editWaiverClaim(
     claimId: string,
     memberId: string,
-    // dropPlayerId is required (null clears it): edit_waiver_claim_atomic writes
-    // whatever it receives, so an omitted field would silently drop the drop
-    // player and turn a valid claim into one that fails "roster full".
-    updates: { dropPlayerId: string | null; bidAmount?: number; claimOrder?: number | null; toIr?: boolean; toTaxi?: boolean },
+    updates: WaiverClaimEdit,
 ): Promise<void> {
     const generation = sessionGeneration()
     await apiPost(`/waivers/claims/${claimId}/edit`, {

@@ -48,7 +48,7 @@ it.each([
         actions = useLineupActions({
             actionContext: { memberId: 'member', leagueId: 'league', seasonId: 'season', weekNumber: 1, seasonYear: 2026 },
             myLineup: React.useMemo(() => ({ starters: [{ slotType: 'PG', player: null }], bench: kind === 'activation' ? [] : [player], taxi: kind === 'activation' ? [player] : [] }), []),
-            league: { roster_size: 20 }, selectedDate: '2026-07-09', startedTeams: new Set(), reloadLineup: reload,
+            league: { roster_size: 20, ir_slots: 2, taxi_slots: 1 }, selectedDate: '2026-07-09', startedTeams: new Set(), reloadLineup: reload,
         })
         return null
     }
@@ -77,7 +77,7 @@ it('clears an index selection when the lineup changes and keeps it when unchange
     const owner = { memberId: 'member', leagueId: 'league', seasonId: 'season', weekNumber: 1, seasonYear: 2026 }
     let actions!: ReturnType<typeof useLineupActions>
     const Probe = ({ lineup }: { lineup: typeof first }) => {
-        actions = useLineupActions({ actionContext: owner, myLineup: lineup, league: { roster_size: 20 },
+        actions = useLineupActions({ actionContext: owner, myLineup: lineup, league: { roster_size: 20, ir_slots: 2, taxi_slots: 1 },
             selectedDate: '2026-07-09', startedTeams: new Set(), reloadLineup: async () => {} })
         return null
     }
@@ -106,7 +106,7 @@ it('saves a manual move only for the selected future day', async () => {
         const lineup = React.useMemo(() => ({ starters: [{ slotType: 'PG', player: null }], bench: [player] }), [])
         actions = useLineupActions({
             actionContext: { memberId: 'member', leagueId: 'league', seasonId: 'season', weekNumber: 1, seasonYear: 2026 },
-            myLineup: lineup, league: { roster_size: 20 }, selectedDate: '2026-07-11', startedTeams: new Set(), reloadLineup: reload,
+            myLineup: lineup, league: { roster_size: 20, ir_slots: 2, taxi_slots: 1 }, selectedDate: '2026-07-11', startedTeams: new Set(), reloadLineup: reload,
         })
         return null
     }

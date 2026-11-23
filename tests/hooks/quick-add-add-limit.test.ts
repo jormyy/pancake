@@ -46,7 +46,7 @@ async function mount(transactionState: MemberTransactionState | null, options: P
     const onChanged = vi.fn()
     let latest!: Latest
     const Probe = () => {
-        latest = useQuickAdd({ memberId: 'member-a', leagueId: 'league-a', onChanged, transactionState, onClaimInstead: mocks.claim, ...options })
+        latest = useQuickAdd({ memberId: 'member-a', leagueId: 'league-a', onChanged, transactionState, onClaimInstead: mocks.claim, limits: { rosterSize: 20, irSlots: 2, taxiSlots: 0 }, ...options })
         return null
     }
     await act(async () => { renderer = create(React.createElement(Probe)) })
@@ -162,7 +162,7 @@ it.each(['taxi', 'ir'] as const)('opens a claim with the selected drop and freed
     const incoming = { ...player, years_exp: 0, career_regular_season_games: 0, injury_status: 'Out' }
     mocks.loadGate.mockResolvedValue({ roster: [ownRosterPlayer, drop], ineligible: [], taxiExitIds: new Set() })
     mocks.dropAndAdd.mockResolvedValue(undefined)
-    const probe = await mount(null, { rosterSize: 1, taxiSlots: 1, irSlots: 1 })
+    const probe = await mount(null, { limits: { rosterSize: 1, irSlots: 1, taxiSlots: 1 } })
     await act(async () => probe.latest.setDropPickerPlayer(incoming))
     await act(async () => probe.latest.handleDropAndAdd(drop, destination))
     expect(mocks.claim).toHaveBeenCalledExactlyOnceWith(incoming, { dropPlayerId: 'inactive-player', destination })

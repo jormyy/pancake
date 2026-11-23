@@ -7,6 +7,7 @@ import { endOfLeagueDayUTC, todayLeague } from '@/lib/timezone'
 import { leagueTimezone } from '@/lib/league-timezones'
 import { getEligiblePositions } from '@/lib/players'
 import { onSessionCachesCleared } from '@/lib/session-cache-registry'
+import { partitionRoster, rosterLocation } from '@/lib/roster-capacity'
 
 import type { LineupPin } from '@/lib/lineup/pins'
 
@@ -245,7 +246,7 @@ export async function getWeeklyLineup(
         assignments.map((a) => [a.player_id, a.slot_type]),
     )
 
-    const reservePlayerIds = new Set(roster.filter(row => row.is_on_ir || row.is_on_taxi).map(row => row.player_id))
+    const reservePlayerIds = new Set(roster.filter(row => rosterLocation(row) !== 'active').map(row => row.player_id))
     const rosterByPlayerId = new Map<string, LineupPlayer>()
     for (const r of roster) {
         // Supabase types `players` as a possible array | object | null depending on relationship inference.
@@ -310,8 +311,6 @@ export async function getWeeklyLineup(
         addedAfterDate = new Set((laterAddsResult.data ?? []).map((r) => r.player_id))
     }
 
-    // Taxi slots are tracked via `roster_players.is_on_taxi`, not as a slot template type,
-    // so the enum doesn't include 'TX'. Only BE/IR are excluded here.
     const starterTemplates = templates.filter(
         (t) => t.slot_type !== 'BE' && t.slot_type !== 'IR',
     )
@@ -339,18 +338,19 @@ export async function getWeeklyLineup(
     const starterPlayerIds = new Set(
         starters.map((s) => s.player?.playerId).filter(Boolean) as string[],
     )
-    const bench: LineupPlayer[] = roster
-        .filter((r) => !r.is_on_ir && !r.is_on_taxi && !starterPlayerIds.has(r.player_id) && !addedAfterDate.has(r.player_id))
+    const partitioned = partitionRoster(roster)
+    const bench: LineupPlayer[] = partitioned.active
+        .filter((r) => !starterPlayerIds.has(r.player_id) && !addedAfterDate.has(r.player_id))
         .map((r) => rosterByPlayerId.get(r.player_id)!)
         .filter(Boolean)
 
-    const ir: LineupPlayer[] = roster
-        .filter((r) => r.is_on_ir && !starterPlayerIds.has(r.player_id))
+    const ir: LineupPlayer[] = partitioned.ir
+        .filter((r) => !starterPlayerIds.has(r.player_id))
         .map((r) => rosterByPlayerId.get(r.player_id)!)
         .filter(Boolean)
 
-    const taxi: LineupPlayer[] = roster
-        .filter((r) => r.is_on_taxi && !starterPlayerIds.has(r.player_id))
+    const taxi: LineupPlayer[] = partitioned.taxi
+        .filter((r) => !starterPlayerIds.has(r.player_id))
         .map((r) => rosterByPlayerId.get(r.player_id)!)
         .filter(Boolean)
 

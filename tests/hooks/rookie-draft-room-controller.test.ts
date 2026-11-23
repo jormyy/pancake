@@ -236,7 +236,7 @@ describe('useRookieDraftRoomController', () => {
     it('clears a stale trim list when the read after a successful drop fails', async () => {
         const roster = ['a', 'b', 'c'].map((id) => ({ id, is_on_ir: false, is_on_taxi: false }))
         mocks.getState.mockImplementation(() => Promise.resolve(draftState('draft', 'completed')))
-        mocks.getRoster.mockResolvedValueOnce(roster).mockRejectedValue(new Error('read failed'))
+        mocks.getRoster.mockResolvedValueOnce(roster).mockResolvedValueOnce(roster).mockRejectedValue(new Error('read failed'))
         let latest!: ReturnType<typeof useRookieDraftRoomController>
         let renderer!: ReactTestRenderer
         await act(async () => { renderer = create(React.createElement(() => {
@@ -254,11 +254,11 @@ describe('useRookieDraftRoomController', () => {
             mocks.appStateListener('active')
         })
         expect(latest.completionError).toBe(recoveryMessage)
-        expect(mocks.getRoster).toHaveBeenCalledTimes(2)
+        expect(mocks.getRoster).toHaveBeenCalledTimes(3)
         expect(mocks.drop).toHaveBeenCalledTimes(1)
         mocks.getRoster.mockResolvedValue(roster.slice(1))
         await act(async () => { await latest.refresh() })
-        expect(mocks.getRoster).toHaveBeenCalledTimes(3)
+        expect(mocks.getRoster).toHaveBeenCalledTimes(4)
         expect(latest.trimOverflow).toBeNull()
         expect(mocks.activate).toHaveBeenCalledWith('draft')
         await act(async () => { renderer.unmount() })
@@ -684,5 +684,248 @@ describe('rookie countdown deadlines', () => {
             await act(async () => { renderer = create(React.createElement(Probe)) })
             expect(latest.secondsLeft).toBe(expected - 1)
         } finally { await act(async () => { renderer?.unmount() }); vi.useRealTimers() }
+    })
+})
+
+
+describe('annual draft trim while roster settings load', () => {
+    const setup = async () => {
+        const roster = [
+            { id: 'synthetic-old', is_on_ir: false, is_on_taxi: false, players: { id: 'old', display_name: 'Old' } },
+            { id: 'synthetic-mid', is_on_ir: false, is_on_taxi: false, players: { id: 'mid', display_name: 'Mid' } },
+            { id: 'synthetic-rookie', is_on_ir: false, is_on_taxi: false, players: { id: 'rookie', display_name: 'Rookie' } },
+        ]
+        mocks.getState.mockResolvedValue(draftState('annual', 'completed'))
+        mocks.getRoster.mockImplementation(async () => [...roster])
+        mocks.drop.mockImplementation(async (id: string) => { roster.splice(roster.findIndex((r) => r.id === id), 1) })
+        let latest!: ReturnType<typeof useRookieDraftRoomController>
+        const Probe = ({ rosterSize }: { rosterSize: number | null }) => {
+            latest = useRookieDraftRoomController({ draftId: 'annual', memberId: 'member', leagueId: 'league', rosterSize })
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe, { rosterSize: 1 })) })
+        expect(latest.trimOverflow?.excess).toBe(2)
+        return { renderer, Probe, get latest() { return latest } }
+    }
+
+    it('synthetic roster: keeps the drop it confirmed and waits to recheck when limits disappear during the drop', async () => {
+        const view = await setup()
+        const dropReply = deferred<undefined>()
+        mocks.drop.mockImplementationOnce(async (id: string) => {
+            await dropReply.promise
+            const roster = await mocks.getRoster.getMockImplementation()!()
+            expect(roster.some((row: { id: string }) => row.id === id)).toBe(true)
+        })
+        let pending!: Promise<void>
+        await act(async () => { pending = view.latest.handleTrimDrop('synthetic-old') })
+        await act(async () => view.renderer.update(React.createElement(view.Probe, { rosterSize: null })))
+        await act(async () => { dropReply.resolve(undefined); await pending })
+        expect(mocks.drop).toHaveBeenCalledExactlyOnceWith('synthetic-old', 'draft-season', 'annual')
+        expect(view.latest.trimOverflow).toBeNull()
+        expect(view.latest.completionError).toBeNull()
+        expect(view.latest.trimAwaitingLimits).toBe(true)
+        const reads = mocks.getRoster.mock.calls.length
+        await act(async () => view.renderer.update(React.createElement(view.Probe, { rosterSize: 1 })))
+        expect(mocks.getRoster.mock.calls.length).toBe(reads + 1)
+        expect(view.latest.trimAwaitingLimits).toBe(false)
+        expect(view.latest.trimOverflow).toMatchObject({ excess: 2, rosterSize: 1 })
+        expect(mocks.activate).not.toHaveBeenCalled()
+        await act(async () => { view.renderer.unmount() })
+    })
+
+    it('synthetic roster: after limits disappear mid-drop, a larger returned limit ends the trim without another prompt', async () => {
+        const view = await setup()
+        const dropReply = deferred<undefined>()
+        const removeFromRoster = mocks.drop.getMockImplementation()!
+        mocks.drop.mockImplementationOnce(async (id: string) => {
+            await dropReply.promise
+            await removeFromRoster(id)
+        })
+        let pending!: Promise<void>
+        await act(async () => { pending = view.latest.handleTrimDrop('synthetic-old') })
+        await act(async () => view.renderer.update(React.createElement(view.Probe, { rosterSize: null })))
+        await act(async () => { dropReply.resolve(undefined); await pending })
+        expect(view.latest.trimAwaitingLimits).toBe(true)
+        expect(view.latest.trimOverflow).toBeNull()
+        await act(async () => view.renderer.update(React.createElement(view.Probe, { rosterSize: 3 })))
+        expect(view.latest.trimAwaitingLimits).toBe(false)
+        expect(view.latest.trimOverflow).toBeNull()
+        expect(mocks.drop).toHaveBeenCalledTimes(1)
+        expect(mocks.activate).not.toHaveBeenCalled()
+        await act(async () => { view.renderer.unmount() })
+    })
+
+    it('synthetic roster: keeps the known-limit trim continuation unchanged', async () => {
+        const view = await setup()
+        await act(async () => { await view.latest.handleTrimDrop('synthetic-old') })
+        expect(view.latest.trimOverflow?.excess).toBe(1)
+        expect(mocks.activate).not.toHaveBeenCalled()
+        await act(async () => { view.renderer.unmount() })
+    })
+})
+
+describe('annual draft completion when roster settings change during the roster read', () => {
+    const syntheticRoster = [
+        { id: 'synthetic-a', is_on_ir: false, is_on_taxi: false, players: { id: 'a', display_name: 'Synthetic A' } },
+        { id: 'synthetic-b', is_on_ir: false, is_on_taxi: false, players: { id: 'b', display_name: 'Synthetic B' } },
+    ]
+    const run = async (before: number, after: number | null) => {
+        mocks.getState.mockResolvedValue(draftState('annual', 'completed'))
+        const firstRead = deferred<typeof syntheticRoster>()
+        mocks.getRoster.mockReturnValueOnce(firstRead.promise).mockImplementation(async () => [...syntheticRoster])
+        let latest!: ReturnType<typeof useRookieDraftRoomController>
+        const Probe = ({ rosterSize }: { rosterSize: number | null }) => {
+            latest = useRookieDraftRoomController({ draftId: 'annual', memberId: 'member', leagueId: 'league', rosterSize })
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe, { rosterSize: before })) })
+        expect(mocks.getRoster).toHaveBeenCalledTimes(1)
+        await act(async () => renderer.update(React.createElement(Probe, { rosterSize: after })))
+        await act(async () => { firstRead.resolve([...syntheticRoster]) })
+        return { renderer, Probe, get latest() { return latest } }
+    }
+
+    it('synthetic roster: waits for unknown capacity instead of activating, then activates with the returned capacity', async () => {
+        const view = await run(2, null)
+        expect(mocks.activate).not.toHaveBeenCalled()
+        expect(view.latest.trimOverflow).toBeNull()
+        await act(async () => view.renderer.update(React.createElement(view.Probe, { rosterSize: 2 })))
+        expect(mocks.getRoster).toHaveBeenCalledTimes(2)
+        expect(mocks.activate).toHaveBeenCalledExactlyOnceWith('annual')
+        await act(async () => view.renderer.unmount())
+    })
+
+    it('synthetic roster: asks for a trim instead of activating when capacity shrinks', async () => {
+        const view = await run(2, 1)
+        expect(mocks.activate).not.toHaveBeenCalled()
+        expect(view.latest.trimOverflow?.excess).toBe(1)
+        await act(async () => view.renderer.unmount())
+    })
+
+    it('synthetic roster: activates without a trim prompt when capacity grows', async () => {
+        const view = await run(1, 3)
+        expect(view.latest.trimOverflow).toBeNull()
+        expect(mocks.activate).toHaveBeenCalledExactlyOnceWith('annual')
+        await act(async () => view.renderer.unmount())
+    })
+
+    it.each([[2, null], [1, 1]] as const)('synthetic roster: unchanged capacity %s keeps the original decision', async (size, excess) => {
+        const view = await run(size, size)
+        expect(view.latest.trimOverflow?.excess ?? null).toBe(excess)
+        expect(mocks.activate).toHaveBeenCalledTimes(excess == null ? 1 : 0)
+        expect(mocks.getRoster).toHaveBeenCalledTimes(1)
+        await act(async () => view.renderer.unmount())
+    })
+})
+
+describe('annual draft trim prompt after roster settings change', () => {
+    const start = async (rosterSize: number) => {
+        const roster = [
+            { id: 'synthetic-a', is_on_ir: false, is_on_taxi: false, players: { id: 'a', display_name: 'Synthetic A' } },
+            { id: 'synthetic-b', is_on_ir: false, is_on_taxi: false, players: { id: 'b', display_name: 'Synthetic B' } },
+        ]
+        mocks.getState.mockResolvedValue(draftState('annual', 'completed'))
+        mocks.getRoster.mockImplementation(async () => [...roster])
+        mocks.drop.mockImplementation(async (id: string) => { roster.splice(roster.findIndex((r) => r.id === id), 1) })
+        let latest!: ReturnType<typeof useRookieDraftRoomController>
+        const Probe = ({ rosterSize }: { rosterSize: number | null }) => {
+            latest = useRookieDraftRoomController({ draftId: 'annual', memberId: 'member', leagueId: 'league', rosterSize })
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe, { rosterSize })) })
+        expect(latest.trimOverflow?.excess).toBe(1)
+        const prompt = latest
+        const resize = (size: number | null) => act(async () => renderer.update(React.createElement(Probe, { rosterSize: size })))
+        return { roster, prompt, resize, renderer, get latest() { return latest } }
+    }
+
+    it('synthetic roster: clears the obsolete trim and activates once when capacity grows, even if the old prompt is tapped', async () => {
+        const view = await start(1)
+        await view.resize(2)
+        expect(view.latest.trimOverflow).toBeNull()
+        expect(mocks.getRoster).toHaveBeenCalledTimes(2)
+        expect(mocks.activate).toHaveBeenCalledExactlyOnceWith('annual')
+        await act(async () => { await view.prompt.handleTrimDrop('synthetic-a') })
+        expect(mocks.drop).not.toHaveBeenCalled()
+        expect(view.latest.trimOverflow).toBeNull()
+        expect(mocks.activate).toHaveBeenCalledTimes(1)
+        await act(async () => view.renderer.unmount())
+    })
+
+    it('synthetic roster: hides drop choices while capacity is unavailable, then restores the trim the returned capacity needs', async () => {
+        const view = await start(1)
+        await view.resize(null)
+        expect(view.latest.trimOverflow).toBeNull()
+        expect(view.latest.trimAwaitingLimits).toBe(true)
+        await act(async () => { await view.prompt.handleTrimDrop('synthetic-a') })
+        expect(mocks.drop).not.toHaveBeenCalled()
+        expect(mocks.getRoster).toHaveBeenCalledTimes(1)
+        await view.resize(1)
+        expect(view.latest.trimAwaitingLimits).toBe(false)
+        expect(view.latest.trimOverflow?.excess).toBe(1)
+        expect(mocks.activate).not.toHaveBeenCalled()
+        await view.resize(null)
+        await view.resize(2)
+        expect(view.latest.trimOverflow).toBeNull()
+        expect(mocks.activate).toHaveBeenCalledExactlyOnceWith('annual')
+        expect(mocks.drop).not.toHaveBeenCalled()
+        await act(async () => view.renderer.unmount())
+    })
+
+    it('synthetic roster: keeps a trim that unchanged capacity still requires and drops the chosen player once', async () => {
+        const view = await start(1)
+        await view.resize(1)
+        expect(view.latest.trimOverflow?.excess).toBe(1)
+        expect(mocks.getRoster).toHaveBeenCalledTimes(1)
+        await act(async () => { await view.latest.handleTrimDrop('synthetic-a') })
+        expect(mocks.drop).toHaveBeenCalledExactlyOnceWith('synthetic-a', 'draft-season', 'annual')
+        expect(view.latest.trimOverflow).toBeNull()
+        expect(mocks.activate).not.toHaveBeenCalled()
+        await act(async () => view.renderer.unmount())
+    })
+
+    it('synthetic roster: skips the drop when capacity grows while the confirm read is pending', async () => {
+        const view = await start(1)
+        const confirmRead = deferred<typeof view.roster>()
+        mocks.getRoster.mockReturnValueOnce(confirmRead.promise)
+        let pending!: Promise<void>
+        await act(async () => { pending = view.latest.handleTrimDrop('synthetic-a') })
+        await view.resize(2)
+        await act(async () => { confirmRead.resolve([...view.roster]); await pending })
+        expect(mocks.drop).not.toHaveBeenCalled()
+        expect(view.latest.trimOverflow).toBeNull()
+        expect(mocks.activate).toHaveBeenCalledExactlyOnceWith('annual')
+        await act(async () => view.renderer.unmount())
+    })
+
+    it('synthetic roster: skips the drop when the current roster already fits at confirm', async () => {
+        const view = await start(1)
+        view.roster[1].is_on_taxi = true
+        await act(async () => { await view.latest.handleTrimDrop('synthetic-a') })
+        expect(mocks.drop).not.toHaveBeenCalled()
+        expect(view.latest.trimOverflow).toBeNull()
+        expect(mocks.activate).toHaveBeenCalledExactlyOnceWith('annual')
+        await act(async () => view.renderer.unmount())
+    })
+
+    it('synthetic roster: keeps a standalone pick-overflow Drop working while capacity is unavailable', async () => {
+        mocks.getState.mockResolvedValue(draftState('overflow'))
+        mocks.getRoster.mockResolvedValue([{ id: 'synthetic-drop', is_on_ir: false, is_on_taxi: false }])
+        mocks.makePick.mockResolvedValue({ rosterOverflow: true, taxiSlotsAvailable: false })
+        let latest!: ReturnType<typeof useRookieDraftRoomController>
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(() => {
+            latest = useRookieDraftRoomController({ draftId: 'overflow', memberId: 'member', leagueId: 'league', rosterSize: null })
+            return null
+        })) })
+        await act(async () => { await latest.handlePick({ id: 'rookie', display_name: 'Rookie', nba_team: null, position: 'PG', nba_id: null, nba_draft_number: 1 }) })
+        expect(latest.rosterOverflow).not.toBeNull()
+        await act(async () => { await latest.resolveByDrop('synthetic-drop') })
+        expect(mocks.drop).toHaveBeenCalledExactlyOnceWith('synthetic-drop', 'draft-season', 'overflow')
+        expect(mocks.activate).not.toHaveBeenCalled()
+        await act(async () => renderer.unmount())
     })
 })

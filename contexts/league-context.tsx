@@ -7,6 +7,7 @@ import { useMemberClaimsStream } from '@/hooks/use-member-claims-stream'
 import { useLeagueChangeStream } from '@/hooks/use-league-change-stream'
 import { readPersistentCache, removePersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 import type { LeagueInfo } from '@/types/app'
+import { rosterLimits } from '@/lib/roster-capacity'
 
 type LeagueContextType = {
     memberships: LeagueMembership[]
@@ -100,7 +101,7 @@ export function LeagueProvider({ children }: PropsWithChildren) {
         [memberships, current, currentLeague, isCommissioner, setCurrent, loading, refresh, membershipStatus, membershipValidated, membershipError, online],
     )
 
-    return <LeagueContext.Provider value={value}><PlayerEligibilityContext.Provider value={currentLeague?.taxi_slots ?? 0}>{children}</PlayerEligibilityContext.Provider></LeagueContext.Provider>
+    return <LeagueContext.Provider value={value}><PlayerEligibilityContext.Provider value={rosterLimits(currentLeague)?.taxiSlots ?? 0}>{children}</PlayerEligibilityContext.Provider></LeagueContext.Provider>
 }
 
 export function useLeagueContext() {

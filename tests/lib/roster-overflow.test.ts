@@ -11,6 +11,10 @@ describe('active roster overflow', () => {
         expect(activeRosterOverflow(active, cap)).toBe(expected)
     })
 
+    it('reports no overflow while the league limit is unknown', () => {
+        expect(activeRosterOverflow(22, null)).toBe(0)
+    })
+
     it('serializes same-turn recovery mutations and releases ownership afterward', async () => {
         const runRecovery = createRosterRecoveryRunner()
         let finishFirst!: () => void

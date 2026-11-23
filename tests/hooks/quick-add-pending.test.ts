@@ -24,7 +24,7 @@ let renderer: ReactTestRenderer | null
 let latest: ReturnType<typeof useQuickAdd>
 const changed = vi.fn()
 const Probe = ({ memberId = 'member' }: { memberId?: string }) => {
-    latest = useQuickAdd({ memberId, leagueId: 'league', onChanged: changed, onClaimInstead: mocks.claim })
+    latest = useQuickAdd({ memberId, leagueId: 'league', onChanged: changed, onClaimInstead: mocks.claim, limits: { rosterSize: 20, irSlots: 2, taxiSlots: 0 } })
     return null
 }
 beforeEach(async () => {

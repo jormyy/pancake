@@ -86,7 +86,7 @@ export async function toggleTaxi(rosterPlayerId: string, isOnTaxi: boolean): Pro
     await apiPost('/league/roster/taxi', { rosterPlayerId, isOnTaxi })
 }
 
-export type RosterOccupancy = Pick<RosterPlayer, 'is_on_ir'>
+export type RosterOccupancy = Pick<RosterPlayer, 'is_on_ir' | 'is_on_taxi'>
 export type OwnedEntry = { teamName: string; memberId: string; isOnIR?: boolean; isOnTaxi?: boolean }
 
 export async function addFreeAgent(

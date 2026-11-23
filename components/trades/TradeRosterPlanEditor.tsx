@@ -8,6 +8,7 @@ import { RosterPlayerRow, RosterSectionBand, rosterActionDisabledStyle } from '@
 import type { RosterPlayer } from '@/lib/roster'
 import type { TradeItem, TradeRosterPlan, TradeRosterPreview } from '@/lib/trades'
 import { colors, foundation, radii, spacing, textStyles } from '@/constants/tokens'
+import { rosterLocation } from '@/lib/roster-capacity'
 
 export function TradeRosterPlanEditor({ incoming, roster, value, onChange, disabled = false, allowIR = true, allowTaxi = true, unavailableMoves = {}, unavailableDestinations = {}, avgMap, avgStatsMap }: {
     incoming: TradeItem[]
@@ -27,7 +28,7 @@ export function TradeRosterPlanEditor({ incoming, roster, value, onChange, disab
     const rows = [
         ...roster.map(row => ({ id: row.players.id, name: row.players.display_name, injury: row.players.injury_status,
             player: { name: row.players.display_name, playerId: row.players.id, nbaId: row.players.nba_id, team: row.players.nba_team, positions: row.players.eligible_positions, birthdate: row.players.birthdate, yearsExp: row.players.years_exp, careerGames: row.players.career_regular_season_games, injuryStatus: row.players.injury_status },
-            current: row.is_on_taxi ? 'taxi' as const : row.is_on_ir ? 'ir' as const : 'active' as const, incoming: false, fixedTaxi: false })),
+            current: rosterLocation(row), incoming: false, fixedTaxi: false })),
         ...orderTradeAssets(incoming).flatMap(item => item.kind === 'player' ? [{ id: item.playerId, name: item.playerName, injury: item.injuryStatus,
             player: { name: item.playerName, playerId: item.playerId, nbaId: item.nbaId, team: item.nbaTeam, positions: item.eligiblePositions ?? (item.position ? [item.position] : []), yearsExp: item.yearsExp, careerGames: item.careerGames, injuryStatus: item.injuryStatus },
             current: 'active' as const, incoming: true, fixedTaxi: Boolean(item.fromTaxi) }] : []),

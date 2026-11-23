@@ -9,6 +9,7 @@ import { apiPost } from '@/lib/shared/api'
 import { showAlert } from '@/lib/alert'
 import { getErrorMessage } from '@/lib/shared/errors'
 import { COMMISSIONER_SCORING_FIELDS } from '@/lib/commissioner-settings-fields'
+import { rosterLimits } from '@/lib/roster-capacity'
 import {
     EMPTY_COMMISSIONER_SETTINGS_DRAFT,
     playoffFit,
@@ -35,6 +36,8 @@ function remoteDraft(
     const roundInputs = rounds.map(String)
     if (roundInputs.length < roundCount) roundInputs.unshift('')
     if (roundInputs.length > roundCount) roundInputs.shift()
+    const limits = rosterLimits(league)
+    if (!limits) throw new Error('League roster limits are missing')
     return {
         timezone: resolveLeagueTimezone(league.timezone),
         teamLimit: String(league.team_limit ?? 10),
@@ -43,9 +46,9 @@ function remoteDraft(
         playoffEntrants: String(league.playoff_entrants ?? (memberCount >= 10 ? 6 : 4)),
         playoffRoundCount: String(roundCount),
         skippedWeeks: [],
-        rosterSize: String(league.roster_size ?? 20),
-        irSlots: String(league.ir_slots ?? 2),
-        taxiSlots: String(league.taxi_slots ?? 0),
+        rosterSize: String(limits.rosterSize),
+        irSlots: String(limits.irSlots),
+        taxiSlots: String(limits.taxiSlots),
         auctionBudget: String(league.auction_budget ?? 200),
         playoffWeek: String(league.playoff_start_week ?? 20),
         playoffRoundWeeks: roundInputs,

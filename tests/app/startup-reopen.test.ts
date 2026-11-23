@@ -76,7 +76,7 @@ const membershipKey = (owner = 'owner') => `pancake:league-memberships:v1:${owne
 const membership = (id: string): LeagueMembership => ({
     id, role: 'manager', team_name: id,
     leagues: { id: `league-${id}`, name: id, invite_code: null, status: 'active', commissioner_id: 'commissioner',
-        auction_budget: 200, scoring_settings: {}, playoff_start_week: 20, roster_size: 20, ir_slots: 2 },
+        auction_budget: 200, scoring_settings: {}, playoff_start_week: 20, roster_size: 20, ir_slots: 2, taxi_slots: 0 },
 })
 const first = membership('first'), selected = membership('selected')
 const pending = <T,>() => {

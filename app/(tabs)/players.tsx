@@ -38,10 +38,11 @@ import { playerSeasonFilterOptions, playerAverageLabel } from '@/lib/player-sear
 
 import { currentSeasonYear } from '@/lib/shared/season'
 import { useQuickAdd, type PickupClaimSelection } from '@/hooks/use-quick-add'
+import { partitionRoster, rosterLimits } from '@/lib/roster-capacity'
 import { useRosterHoldCheck } from '@/hooks/use-roster-hold-check'
 import { addLimitSummary } from '@/lib/pickup'
 import { PlayerRow } from '@/lib/players'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { browserReadsAllowed } from '@/hooks/use-browser-read-activity'
 
 
@@ -200,14 +201,13 @@ function PlayerSearchSection() {
         if (selection) push({ pathname: '/(modals)/claim-player', params: { playerId: player.id, ...selection } })
         else push(`/(modals)/claim-player?playerId=${player.id}`)
     }, [push])
+    const limits = useMemo(() => rosterLimits(currentLeague), [currentLeague])
     const quickAdd = useQuickAdd({
         memberId: current?.id,
         leagueId,
         onChanged: refreshPlayerSupport,
         transactionState,
-        irSlots: currentLeague?.ir_slots ?? 2,
-        taxiSlots: currentLeague?.taxi_slots ?? 0,
-        rosterSize: currentLeague?.roster_size ?? 20,
+        limits,
         onClaimInstead: openClaim,
     })
     const holdCheck = useRosterHoldCheck({
@@ -514,13 +514,13 @@ function PlayerSearchSection() {
                 visible={quickAdd.irModal !== null}
                 serverMessage={quickAdd.irModal?.serverMessage}
                 ineligibleIR={quickAdd.irModal?.ineligible ?? []}
-                activeRoster={(quickAdd.irModal?.roster ?? []).filter((r) => !r.is_on_ir && !r.is_on_taxi)}
-                rosterSize={currentLeague?.roster_size ?? 20}
+                activeRoster={partitionRoster(quickAdd.irModal?.roster ?? []).active}
+                rosterSize={limits?.rosterSize}
                 pendingPlayerName={quickAdd.irModal?.pendingPlayer.display_name ?? ''}
                 onActivate={quickAdd.handleIRActivate}
                 onDrop={quickAdd.handleResolutionDrop}
                 onMoveToIR={quickAdd.handleResolutionMoveToIR}
-                irAvailable={(quickAdd.irModal?.roster ?? []).filter(player => player.is_on_ir).length < (currentLeague?.ir_slots ?? 2)}
+                irAvailable={limits != null && partitionRoster(quickAdd.irModal?.roster ?? []).ir.length < limits.irSlots}
                 onDropAndActivate={quickAdd.handleDropAndIRActivate}
                 onSwapWithInjured={quickAdd.handleSwapWithInjured}
                 onCancel={() => quickAdd.setIrModal(null)}

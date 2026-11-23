@@ -23,6 +23,7 @@ import { ReadOnlyRosterPlayerItem, RosterSectionBand } from '@/components/roster
 import { Button, ErrorBanner, LoadingState, Page, PageHeader, usePageMetrics } from '@/components/ui'
 import { colors, controlSize, layout, radii, spacing, textStyles } from '@/constants/tokens'
 import { useGoBack } from '@/components/ui/useGoBack'
+import { partitionRoster, rosterLimits } from '@/lib/roster-capacity'
 
 const EMPTY_ROSTER: RosterPlayer[] = []
 type TeamRosterCache = { roster: RosterPlayer[]; averages: [string, number][]; stats: [string, RosterAverage][] }
@@ -38,6 +39,7 @@ export default function TeamRosterScreen() {
     const { padX, compact } = usePageMetrics()
     const { memberId, teamName } = useLocalSearchParams<{ memberId: string; teamName: string }>()
     const { current, currentLeague, membershipStatus, refresh } = useLeagueContext()
+    const limits = rosterLimits(currentLeague)
     const scope = memberId && current && currentLeague ? `${current.id}:${currentLeague.id}:${memberId}` : null
     const leagueId = currentLeague?.id
     const { canRead, capture, isCurrent, epoch } = useModalActivity(scope)
@@ -110,18 +112,10 @@ export default function TeamRosterScreen() {
         }
     }, [current, memberId, leagueId, scope, attempt, canRead, capture, isCurrent, epoch])
 
-    const active = useMemo(
-        () => roster.filter((r) => !r.is_on_ir && !r.is_on_taxi).sort(compareRosterBySlot),
-        [roster],
-    )
-    const ir = useMemo(
-        () => roster.filter((r) => r.is_on_ir).sort(compareRosterBySlot),
-        [roster],
-    )
-    const taxi = useMemo(
-        () => roster.filter((r) => r.is_on_taxi).sort(compareRosterBySlot),
-        [roster],
-    )
+    const partitioned = useMemo(() => partitionRoster(roster), [roster])
+    const active = useMemo(() => [...partitioned.active].sort(compareRosterBySlot), [partitioned])
+    const ir = useMemo(() => [...partitioned.ir].sort(compareRosterBySlot), [partitioned])
+    const taxi = useMemo(() => [...partitioned.taxi].sort(compareRosterBySlot), [partitioned])
 
     const renderSection = (label: string, items: RosterPlayer[], capacity: number, empty: string, tone?: 'taxi') => {
         const size = Math.max(items.length, capacity)
@@ -196,9 +190,9 @@ export default function TeamRosterScreen() {
                                 framed
                             />
                         ) : null}
-                        {renderSection('Active roster', active, currentLeague?.roster_size ?? 0, 'Empty roster slot')}
-                        {renderSection('Injured reserve', ir, currentLeague?.ir_slots ?? 0, 'Empty IR slot')}
-                        {renderSection('Taxi squad', taxi, currentLeague?.taxi_slots ?? 0, 'Empty taxi slot', 'taxi')}
+                        {renderSection('Active roster', active, limits?.rosterSize ?? 0, 'Empty roster slot')}
+                        {renderSection('Injured reserve', ir, limits?.irSlots ?? 0, 'Empty IR slot')}
+                        {renderSection('Taxi squad', taxi, limits?.taxiSlots ?? 0, 'Empty taxi slot', 'taxi')}
                     </>
                 ) : null}
                 </DeferredContent>

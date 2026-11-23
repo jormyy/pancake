@@ -38,3 +38,13 @@ it('keeps an omitted taxi destination and forwards only an explicit edit', async
     await editWaiverClaim('claim', 'member', { dropPlayerId: null, toTaxi: false })
     expect(mocks.post.mock.calls[1][1]).toHaveProperty('toTaxi', false)
 })
+
+it('classifies bid-only edits as leaving roster capacity alone and placement or drop edits as changing it', async () => {
+    const { claimEditChangesRosterCapacity } = await import('@/lib/waivers')
+    const claim = { dropPlayerId: 'drop', toIr: false, toTaxi: true }
+    expect(claimEditChangesRosterCapacity(claim, { dropPlayerId: 'drop', bidAmount: 9 })).toBe(false)
+    expect(claimEditChangesRosterCapacity(claim, { dropPlayerId: 'drop', bidAmount: 9, toTaxi: true, toIr: false })).toBe(false)
+    expect(claimEditChangesRosterCapacity(claim, { dropPlayerId: 'drop', toTaxi: false })).toBe(true)
+    expect(claimEditChangesRosterCapacity(claim, { dropPlayerId: 'drop', toIr: true })).toBe(true)
+    expect(claimEditChangesRosterCapacity(claim, { dropPlayerId: null, bidAmount: 9 })).toBe(true)
+})

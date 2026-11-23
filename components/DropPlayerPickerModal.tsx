@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/Button'
 import { Sheet } from '@/components/ui/Sheet'
 import { RosterHoldWarning } from '@/components/roster/RosterHoldWarning'
 import type { RosterHoldConflict } from '@/lib/waivers'
+import { rosterLocation } from '@/lib/roster-capacity'
 
 type Props = {
     visible: boolean
@@ -79,9 +80,9 @@ export function DropPlayerPickerModal({ visible, title, roster, dropping, onDrop
                                 loading={dropping === rp.id}
                                 accessibilityLabel={`Drop ${p.display_name}`}
                             />
-                            {rp.is_on_taxi && available?.taxi ? <Button title="Replace in Taxi" size="sm" onPress={() => onDrop(rp,'taxi')}
+                            {rosterLocation(rp) === 'taxi' && available?.taxi ? <Button title="Replace in Taxi" size="sm" onPress={() => onDrop(rp,'taxi')}
                                 disabled={dropping !== null} accessibilityLabel={`Drop ${p.display_name} and add to Taxi`} /> : null}
-                            {rp.is_on_ir && available?.ir ? <Button title="Replace in IR" size="sm" onPress={() => onDrop(rp,'ir')}
+                            {rosterLocation(rp) === 'ir' && available?.ir ? <Button title="Replace in IR" size="sm" onPress={() => onDrop(rp,'ir')}
                                 disabled={dropping !== null} accessibilityLabel={`Drop ${p.display_name} and add to IR`} /> : null}
                         </View>
                     )

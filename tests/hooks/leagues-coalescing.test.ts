@@ -48,7 +48,7 @@ const rowsFor = (owner: string): LeagueMembership[] => [1, 2].map((index) => ({
     leagues: {
         id: `league-${owner}-${index}`, name: `League ${index}`, status: 'active', invite_code: null,
         commissioner_id: owner, auction_budget: 200, scoring_settings: { pts: 1 }, playoff_start_week: 20,
-        roster_size: 20, ir_slots: 2,
+        roster_size: 20, ir_slots: 2, taxi_slots: 0,
     },
 }))
 const membershipKey = (owner: string) => `pancake:league-memberships:v1:${owner}`

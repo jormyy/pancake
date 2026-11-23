@@ -17,6 +17,7 @@ import { TradePickItem } from '@/lib/trades'
 import { scheduledClaimLabel, scheduledClaimRunAt, WaiverClaim } from '@/lib/waivers'
 import { formatPoints, formatStat } from '@/lib/format'
 import { rosterSlotLabel } from '@/lib/roster-slots'
+import { rosterLocation } from '@/lib/roster-capacity'
 
 
 import { MotionPressable, MotionView } from '@/components/Motion'
@@ -76,7 +77,7 @@ export function RosterPlayerRow({ item, avgFpts, avgMinutes, leading, metadata, 
         {leading}
         <PlayerRowContent lineupPin={item.lineupPin} locks={readAssetLocks(item)} name={player.display_name} nbaId={player.nba_id} team={player.nba_team} positions={getEligiblePositions(player)}
             birthdate={player.birthdate} yearsExp={player.years_exp} careerGames={player.career_regular_season_games}
-            injuryStatus={player.injury_status} onTaxi={item.is_on_taxi} metadata={metadata}
+            injuryStatus={player.injury_status} onTaxi={rosterLocation(item) === 'taxi'} metadata={metadata}
             stats={<PlayerStats avgFpts={avgFpts} avgMinutes={avgMinutes} />} />
     </>
     return <View style={[styles.row, stackedActions && styles.stackedRow]}>
@@ -274,24 +275,25 @@ export const RosterPlayerItem = memo(function RosterPlayerItem({
 }) {
     const player = item.players
     const isBusy = togglingId === item.id || taxiingId === item.id || droppingId === item.id
+    const onIr = rosterLocation(item) === 'ir'
 
     const locks = readAssetLocks(item)
     return (
         <View><RosterPlayerRow item={item} avgFpts={avgFpts} avgMinutes={avgMinutes}
             leading={<><RosterSlotTag slotType={slotType} /><PendingMutationBadge rowId={player.id} /></>}
             onPress={() => onPress(item)} onLongPress={locks.length ? undefined : () => onLongPress(item)} actions={<>
-            {(item.is_on_ir || allowIR && isIREligible(player.injury_status)) ? (
+            {(onIr || allowIR && isIREligible(player.injury_status)) ? (
                 <View style={styles.rowActions}>
                     <MotionPressable
                         style={styles.rosterActionTarget}
                         onPress={() => onToggleIR(item)}
                         disabled={isBusy || locks.length > 0}
                         accessibilityRole="button"
-                        accessibilityLabel={`${item.is_on_ir ? 'Activate' : 'Move'} ${player.display_name}${item.is_on_ir ? '' : ' to IR'}`}
+                        accessibilityLabel={`${onIr ? 'Activate' : 'Move'} ${player.display_name}${onIr ? '' : ' to IR'}`}
                     >
-                        <View style={[styles.rosterAction, item.is_on_ir && styles.irButtonActive]}>
-                            <Text style={[styles.actionButtonText, item.is_on_ir && styles.actionButtonTextActive]}>
-                                {item.is_on_ir ? 'Activate' : 'IR'}
+                        <View style={[styles.rosterAction, onIr && styles.irButtonActive]}>
+                            <Text style={[styles.actionButtonText, onIr && styles.actionButtonTextActive]}>
+                                {onIr ? 'Activate' : 'IR'}
                             </Text>
                         </View>
                     </MotionPressable>
@@ -325,7 +327,7 @@ export const ReadOnlyRosterPlayerItem = memo(function ReadOnlyRosterPlayerItem({
         >
             <PendingMutationBadge rowId={player.id} />
                 <PlayerRowContent lineupPin={item.lineupPin} locks={readAssetLocks(item)} name={player.display_name} nbaId={player.nba_id} team={player.nba_team} positions={positions}
-                    birthdate={player.birthdate} yearsExp={player.years_exp} careerGames={player.career_regular_season_games} injuryStatus={player.injury_status} onTaxi={item.is_on_taxi}
+                    birthdate={player.birthdate} yearsExp={player.years_exp} careerGames={player.career_regular_season_games} injuryStatus={player.injury_status} onTaxi={rosterLocation(item) === 'taxi'}
                     stats={<PlayerStats avgFpts={avgFpts} avgMinutes={avgMinutes} />} />
             <Text style={styles.chevron} aria-hidden>›</Text>
         </MotionPressable>
@@ -362,7 +364,7 @@ export const TaxiPlayerItem = memo(function TaxiPlayerItem({
                 <RosterSlotTag slotType="TX" />
                 <PendingMutationBadge rowId={player.id} />
                 <PlayerRowContent lineupPin={item.lineupPin} locks={readAssetLocks(item)} name={player.display_name} nbaId={player.nba_id} team={player.nba_team} positions={positions}
-                    birthdate={player.birthdate} yearsExp={player.years_exp} careerGames={player.career_regular_season_games} injuryStatus={player.injury_status} onTaxi={item.is_on_taxi}
+                    birthdate={player.birthdate} yearsExp={player.years_exp} careerGames={player.career_regular_season_games} injuryStatus={player.injury_status} onTaxi={rosterLocation(item) === 'taxi'}
                     stats={<PlayerStats avgFpts={avgFpts} avgMinutes={avgMinutes} />} />
             </MotionPressable>
 

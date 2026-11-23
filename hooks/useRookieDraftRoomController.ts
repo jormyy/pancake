@@ -9,6 +9,7 @@ import { activateRookieDraftLeague, commissionerSnakePick, makeSnakePick, proces
 import { dropPlayer, getRoster, type RosterPlayer } from '@/lib/roster'
 import { getErrorMessage } from '@/lib/shared/errors'
 import { reportRealtimeCleanup } from '@/lib/realtime'
+import { partitionRoster } from '@/lib/roster-capacity'
 
 type ActiveTab = 'prospects' | 'board'
 type RosterOverflow = {
@@ -20,6 +21,7 @@ type RosterOverflow = {
 type TrimOverflow = {
     excess: number
     dropList: RosterPlayer[]
+    rosterSize: number
 }
 
 export function useRookieDraftRoomController({
@@ -31,10 +33,25 @@ export function useRookieDraftRoomController({
     draftId?: string
     memberId?: string
     leagueId?: string
-    rosterSize: number
+    rosterSize: number | null
 }) {
     const memberIdRef = useRef(memberId)
     memberIdRef.current = memberId
+    const rosterSizeRef = useRef(rosterSize)
+    rosterSizeRef.current = rosterSize
+    const deferredTrimRef = useRef<(() => void) | null>(null)
+    const activeOverflow = useCallback((roster: RosterPlayer[]) => {
+        const currentRosterSize = rosterSizeRef.current
+        if (currentRosterSize == null) return null
+        const active = partitionRoster(roster).active
+        return { excess: active.length - currentRosterSize, dropList: active, rosterSize: currentRosterSize }
+    }, [])
+    useEffect(() => {
+        const resume = deferredTrimRef.current
+        if (rosterSize == null || !resume) return
+        deferredTrimRef.current = null
+        resume()
+    }, [rosterSize])
 
     const cacheKey = `pancake:rookie-room:v1:${sessionOwner()}:${memberId}:${leagueId}:${draftId}`
     const [initialCache] = useState(() => readPersistentCache<{ state: RookieDraftState | null }>(cacheKey))
@@ -57,6 +74,8 @@ export function useRookieDraftRoomController({
     const [resolvingOverflow, setResolvingOverflow] = useState(false)
     const [trimOverflow, setTrimOverflow] = useState<TrimOverflow | null>(null)
     const [trimmingId, setTrimmingId] = useState<string | null>(null)
+    const [trimAwaitingLimits, setTrimAwaitingLimits] = useState(false)
+    const [completionRun, setCompletionRun] = useState(0)
 
     const completionErrorRef = useRef(completionError)
     completionErrorRef.current = completionError
@@ -152,6 +171,7 @@ export function useRookieDraftRoomController({
         setResolvingOverflow(false)
         setTrimOverflow(null)
         setTrimmingId(null)
+        setTrimAwaitingLimits(false)
     }, [draftId, readOwnerKey, cacheKey])
 
     useEffect(() => {
@@ -165,6 +185,7 @@ export function useRookieDraftRoomController({
         setResolvingOverflow(false)
         setTrimOverflow(null)
         setTrimmingId(null)
+        setTrimAwaitingLimits(false)
     }, [ownerIdentity])
 
     const load = useCallback(async (deferInitialPaint = false, checkVersion = true) => {
@@ -462,13 +483,24 @@ export function useRookieDraftRoomController({
         draftEndCheckedRef.current = false
         setTrimOverflow(null)
         setTrimmingId(null)
+        setTrimAwaitingLimits(false)
         setCompletionError(null)
     }, [draftCompleted, draftSeasonIsCurrent])
+    const recheckCompletion = useCallback(() => {
+        draftEndCheckedRef.current = false
+        setTrimOverflow(null)
+        setTrimAwaitingLimits(rosterSizeRef.current == null)
+        setCompletionRun(run => run + 1)
+    }, [])
+    useEffect(() => {
+        if (trimOverflow && trimOverflow.rosterSize !== rosterSize) recheckCompletion()
+    }, [trimOverflow, rosterSize, recheckCompletion])
     useEffect(() => {
         const stableMemberId = memberIdRef.current ?? memberId
-        if (!canAct() || completionError || !draftCompleted || !draftSeasonIsCurrent || !draftLeagueMatches || visibleState?.draft.isMock || picking || !stableMemberId || !leagueId || draftEndCheckedRef.current) return
+        if (!canAct() || completionError || !draftCompleted || !draftSeasonIsCurrent || !draftLeagueMatches || visibleState?.draft.isMock || picking || !stableMemberId || !leagueId || rosterSize == null || draftEndCheckedRef.current) return
 
         draftEndCheckedRef.current = true
+        setTrimAwaitingLimits(false)
         setCompletionError(null)
         setRosterOverflow(null)
         setRosterForDrop([])
@@ -479,10 +511,13 @@ export function useRookieDraftRoomController({
             try {
                 const roster = await getRoster(stableMemberId, leagueId, visibleState?.draft.leagueSeasonId)
                 if (!(mutationIsCurrent(generation, identity) && completionEpochRef.current === completionEpoch)) return
-                const active = roster.filter((player) => !player.is_on_ir && !player.is_on_taxi)
-                const excess = active.length - rosterSize
-                if (excess > 0) {
-                    setTrimOverflow({ excess, dropList: active })
+                const overflow = activeOverflow(roster)
+                if (!overflow) {
+                    draftEndCheckedRef.current = false
+                    return
+                }
+                if (overflow.excess > 0) {
+                    setTrimOverflow(overflow)
                 } else if (draftId) {
                     setTrimOverflow(null)
                     await activateRookieDraftLeague(draftId)
@@ -495,37 +530,61 @@ export function useRookieDraftRoomController({
                 }
             }
         })()
-    }, [draftCompleted, draftSeasonIsCurrent, draftLeagueMatches, visibleState, picking, draftId, leagueId, rosterSize, memberId, load, ownerIdentity, canAct, activity.ready, mutationIsCurrent, completionError])
+    }, [draftCompleted, draftSeasonIsCurrent, draftLeagueMatches, visibleState, picking, draftId, leagueId, rosterSize, memberId, load, ownerIdentity, canAct, activity.ready, mutationIsCurrent, completionError, activeOverflow, completionRun])
 
     async function handleTrimDrop(rosterPlayerId: string) {
         if (!canAct() || !trimOverflow || completionError || trimmingId || !draftCompleted || !draftSeasonIsCurrent || completionPhaseRef.current !== completionPhase || !visibleState || visibleState.draft.isMock || !draftLeagueMatches ||
             !ownsActionState || activeOwnerRef.current !== ownerIdentity) return
+        if (trimOverflow.rosterSize !== rosterSizeRef.current) return
+        const prompted = trimOverflow
         const generation = mutationGenerationRef.current
         const identity = ownerIdentity
         const completionEpoch = completionEpochRef.current
         setTrimmingId(rosterPlayerId)
         setTrimOverflow(null)
+        const isCurrent = () => mutationIsCurrent(generation, identity) && completionEpochRef.current === completionEpoch
+        const leagueSeasonId = visibleState.draft.leagueSeasonId
+        const stillRequired = async () => {
+            const stableMemberId = memberIdRef.current ?? memberId
+            if (!stableMemberId || !leagueId) return false
+            const overflow = activeOverflow(await getRoster(stableMemberId, leagueId, leagueSeasonId))
+            return Boolean(overflow && overflow.rosterSize === prompted.rosterSize && overflow.excess > 0
+                && overflow.dropList.some(rosterPlayer => rosterPlayer.id === rosterPlayerId))
+        }
+        const continueTrim = async () => {
+            const stableMemberId = memberIdRef.current ?? memberId
+            if (!stableMemberId || !leagueId) return
+            const roster = await getRoster(stableMemberId, leagueId, leagueSeasonId)
+            if (!isCurrent()) return
+            const overflow = activeOverflow(roster)
+            if (!overflow) { deferredTrimRef.current = resumeTrim; setTrimAwaitingLimits(true); return }
+            setTrimAwaitingLimits(false)
+            setRosterOverflow(null)
+            setRosterForDrop([])
+            setTrimOverflow(overflow.excess <= 0 ? null : overflow)
+            if (overflow.excess <= 0 && draftId && isCurrent()) await load()
+        }
+        const resumeTrim = () => {
+            if (!isCurrent()) return
+            continueTrim().catch(() => {
+                if (isCurrent()) setCompletionError('Player dropped. Refresh the roster before making another change.')
+            })
+        }
         let dropped = false
         try {
-            await dropPlayer(rosterPlayerId, visibleState.draft.leagueSeasonId, draftId)
-            if (!(mutationIsCurrent(generation, identity) && completionEpochRef.current === completionEpoch)) return
+            try {
+                const required = await stillRequired()
+                if (!isCurrent()) return
+                if (!required) { recheckCompletion(); return }
+            } catch {
+                if (isCurrent()) setCompletionError('No player was dropped.')
+                return
+            }
+            await dropPlayer(rosterPlayerId, leagueSeasonId, draftId)
+            if (!isCurrent()) return
             dropped = true
             setTrimOverflow(null)
-            const stableMemberId = memberIdRef.current ?? memberId
-            if (stableMemberId && leagueId) {
-                const roster = await getRoster(stableMemberId, leagueId, visibleState?.draft.leagueSeasonId)
-                if (!(mutationIsCurrent(generation, identity) && completionEpochRef.current === completionEpoch)) return
-                const active = roster.filter((player) => !player.is_on_ir && !player.is_on_taxi)
-                const excess = active.length - rosterSize
-                setRosterOverflow(null)
-                setRosterForDrop([])
-                setTrimOverflow(excess <= 0 ? null : { excess, dropList: active })
-                if (excess <= 0 && draftId) {
-                    if (mutationIsCurrent(generation, identity) && completionEpochRef.current === completionEpoch) await load()
-                }
-            } else {
-                setTrimOverflow(null)
-            }
+            await continueTrim()
         } catch {
             if (mutationIsCurrent(generation, identity) && completionEpochRef.current === completionEpoch) {
                 if (dropped) {
@@ -564,11 +623,8 @@ export function useRookieDraftRoomController({
                         if (!mutationIsCurrent(generation, identity)) return
                         const match = roster.find((rosterPlayer) => rosterPlayer.players?.id === player.id)
                         newRosterPlayerId = match?.id ?? null
-                        dropList = roster.filter(
-                            (rosterPlayer) =>
-                                !rosterPlayer.is_on_ir &&
-                                !rosterPlayer.is_on_taxi &&
-                                rosterPlayer.players?.id !== player.id,
+                        dropList = partitionRoster(roster).active.filter(
+                            (rosterPlayer) => rosterPlayer.players?.id !== player.id,
                         )
                     } catch {
                         if (mutationIsCurrent(generation, identity)) {
@@ -678,6 +734,8 @@ export function useRookieDraftRoomController({
         resolvingOverflow: ownsDraft && ownsActionState ? resolvingOverflow : false,
         trimOverflow: ownsDraft && ownsActionState && draftLeagueMatches && draftSeasonIsCurrent && draftCompleted ? trimOverflow : null,
         trimmingId: ownsDraft && ownsActionState ? trimmingId : null,
+        trimAwaitingLimits: ownsDraft && ownsActionState && draftLeagueMatches && draftSeasonIsCurrent && draftCompleted
+            && rosterSize == null && trimAwaitingLimits && !completionError,
         memberId: memberId ?? memberIdRef.current,
         refresh,
         handleTrimDrop,

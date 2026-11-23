@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { colors, fontSize, fontWeight, spacing, table, textStyles, tints, uiColors } from '@/constants/tokens'
 
 import { isIREligible, type RosterPlayer } from '@/lib/roster'
+import { rosterLocation } from '@/lib/roster-capacity'
 
 export function RosterTrimBanner({
     players,
@@ -47,8 +48,8 @@ export function RosterTrimBanner({
                                 positions={player.players.eligible_positions?.length ? player.players.eligible_positions : player.players.position ? [player.players.position] : []}
                                 birthdate={player.players.birthdate} yearsExp={player.players.years_exp} careerGames={player.players.career_regular_season_games} injuryStatus={player.players.injury_status} />
                             <View style={styles.actions}>
-                                {(player.is_on_ir || player.is_on_taxi) && onActivate ? <Button title="Activate" size="sm" onPress={() => onActivate(player)} disabled={busy || dropDisabled} accessibilityLabel={`Activate ${player.players.display_name}`} /> : null}
-                                {irAvailable && !player.is_on_ir && isIREligible(player.players.injury_status) ? (
+                                {rosterLocation(player) !== 'active' && onActivate ? <Button title="Activate" size="sm" onPress={() => onActivate(player)} disabled={busy || dropDisabled} accessibilityLabel={`Activate ${player.players.display_name}`} /> : null}
+                                {irAvailable && rosterLocation(player) !== 'ir' && isIREligible(player.players.injury_status) ? (
                                     <Button
                                         title="IR"
                                         size="sm"

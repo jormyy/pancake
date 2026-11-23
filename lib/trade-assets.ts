@@ -1,5 +1,6 @@
 import type { DynastyTradeAnalysis } from '@/core/src/dynasty/decisionEngine'
 import type { RosterPlayer } from '@/lib/roster'
+import { rosterLocation } from '@/lib/roster-capacity'
 
 export type TradePickOrder = 'round-year' | 'year-round'
 
@@ -51,5 +52,5 @@ export function orderTradeAssets<T>(items: readonly T[], assetOrderOrPickOrder: 
 }
 
 export function isTradeableRosterPlayer(player: RosterPlayer, allowInactive = false): boolean {
-    return allowInactive || !player.is_on_ir && !player.is_on_taxi
+    return allowInactive || rosterLocation(player) === 'active'
 }

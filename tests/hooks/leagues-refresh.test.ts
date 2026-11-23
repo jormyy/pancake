@@ -63,7 +63,7 @@ describe('league refresh contract', () => {
     })
 
     it('never returns memberships owned by the previous authenticated user', async () => {
-        const membership = (id: string) => ({ id, role: 'manager', team_name: id, leagues: { id: `league-${id}` } })
+        const membership = (id: string) => ({ id, role: 'manager', team_name: id, leagues: { id: `league-${id}`, roster_size: 20, ir_slots: 2, taxi_slots: 0 } })
         mocks.cache.set('pancake:league-memberships:v1:user-a', [membership('member-a')])
         mocks.cache.set('pancake:league-memberships:v1:user-b', [membership('member-b')])
         mocks.fetchUserLeagues.mockImplementation(async (userId: string) => [membership(`server-${userId}`)])
@@ -81,7 +81,7 @@ describe('league refresh contract', () => {
     })
 
     it('clears membership access revoked during a socket gap', async () => {
-        const rows = [{ id: 'member', leagues: { id: 'league' } }]
+        const rows = [{ id: 'member', leagues: { id: 'league', roster_size: 20, ir_slots: 2, taxi_slots: 0 } }]
         mocks.fetchUserLeagues.mockResolvedValueOnce(rows).mockResolvedValueOnce([])
         let latest!: ReturnType<typeof useLeagues>
         const Probe = () => { latest = useLeagues(); return null }
@@ -103,7 +103,7 @@ describe('league refresh contract', () => {
         Object.defineProperty(page, 'visibilityState', { get: () => hidden ? 'hidden' : 'visible' })
         vi.stubGlobal('window', browser); vi.stubGlobal('document', page)
         vi.spyOn(console, 'error').mockImplementation(() => {})
-        const rows = [{ id: 'member', leagues: { id: 'league' } }]
+        const rows = [{ id: 'member', leagues: { id: 'league', roster_size: 20, ir_slots: 2, taxi_slots: 0 } }]
         mocks.fetchUserLeagues.mockResolvedValue(rows)
         let latest!: ReturnType<typeof useLeagues>
         const Probe = () => { latest = useLeagues(); return null }
@@ -131,7 +131,7 @@ describe('league refresh contract', () => {
 
 it('recovers empty memberships on reconnect and clears an authoritative revocation', async () => {
     vi.useFakeTimers()
-    const rows = [{ id: 'member', leagues: { id: 'league' } }]
+    const rows = [{ id: 'member', leagues: { id: 'league', roster_size: 20, ir_slots: 2, taxi_slots: 0 } }]
     mocks.userId = 'user'
     mocks.online = false
     mocks.cache.clear()
@@ -174,10 +174,10 @@ it('rejects late reconnect results after account switch and logout', async () =>
     mocks.online = false
     mocks.cache.clear()
     let finishOld!: (rows: { id: string }[]) => void
-    let finishNew!: (rows: { id: string; leagues: { id: string } }[]) => void
+    let finishNew!: (rows: { id: string; leagues: { id: string; roster_size: number; ir_slots: number; taxi_slots: number } }[]) => void
     mocks.fetchUserLeagues.mockReset()
         .mockReturnValueOnce(new Promise((resolve) => { finishOld = resolve }))
-        .mockResolvedValueOnce([{ id: 'new-member', leagues: { id: 'new-league' } }])
+        .mockResolvedValueOnce([{ id: 'new-member', leagues: { id: 'new-league', roster_size: 20, ir_slots: 2, taxi_slots: 0 } }])
         .mockReturnValueOnce(new Promise((resolve) => { finishNew = resolve }))
     let latest!: ReturnType<typeof useLeagues>
     const Probe = () => { latest = useLeagues(); return null }
@@ -198,7 +198,7 @@ it('rejects late reconnect results after account switch and logout', async () =>
     await finishReconnectWindow()
     mocks.userId = null
     await act(async () => { renderer.update(React.createElement(Probe)) })
-    await act(async () => { finishNew([{ id: 'new-member', leagues: { id: 'new-league' } }]) })
+    await act(async () => { finishNew([{ id: 'new-member', leagues: { id: 'new-league', roster_size: 20, ir_slots: 2, taxi_slots: 0 } }]) })
     expect(latest.memberships).toEqual([])
     expect(latest.membershipStatus).toBe('signed-out')
     expect(mocks.fetchUserLeagues.mock.calls.map(([id]) => id)).toEqual(['user-a', 'user-b', 'user-b'])
@@ -212,7 +212,7 @@ it.each(['hidden', 'offline'])('defers %s bootstrap and never validates cached m
     vi.stubGlobal('window', browser)
     vi.stubGlobal('document', page)
     vi.stubGlobal('navigator', { get onLine() { return online } })
-    const rows = [{ id: 'removed-member', leagues: { id: 'league' } }]
+    const rows = [{ id: 'removed-member', leagues: { id: 'league', roster_size: 20, ir_slots: 2, taxi_slots: 0 } }]
     mocks.userId = 'user'
     mocks.online = online
     mocks.cache.set('pancake:league-memberships:v1:user', rows)
@@ -247,7 +247,7 @@ it('does not read memberships for a nomination-only draft update', async () => {
     mocks.userId = 'user'
     mocks.online = true
     mocks.cache.clear()
-    mocks.fetchUserLeagues.mockReset().mockResolvedValue([{ id: 'member', leagues: { id: 'league' } }])
+    mocks.fetchUserLeagues.mockReset().mockResolvedValue([{ id: 'member', leagues: { id: 'league', roster_size: 20, ir_slots: 2, taxi_slots: 0 } }])
     let renderer!: ReactTestRenderer
     const Probe = () => { useLeagues(); return null }
     try {
@@ -261,4 +261,26 @@ it('does not read memberships for a nomination-only draft update', async () => {
         })
         expect(mocks.fetchUserLeagues).toHaveBeenCalledTimes(1)
     } finally { await act(async () => renderer.unmount()); vi.useRealTimers() }
+})
+
+it('keeps offline cached memberships whose league limits are incomplete and leaves capacity unknown', async () => {
+    vi.stubGlobal('navigator', { onLine: false })
+    const synthetic = [
+        { id: 'synthetic-member-complete', leagues: { id: 'synthetic-league-complete', roster_size: 20, ir_slots: 2, taxi_slots: 1 } },
+        { id: 'synthetic-member-older-cache', leagues: { id: 'synthetic-league-older-cache', roster_size: 20, ir_slots: 2 } },
+    ]
+    mocks.userId = 'user'
+    mocks.online = false
+    mocks.cache.clear()
+    mocks.cache.set('pancake:league-memberships:v1:user', synthetic)
+    mocks.fetchUserLeagues.mockReset().mockResolvedValue([])
+    const { rosterLimits } = await import('@/lib/roster-capacity')
+    let latest!: ReturnType<typeof useLeagues>
+    const Probe = () => { latest = useLeagues(); return null }
+    let renderer!: ReactTestRenderer
+    await act(async () => { renderer = create(React.createElement(Probe)) })
+    expect(latest.memberships.map(row => row.id)).toEqual(['synthetic-member-complete', 'synthetic-member-older-cache'])
+    expect(latest.memberships.map(row => rosterLimits(row.leagues))).toEqual([{ rosterSize: 20, irSlots: 2, taxiSlots: 1 }, null])
+    expect(mocks.fetchUserLeagues).not.toHaveBeenCalled()
+    await act(async () => { renderer.unmount() })
 })

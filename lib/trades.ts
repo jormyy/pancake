@@ -7,6 +7,7 @@ import { getRosterStatsMaps } from '@/lib/roster-stats'
 import type { TradeStatus } from '@pancake/core'
 import type { TradeEstimateSummary } from '@/lib/trade-estimates'
 import type { TradeLegalityReason } from '@/lib/trade-legality'
+import { rosterLocation } from '@/lib/roster-capacity'
 export {
     needsMemberAcceptance,
 } from '@/lib/trade-perspective'
@@ -165,7 +166,7 @@ type TradePlayerQueryRow = {
     years_exp: number | null
     nba_draft_number: number | null
     career_regular_season_games: number | null
-    roster_players?: { league_season_id: string; member_id: string; is_on_taxi: boolean; is_on_ir?: boolean }[]
+    roster_players?: { league_season_id: string; member_id: string; is_on_taxi: boolean; is_on_ir: boolean }[]
 } | null
 type TradeItemQueryRow = {
     to_ir: boolean
@@ -544,7 +545,7 @@ const TRADE_SELECT = `
                 from_member_id,
                 to_member_id,
                 faab_amount,
-                players ( display_name, position, eligible_positions, nba_team, nba_id, injury_status, years_exp, nba_draft_number, career_regular_season_games, roster_players ( league_season_id, member_id, is_on_taxi ) ),
+                players ( display_name, position, eligible_positions, nba_team, nba_id, injury_status, years_exp, nba_draft_number, career_regular_season_games, roster_players ( league_season_id, member_id, is_on_taxi, is_on_ir ) ),
                 draft_picks (
                     season_year,
                     round,
@@ -564,7 +565,7 @@ function mapTradeRow(row: TradeQueryRow, memberId: string): Trade {
         if (item.player_id != null && item.players) {
             tradeItem = {
                 kind: 'player',
-                fromTaxi: item.players.roster_players?.some((roster) => roster.league_season_id === row.league_season_id && roster.member_id === fromMemberId && roster.is_on_taxi) ?? false,
+                fromTaxi: item.players.roster_players?.some((roster) => roster.league_season_id === row.league_season_id && roster.member_id === fromMemberId && rosterLocation(roster) === 'taxi') ?? false,
                 toTaxi: item.to_taxi,
                 toIR: item.to_ir,
                 playerId: item.player_id,

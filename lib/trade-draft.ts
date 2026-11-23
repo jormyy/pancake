@@ -1,5 +1,6 @@
 import type { MultiTeamTradeItemPayload, RoutedTradeItem, Trade } from '@/lib/trades'
 import type { TradeParticipantView } from '@/lib/trade-ui-model'
+import { rosterLocation } from '@/lib/roster-capacity'
 
 export function tradeDraft({ items, participants, memberId, participantName, notes, expiresAt, avgMap, avgStatsMap }: {
     items: MultiTeamTradeItemPayload[]
@@ -22,7 +23,7 @@ export function tradeDraft({ items, participants, memberId, participantName, not
         const player = row.players
         return [{ ...item, tradeValue: row.tradeValue, playerName: player.display_name, position: player.position, eligiblePositions: player.eligible_positions,
             nbaTeam: player.nba_team, nbaId: player.nba_id, injuryStatus: player.injury_status, yearsExp: player.years_exp,
-            careerGames: player.career_regular_season_games, fromTaxi: row.is_on_taxi,
+            careerGames: player.career_regular_season_games, fromTaxi: rosterLocation(row) === 'taxi',
             avgFantasyPoints: avgMap.get(player.id), avgMinutesPlayed: avgStatsMap.get(player.id)?.avg_minutes_played }]
     })
     const recipient = participants.find(team => team.memberId !== memberId)?.memberId ?? ''

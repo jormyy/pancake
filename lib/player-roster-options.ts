@@ -1,4 +1,5 @@
 import type { RosterPlayer } from '@/lib/roster'
+import { partitionRoster, rosterLocation, type RosterRow } from '@/lib/roster-capacity'
 
 export function orderRosterOptions(roster: readonly RosterPlayer[]): RosterPlayer[] {
     return [...roster].sort((left, right) => left.players.display_name.localeCompare(right.players.display_name)
@@ -6,13 +7,15 @@ export function orderRosterOptions(roster: readonly RosterPlayer[]): RosterPlaye
 }
 
 export function groupRosterOptions(roster: readonly RosterPlayer[]): { label: string; players: RosterPlayer[] }[] {
+    const { active, ir, taxi } = partitionRoster(roster)
     return [
-        { label: 'Roster', players: roster.filter(player => !player.is_on_ir && !player.is_on_taxi) },
-        { label: 'IR', players: roster.filter(player => player.is_on_ir && !player.is_on_taxi) },
-        { label: 'Taxi', players: roster.filter(player => player.is_on_taxi) },
+        { label: 'Roster', players: active },
+        { label: 'IR', players: ir },
+        { label: 'Taxi', players: taxi },
     ].filter(group => group.players.length > 0)
 }
 
-export function rosterSlotLabel(player: Pick<RosterPlayer, 'is_on_taxi' | 'is_on_ir'>): string {
-    return player.is_on_taxi ? 'Taxi' : player.is_on_ir ? 'IR' : 'Active'
+export function rosterSlotLabel(player: RosterRow): string {
+    const location = rosterLocation(player)
+    return location === 'taxi' ? 'Taxi' : location === 'ir' ? 'IR' : 'Active'
 }

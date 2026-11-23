@@ -35,11 +35,13 @@ import { getGameDisplayState, readHomeGameDisplay, resolveHomeSurface, saveHomeG
 
 import { useDraftRoomLauncher } from '@/hooks/use-draft-room-launcher'
 import { adjacentMatchupId } from '@/lib/matchup-navigation'
+import { rosterLimits } from '@/lib/roster-capacity'
 
 type DetailsRow = { myPlayer: LineupPlayer | null; oppPlayer: LineupPlayer | null; slotType: string }
 
 export default function HomeScreen() {
     const { memberships, current, currentLeague: league, membershipValidated, membershipError, refresh: refreshMemberships, loading: leagueLoading } = useLeagueContext()
+    const limits = useMemo(() => rosterLimits(league), [league])
     const { user, loading: authLoading } = useAuth()
     const router = useRouter()
     const { width, height } = useWindowDimensions()
@@ -164,8 +166,8 @@ export default function HomeScreen() {
                             onOpenPlayer={player => router.push({ pathname: '/player/[id]', params: { id: player.playerId } })}
                             capacity={{
                                 bench: myLineup.benchSlots ?? 0,
-                                ir: league?.ir_slots ?? 2,
-                                taxi: league?.taxi_slots ?? 3,
+                                ir: limits?.irSlots ?? 0,
+                                taxi: limits?.taxiSlots ?? 0,
                             }}
                             compact={narrow}
                             dense={dense}

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { isIREligible } from '@pancake/core'
 import type { RosterPlayer } from '@/lib/roster'
 import { orderRosterOptions } from '@/lib/player-roster-options'
+import { rosterLocation } from '@/lib/roster-capacity'
 import { colors, fontWeight, spacing, table, textStyles } from '@/constants/tokens'
 
 import { Button } from '@/components/ui/Button'
@@ -13,7 +14,7 @@ type Props = {
     visible: boolean
     ineligibleIR: RosterPlayer[]
     activeRoster: RosterPlayer[]
-    rosterSize: number
+    rosterSize?: number
     pendingPlayerName: string
     irAvailable?: boolean
     serverMessage?: string | null
@@ -45,8 +46,8 @@ export function IRResolutionModal({ visible, ineligibleIR, activeRoster, rosterS
         () => activeRoster.filter(player => isIREligible(player.players.injury_status) && !player.assetLocks?.length),
         [activeRoster],
     )
-    const excess = activeRoster.length - rosterSize
-    const benchFull = activeRoster.length >= rosterSize
+    const excess = rosterSize == null ? 0 : activeRoster.length - rosterSize
+    const benchFull = rosterSize != null && activeRoster.length >= rosterSize
 
     useEffect(() => {
         if (visible) { setActivatingPlayer(null); setLoadingId(null) }
@@ -61,29 +62,30 @@ export function IRResolutionModal({ visible, ineligibleIR, activeRoster, rosterS
         try { await action() } finally { setLoadingId(null) }
     }
     function activate(player: RosterPlayer) {
+        if (rosterSize == null) return
         if (activeRoster.length >= rosterSize) setActivatingPlayer(player)
         else void run(player, () => onActivate(player))
     }
     function fixes(player: RosterPlayer, reserved: boolean) {
         return <>
-            {reserved ? <Button title="Activate" size="sm" onPress={() => activate(player)} disabled={loadingId !== null} accessibilityLabel={`Activate ${player.players.display_name}`} /> : null}
-            {reserved && player.is_on_ir && !isIREligible(player.players.injury_status) && benchFull && onSwapWithInjured ? injuredCandidates.map(injured => <Button key={injured.id}
+            {reserved && rosterSize != null ? <Button title="Activate" size="sm" onPress={() => activate(player)} disabled={loadingId !== null} accessibilityLabel={`Activate ${player.players.display_name}`} /> : null}
+            {reserved && rosterLocation(player) === 'ir' && !isIREligible(player.players.injury_status) && benchFull && onSwapWithInjured ? injuredCandidates.map(injured => <Button key={injured.id}
                 title={`Swap with ${injured.players.display_name}`} size="sm" variant="outline"
                 onPress={() => run(player, () => onSwapWithInjured(player, injured))} disabled={loadingId !== null}
                 loading={loadingId === player.id}
                 accessibilityLabel={`Swap ${player.players.display_name} with ${injured.players.display_name}`} />) : null}
-            {irAvailable && !player.is_on_ir && isIREligible(player.players.injury_status) && onMoveToIR ? <Button title="Move to IR" size="sm" variant="outline" onPress={() => run(player, () => onMoveToIR(player))} disabled={loadingId !== null} accessibilityLabel={`Move ${player.players.display_name} to IR`} /> : null}
+            {irAvailable && rosterLocation(player) !== 'ir' && isIREligible(player.players.injury_status) && onMoveToIR ? <Button title="Move to IR" size="sm" variant="outline" onPress={() => run(player, () => onMoveToIR(player))} disabled={loadingId !== null} accessibilityLabel={`Move ${player.players.display_name} to IR`} /> : null}
             {onDrop ? <Button title="Drop" size="sm" variant="outline" onPress={() => run(player, () => onDrop(player))} disabled={loadingId !== null} accessibilityLabel={`Drop ${player.players.display_name}`} /> : null}
         </>
     }
     return <Sheet visible={visible} onClose={() => { if (loadingId === null) onCancel() }} title={activatingPlayer ? 'Drop to activate' : 'Resolve roster'}>
         {activatingPlayer ? <>
-            <Text style={styles.sub}>Drop a player to activate <Text style={styles.playerName}>{activatingPlayer.players.display_name}</Text> from {activatingPlayer.is_on_taxi ? 'taxi' : 'IR'}.</Text>
+            <Text style={styles.sub}>Drop a player to activate <Text style={styles.playerName}>{activatingPlayer.players.display_name}</Text> from {rosterLocation(activatingPlayer) === 'taxi' ? 'taxi' : 'IR'}.</Text>
             <View style={styles.list}>{activeOptions.map(player => <PlayerLine key={player.id} player={player} action={<Button title="Drop" size="sm" variant="outline" onPress={() => run(player, () => onDropAndActivate(player, activatingPlayer))} disabled={loadingId !== null} loading={loadingId === player.id} accessibilityLabel={`Drop ${player.players.display_name}`} />} />)}</View>
         </> : <>
             <Text style={styles.sub}>Fix your roster before continuing{pendingPlayerName ? ` with ${pendingPlayerName}` : ''}.</Text>
             {serverMessage ? <Text style={styles.sub}>{serverMessage}</Text> : null}
-            <View style={styles.list}>{reserveOptions.map(player => <PlayerLine key={player.id} player={player} message={`No longer eligible for ${player.is_on_taxi ? 'taxi' : 'IR'}.`} action={fixes(player, true)} />)}</View>
+            <View style={styles.list}>{reserveOptions.map(player => <PlayerLine key={player.id} player={player} message={`No longer eligible for ${rosterLocation(player) === 'taxi' ? 'taxi' : 'IR'}.`} action={fixes(player, true)} />)}</View>
             {excess > 0 ? <>
                 <Text style={styles.sub}>Active roster is {excess} over the limit.</Text>
                 <View style={styles.list}>{activeOptions.map(player => <PlayerLine key={player.id} player={player} action={fixes(player, false)} />)}</View>

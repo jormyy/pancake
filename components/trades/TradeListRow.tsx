@@ -16,6 +16,7 @@ import type { RosterPlayer } from '@/lib/roster'
 import type { Trade, TradeBlockItem, TradePickItem } from '@/lib/trades'
 import type { TradeListItem } from '@/lib/trades-screen-model'
 import type { TradeVetoMode } from '@/lib/league'
+import { rosterLocation } from '@/lib/roster-capacity'
 
 type ItemOf<Type extends TradeListItem['_type']> = Extract<TradeListItem, { _type: Type }>
 
@@ -107,6 +108,7 @@ export const TradeBlockPlayerRow = memo(function TradeBlockPlayerRow({
     onList: (player: RosterPlayer) => void | Promise<void>
 }) {
     const player = item.player.players
+    const location = rosterLocation(item.player)
     const positions = playerEligiblePositions({ position: player.position, eligiblePositions: player.eligible_positions })
     const context = playerSeasonContextText({
         yearsExp: player.years_exp,
@@ -116,8 +118,8 @@ export const TradeBlockPlayerRow = memo(function TradeBlockPlayerRow({
     return (
         <View style={[styles.blockRow, !tile && styles.compactBlockRow, tile && styles.tile]}>
             <TradePlayerLink compact playerId={player.id} name={player.display_name} nbaId={player.nba_id} team={player.nba_team} positions={positions}
-                birthdate={player.birthdate} yearsExp={player.years_exp} careerGames={player.career_regular_season_games} injuryStatus={player.injury_status} onTaxi={item.player.is_on_taxi}
-                metadata={<Text style={styles.blockMeta}>{item.player.is_on_ir ? 'IR' : item.player.is_on_taxi ? 'TAXI' : 'Active'}</Text>} stats={context} />
+                birthdate={player.birthdate} yearsExp={player.years_exp} careerGames={player.career_regular_season_games} injuryStatus={player.injury_status} onTaxi={location === 'taxi'}
+                metadata={<Text style={styles.blockMeta}>{location === 'ir' ? 'IR' : location === 'taxi' ? 'TAXI' : 'Active'}</Text>} stats={context} />
             <Pressable style={[styles.blockAction, listed && styles.blockActionDisabled]}
                 onPress={() => onList(item.player)} disabled={listed || busy}
                 accessibilityRole="button" accessibilityLabel={`${listed ? 'Listed' : 'List'} ${player.display_name} on trade block`}

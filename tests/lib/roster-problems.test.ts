@@ -38,4 +38,8 @@ describe('existing taxi roster eligibility', () => {
             { kind: 'over_limit', player: null, message: 'Active roster is 1 over the limit.' },
         ])
     })
+
+    it('does not report an over-limit problem while the limit is unknown', () => {
+        expect(getRosterProblems([rosterPlayer()], null)).toEqual([])
+    })
 })

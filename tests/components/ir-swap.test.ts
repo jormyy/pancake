@@ -62,3 +62,13 @@ it('never offers a taxi swap', async () => {
     await act(async () => { screen = create(React.createElement(IRResolutionModal, props({ ineligibleIR: [taxi] }))) })
     expect(swapLabels()).toHaveLength(0)
 })
+
+it('does not activate or swap while the roster limit is unknown but still allows a drop', async () => {
+    const activate = vi.fn(), swap = vi.fn(), drop = vi.fn()
+    await act(async () => { screen = create(React.createElement(IRResolutionModal, props({ rosterSize: undefined, onActivate: activate, onSwapWithInjured: swap, onDrop: drop }))) })
+    expect(screen.root.findAllByProps({ accessibilityLabel: 'Activate Healthy Vet' })).toHaveLength(0)
+    expect(activate).not.toHaveBeenCalled()
+    expect(swapLabels()).toHaveLength(0)
+    await act(async () => screen.root.findAllByProps({ accessibilityLabel: 'Drop Healthy Vet' })[0].props.onPress())
+    expect(drop).toHaveBeenCalledWith(healthyIr)
+})

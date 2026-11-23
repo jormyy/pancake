@@ -14,7 +14,7 @@ vi.mock('@/lib/roster', () => ({ getRoster: mocks.roster }))
 vi.mock('@/lib/trade-legality', () => ({ previewTradeLegality: mocks.read }))
 vi.mock('@/lib/trades', async importOriginal => ({ ...await importOriginal<typeof import('@/lib/trades')>(), acceptTrade: mocks.accept, withdrawTrade: mocks.withdraw }))
 vi.mock('@/lib/alert', () => ({ confirmAction: mocks.confirm }))
-vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => ({ currentLeague: { id: 'league', ir_slots: 2, taxi_slots: 3 } }) }))
+vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => ({ currentLeague: { id: 'league', roster_size: 20, ir_slots: 2, taxi_slots: 3 } }) }))
 vi.mock('@/components/trades/SavedTradeEstimate', () => ({ SavedTradeEstimate: () => null }))
 vi.mock('expo-router', () => ({ useRouter: () => ({ push: vi.fn() }) }))
 
