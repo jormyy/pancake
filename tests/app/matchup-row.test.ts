@@ -2,6 +2,7 @@ import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, expect, it, vi } from 'vitest'
 import { MatchupRow } from '@/components/MatchupRow'
+import type { LiveStatLine } from '@/lib/games'
 
 vi.mock('react-native', () => ({ Image: 'Image', Platform: { OS: 'web' }, View: 'View', Text: 'Text', StyleSheet: { create: (value: unknown) => value }, useWindowDimensions: () => ({ width: 402, height: 874 }) }))
 vi.mock('@/components/Motion', () => ({ LivePulse: 'LivePulse', MotionPressable: 'MotionPressable', MotionView: 'MotionView' }))
@@ -146,7 +147,7 @@ it('shows a faint projection instead of a dash until the game starts, then the r
     expect(scores().map(score => score.props.children)).toEqual(['42.8', '18.0'])
     for (const score of scores()) expect(Object.assign({}, ...[score.props.style].flat().filter(Boolean))).toMatchObject({ fontWeight: '500' })
     // Once a game is under way the projection gives way to the live score.
-    await act(async () => screen.update(React.createElement(MatchupRow, { ...props, liveStats: new Map([['Mine', { didNotPlay: false }]]), liveTeams: new Set(['TOR']) })))
+    await act(async () => screen.update(React.createElement(MatchupRow, { ...props, liveStats: new Map([['Mine', { didNotPlay: false } as LiveStatLine]]), liveTeams: new Set(['TOR']) })))
     expect(scores().map(score => score.props.children)).toEqual(['0', '18.0'])
 })
 
