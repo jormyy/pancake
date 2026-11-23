@@ -7,6 +7,7 @@ const scopedResource = require('./eslint/rules/scoped-resource')
 const lifecycleOwner = require('./eslint/rules/lifecycle-owner')
 const runtimeBoundaries = require('./eslint/rules/runtime-boundaries')
 const easternDay = require('./eslint/rules/eastern-day')
+const pagedReads = require('./eslint/rules/paged-reads')
 
 const edgeShared = 'supabase/functions/_shared'
 const generatedEdgeShared = fs.readdirSync(path.join(__dirname, edgeShared))
@@ -47,6 +48,7 @@ const pancake = {
         'lifecycle-owner': lifecycleOwner,
         'runtime-boundaries': runtimeBoundaries,
         'eastern-day': easternDay,
+        'paged-reads': pagedReads,
     },
 }
 
@@ -116,5 +118,11 @@ module.exports = defineConfig([
         ignores: ['core/src/dates/**', 'supabase/functions/_shared/date.ts'],
         plugins: { pancake },
         rules: { 'pancake/eastern-day': 'error' },
+    },
+    {
+        files: ['{app,components,contexts,hooks,lib,core/src,server,api,supabase/functions}/**/*.{js,mjs,cjs,ts,tsx,mts}'],
+        ignores: ['**/*.test.ts', '**/*.test.tsx'],
+        plugins: { pancake },
+        rules: { 'pancake/paged-reads': 'error' },
     },
 ])

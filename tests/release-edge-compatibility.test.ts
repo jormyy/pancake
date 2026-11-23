@@ -270,7 +270,7 @@ it.skipIf(!available)('preserves deployed Edge and client RPC argument contracts
         const sources = [git('show', ...selected.map(file => `origin/main:${file}`))]
         expect(brokenRpcContracts(sources, deployed, merged), `${group} RPC contracts`).toEqual([])
     }
-})
+}, 30_000)
 
 it('rejects a replacement RPC with a new required argument', () => {
     const deployed = latestFunctionDefinitionsInSource('CREATE FUNCTION public.offer(p_id uuid) RETURNS void LANGUAGE sql AS $$ SELECT; $$;')

@@ -8,8 +8,8 @@ import { syncStatsForDates } from './syncStats.ts'
 import { toETDate } from './date.ts'
 import type { Json } from './database.ts'
 import { calcWeekMaxPossiblePointsByMember, calcWeekPointsByMember } from './scoreLineups.ts'
+import { fetchAllPages } from './fetchAllPages.ts'
 import {
-    fetchAllPages,
     loadLeagueMemberIds,
     loadSeasonWeekBounds,
     weekNumberForGameDate,

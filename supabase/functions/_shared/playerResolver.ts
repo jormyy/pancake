@@ -1,6 +1,6 @@
 import { supabase } from './supabase.ts'
 import { normalizeName } from './nameMatch.ts'
-import { mustSupabase } from './backfillJobs.ts'
+import { mustFetchAllPages } from './backfillJobs.ts'
 import { resolvePlayerImports } from './playerImports.ts'
 
 type PlayerRow = {
@@ -16,22 +16,11 @@ type NamePlayerResolver = {
 }
 
 async function loadPlayers(select: string): Promise<PlayerRow[]> {
-  const players: PlayerRow[] = []
-  let page = 0
-  while (true) {
-    const rows = await mustSupabase(
-      'load players for backfill resolver',
-      supabase
-        .from('players')
-        .select(select)
-        .range(page * 1000, (page + 1) * 1000 - 1),
-    )
-    if (!rows?.length) break
-    players.push(...rows as unknown as PlayerRow[])
-    if (rows.length < 1000) break
-    page++
-  }
-  return players
+  return await mustFetchAllPages('load players for backfill resolver', (from, to) => supabase
+    .from('players')
+    .select(select)
+    .order('id')
+    .range(from, to)) as unknown as PlayerRow[]
 }
 
 export async function loadNamePlayerResolver(): Promise<NamePlayerResolver> {

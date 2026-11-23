@@ -1,4 +1,5 @@
 import { supabase } from '../_shared/supabase.ts'
+import { fetchAllPages } from '../_shared/fetchAllPages.ts'
 import { serveInternal } from '../_shared/serve.ts'
 import { recordSyncRun } from '../_shared/syncRuns.ts'
 import { cachedTradeValueSnapshot, syncTradeValues, type TradeValueStore, type TradeValuePlayer } from '../_shared/tradeValues.ts'
@@ -17,15 +18,7 @@ const store: TradeValueStore = {
     const state = await rpc('get_trade_value_sync_state', {}, signal) as { fetched_at: string | null; last_request_at: string | null; matched: number | null }
     return cachedTradeValueSnapshot(state)
   },
-  players: async signal => {
-    const players: TradeValuePlayer[] = []
-    for (let start = 0; ; start += 1000) {
-      const { data, error } = await supabase.from('players').select('id,display_name,nba_team,position,eligible_positions').order('id').range(start, start + 999).abortSignal(signal)
-      if (error) throw error
-      players.push(...data)
-      if (data.length < 1000) return players
-    }
-  },
+  players: async signal => await fetchAllPages<TradeValuePlayer>((from, to) => supabase.from('players').select('id,display_name,nba_team,position,eligible_positions').order('id').range(from, to).abortSignal(signal)),
   overrides: async signal => {
     const rows = await rpc('trade_value_review_overrides', {}, signal) as { source_id: string; resolved_player_id: string }[]
     return Object.fromEntries(rows.map(row => [row.source_id, row.resolved_player_id]))
