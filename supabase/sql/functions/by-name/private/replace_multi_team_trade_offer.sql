@@ -92,6 +92,7 @@ BEGIN
       WHEN v_countered_from_trade_id IS NOT NULL THEN 'trade_countered'
       ELSE 'trade_edited'
     END,
+    'parties',
     CASE
       WHEN v_countered_from_trade_id IS NOT NULL THEN 'Multi-team counteroffer sent'
       ELSE 'Multi-team trade offer edited'

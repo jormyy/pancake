@@ -180,6 +180,7 @@ BEGIN
     p_league_id,
     v_season_id,
     'free_agent_added',
+    'league',
     'Free agent added',
     CASE WHEN p_to_taxi THEN 'Player added to taxi.' ELSE NULL END,
     p_member_id,

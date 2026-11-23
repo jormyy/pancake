@@ -88,6 +88,7 @@ BEGIN
     p_league_id,
     v_season_id,
     'commissioner_add_count_override',
+    'league',
     'Weekly add count overridden',
     NULL,
     NULL,

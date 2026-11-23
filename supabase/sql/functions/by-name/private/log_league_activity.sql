@@ -6,6 +6,7 @@ CREATE OR REPLACE FUNCTION private.log_league_activity(
   p_league_id uuid,
   p_league_season_id uuid,
   p_event_type text,
+  p_visibility activity_visibility,
   p_title text,
   p_body text DEFAULT NULL,
   p_actor_member_id uuid DEFAULT NULL,
@@ -31,6 +32,7 @@ BEGIN
     related_trade_id,
     related_claim_id,
     event_type,
+    visibility,
     title,
     body,
     metadata
@@ -44,6 +46,7 @@ BEGIN
     p_related_trade_id,
     p_related_claim_id,
     p_event_type,
+    p_visibility,
     p_title,
     p_body,
     COALESCE(p_metadata, '{}'::jsonb)

@@ -3769,6 +3769,13 @@
       "statementCount": 16,
       "statementsSha256": "e16cc4fcc2b0549aa537f422d5c6cdaba4abd49cb1c94957799ff1dffde5bf0d",
       "sha256": "51cd9e591aee1d77f81dd218243e81148d188d8e8415ca29637fc298a30601fe"
+    },
+    {
+      "name": "activity_visibility",
+      "version": "20261215200000",
+      "statementCount": 23,
+      "statementsSha256": "1876544662e5ef37818defb4dde13d90eb6e6f74df80830a9674466771a8041b",
+      "sha256": "897db4deb955383afb9cc3aff01d27180db789d48d8bad890fdc6dbffd653bc5"
     }
   ]
 }

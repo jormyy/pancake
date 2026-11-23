@@ -19,8 +19,8 @@ BEGIN
         VALUES(member_id, league_id, actor_id, 'History team');
     INSERT INTO league_seasons(id, league_id, season_year, is_current)
         VALUES(season_id, league_id, 2097, true);
-    INSERT INTO league_activity(league_id, league_season_id, actor_member_id, event_type, title, created_at)
-        SELECT league_id, season_id, member_id, 'trade_completed', 'Trade completed', now() - entry * interval '1 minute'
+    INSERT INTO league_activity(league_id, league_season_id, actor_member_id, event_type, visibility, title, created_at)
+        SELECT league_id, season_id, member_id, 'trade_completed', 'league', 'Trade completed', now() - entry * interval '1 minute'
         FROM generate_series(1, 125) AS entry;
     PERFORM set_config('request.jwt.claim.sub', actor_id::text, true);
     SELECT array_agg(feed.id ORDER BY feed.occurred_at DESC, feed.id DESC) INTO first_page

@@ -331,6 +331,7 @@ BEGIN
       WHEN p_edited_from_trade_id IS NOT NULL THEN 'trade_edited'
       ELSE 'trade_offered'
     END,
+    'parties',
     CASE
       WHEN p_countered_from_trade_id IS NOT NULL THEN 'Counteroffer sent'
       WHEN p_edited_from_trade_id IS NOT NULL THEN 'Trade offer edited'
