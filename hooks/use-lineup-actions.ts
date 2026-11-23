@@ -11,8 +11,7 @@ import {
     type LineupMoveData,
 } from '@/lib/lineup'
 import { activateRosterPlayerWithLineup, toggleIR } from '@/lib/roster'
-import { todayLeague } from '@/lib/timezone'
-import { leagueTimezone } from '@/lib/league-timezones'
+import { todayET } from '@/lib/shared/dates'
 import { rosterLimits, sameRosterLimits, staleRosterLimitsNotice, type LeagueRosterLimits, type RosterLimits } from '@/lib/roster-capacity'
 // RN's Alert.alert is a silent no-op on web; showAlert/confirmAction route
 // through the in-app feedback system on every platform.
@@ -133,7 +132,7 @@ export function useLineupActions({
 
     const handleTap = useCallback(async (newSel: LineupSelection) => {
         if (saving) return
-        if (selectedDate < todayLeague(league?.timezone ?? leagueTimezone(actionOwner?.leagueId))) {
+        if (selectedDate < todayET()) {
             showAlert('Past lineup', 'Lineups for past days cannot be changed.', 'info')
             setSelected(null)
             return
@@ -231,7 +230,7 @@ export function useLineupActions({
                 if (reserve) confirmRosterActivation({ source: 'taxi', reserveName: reserve.displayName }, execute)
             } else await execute()
         } finally { releaseUpdate() }
-    }, [selectedDate, selected, actionContext, actionOwner?.leagueId, myLineup, league, startedTeams, reloadLineup, ownerIdentity, saving, limitsStillHold])
+    }, [selectedDate, selected, actionContext, myLineup, league, startedTeams, reloadLineup, ownerIdentity, saving, limitsStillHold])
 
     async function resolveOverflow(freeAction: 'drop' | 'ir', rosterPlayerId: string) {
         if (!activationOverflowPending || !actionContext) return

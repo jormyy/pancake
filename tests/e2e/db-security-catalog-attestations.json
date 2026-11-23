@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261215210000",
+  "candidateVersion": "20261215220000",
   "common": {
     "functions": [
       {
@@ -2805,6 +2805,10 @@
     {
       "filename": "20261215210000_schedules_as_work_kinds.sql",
       "sha256": "a537601fe0a2f8c141b86b2a09796073feee7dd22b295e1c5879661dd0394f71"
+    },
+    {
+      "filename": "20261215220000_lineup_day_open.sql",
+      "sha256": "49e157948c05c58450d915b79241f6a003a2221b89c18c2010af5d3dd45ebf26"
     }
   ],
   "preMigration": {

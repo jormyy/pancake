@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { createFixtureResourceOwner, findAvailablePlayers, setupTradeGameplayFixture } from './trade-fixture.mjs'
 import { seasonWeekRows } from './harness/season-calendar.mjs'
+import { todayET } from '@pancake/core'
 
 const db = async operation => { const result = await operation; if (result.error) throw new Error(result.error.message); return result.data }
 const addDays = (value, days) => new Date(Date.parse(`${value}T12:00:00Z`) + days * 86400000).toISOString().slice(0, 10)
@@ -12,7 +13,7 @@ export async function setupScoredPlayoffFixture(env, season) {
   const resources = createFixtureResourceOwner(admin)
   const members = await db(admin.from('league_members').select('id,user_id,team_name').eq('league_id', league.id).order('joined_at').order('id'))
   const usedYears = new Set((await db(admin.from('season_weeks').select('season_year'))).map(row => row.season_year))
-  const year = Array.from({ length: 30 }, (_, index) => 2001 + index).find(value => value < new Date().getFullYear() && !usedYears.has(value))
+  const year = Array.from({ length: 30 }, (_, index) => 2001 + index).find(value => value < Number(todayET().slice(0, 4)) && !usedYears.has(value))
   assert.ok(year, 'An unused historical fixture year is required')
   const weeks = seasonWeekRows(year, 26)
   const first = weeks[0].week_start

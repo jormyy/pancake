@@ -47,6 +47,8 @@ Every `league_activity` row now carries a required `visibility`, and negotiation
 It replaces `private.log_league_activity` with a version that takes the visibility, redefines every producer with it, and needs no Edge or frontend release.
 `20261215210000_schedules_as_work_kinds.sql` follows it, for 806 migrations.
 It moves the fixed-time jobs into `private.work_kinds` cadence rows, so a late or skipped dispatcher tick still enqueues each job once per period. It needs no Edge or frontend release.
+`20261215220000_lineup_day_open.sql` follows it, for 807 migrations.
+It adds `private.assert_lineup_day_open` and redefines the three lineup RPCs in place with the same signatures, so pins and slot moves share the Eastern past-day rule. It needs no Edge or frontend release.
 Database, then Edge, then merge the frontend.
 The frontend needs no release.
 

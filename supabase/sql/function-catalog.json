@@ -13,6 +13,7 @@
     "private.assert_accepted_trade_capacity(uuid,uuid,uuid,uuid)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.assert_free_agent_waiver_cleared(uuid,uuid,uuid)": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.assert_legal_roster(uuid,uuid,uuid)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
+    "private.assert_lineup_day_open(date)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.assert_lineup_player_pins(uuid,uuid,uuid,date,jsonb)": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.assert_nba_game_candidate(text,integer,date,text,text,uuid)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.assert_not_reserved_trade_asset(uuid,uuid,uuid,uuid,uuid,uuid)": {"acl":["PUBLIC|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},
