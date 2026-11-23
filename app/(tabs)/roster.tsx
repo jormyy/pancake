@@ -226,7 +226,7 @@ export default function RosterScreen() {
     const [droppingId, setDroppingId] = useState<string | null>(null)
     const [sheetPlayerRaw, setSheetPlayer] = useState<RosterPlayer | null>(null)
     const [autoSetVisibleRaw, setAutoSetVisible] = useState(false)
-    const [activationPendingRaw, setActivationPending] = useState<{ rosterPlayerId: string; source: 'ir' | 'taxi' } | null>(null)
+    const [activationPendingRaw, setActivationPending] = useState<{ rosterPlayerId: string; source: 'ir' | 'taxi'; limits: RosterLimits } | null>(null)
     const [activationSaving, setActivationSaving] = useState(false)
     const rosterRecoveryRunnerRef = useRef(createRosterRecoveryRunner())
     const ownerIdentity = current?.id && leagueId ? `${current.id}:${leagueId}` : null
@@ -290,6 +290,11 @@ export default function RosterScreen() {
         showAlert(notice.title, notice.message)
         return false
     }, [])
+    const activationLimitsStillHold = useCallback((expected: RosterLimits) => {
+        if (limitsStillHold(expected)) return true
+        setActivationPending(null)
+        return false
+    }, [limitsStillHold])
     const rosterLegality = useRosterLegality({ memberId: current?.id, leagueId, limits, onChanged: refresh })
     const pendingClaimCount = claims.filter((claim) => claim.status === 'pending').length
     const avgMap = useMemo(() => data?.avgMap ?? EMPTY_AVG_MAP, [data?.avgMap])
@@ -388,7 +393,7 @@ export default function RosterScreen() {
         } else {
             const activeCount = partitioned.active.length
             if (activeCount >= limits.rosterSize) {
-                setActivationPending({ rosterPlayerId: item.id, source: 'ir' })
+                setActivationPending({ rosterPlayerId: item.id, source: 'ir', limits })
                 return
             }
         }
@@ -429,7 +434,7 @@ export default function RosterScreen() {
         if (rosterLocation(item) !== 'taxi') return
         const activeCount = partitioned.active.length
         if (activeCount >= limits.rosterSize) {
-            setActivationPending({ rosterPlayerId: item.id, source: 'taxi' })
+            setActivationPending({ rosterPlayerId: item.id, source: 'taxi', limits })
             return
         }
         confirmRosterActivation({ source: 'taxi', reserveName: item.players.display_name }, async () => {
@@ -457,6 +462,8 @@ export default function RosterScreen() {
         const generation = actionGenerationRef.current
         const identity = ownerIdentity
         if (!identity || !activationPending || !isCurrentAction(generation, identity)) return
+        const expectedLimits = activationPending.limits
+        if (!activationLimitsStillHold(expectedLimits)) return
         const reserve = roster.find(item => item.id === activationPending.rosterPlayerId)
         const chosen = active.find(item => item.id === freeRosterPlayerId)
         if (!reserve || !chosen) return
@@ -465,12 +472,12 @@ export default function RosterScreen() {
             reserveName: reserve.players.display_name,
             freeing: { name: chosen.players.display_name, action: freeAction },
         }, async () => {
-            if (!isCurrentAction(generation, identity)) return
+            if (!isCurrentAction(generation, identity) || !activationLimitsStillHold(expectedLimits)) return
             await rosterRecoveryRunnerRef.current(async () => {
                 setActivationSaving(true)
                 try {
                     const lockMessage = onlineRef.current ? await getRosterStatusChangeLockMessage(chosen) : null
-                    if (!isCurrentAction(generation, identity)) return
+                    if (!isCurrentAction(generation, identity) || !activationLimitsStillHold(expectedLimits)) return
                     if (lockMessage) {
                         showAlert('Roster locked', lockMessage)
                         return

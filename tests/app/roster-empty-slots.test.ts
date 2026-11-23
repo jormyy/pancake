@@ -25,6 +25,7 @@ const mocks = vi.hoisted(() => ({
     },
     push: vi.fn(),
     online: true, eligible: false, usableWidth: 358,
+    memberId: 'member-a',
     league: { id: 'league-a', roster_size: 20, ir_slots: 2, taxi_slots: 2, status: 'active', waiver_mode: 'rolling' },
 }))
 
@@ -50,7 +51,7 @@ vi.mock('@/lib/alert', () => ({ showAlert: vi.fn(), confirmAction: vi.fn() }))
 vi.mock('@/hooks/use-auth', () => ({ useAuth: () => ({ user: { id: 'user-a' } }) }))
 vi.mock('@/contexts/league-context', () => ({
     useLeagueContext: () => ({
-        current: { id: 'member-a', team_name: 'Team A' },
+        current: { id: mocks.memberId, team_name: 'Team A' },
         currentLeague: mocks.league,
         loading: false,
         membershipStatus: 'available',
@@ -134,6 +135,7 @@ describe('roster empty slots', () => {
         mocks.online = true
         mocks.eligible = false
         mocks.usableWidth = 358
+        mocks.memberId = 'member-a'
         vi.mocked(getRosterStatusChangeLockMessage).mockResolvedValue(null)
         vi.mocked(activateRosterPlayerWithOverflow).mockResolvedValue(undefined)
         vi.mocked(subscribeToTableChanges).mockClear()
@@ -224,7 +226,7 @@ describe('roster empty slots', () => {
             .find(node => node.props.item.id === 'reserve')!
         await act(async () => row.props[source === 'ir' ? 'onToggleIR' : 'onToggleTaxi'](reserve))
         const picker = () => screen.root.findByType('ActivationOverflowModal' as React.ElementType)
-        expect(picker().props.pending).toEqual({ rosterPlayerId: 'reserve', source })
+        expect(picker().props.pending).toMatchObject({ rosterPlayerId: 'reserve', source })
         expect(picker().props.myLineup.bench.map((player: { rosterPlayerId: string }) => player.rosterPlayerId)).toEqual(['active'])
         expect(activateRosterPlayerWithOverflow).not.toHaveBeenCalled()
         vi.mocked(getRosterStatusChangeLockMessage).mockClear()
@@ -355,6 +357,81 @@ describe('roster empty slots', () => {
         await act(async () => { release(null); await pending })
         expect(confirmAction).not.toHaveBeenCalled()
         expect(showAlert).toHaveBeenCalledWith('Roster settings loading', expect.any(String))
+    })
+
+    const overflowSetup = (source: 'ir' | 'taxi') => {
+        mocks.league.roster_size = 1
+        const active = { id: 'active', is_on_ir: false, is_on_taxi: false,
+            players: { id: 'active-player', display_name: 'Active', eligible_positions: ['PG'] } } as RosterPlayer
+        mocks.focusData.data = rosterData([active, reserveOn(source)])
+    }
+    const overflowPicker = () => screen.root.findByType('ActivationOverflowModal' as React.ElementType)
+
+    it.each([
+        ['ir', 2, 'Roster settings changed'], ['ir', undefined, 'Roster settings loading'],
+        ['taxi', 2, 'Roster settings changed'], ['taxi', undefined, 'Roster settings loading'],
+    ] as const)('does not activate from %s when limits become %s at the overflow chooser', async (source, rosterSize, title) => {
+        overflowSetup(source)
+        await act(async () => { screen = create(React.createElement(RosterScreen)) })
+        await act(async () => toggle(source))
+        await changeLimits(rosterSize)
+        await act(async () => overflowPicker().props.onDrop('active'))
+        expect(confirmAction).not.toHaveBeenCalled()
+        expect(activateRosterPlayerWithOverflow).not.toHaveBeenCalled()
+        expect(showAlert).toHaveBeenCalledWith(title, expect.any(String))
+        expect(overflowPicker().props.pending).toBeNull()
+    })
+
+    it.each([
+        ['ir', 2, 'Roster settings changed'], ['ir', undefined, 'Roster settings loading'],
+        ['taxi', 2, 'Roster settings changed'], ['taxi', undefined, 'Roster settings loading'],
+    ] as const)('does not activate from %s when limits become %s at the overflow confirmation', async (source, rosterSize, title) => {
+        overflowSetup(source)
+        await act(async () => { screen = create(React.createElement(RosterScreen)) })
+        await act(async () => toggle(source))
+        await act(async () => overflowPicker().props.onDrop('active'))
+        expect(confirmAction).toHaveBeenCalledOnce()
+        await changeLimits(rosterSize)
+        await act(async () => vi.mocked(confirmAction).mock.calls[0][2]())
+        expect(activateRosterPlayerWithOverflow).not.toHaveBeenCalled()
+        expect(showAlert).toHaveBeenCalledWith(title, expect.any(String))
+        expect(overflowPicker().props.pending).toBeNull()
+    })
+
+    it.each([
+        ['ir', 2, 'Roster settings changed'], ['ir', undefined, 'Roster settings loading'],
+        ['taxi', 2, 'Roster settings changed'], ['taxi', undefined, 'Roster settings loading'],
+    ] as const)('does not activate from %s when limits become %s during the overflow lock check', async (source, rosterSize, title) => {
+        overflowSetup(source)
+        await act(async () => { screen = create(React.createElement(RosterScreen)) })
+        await act(async () => toggle(source))
+        let release!: (value: null) => void
+        vi.mocked(getRosterStatusChangeLockMessage).mockImplementation(() => new Promise<null>(resolve => { release = resolve }))
+        await act(async () => overflowPicker().props.onDrop('active'))
+        const confirm = vi.mocked(confirmAction).mock.calls[0][2] as () => Promise<unknown>
+        let pending!: Promise<unknown>
+        await act(async () => { pending = confirm() })
+        await changeLimits(rosterSize)
+        await act(async () => { release(null); await pending })
+        expect(activateRosterPlayerWithOverflow).not.toHaveBeenCalled()
+        expect(showAlert).toHaveBeenCalledWith(title, expect.any(String))
+        expect(overflowPicker().props.pending).toBeNull()
+    })
+
+    it('does not activate after an owner switch during the overflow lock check', async () => {
+        overflowSetup('ir')
+        await act(async () => { screen = create(React.createElement(RosterScreen)) })
+        await act(async () => toggle('ir'))
+        let release!: (value: null) => void
+        vi.mocked(getRosterStatusChangeLockMessage).mockImplementation(() => new Promise<null>(resolve => { release = resolve }))
+        await act(async () => overflowPicker().props.onDrop('active'))
+        const confirm = vi.mocked(confirmAction).mock.calls[0][2] as () => Promise<unknown>
+        let pending!: Promise<unknown>
+        await act(async () => { pending = confirm() })
+        mocks.memberId = 'member-b'
+        await act(async () => screen.update(React.createElement(RosterScreen)))
+        await act(async () => { release(null); await pending })
+        expect(activateRosterPlayerWithOverflow).not.toHaveBeenCalled()
     })
 
     it('reports an offline overflow choice without sending or opening confirmation', async () => {

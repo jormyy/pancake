@@ -59,6 +59,7 @@ it('swaps a healthy IR player with an injured active player through the overflow
     await act(async () => latest.modalProps.onSwapWithInjured(healthyIr, injured))
     expect(state.swap).toHaveBeenCalledExactlyOnceWith({
         memberId: 'member', leagueId: 'league', healthyIrPlayer: healthyIr, injuredPlayer: injured, rosterSize: 1,
+        limitsStillHold: expect.any(Function),
     })
     expect(state.changed).toHaveBeenCalledOnce()
 })
@@ -97,4 +98,34 @@ it('does not report success when a swap cannot check capacity', async () => {
     await act(async () => latest.modalProps.onSwapWithInjured(healthyIr, injured))
     expect(state.swap).not.toHaveBeenCalled()
     expect(state.changed).not.toHaveBeenCalled()
+})
+
+it.each([
+    ['drop-and-activate', { rosterSize: 2, irSlots: 2, taxiSlots: 0 }, 'Roster settings changed'],
+    ['drop-and-activate', null, 'Roster settings loading'],
+    ['swap', { rosterSize: 2, irSlots: 2, taxiSlots: 0 }, 'Roster settings changed'],
+    ['swap', null, 'Roster settings loading'],
+] as const)('does not write a compound %s after limits become %o while the sheet is open', async (action, next, title) => {
+    const healthyIr = rosterPlayer({ id: 'ir', is_on_ir: true })
+    const injured = rosterPlayer({ id: 'injured' })
+    await act(async () => { await latest.check() })
+    await act(async () => screen.update(React.createElement(Probe, { limits: next })))
+    if (action === 'drop-and-activate') await act(async () => latest.modalProps.onDropAndActivate(injured, healthyIr))
+    else await act(async () => latest.modalProps.onSwapWithInjured(healthyIr, injured))
+    expect(state.activate).not.toHaveBeenCalled()
+    expect(state.swap).not.toHaveBeenCalled()
+    expect(state.alert).toHaveBeenCalledWith(title, expect.any(String))
+    expect(latest.modalProps.visible).toBe(false)
+})
+
+it('alerts and closes when a swap is chosen after limits load from an unknown-limit sheet', async () => {
+    await act(async () => screen.update(React.createElement(Probe, { limits: null })))
+    await act(async () => { await latest.check() })
+    await act(async () => screen.update(React.createElement(Probe, { limits: { rosterSize: 1, irSlots: 2, taxiSlots: 0 } })))
+    const healthyIr = rosterPlayer({ id: 'ir', is_on_ir: true })
+    const injured = rosterPlayer({ id: 'injured' })
+    await act(async () => latest.modalProps.onSwapWithInjured(healthyIr, injured))
+    expect(state.swap).not.toHaveBeenCalled()
+    expect(state.alert).toHaveBeenCalledWith('Roster settings changed', expect.any(String))
+    expect(latest.modalProps.visible).toBe(false)
 })

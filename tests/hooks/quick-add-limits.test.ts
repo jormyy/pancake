@@ -156,7 +156,7 @@ it('does not hand off a drop-and-add when limits disappear while the roster read
 
 function openResolution() {
     const injured = rosterPlayer({ id: 'injured', is_on_ir: true })
-    latest.setIrModal({ ineligible: [injured], roster: [injured], pendingPlayer: incoming, action: 'add' })
+    latest.setIrModal({ ineligible: [injured], roster: [injured], pendingPlayer: incoming, action: 'add', limits: LIMITS })
     return injured
 }
 
@@ -216,4 +216,43 @@ it('does not move to IR from an open resolution modal while limits are unknown',
 
     expect(mocks.toggleIR).not.toHaveBeenCalled()
     expect(mocks.alert).toHaveBeenCalledWith('Roster settings loading', expect.any(String))
+})
+
+it.each([
+    ['activate', { ...LIMITS, rosterSize: 21 }, 'Roster settings changed'],
+    ['activate', null, 'Roster settings loading'],
+    ['drop-and-activate', { ...LIMITS, rosterSize: 21 }, 'Roster settings changed'],
+    ['drop-and-activate', null, 'Roster settings loading'],
+    ['swap', { ...LIMITS, rosterSize: 21 }, 'Roster settings changed'],
+    ['swap', null, 'Roster settings loading'],
+] as const)('does not write a compound %s after limits become %o while the resolution sheet is open', async (action, next, title) => {
+    await mount(LIMITS)
+    let injured!: ReturnType<typeof rosterPlayer>
+    await act(async () => { injured = openResolution() })
+    await act(async () => renderer!.update(React.createElement(Probe, { limits: next })))
+    const healthyIr = rosterPlayer({ id: 'ir', is_on_ir: true })
+    if (action === 'activate') await act(async () => latest.handleIRActivate(injured))
+    else if (action === 'drop-and-activate') await act(async () => latest.handleDropAndIRActivate(rosterPlayer({ id: 'drop' }), injured))
+    else await act(async () => latest.handleSwapWithInjured(healthyIr, injured))
+
+    expect(mocks.resolveIR).not.toHaveBeenCalled()
+    expect(mocks.swap).not.toHaveBeenCalled()
+    expect(mocks.alert).toHaveBeenCalledWith(title, expect.any(String))
+    expect(latest.irModal).toBeNull()
+})
+
+it.each(['activate', 'drop-and-activate', 'swap'] as const)('alerts and closes when %s is chosen after limits load from an unknown-limit sheet', async action => {
+    await mount(null)
+    const injured = rosterPlayer({ id: 'injured', is_on_ir: true })
+    await act(async () => latest.setIrModal({ ineligible: [injured], roster: [injured], pendingPlayer: incoming, action: 'add', limits: null }))
+    await act(async () => renderer!.update(React.createElement(Probe, { limits: LIMITS })))
+    const healthyIr = rosterPlayer({ id: 'ir', is_on_ir: true })
+    if (action === 'activate') await act(async () => latest.handleIRActivate(injured))
+    else if (action === 'drop-and-activate') await act(async () => latest.handleDropAndIRActivate(rosterPlayer({ id: 'drop' }), injured))
+    else await act(async () => latest.handleSwapWithInjured(healthyIr, injured))
+
+    expect(mocks.resolveIR).not.toHaveBeenCalled()
+    expect(mocks.swap).not.toHaveBeenCalled()
+    expect(mocks.alert).toHaveBeenCalledWith('Roster settings changed', expect.any(String))
+    expect(latest.irModal).toBeNull()
 })

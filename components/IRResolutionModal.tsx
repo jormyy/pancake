@@ -68,7 +68,7 @@ export function IRResolutionModal({ visible, ineligibleIR, activeRoster, rosterS
     }
     function fixes(player: RosterPlayer, reserved: boolean) {
         return <>
-            {reserved ? <Button title="Activate" size="sm" onPress={() => activate(player)} disabled={loadingId !== null} accessibilityLabel={`Activate ${player.players.display_name}`} /> : null}
+            {reserved && rosterSize != null ? <Button title="Activate" size="sm" onPress={() => activate(player)} disabled={loadingId !== null} accessibilityLabel={`Activate ${player.players.display_name}`} /> : null}
             {reserved && rosterLocation(player) === 'ir' && !isIREligible(player.players.injury_status) && benchFull && onSwapWithInjured ? injuredCandidates.map(injured => <Button key={injured.id}
                 title={`Swap with ${injured.players.display_name}`} size="sm" variant="outline"
                 onPress={() => run(player, () => onSwapWithInjured(player, injured))} disabled={loadingId !== null}
