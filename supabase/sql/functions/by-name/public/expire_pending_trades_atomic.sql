@@ -59,17 +59,12 @@ BEGIN
     expired.id,
     expired.proposer_member_id,
     expired.recipient_member_id,
-    CASE
-      WHEN EXISTS (
-        SELECT 1 FROM trade_participants AS participant WHERE participant.trade_id = expired.id
-      ) THEN ARRAY(
-        SELECT participant.member_id
-          FROM trade_participants AS participant
-         WHERE participant.trade_id = expired.id
-         ORDER BY participant.sort_order, participant.member_id
-      )
-      ELSE ARRAY[expired.proposer_member_id, expired.recipient_member_id]
-    END
+    ARRAY(
+      SELECT participant.member_id
+        FROM trade_participants AS participant
+       WHERE participant.trade_id = expired.id
+       ORDER BY participant.sort_order, participant.member_id
+    )
     FROM expired;
 END;
 $$;

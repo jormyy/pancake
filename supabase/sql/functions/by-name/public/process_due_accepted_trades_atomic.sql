@@ -73,10 +73,7 @@ BEGIN
         v_trade.id,
         v_trade.proposer_member_id,
         v_trade.recipient_member_id,
-        CASE
-          WHEN cardinality(v_trade.participant_member_ids) > 0 THEN v_trade.participant_member_ids
-          ELSE ARRAY[v_trade.proposer_member_id, v_trade.recipient_member_id]
-        END,
+        v_trade.participant_member_ids,
         CASE WHEN EXISTS(SELECT 1 FROM trades WHERE id=v_trade.id AND jsonb_array_length(legality_issues)>0) THEN 'deferred' ELSE 'completed' END::text,
         NULL::text,
         NULL::text;
@@ -92,10 +89,7 @@ BEGIN
           v_trade.id,
           v_trade.proposer_member_id,
           v_trade.recipient_member_id,
-          CASE
-            WHEN cardinality(v_trade.participant_member_ids) > 0 THEN v_trade.participant_member_ids
-            ELSE ARRAY[v_trade.proposer_member_id, v_trade.recipient_member_id]
-          END,
+          v_trade.participant_member_ids,
           'deferred'::text,
           v_error_code,
           v_error_message;
@@ -108,10 +102,7 @@ BEGIN
           v_trade.id,
           v_trade.proposer_member_id,
           v_trade.recipient_member_id,
-          CASE
-            WHEN cardinality(v_trade.participant_member_ids) > 0 THEN v_trade.participant_member_ids
-            ELSE ARRAY[v_trade.proposer_member_id, v_trade.recipient_member_id]
-          END,
+          v_trade.participant_member_ids,
           'deferred'::text,
           v_error_code,
           v_error_message;
@@ -124,10 +115,7 @@ BEGIN
           v_trade.id,
           v_trade.proposer_member_id,
           v_trade.recipient_member_id,
-          CASE
-            WHEN cardinality(v_trade.participant_member_ids) > 0 THEN v_trade.participant_member_ids
-            ELSE ARRAY[v_trade.proposer_member_id, v_trade.recipient_member_id]
-          END,
+          v_trade.participant_member_ids,
           'failed_retryable'::text,
           v_error_code,
           v_error_message;

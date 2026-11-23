@@ -102,20 +102,13 @@ BEGIN
       WHEN 'withdraw' THEN 'Only the trade proposer can withdraw this trade.'
       ELSE 'Only the proposer can edit this offer.'
     END USING ERRCODE = '42501';
-  ELSIF p_action IN ('reject', 'counter') AND COALESCE(v_trade.is_multi_team, false)
-    AND (v_trade.proposer_member_id = p_member_id OR v_participant.member_id IS NULL OR v_participant.accepted_at IS NOT NULL) THEN
+  ELSIF p_action IN ('reject', 'counter') AND (v_participant.member_id IS NULL OR v_participant.is_initiator
+    OR (v_trade.status = 'pending' AND v_participant.accepted_at IS NOT NULL)) THEN
     RAISE EXCEPTION '%', CASE p_action
       WHEN 'reject' THEN 'Only a non-proposer trade participant can reject this trade.'
       ELSE 'Only a non-proposer trade participant can counter this offer.'
     END USING ERRCODE = '42501';
-  ELSIF p_action IN ('reject', 'counter') AND NOT COALESCE(v_trade.is_multi_team, false)
-    AND v_trade.recipient_member_id IS DISTINCT FROM p_member_id THEN
-    RAISE EXCEPTION '%', CASE p_action
-      WHEN 'reject' THEN 'Only the trade recipient can reject this trade.'
-      ELSE 'Only the recipient can counter this offer.'
-    END USING ERRCODE = '42501';
-  ELSIF p_action = 'veto' AND (v_participant.member_id IS NOT NULL
-    OR p_member_id IN (v_trade.proposer_member_id, v_trade.recipient_member_id)) THEN
+  ELSIF p_action = 'veto' AND v_participant.member_id IS NOT NULL THEN
     RAISE EXCEPTION 'Trade parties cannot veto their own trade.' USING ERRCODE = 'P0001';
   END IF;
 

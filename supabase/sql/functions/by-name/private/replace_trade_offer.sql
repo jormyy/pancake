@@ -24,7 +24,6 @@ DECLARE
   v_trade trades%ROWTYPE;
   v_new_trade_id uuid;
   v_parent_trade_id uuid;
-  v_new_proposer_member_id uuid;
   v_new_recipient_member_id uuid;
   v_replaced_status trade_status;
   v_countered_from_trade_id uuid := NULL;
@@ -44,14 +43,10 @@ BEGIN
   END IF;
 
   IF p_action = 'counter' THEN
-    v_new_proposer_member_id := p_member_id;
-    v_new_recipient_member_id := v_trade.proposer_member_id;
     v_replaced_status := 'countered'::trade_status;
     v_countered_from_trade_id := p_trade_id;
     v_pending_error := 'Only pending offers can be countered.';
   ELSE
-    v_new_proposer_member_id := p_member_id;
-    v_new_recipient_member_id := v_trade.recipient_member_id;
     v_replaced_status := 'edited'::trade_status;
     v_edited_from_trade_id := p_trade_id;
     v_pending_error := 'Only pending offers can be edited.';
@@ -68,11 +63,13 @@ BEGIN
   END IF;
 
   v_parent_trade_id := COALESCE(v_trade.parent_trade_id, v_trade.id);
+  SELECT member_id INTO STRICT v_new_recipient_member_id
+    FROM trade_participants WHERE trade_id = p_trade_id AND member_id <> p_member_id;
 
   v_new_trade_id := private.create_trade_offer(
     v_trade.league_id,
     v_trade.league_season_id,
-    v_new_proposer_member_id,
+    p_member_id,
     v_new_recipient_member_id,
     p_offer_player_ids,
     p_request_player_ids,

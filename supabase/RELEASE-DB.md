@@ -40,6 +40,8 @@ It routes every roster hold check through `private.roster_action_policy`, keeps 
 It takes every roster lock through `private.lock_roster_scope` in one order, keeps each function's outcome, and needs no Edge or frontend release.
 `20261215180000_begin_trade_action.sql` follows it, for 803 migrations.
 It redefines the trade RPCs in place with the same signatures, and needs no Edge or frontend release.
+`20261215190000_trades_read_participants.sql` follows it, for 804 migrations.
+It backfills missing trade participant rows, redefines the trade functions in place with the same signatures, and needs no Edge or frontend release.
 Database, then Edge, then merge the frontend.
 The frontend needs no release.
 
