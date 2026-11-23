@@ -28,6 +28,7 @@ import { NoLeagueState } from '@/components/NoLeagueState'
 import { statLineupWidth } from '@/components/MatchupRow'
 import { ScoreBreakdownSheet } from '@/components/ScoreBreakdownSheet'
 import { MatchupPlayerSheet } from '@/components/player/MatchupPlayerSheet'
+import { useDayProjections } from '@/hooks/use-day-projections'
 import { lineupStatColumns } from '@/lib/score-breakdown'
 import { useMatchupData } from '@/hooks/use-matchup-data'
 import { getGameDisplayState, readHomeGameDisplay, resolveHomeSurface, saveHomeGameDisplay } from '@/lib/home-surface'
@@ -117,6 +118,8 @@ export default function HomeScreen() {
 
     const [detailsRow, setDetailsRow] = useState<DetailsRow | null>(null)
     const [previewPlayer, setPreviewPlayer] = useState<LineupPlayer | null>(null)
+    const projectionLineups = useMemo(() => [myLineup, oppLineup], [myLineup, oppLineup])
+    const dayProjections = useDayProjections(league?.id, selectedDate, projectionLineups, scoringSettings)
     const openMatchup = (id: string | null) => {
         if (id && id !== matchup?.id) router.push({ pathname: '/(modals)/matchup', params: { matchupId: id, date: selectedDate } })
     }
@@ -163,6 +166,7 @@ export default function HomeScreen() {
                             statColumns={showStatColumns ? statColumns : null}
                             onOpenDetails={setDetailsRow}
                             onOpenPlayer={setPreviewPlayer}
+                            projections={dayProjections}
                             capacity={{
                                 bench: myLineup.benchSlots ?? 0,
                                 ir: limits?.irSlots ?? 0,
