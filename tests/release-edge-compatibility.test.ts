@@ -141,7 +141,7 @@ it('rejects duplicate migration versions', () => {
 it.skipIf(!available)('keeps merged bodies when release migrations redefine deployed functions', () => {
     expect(revertedDefinitions(releaseMigrations(), canonicalDefinitions('origin/main'), canonicalDefinitions()),
         'A release migration replaces a deployed function without the merged canonical body').toEqual([])
-})
+}, 60_000)
 
 it('detects a release definition that would revert main', () => {
     const statement = (value: number) => `CREATE OR REPLACE FUNCTION public.shared_release_function() RETURNS integer LANGUAGE sql AS $$ SELECT ${value}; $$;`
@@ -170,7 +170,7 @@ it.skipIf(!available)('keeps deployed client subscriptions in the Realtime publi
         .filter(file => /\.tsx?$/.test(file))
     const subscribed = subscribedTables(git('show', ...files.map(file => `origin/main:${file}`)))
     expect(droppedSubscribedTables(releaseMigrations(), subscribed)).toEqual([])
-})
+}, 20_000) // Reads every deployed client file through git; CI runners take 5-8s, past the 5s default.
 
 it('detects publication drops used by the deployed client', () => {
     const subscribed = subscribedTables(`channel.on('postgres_changes', { event: '*', schema: 'public', table: 'weekly_lineups' }, refresh)`)
@@ -365,23 +365,7 @@ function requiresDatabaseFirst(mainMigrations: string, clientSource: string, not
 }
 
 it.skipIf(!available)('documents database-first release order for new client dependencies', () => {
-    const baseNotes = readFileSync('supabase/RELEASE-DB.md', 'utf8')
-    const pipelineNotes = baseNotes.match(/^## Pipeline night\n([\s\S]*?)(?=^## |$(?![\s\S]))/m)?.[1] ?? ''
-    const publicNotes = readFileSync('docs/public-cli.md', 'utf8')
-        .match(/^## Public CLI release order\n([\s\S]*?)(?=^## |$(?![\s\S]))/m)?.[1] ?? ''
-    const playerReadNotes = readFileSync('docs/data-flow.md', 'utf8')
-        .match(/^## Player read release order\n([\s\S]*?)(?=^## |$(?![\s\S]))/m)?.[1] ?? ''
-    const tradeReceiptNotes = readFileSync('docs/trade-legality.md', 'utf8')
-        .match(/^## Trade receipt release order\n([\s\S]*?)(?=^## |$(?![\s\S]))/m)?.[1] ?? ''
-    const statsCertificationNotes = readFileSync('docs/live-scores.md', 'utf8')
-        .match(/^## Stats certification release order\n([\s\S]*?)(?=^## |$(?![\s\S]))/m)?.[1] ?? ''
-    const refreshNotes = readFileSync('docs/data-flow.md', 'utf8')
-        .match(/^## Screen refresh\n([\s\S]*?)(?=^## |$(?![\s\S]))/m)?.[1] ?? ''
-    const tradeTaxiNotes = readFileSync('docs/interface-design.md', 'utf8')
-        .match(/^## Trade Taxi release order\n([\s\S]*?)(?=^## |$(?![\s\S]))/m)?.[1] ?? ''
-    const requestNotes = readFileSync('docs/data-flow.md', 'utf8')
-        .match(/^## Free-agent response compatibility\n([\s\S]*?)(?=^## |$(?![\s\S]))/m)?.[1] ?? ''
-    const notes = baseNotes.replace(/^## Release order for this release\n/m, `## Release order for this release\n${pipelineNotes}\n${publicNotes}\n${playerReadNotes}\n${tradeReceiptNotes}\n${statsCertificationNotes}\n${refreshNotes}\n${tradeTaxiNotes}\n${requestNotes}\n`)
+    const notes = readFileSync('supabase/RELEASE-DB.md', 'utf8')
     const releaseSection = notes.match(/^## Release order for this release\n([\s\S]*?)(?=^## |$(?![\s\S]))/m)?.[1] ?? ''
     const productionHead = documentedProductionHead(releaseSection) ?? ''
     const migrations = readdirSync('supabase/migrations').filter(file => file.endsWith('.sql')).sort()

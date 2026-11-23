@@ -1,10 +1,3 @@
-/**
- * verify — health checks and data validation.
- *
- * GET /verify?action=validate-db[&seasonYear=2026]
- * GET /verify?action=season-totals[&seasonYear=2026]
- * POST /verify { action: "test-endpoints" }
- */
 import { supabase } from '../_shared/supabase.ts'
 import { fetchAllPages } from '../_shared/fetchAllPages.ts'
 import { fetchTodaysGames, fetchBoxScore, fetchSeasonSchedule } from '../_shared/nba.ts'

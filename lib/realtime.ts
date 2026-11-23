@@ -1,5 +1,6 @@
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
+import { announceRejoin, onLifecycle, readsAllowed } from '@/lib/lifecycle'
 import { type FallbackTableChangeWatch, type TableChangeWatch } from '@/lib/realtime-config'
 export { type TableChangeWatch } from '@/lib/realtime-config'
 
@@ -14,13 +15,12 @@ type SubscriptionWithStatus = TableChangeSubscription & {
 }
 
 let channelNonce = 0
-const subscriptionCleanups = new WeakMap<RealtimeChannel, () => void>()
-const broadcastCleanups = new WeakMap<RealtimeChannel, () => Promise<void>>()
-const broadcastHandles = new WeakSet<RealtimeChannel>()
+const CLOSED_REJOIN_MS = 3_000
+const channelCleanups = new WeakMap<RealtimeChannel, () => Promise<void>>()
 type ChangePayload = Parameters<TableChangeWatch['onChange']>[0]
 type HintBatch = { hints: { event?: ChangePayload['eventType']; row?: Record<string, unknown>; payload?: ChangePayload }[] }
 type BroadcastListener = { receive: (payload: ChangePayload) => void; status: (status: RealtimeSubscriptionStatus) => void }
-type BroadcastConnection = { channel: RealtimeChannel; listeners: Set<BroadcastListener>; status?: RealtimeSubscriptionStatus; started: boolean }
+type BroadcastConnection = { channel: RealtimeChannel; listeners: Set<BroadcastListener>; status?: RealtimeSubscriptionStatus; started: boolean; rebuild: ReturnType<typeof setTimeout> | null }
 const broadcasts = new Map<string, BroadcastConnection>()
 const retiringBroadcasts = new Map<string, { channel: RealtimeChannel; pending: Promise<unknown> }>()
 const leagueBroadcastTables = new Set([
@@ -50,14 +50,15 @@ function acquireBroadcast(topic: string, listener: BroadcastListener): Broadcast
     const retiring = retiringBroadcasts.get(topic)
     const connection: BroadcastConnection = {
         channel: retiring?.channel ?? supabase.channel(topic, { config: { private: true } }),
-        listeners: new Set([listener]), started: false,
+        listeners: new Set([listener]), started: false, rebuild: null,
     }
     broadcasts.set(topic, connection)
-    const start = () => {
-        if (!connection.listeners.size) return
-        if (retiring) connection.channel = supabase.channel(topic, { config: { private: true } })
+    const current = () => broadcasts.get(topic) === connection && connection.listeners.size > 0
+    const rejoined = rejoinTracker()
+    const open = () => {
+        const channel = connection.channel
         connection.started = true
-        connection.channel.on('broadcast', { event: 'change' }, ({ payload }: { payload: ChangePayload | HintBatch }) => {
+        channel.on('broadcast', { event: 'change' }, ({ payload }: { payload: ChangePayload | HintBatch }) => {
             if (!payload || typeof payload !== 'object') return
             const changes: ChangePayload[] = 'hints' in payload ? Array.isArray(payload.hints) ? payload.hints.flatMap(hint => {
                 if (hint?.payload && typeof hint.payload === 'object') return [hint.payload]
@@ -73,9 +74,23 @@ function acquireBroadcast(topic: string, listener: BroadcastListener): Broadcast
                 for (const receiver of connection.listeners) receiver.receive(change)
             }
         }).subscribe(status => {
+            if (connection.channel !== channel) return
             connection.status = status
+            rejoined(status)
             for (const receiver of connection.listeners) receiver.status(status)
+            if (status !== 'CLOSED' || connection.rebuild || !current()) return
+            connection.rebuild = setTimeout(() => {
+                connection.rebuild = null
+                if (!current()) return
+                connection.channel = supabase.channel(topic, { config: { private: true } })
+                open()
+            }, CLOSED_REJOIN_MS)
         })
+    }
+    const start = () => {
+        if (!connection.listeners.size) return
+        if (retiring) connection.channel = supabase.channel(topic, { config: { private: true } })
+        open()
     }
     if (retiring) void retiring.pending.then(start, () => {
         connection.status = 'CHANNEL_ERROR'
@@ -89,6 +104,8 @@ async function releaseBroadcast(topic: string, connection: BroadcastConnection, 
     connection.listeners.delete(listener)
     if (connection.listeners.size) return
     if (broadcasts.get(topic) === connection) broadcasts.delete(topic)
+    if (connection.rebuild) clearTimeout(connection.rebuild)
+    connection.rebuild = null
     if (!connection.started) return
     const retiring = { channel: connection.channel, pending: supabase.removeChannel(connection.channel).catch(() => supabase.removeChannel(connection.channel)) }
     retiringBroadcasts.set(topic, retiring)
@@ -133,8 +150,7 @@ function subscribeToBroadcasts(subscription: SubscriptionWithStatus, topics: str
             return typeof value === 'function' ? value.bind(channel) : value
         },
     })
-    broadcastHandles.add(handle)
-    broadcastCleanups.set(handle, async () => {
+    channelCleanups.set(handle, async () => {
         disposed = true
         recovery?.cancel()
         await Promise.all(entries.map(({ topic, connection, listener }) => releaseBroadcast(topic, connection, listener)))
@@ -150,9 +166,7 @@ function reconnectRecovery(reload: NonNullable<SubscriptionWithStatus['onReconne
     let inFlight = false
     let attempts = 0
     let retry: ReturnType<typeof setTimeout> | null = null
-    const canRead = () => !disposed && joined
-        && (typeof navigator === 'undefined' || navigator.onLine !== false)
-        && (typeof document === 'undefined' || document.visibilityState !== 'hidden')
+    const canRead = () => !disposed && joined && readsAllowed()
     const run = async () => {
         if (!pending || inFlight || attempts >= 3 || !canRead()) return
         if (retry) clearTimeout(retry)
@@ -177,8 +191,7 @@ function reconnectRecovery(reload: NonNullable<SubscriptionWithStatus['onReconne
         attempts = 0
         void run()
     }
-    if (typeof window !== 'undefined') window.addEventListener('online', resume)
-    if (typeof document !== 'undefined') document.addEventListener('visibilitychange', resume)
+    const stop = onLifecycle(['online', 'visible'], resume)
     return {
         onStatus: (status: RealtimeSubscriptionStatus) => {
             if (disposed) return
@@ -199,8 +212,7 @@ function reconnectRecovery(reload: NonNullable<SubscriptionWithStatus['onReconne
             disposed = true
             pending = false
             if (retry) clearTimeout(retry)
-            if (typeof window !== 'undefined') window.removeEventListener('online', resume)
-            if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', resume)
+            stop()
         },
     }
 }
@@ -211,30 +223,68 @@ export function subscribeToTableChanges(
 ): RealtimeChannel {
     const topics = subscription.watches.map(broadcastTopic)
     if (topics.length && topics.every((topic): topic is string => topic !== null)) return subscribeToBroadcasts(subscription, topics)
-    const channel = supabase.channel(`${channelName}:${++channelNonce}`, { config: { private: true } })
-    const register = (watch: FallbackTableChangeWatch, onChange: TableChangeWatch['onChange']) => {
-        channel.on(
-            'postgres_changes',
-            {
-                event: watch.event ?? '*',
-                schema: 'public',
-                table: watch.table,
-                ...(watch.filter ? { filter: watch.filter } : {}),
-            },
-            onChange,
-        )
-    }
-    if (subscription.mode === 'per-watch') {
-        for (const watch of subscription.watches) register(watch, watch.onChange)
-    } else {
-        for (const watch of subscription.watches) register(watch, subscription.onChange)
-    }
     const recovery = subscription.onReconnect ? reconnectRecovery(subscription.onReconnect) : null
-    if (recovery) subscriptionCleanups.set(channel, recovery.cancel)
-    return channel.subscribe((status) => {
-        subscription.onStatus?.(status)
-        recovery?.onStatus(status)
+    const rejoined = rejoinTracker()
+    let disposed = false
+    let rebuild: ReturnType<typeof setTimeout> | null = null
+    let channel!: RealtimeChannel
+    const open = () => {
+        const opened = supabase.channel(`${channelName}:${++channelNonce}`, { config: { private: true } })
+        channel = opened
+        const register = (watch: FallbackTableChangeWatch, onChange: TableChangeWatch['onChange']) => {
+            opened.on(
+                'postgres_changes',
+                {
+                    event: watch.event ?? '*',
+                    schema: 'public',
+                    table: watch.table,
+                    ...(watch.filter ? { filter: watch.filter } : {}),
+                },
+                onChange,
+            )
+        }
+        if (subscription.mode === 'per-watch') {
+            for (const watch of subscription.watches) register(watch, watch.onChange)
+        } else {
+            for (const watch of subscription.watches) register(watch, subscription.onChange)
+        }
+        opened.subscribe((status) => {
+            if (disposed || channel !== opened) return
+            rejoined(status)
+            subscription.onStatus?.(status)
+            recovery?.onStatus(status)
+            if (status !== 'CLOSED' || rebuild) return
+            rebuild = setTimeout(() => {
+                rebuild = null
+                if (!disposed) open()
+            }, CLOSED_REJOIN_MS)
+        })
+    }
+    open()
+    const handle = new Proxy(channel, {
+        get: (_target, key) => {
+            const value = Reflect.get(channel, key, channel)
+            return typeof value === 'function' ? value.bind(channel) : value
+        },
     })
+    channelCleanups.set(handle, async () => {
+        disposed = true
+        if (rebuild) clearTimeout(rebuild)
+        recovery?.cancel()
+        await supabase.removeChannel(channel)
+    })
+    return handle
+}
+
+function rejoinTracker() {
+    let lost = false
+    return (status: RealtimeSubscriptionStatus) => {
+        if (status !== 'SUBSCRIBED') lost = true
+        else if (lost) {
+            lost = false
+            announceRejoin()
+        }
+    }
 }
 
 export function debounceRealtimeRefresh(onChange: () => void, delayMs = 250) {
@@ -255,16 +305,10 @@ export function debounceRealtimeRefresh(onChange: () => void, delayMs = 250) {
 }
 
 export async function unsubscribeFromTableChanges(channel: RealtimeChannel): Promise<void> {
-    const cleanup = broadcastCleanups.get(channel)
-    if (cleanup) {
-        broadcastCleanups.delete(channel)
-        await cleanup()
-        return
-    }
-    if (broadcastHandles.has(channel)) return
-    subscriptionCleanups.get(channel)?.()
-    subscriptionCleanups.delete(channel)
-    await supabase.removeChannel(channel)
+    const cleanup = channelCleanups.get(channel)
+    if (!cleanup) return
+    channelCleanups.delete(channel)
+    await cleanup()
 }
 
 export async function disposeTableChangeSubscription(

@@ -28,7 +28,15 @@ DECLARE
   v_expected_member_id uuid;
   v_nomination_order int;
   v_countdown_seconds int;
+  v_league_id uuid;
 BEGIN
+  SELECT league_id INTO v_league_id FROM drafts WHERE id = p_draft_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Draft not found';
+  END IF;
+
+  PERFORM private.lock_roster_scope(v_league_id, ARRAY[p_member_id], ARRAY[p_player_id]);
+
   SELECT *
     INTO v_draft
     FROM drafts
@@ -54,16 +62,6 @@ BEGIN
     RAISE EXCEPTION 'Not authorized to act for this member'
       USING ERRCODE = '42501';
   END IF;
-
-  PERFORM pg_advisory_xact_lock(
-    hashtext(v_draft.league_id::text),
-    hashtext(p_member_id::text)
-  );
-
-  PERFORM pg_advisory_xact_lock(
-    hashtext(v_draft.league_id::text),
-    hashtext(p_player_id::text)
-  );
 
   IF v_draft.status <> 'in_progress'::draft_status THEN
     RAISE EXCEPTION 'Draft is not in progress';

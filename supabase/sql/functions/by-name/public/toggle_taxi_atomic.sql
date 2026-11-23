@@ -43,20 +43,10 @@ BEGIN
    WHERE draft.league_id = v_league_id
      AND draft.draft_type = 'snake' AND NOT draft.is_mock AND draft.status IN ('completed','cancelled')
    ORDER BY draft.created_at DESC LIMIT 1;
+  PERFORM private.lock_roster_scope(v_league_id, ARRAY[v_member_id], ARRAY[v_player_id], v_rookie_draft_id);
   IF v_rookie_draft_id IS NOT NULL THEN
-    PERFORM pg_advisory_xact_lock(hashtext(v_rookie_draft_id::text), 0);
     PERFORM 1 FROM drafts WHERE id = v_rookie_draft_id FOR UPDATE;
   END IF;
-
-  PERFORM pg_advisory_xact_lock(
-    hashtext(v_league_id::text),
-    hashtext(v_member_id::text)
-  );
-
-  PERFORM pg_advisory_xact_lock(
-    hashtext(v_league_id::text),
-    hashtext(v_player_id::text)
-  );
 
   SELECT *
     INTO v_rp
@@ -110,7 +100,8 @@ BEGIN
       USING ERRCODE = 'P0001';
   END IF;
 
-  PERFORM private.assert_asset_unlocked(v_rp.league_id,v_rp.league_season_id,v_rp.member_id,v_rp.player_id);
+  PERFORM private.assert_roster_action_allowed(CASE WHEN p_to_taxi THEN 'to_taxi' ELSE 'from_taxi' END::private.roster_action,
+    v_rp.league_id,v_rp.league_season_id,v_rp.member_id,v_rp.player_id);
 
   IF private.roster_status_game_started(v_rp.player_id) THEN
     RAISE EXCEPTION 'This player''s game has already started. No roster status changes are allowed for that slate.'

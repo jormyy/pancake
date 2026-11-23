@@ -20,6 +20,7 @@ import {
   setBalances,
   setLeagueRules,
 } from './multi-team-trade-db-support.mjs'
+import { todayET } from '@pancake/core'
 
 const managerClient = () => createClient(env.supabaseUrl, env.anonKey, {
   auth: { persistSession: false },
@@ -234,7 +235,7 @@ const assertTradePlanCapacityAndRosterRecovery = async (fixture) => {
     p_member_id: fixture.recipient.id,
     p_league_id: fixture.league.id,
     p_league_season_id: fixture.currentSeason.id,
-    p_game_date: new Date().toISOString().slice(0, 10),
+    p_game_date: todayET(),
     p_week_number: 1,
     p_moves: [],
   }, { code: 'P0001' })

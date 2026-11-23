@@ -25,7 +25,7 @@ vi.mock('@/components/EmptyState', () => ({ EmptyState: 'EmptyState' }))
 vi.mock('@shopify/flash-list', () => ({ FlashList: 'FlashList' }))
 vi.mock('@/components/ui', () => ({ usePageMetrics: () => ({ padX: 16 }) }))
 vi.mock('@/hooks/use-league-timezone', () => ({ useLeagueTimezone: () => 'UTC' }))
-vi.mock('@/hooks/use-player-age', () => ({ usePlayerAge: () => null }))
+vi.mock('@/hooks/use-jersey-number', () => ({ useJerseyNumber: () => null }))
 vi.mock('@/components/trades/SavedTradeEstimate', () => ({ SavedTradeEstimate: () => null }))
 
 const item: TransactionRow = {

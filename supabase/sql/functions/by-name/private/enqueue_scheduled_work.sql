@@ -4,10 +4,10 @@
 
 CREATE OR REPLACE FUNCTION private.enqueue_scheduled_work(p_now timestamptz DEFAULT now())
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
-DECLARE v_min integer:=extract(minute FROM p_now AT TIME ZONE 'UTC')::int;
-  v_trade record; v_waiver record; v_floor record; v_waiver_day date; v_waiver_due timestamptz;
-  v_utc timestamp:=p_now AT TIME ZONE 'UTC'; v_key text:=date_trunc('minute',p_now)::text;
+DECLARE v_trade record; v_waiver record; v_floor record; v_waiver_day date; v_waiver_due timestamptz;
+  v_utc timestamp:=p_now AT TIME ZONE 'UTC';
 BEGIN
+  PERFORM private.enqueue_cadenced_work(p_now);
   PERFORM private.enqueue_close_expired_nominations(p_now);
   IF EXISTS (
     SELECT 1
@@ -83,11 +83,9 @@ BEGIN
   PERFORM private.enqueue_pre_tipoff_optimizer(p_now);
   PERFORM private.enqueue_matchup_forecasts(p_now);
   PERFORM private.enqueue_screen_views(p_now);
-  IF v_min%2=0 THEN PERFORM private.enqueue_live_poll(p_now); END IF;
-  IF v_min%15=0 THEN
+  IF private.claim_cron_dispatch('live-poll',interval '2 minutes',p_now) THEN PERFORM private.enqueue_live_poll(p_now); END IF;
+  IF private.claim_cron_dispatch('scheduled-quarter-hour',interval '15 minutes',p_now) THEN
     IF ((p_now AT TIME ZONE 'America/New_York')::time>=time '04:00' AND (p_now AT TIME ZONE 'America/New_York')::time<time '06:00') THEN
-      PERFORM private.enqueue_daily('sync-players',4,0,p_now);
-      PERFORM private.enqueue_daily('sync-trade-values',4,0,p_now);
       PERFORM private.enqueue_rankings(p_now);
       FOR v_trade IN SELECT DISTINCT queued.league_id,queued.league_season_id,queued.version
         FROM private.screen_refresh_queue queued JOIN public.trades trade ON trade.league_season_id=queued.league_season_id
@@ -98,7 +96,6 @@ BEGIN
             'version',v_trade.version),v_trade.league_id);
       END LOOP;
     END IF;
-    PERFORM private.enqueue_daily('missing-final-stats',6,30,p_now);
     PERFORM private.enqueue_player_injuries(p_now);
     FOR v_waiver IN SELECT DISTINCT coalesce(timezone, 'America/Los_Angeles') AS timezone
       FROM public.leagues WHERE status IN ('active', 'playoffs', 'offseason') LOOP
@@ -170,24 +167,9 @@ BEGIN
       PERFORM private.work_enqueue('daily-stat-corrections',(p_now AT TIME ZONE 'America/New_York')::date::text,p_now);
     END IF;
   END IF;
-  IF v_min%15=5 THEN PERFORM private.enqueue_daily('sync-schedule',6,5,p_now); END IF;
-  IF v_min%5=0 AND EXISTS(SELECT 1 FROM public.edge_invocations
-    WHERE reconciled_at IS NULL OR worker_status='running') THEN
-    PERFORM private.work_enqueue('edge-invocation-reconcile',v_key,p_now);
-  END IF;
-  IF v_min>=17 THEN
-    PERFORM private.work_enqueue('public-read-retention',date_trunc('hour',p_now)::text,p_now);
-  END IF;
-  IF v_min=17 THEN PERFORM private.work_enqueue('pg-net-response-vacuum',date_trunc('hour',p_now)::text,p_now,'{"action":"vacuum"}'); END IF;
-  IF v_min=0 AND extract(hour FROM v_utc)=13 AND
-    ((extract(month FROM v_utc)=6 AND extract(day FROM v_utc)>=20) OR
-     (extract(month FROM v_utc)=7 AND extract(day FROM v_utc)<=15)) THEN
+  PERFORM private.enqueue_edge_invocation_reconcile(p_now);
+  IF v_utc::time>=time '13:00' AND to_char(v_utc,'MM-DD') BETWEEN '06-20' AND '07-15' THEN
     PERFORM private.work_enqueue('sync-draft-order',v_utc::date::text,p_now);
-  END IF;
-  IF extract(hour FROM v_utc)=8 AND v_min=35 THEN PERFORM private.work_enqueue('cleanup-trade-estimates',v_utc::date::text,p_now); END IF;
-  IF extract(hour FROM v_utc)=9 AND v_min=30 THEN PERFORM private.work_enqueue('mock-room-expiry',v_utc::date::text,p_now); END IF;
-  IF v_utc::time>=time '10:00' THEN
-    PERFORM private.work_enqueue('retention-prune',v_utc::date::text,p_now);
   END IF;
 END;
 $$;

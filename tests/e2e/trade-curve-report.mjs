@@ -117,7 +117,5 @@ const lines = [
 ]
 mkdirSync(evidencePath('trade-curve'), { recursive: true })
 writeFileSync(evidencePath('trade-curve/report.json'), JSON.stringify({ league, model: TRADE_FORMULA_VERSION, previousModel: previous.model, imported, updated, maxSpot, maxRatio, changed, releaseChanged, rows }, null, 2) + '\n')
-const existing = readFileSync('docs/trade-curve.md', 'utf8')
-const verification = existing.includes('\nFocused Vitest:') ? existing.slice(existing.indexOf('\nFocused Vitest:')) : ''
-writeFileSync(evidencePath('trade-curve/report.md'), lines.join('\n') + verification)
+writeFileSync(evidencePath('trade-curve/report.md'), lines.join('\n'))
 console.log(JSON.stringify({ trades: rows.length, updated, changed, releaseChanged, maxSpot, maxRatio }))

@@ -17,7 +17,6 @@ import { useRouter } from 'expo-router'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { WeekOffNotice } from '@/components/WeekOffNotice'
 import { EmptyState } from '@/components/EmptyState'
-import { Button } from '@/components/ui/Button'
 import { ErrorBanner, Page, usePageMetrics } from '@/components/ui'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
@@ -26,9 +25,10 @@ import { breakpoints, colors, layout, spacing } from '@/constants/tokens'
 import { DaySelector } from '@/components/DaySelector'
 import { ScoreCard } from '@/components/ScoreCard'
 import { NoLeagueState } from '@/components/NoLeagueState'
-import { AutoSetModal } from '@/components/AutoSetModal'
 import { statLineupWidth } from '@/components/MatchupRow'
 import { ScoreBreakdownSheet } from '@/components/ScoreBreakdownSheet'
+import { MatchupPlayerSheet } from '@/components/player/MatchupPlayerSheet'
+import { useDayProjections } from '@/hooks/use-day-projections'
 import { lineupStatColumns } from '@/lib/score-breakdown'
 import { useMatchupData } from '@/hooks/use-matchup-data'
 import { getGameDisplayState, readHomeGameDisplay, resolveHomeSurface, saveHomeGameDisplay } from '@/lib/home-surface'
@@ -81,7 +81,6 @@ export default function HomeScreen() {
         if (matchup?.id && freshness === 'fresh') saveHomeGameDisplay(gameScope, selectedDate, gamePlayers, gameSnapshot)
     }, [matchup?.id, freshness, gameScope, selectedDate, gamePlayers, gameSnapshot])
     const { ready: gamesReady, liveTeams } = useMemo(() => getGameDisplayState(todaysGames, freshness), [todaysGames, freshness])
-    const [autoSetModalVisible, setAutoSetModalVisible] = useState(false)
 
     const pageRef = useRef<ScrollView>(null)
     const pageScroll = useScrollRestoration(JSON.stringify([user?.id, league?.id, current?.id, selectedDate]), pageRef)
@@ -118,6 +117,9 @@ export default function HomeScreen() {
     const lineupWidth = showStatColumns ? layout.statLineupMaxWidth : layout.lineupMaxWidth
 
     const [detailsRow, setDetailsRow] = useState<DetailsRow | null>(null)
+    const [previewPlayer, setPreviewPlayer] = useState<LineupPlayer | null>(null)
+    const projectionLineups = useMemo(() => [myLineup, oppLineup], [myLineup, oppLineup])
+    const dayProjections = useDayProjections(league?.id, selectedDate, projectionLineups, scoringSettings)
     const openMatchup = (id: string | null) => {
         if (id && id !== matchup?.id) router.push({ pathname: '/(modals)/matchup', params: { matchupId: id, date: selectedDate } })
     }
@@ -163,7 +165,8 @@ export default function HomeScreen() {
                             timezone={timezone}
                             statColumns={showStatColumns ? statColumns : null}
                             onOpenDetails={setDetailsRow}
-                            onOpenPlayer={player => router.push({ pathname: '/player/[id]', params: { id: player.playerId } })}
+                            onOpenPlayer={setPreviewPlayer}
+                            projections={dayProjections}
                             capacity={{
                                 bench: myLineup.benchSlots ?? 0,
                                 ir: limits?.irSlots ?? 0,
@@ -174,15 +177,6 @@ export default function HomeScreen() {
                             daySelector={weekDays.length > 0 ? (
                                 <DaySelector timezone={league?.timezone} days={weekDays} selectedDate={selectedDate} onSelect={handleDaySelect} compact={compact} />
                             ) : null}
-                            autoSetControl={
-                                <Button
-                                    title="Auto-set"
-                                    size="inline"
-                                    variant="outline"
-                                    onPress={() => setAutoSetModalVisible(true)}
-                                    accessibilityLabel="Open auto-set lineup options"
-                                />
-                            }
                         />
                     ) : weekDays.length > 0 ? (
                         <DaySelector timezone={league?.timezone} days={weekDays} selectedDate={selectedDate} onSelect={handleDaySelect} compact={compact} />
@@ -236,11 +230,9 @@ export default function HomeScreen() {
                 settings={scoringSettings}
             />
 
-            <AutoSetModal
-                visible={autoSetModalVisible}
-                onClose={() => setAutoSetModalVisible(false)}
-                onEditManually={() => { setAutoSetModalVisible(false); router.push('/lineup') }}
-            />
+            <MatchupPlayerSheet player={previewPlayer} leagueId={league?.id} onClose={() => setPreviewPlayer(null)}
+                onOpenPage={player => router.push({ pathname: '/player/[id]', params: { id: player.playerId } })} />
+
         </Page>
     )
 }

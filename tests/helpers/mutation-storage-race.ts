@@ -14,7 +14,7 @@ export const start = 'navigator.onLine=true;queue.replayMutations()'
 export const enqueue = 'queue.queueMutation(input,input.id).then(v=>result=v,e=>result=e.message)'
 
 export function storageRace(initial: QueuedMutation[] = []) {
-    const sources = Object.fromEntries(['api-client', 'session-cache-registry', 'cache/mutation-queue'].map(name => [
+    const sources = Object.fromEntries(['api-client', 'session-cache-registry', 'lifecycle', 'cache/mutation-queue'].map(name => [
         `@/lib/${name}`, transpileModule(readFileSync(`lib/${name}.ts`, 'utf8'), {
             compilerOptions: { module: ModuleKind.CommonJS, target: ScriptTarget.ES2022 },
         }).outputText,

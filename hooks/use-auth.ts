@@ -4,6 +4,7 @@ import { inspectAuthSession, readStoredAuthState, supabase, supabaseAuthStorageK
 import type { StoredAuthState } from '@/lib/auth-session'
 import { clearPersistentCaches } from '@/lib/persistent-cache'
 import { setSessionOwner } from '@/lib/session-cache-registry'
+import { onLifecycle } from '@/lib/lifecycle'
 
 type AuthContextValue = {
     session: Session | null
@@ -126,13 +127,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         if (typeof window !== 'undefined') {
             window.addEventListener(localAuthChangeEvent, resume)
-            window.addEventListener('online', resume)
-            window.addEventListener('offline', resume)
-            window.addEventListener('pageshow', resume)
-            window.addEventListener('focus', resume)
             window.addEventListener('storage', storageChanged)
-            document.addEventListener('visibilitychange', visibilityChanged)
         }
+        const stopLifecycle = onLifecycle(['online', 'offline', 'focus', 'visible', 'hidden'], event => {
+            if (event === 'visible' || event === 'hidden') visibilityChanged()
+            else resume()
+        })
         return () => {
             active = false
             sequence += 1
@@ -140,13 +140,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             subscription.unsubscribe()
             if (typeof window !== 'undefined') {
                 window.removeEventListener(localAuthChangeEvent, resume)
-                window.removeEventListener('online', resume)
-                window.removeEventListener('offline', resume)
-                window.removeEventListener('pageshow', resume)
-                window.removeEventListener('focus', resume)
                 window.removeEventListener('storage', storageChanged)
-                document.removeEventListener('visibilitychange', visibilityChanged)
             }
+            stopLifecycle()
         }
     }, [])
 

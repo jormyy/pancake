@@ -9,7 +9,6 @@ vi.mock('@/lib/persistent-cache', () => ({ readPersistentCache: () => null, writ
 const boundary = vi.hoisted(() => ({
     state: vi.fn(), prospects: vi.fn(), revision: vi.fn(), pick: vi.fn(), expire: vi.fn(),
     subscribe: vi.fn(), unsubscribe: vi.fn(), callbacks: [] as (() => void)[],
-    listeners: new Set<(state: 'active' | 'background') => void>(), appState: 'active' as 'active' | 'background',
     board: null as RookieDraftState | null, players: [] as RookieProspect[], version: 'initial',
     stateDelay: 50, prospectDelay: 50, revisionDelay: 50, failState: false, failProspects: false,
     activeState: 0, activeProspects: 0, activeRevision: 0, maxState: 0, maxProspects: 0, maxRevision: 0,
@@ -20,15 +19,6 @@ vi.mock('@/lib/cache/screen-cache', () => ({ readScreenView: async (scope: { par
 }))
 vi.mock('@/lib/league-version', () => ({ subscribeLeagueVersion: () => () => {} }))
 vi.mock('@react-navigation/native', () => ({ useIsFocused: () => true }))
-vi.mock('react-native', () => ({
-    AppState: {
-        get currentState() { return boundary.appState },
-        addEventListener: (_event: string, listener: (state: 'active' | 'background') => void) => {
-            boundary.listeners.add(listener)
-            return { remove: () => { boundary.listeners.delete(listener) } }
-        },
-    },
-}))
 vi.mock('@/lib/rookieDraft', () => ({
     getRookieDraftState: boundary.state, getRookiePlayers: boundary.prospects, getRookieDraftPollRevision: boundary.revision,
     subscribeToRookieDraft: boundary.subscribe, unsubscribeFromRookieDraft: boundary.unsubscribe,
@@ -99,11 +89,9 @@ const event = async (_table: 'drafts' | 'snake_draft_picks' = 'snake_draft_picks
 }
 const transaction = async () => { await event('snake_draft_picks'); await event('drafts') }
 const setAppState = async (state: 'active' | 'background') => {
-    boundary.appState = state
     visibility = state === 'active' ? 'visible' : 'hidden'
     await act(async () => {
         page.dispatchEvent(new Event('visibilitychange'))
-        for (const listener of boundary.listeners) listener(state)
         renderer?.update(tree())
     })
 }
@@ -130,7 +118,7 @@ beforeEach(() => {
     boundary.failState = false; boundary.failProspects = false
     boundary.activeState = 0; boundary.activeProspects = 0; boundary.activeRevision = 0
     boundary.maxState = 0; boundary.maxProspects = 0; boundary.maxRevision = 0
-    boundary.appState = 'active'; boundary.listeners.clear(); boundary.callbacks = []
+    boundary.callbacks = []
     boundary.state.mockReset().mockImplementation((id: string) => {
         const value = structuredClone({ ...boundary.board!, draft: { ...boundary.board!.draft, id } })
         const delay = boundary.stateDelay, fail = boundary.failState
@@ -420,20 +408,6 @@ it('restores after effect replay and rejects the disposed subscription', async (
     await advance(500)
     expect(boundary.state).toHaveBeenCalledTimes(calls)
 })
-
-it('ignores a retained lifecycle callback from the previous room', async () => {
-    await mount()
-    const oldLifecycle = [...boundary.listeners][0]
-    await act(async () => { renderer!.update(React.createElement(Probe, { draftId: 'other' })) })
-    await advance(500)
-    await act(async () => { oldLifecycle('background') })
-    pickFirst()
-    await transaction()
-    await advance(500)
-    expect(latest.state?.draft.id).toBe('other')
-    expect(latest.prospects.map((p) => p.id)).toEqual(['b'])
-})
-
 
 it('keeps the prospect pool across ordinary clock and pick events', async () => {
     await mount()

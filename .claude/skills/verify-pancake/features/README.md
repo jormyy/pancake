@@ -36,7 +36,7 @@ Do not claim iOS home-screen behavior from Chromium viewport checks.
 | Area | Coverage |
 | --- | --- |
 | [Sign-in](sign-in.md) | Sign-in, invalid input, sign-up, sign-out, restoration |
-| [Home](home.md) | Matchup, day selector, team/player access, Auto-set sheet |
+| [Home](home.md) | Matchup, day selector, team/player access |
 | [Roster](roster.md) | Starters, bench, IR, taxi, other-team roster |
 | [Lineup](lineup.md) | Start, Auto, Bench pins, day selection, daily automation |
 | [Auto Lineup IR](auto-lineup-ir.md) | IR seeding, background and screen triggers, notices, manual swap |

@@ -2,8 +2,7 @@ import { supabase } from '../_shared/supabase.ts'
 import { fetchAllPages } from '../_shared/fetchAllPages.ts'
 import { serveInternal } from '../_shared/serve.ts'
 import { recordSyncRun } from '../_shared/syncRuns.ts'
-import { cachedTradeValueSnapshot, syncTradeValues, type TradeValueStore } from '../_shared/tradeValues.ts'
-import type { TradeValuePlayer } from '../_shared/tradeValues.ts'
+import { cachedTradeValueSnapshot, syncTradeValues, type TradeValueStore, type TradeValuePlayer } from '../_shared/tradeValues.ts'
 
 type Result = { data: unknown; error: unknown }
 const rpc = async (name: string, args: Record<string, unknown>, signal: AbortSignal) => {

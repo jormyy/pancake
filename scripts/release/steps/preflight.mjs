@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fullSha, readJson, requireValue, sha256 } from './runtime.mjs'
 
-const REQUIRED_CHECKS = ['npm run check:comprehensive', 'npm test']
+const REQUIRED_CHECKS = ['npm run check:gate', 'npm run check:comprehensive']
 
 export async function checkSource(ctx, remote = true) {
   const git = async args => (await ctx.run('git', args, ctx.root)).stdout.trim()
