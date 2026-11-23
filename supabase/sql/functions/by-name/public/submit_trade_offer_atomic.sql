@@ -12,6 +12,8 @@ DECLARE
   v_member_league uuid;
   v_multi boolean := p_action LIKE '%-multi';
   v_source uuid;
+  v_lock_members uuid[];
+  v_lock_players uuid[];
 BEGIN
   IF p_request_id IS NULL OR p_action IS NULL
     OR p_action NOT IN ('propose','propose-multi','edit','edit-multi','counter','counter-multi')
@@ -24,15 +26,20 @@ BEGIN
       RAISE EXCEPTION 'The source trade is required.' USING ERRCODE='22023';
     END IF;
   END IF;
-  PERFORM private.begin_trade_action(v_source, p_member_id, p_user_id, split_part(p_action,'-',1),
-    ARRAY[p_member_id, (p_payload->>'recipientMemberId')::uuid] || CASE WHEN v_multi
-      THEN ARRAY(SELECT jsonb_array_elements_text(COALESCE(p_payload->'participantMemberIds','[]'::jsonb)))::uuid[]
-      ELSE '{}' END,
-    CASE WHEN v_multi
-      THEN ARRAY(SELECT (item->>'playerId')::uuid FROM jsonb_array_elements(COALESCE(p_payload->'items','[]'::jsonb)) AS items(item))
-      ELSE ARRAY(SELECT jsonb_array_elements_text(COALESCE(p_payload->'offerPlayerIds','[]'::jsonb)))::uuid[]
-        || ARRAY(SELECT jsonb_array_elements_text(COALESCE(p_payload->'requestPlayerIds','[]'::jsonb)))::uuid[]
-    END);
+  v_lock_members := ARRAY[(p_payload->>'recipientMemberId')::uuid] || CASE WHEN v_multi
+    THEN ARRAY(SELECT jsonb_array_elements_text(COALESCE(p_payload->'participantMemberIds','[]'::jsonb)))::uuid[]
+    ELSE '{}' END;
+  v_lock_players := CASE WHEN v_multi
+    THEN ARRAY(SELECT (item->>'playerId')::uuid FROM jsonb_array_elements(COALESCE(p_payload->'items','[]'::jsonb)) AS items(item))
+    ELSE ARRAY(SELECT jsonb_array_elements_text(COALESCE(p_payload->'offerPlayerIds','[]'::jsonb)))::uuid[]
+      || ARRAY(SELECT jsonb_array_elements_text(COALESCE(p_payload->'requestPlayerIds','[]'::jsonb)))::uuid[]
+  END;
+  IF v_source IS NULL THEN
+    v_member_league := private.begin_trade_offer(p_member_id, p_user_id, v_lock_members, v_lock_players);
+  ELSE
+    v_member_league := (private.begin_trade_action(v_source, p_member_id, p_user_id, split_part(p_action,'-',1),
+      p_member_id || v_lock_members, v_lock_players)).league_id;
+  END IF;
   BEGIN
     __request_context := private.request_begin('public.submit_trade_offer_atomic', jsonb_build_array(p_user_id, p_request_id, p_member_id, p_action, p_payload - 'estimateId'), p_request_id, NULL, p_user_id);
   EXCEPTION WHEN invalid_parameter_value THEN
@@ -47,7 +54,6 @@ BEGIN
     END IF;
     RAISE;
   END;
-  SELECT league_id INTO STRICT v_member_league FROM league_members WHERE id=p_member_id;
   IF EXISTS (
     SELECT 1 FROM private.trade_offer_requests
     WHERE user_id=p_user_id AND request_id=p_request_id AND member_id IS DISTINCT FROM p_member_id

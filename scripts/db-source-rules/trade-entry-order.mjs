@@ -50,7 +50,7 @@ const tradeEntryOrderFailures = (key, definition) => {
   const guarded = [...effects, ...[...body.text.matchAll(EARLY_RETURN)].map((match) => match.index)]
     .sort((left, right) => left - right)[0]
 
-  const gate = body.text.search(/\bprivate\.begin_trade_action\s*\(/i)
+  const gate = body.text.search(/\bprivate\.begin_trade_(?:action|offer)\s*\(/i)
   if (gate !== -1 && gate < guarded) return []
 
   const offset = body.start + guarded

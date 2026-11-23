@@ -34,6 +34,7 @@
     "private.available_faab_balance(uuid,uuid,uuid,uuid)": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.begin_trade_action(uuid,uuid,uuid,text,uuid[],uuid[])": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.begin_trade_lifecycle_write()": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
+    "private.begin_trade_offer(uuid,uuid,uuid[],uuid[])": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.begin_trade_revaluation(uuid,text)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.broadcast_live_change()": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.build_trade_estimate_inputs(uuid,uuid,jsonb,boolean)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
