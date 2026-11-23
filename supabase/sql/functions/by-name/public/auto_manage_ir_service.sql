@@ -147,8 +147,8 @@ BEGIN
   FOR v_move IN SELECT * FROM jsonb_array_elements(COALESCE(v_plan->'moves', '[]'::jsonb)) LOOP
     v_kind := v_move->>'kind';
     IF v_league_auto_ir AND (
-      (v_move ? 'designatePlayerId' AND private.roster_status_game_started_live((v_move->>'designatePlayerId')::uuid))
-      OR (v_move ? 'activatePlayerId' AND private.roster_status_game_started_live((v_move->>'activatePlayerId')::uuid))
+      (v_move ? 'designatePlayerId' AND private.roster_status_game_started((v_move->>'designatePlayerId')::uuid, clock_timestamp()))
+      OR (v_move ? 'activatePlayerId' AND private.roster_status_game_started((v_move->>'activatePlayerId')::uuid, clock_timestamp()))
     ) THEN
       v_skipped := v_skipped || jsonb_build_object(
         'playerId', COALESCE(v_move->>'designatePlayerId', v_move->>'activatePlayerId'),

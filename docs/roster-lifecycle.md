@@ -28,7 +28,10 @@ Past-season removals do not clear current live state.
 Accepted trade assets remain reserved until settlement or a terminal outcome.
 Waiver and trade-plan reservations share team and player locks.
 
-`private.lineup_game_started` owns the database lock predicate.
+`private.player_game_started` owns the game-started rule, and `private.player_slate_games` owns which games a player is in.
+`private.lineup_game_started` adds lineup history receipts. `private.roster_status_game_started` adds yesterday's late games.
+The `b_game_lock_roster_status` trigger rejects any same-team IR or taxi change for a started game.
+The client reads `roster_players.locked_until_slate_end`. Lint rejects client code that decides game locks from `nba_games`.
 `private.is_ir_designation` owns IR injury eligibility.
 Player merges preserve history under the surviving identity and reject unresolved ownership conflicts.
 The [backend inventory](architecture.md#screen-views) maps public action paths.

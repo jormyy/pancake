@@ -3864,6 +3864,7 @@ export type Database = {
           is_on_taxi: boolean
           league_id: string
           league_season_id: string
+          locked_until_slate_end: boolean | null
           member_id: string
           player_id: string
           taxi_start_season_year: number | null
@@ -6908,6 +6909,10 @@ export type Database = {
       link_player_sources_atomic: {
         Args: { p_current_roster?: boolean; p_records: Json; p_source: string }
         Returns: Json
+      }
+      locked_until_slate_end: {
+        Args: { "": Database["public"]["Tables"]["roster_players"]["Row"] }
+        Returns: boolean
       }
       make_snake_pick_atomic: {
         Args: {

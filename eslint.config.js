@@ -30,6 +30,12 @@ module.exports = defineConfig([
         },
     },
     {
+        files: ['app/**/*.{ts,tsx}', 'hooks/**/*.{ts,tsx}', 'lib/**/*.{ts,tsx}'],
+        ignores: ['lib/live-score-view.ts', 'hooks/use-public-live-snapshot.ts', 'hooks/use-live-view-recovery.ts'],
+        plugins: { pancake: { rules: { 'no-client-game-lock': require('./eslint/rules/no-client-game-lock') } } },
+        rules: { 'pancake/no-client-game-lock': 'error' },
+    },
+    {
         files: ['app/**/*.{ts,tsx}', 'components/**/*.{ts,tsx}', 'hooks/**/*.{ts,tsx}', 'contexts/**/*.{ts,tsx}', 'lib/**/*.{ts,tsx}'],
         ignores: ['lib/roster-capacity.ts', 'lib/league.ts', 'lib/commissioner-settings-draft.ts'],
         rules: {
