@@ -41,13 +41,13 @@ const check = (count = 1) => {
 }
 afterEach(async () => { await act(async () => screen?.unmount()); vi.clearAllMocks(); data.locks = [] })
 
-it('keeps one muted lock immediately after Yr even when the badge line wraps', async () => {
-    await render(React.createElement(PlayerRow, { name: 'Player', yearsExp: 2, locks: locked.assetLocks }))
-    const year = screen.root.findByType(Badge)
-    const icon = screen.root.findByType(LockedAssetNotice)
-    expect(year.props.label).toBe('Yr 3')
-    expect(year.parent).toBe(icon.parent)
-    expect(year.parent!.children).toEqual([year, icon])
+it('keeps one muted lock on the second line after the player details', async () => {
+    await render(React.createElement(PlayerRow, { name: 'Player', team: 'LAL', positions: ['PG'], jerseyNumber: '3', yearsExp: 2, locks: locked.assetLocks }))
+    const line = screen.root.findByProps({ testID: 'player-meta-line' })
+    const icon = line.findByType(LockedAssetNotice)
+    expect(line.findAllByType(Badge)).toHaveLength(0)
+    expect(line.findAllByType('Text' as React.ElementType)[0].props.children).toBe('LAL · PG · #3')
+    expect(icon.parent).toBe(line)
     check()
 })
 

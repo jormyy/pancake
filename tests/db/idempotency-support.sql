@@ -58,9 +58,11 @@ DECLARE
   replay_result jsonb;
   applied bigint;
   query text := format('SELECT idempotency_test.apply(%L, %L, %L, %L)', id, actor, expression, bypass);
+  sequential text := format('SELECT idempotency_test.apply(%L, %L, %L)', id, actor, expression);
+  connection text := 'host=' || host(inet_server_addr()) || ' port=' || current_setting('port') || ' dbname=' || current_database() || ' user=postgres password=postgres';
 BEGIN
-  PERFORM extensions.dblink_connect('retry_a', 'host=' || host(inet_server_addr()) || ' port=' || current_setting('port') || ' dbname=' || current_database() || ' user=postgres password=postgres');
-  PERFORM extensions.dblink_connect('retry_b', 'host=' || host(inet_server_addr()) || ' port=' || current_setting('port') || ' dbname=' || current_database() || ' user=postgres password=postgres');
+  PERFORM extensions.dblink_connect('retry_a', connection);
+  PERFORM extensions.dblink_connect('retry_b', connection);
   PERFORM extensions.dblink_send_query('retry_a', query);
   PERFORM extensions.dblink_send_query('retry_b', query);
   SELECT result INTO first_result FROM extensions.dblink_get_result('retry_a') AS t(result jsonb);
@@ -71,9 +73,9 @@ BEGIN
   PERFORM pg_temp.check_rules((SELECT count(*)=1 FROM private.request_receipts r WHERE r.request_id=CASE WHEN scope IS NULL THEN id ELSE md5(id::text||':'||function_name||':'||scope)::uuid END AND r.actor=retry.actor AND r.function=function_name), label || ': one receipt');
   SELECT count(*) INTO applied FROM idempotency_test.applications WHERE request_id=id;
   PERFORM pg_temp.check_rules(applied>0, label || ': applies a write');
-  replay_result := idempotency_test.apply(id, actor, expression);
+  SELECT result INTO replay_result FROM extensions.dblink(connection, sequential) AS t(result jsonb);
   PERFORM pg_temp.check_rules(first_result IS NOT DISTINCT FROM replay_result, label || ': sequential result matches');
-  replay_result := idempotency_test.apply(id, actor, expression);
+  SELECT result INTO replay_result FROM extensions.dblink(connection, sequential) AS t(result jsonb);
   PERFORM pg_temp.check_rules(first_result IS NOT DISTINCT FROM replay_result, label || ': repeated result matches');
   PERFORM pg_temp.check_rules((SELECT count(*)=applied FROM idempotency_test.applications WHERE request_id=id), label || ': retries add no writes');
   RETURN first_result;

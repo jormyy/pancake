@@ -9,7 +9,7 @@ DECLARE
   v_problem_message text;
 BEGIN
   IF NEW.status = 'pending'::waiver_claim_status THEN
-    PERFORM pg_advisory_xact_lock(hashtext(NEW.league_id::text),hashtext(NEW.member_id::text));
+    PERFORM private.lock_roster_scope(NEW.league_id, ARRAY[NEW.member_id], '{}');
     SELECT problem.kind,string_agg(problem.message,' ' ORDER BY problem.player_name,problem.roster_player_id)
       INTO v_problem_kind,v_problem_message
       FROM private.roster_problems(NEW.league_id,NEW.league_season_id,NEW.member_id) problem

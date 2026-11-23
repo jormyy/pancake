@@ -28,7 +28,7 @@ function fakeClient(answer: (table: string, filters: Filter[]) => Result, rpcRes
 
 Deno.test('season year accepts omitted and whole supported years only', () => {
   const current = currentSeasonYear()
-  const cases: Array<[unknown, number | null]> = [
+  const cases: [unknown, number | null][] = [
     [undefined, current], [null, current], ['', current],
     [2026, 2026], ['2026', 2026], [' 1946 ', 1946], [2100, 2100],
     ['NaN', null], ['abc', null], ['2026x', null], [2025.5, null], ['2025.5', null],

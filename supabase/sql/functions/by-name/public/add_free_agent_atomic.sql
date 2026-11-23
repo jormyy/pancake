@@ -54,8 +54,7 @@ BEGIN
       USING ERRCODE = 'P0001';
   END IF;
 
-  PERFORM pg_advisory_xact_lock(hashtext(p_league_id::text), hashtext(p_member_id::text));
-  PERFORM pg_advisory_xact_lock(hashtext(p_league_id::text), hashtext(p_player_id::text));
+  PERFORM private.lock_roster_scope(p_league_id, ARRAY[p_member_id], ARRAY[p_player_id]);
 
   PERFORM private.assert_legal_roster(p_league_id,v_season_id,p_member_id);
 
@@ -181,6 +180,7 @@ BEGIN
     p_league_id,
     v_season_id,
     'free_agent_added',
+    'league',
     'Free agent added',
     CASE WHEN p_to_taxi THEN 'Player added to taxi.' ELSE NULL END,
     p_member_id,

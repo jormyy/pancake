@@ -9,7 +9,7 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
-  v_balance int;
+  v_sender record;
 BEGIN
   IF OLD.status = 'pending'::trade_status AND NEW.status = 'accepted'::trade_status THEN
     IF OLD.expires_at IS NOT NULL AND OLD.expires_at <= now() THEN
@@ -17,21 +17,20 @@ BEGIN
         USING ERRCODE = 'P0001';
     END IF;
 
-    IF OLD.proposer_faab_amount > 0 THEN
-      v_balance := private.ensure_faab_balance(OLD.league_id, OLD.league_season_id, OLD.proposer_member_id);
-      IF v_balance < OLD.proposer_faab_amount THEN
-        RAISE EXCEPTION 'Proposer no longer has enough FAAB for this trade.'
+    FOR v_sender IN
+      SELECT item.from_member_id AS member_id, sum(item.faab_amount) AS amount
+        FROM trade_items AS item
+       WHERE item.trade_id = OLD.id AND item.faab_amount > 0
+       GROUP BY item.from_member_id
+       ORDER BY item.from_member_id
+    LOOP
+      IF private.ensure_faab_balance(OLD.league_id, OLD.league_season_id, v_sender.member_id) < v_sender.amount THEN
+        RAISE EXCEPTION '%', CASE WHEN v_sender.member_id = OLD.proposer_member_id
+          THEN 'Proposer no longer has enough FAAB for this trade.'
+          ELSE 'Recipient no longer has enough FAAB for this trade.' END
           USING ERRCODE = 'P0001';
       END IF;
-    END IF;
-
-    IF OLD.recipient_faab_amount > 0 THEN
-      v_balance := private.ensure_faab_balance(OLD.league_id, OLD.league_season_id, OLD.recipient_member_id);
-      IF v_balance < OLD.recipient_faab_amount THEN
-        RAISE EXCEPTION 'Recipient no longer has enough FAAB for this trade.'
-          USING ERRCODE = 'P0001';
-      END IF;
-    END IF;
+    END LOOP;
   END IF;
 
   RETURN NEW;

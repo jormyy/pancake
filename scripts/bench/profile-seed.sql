@@ -82,8 +82,8 @@ FROM generate_series(1,30)l CROSS JOIN generate_series(1,40)n CROSS JOIN generat
 INSERT INTO public.trade_items(trade_id,side,player_id,from_member_id,to_member_id)
 SELECT bench.profile_id(400000+l*100+n),'proposer',bench.profile_id(1001),bench.profile_id(200001+l*100),bench.profile_id(200002+l*100)
 FROM generate_series(1,30)l CROSS JOIN generate_series(1,40)n;
-INSERT INTO public.league_activity(league_id,league_season_id,actor_member_id,event_type,title,body,created_at)
-SELECT bench.profile_id(l),bench.profile_id(100000+l),bench.profile_id(200001+l*100),'perf','Season activity '||n,repeat('Seeded activity. ',10),now()-n*interval '1 hour'
+INSERT INTO public.league_activity(league_id,league_season_id,actor_member_id,event_type,visibility,title,body,created_at)
+SELECT bench.profile_id(l),bench.profile_id(100000+l),bench.profile_id(200001+l*100),'perf','league','Season activity '||n,repeat('Seeded activity. ',10),now()-n*interval '1 hour'
 FROM generate_series(1,30)l CROSS JOIN generate_series(1,1000)n;
 INSERT INTO public.drafts(id,league_id,league_season_id,draft_type,status,budget_per_team)
 SELECT bench.profile_id(500000+l*10+d),bench.profile_id(l),bench.profile_id(100000+l),CASE WHEN d=1 THEN 'auction' ELSE 'snake' END::public.draft_type,'pending',200

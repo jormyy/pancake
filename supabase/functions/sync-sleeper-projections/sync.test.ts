@@ -7,7 +7,7 @@ const fixture = JSON.parse(await Deno.readTextFile(new URL('./fixtures/matched-s
 const context = { seasonYear: 2027, weekNumber: 1, sleeperWeek: 1, weekStart: '2026-10-19', weekEnd: '2026-10-25' }
 
 Deno.test('records HTTP, shape, and storage failures while preserving the last successful write', async () => {
-  const writes: Array<{ p_row_count: number; p_metadata: Record<string, unknown>; p_rows: Array<{ points: number; minutes: number }> }> = [], failures: Record<string, unknown>[] = []
+  const writes: { p_row_count: number; p_metadata: Record<string, unknown>; p_rows: { points: number; minutes: number }[] }[] = [], failures: Record<string, unknown>[] = []
   let rejectStorage = false
   const client = createClient<Database>('http://127.0.0.1:1', 'fixture-only', { auth: { persistSession: false, autoRefreshToken: false }, global: { fetch: async (input, init) => {
     const url = new URL(input instanceof Request ? input.url : String(input))

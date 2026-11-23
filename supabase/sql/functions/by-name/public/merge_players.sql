@@ -31,7 +31,6 @@ BEGIN
   SELECT * INTO v_career FROM players WHERE id IN (winner_id,loser_id) AND career_games_base IS NOT NULL
     ORDER BY (career_games_base_source='espn') DESC,career_games_base_season DESC,career_games_base DESC,id LIMIT 1;
 
-  -- Release unique provider links before moving them to the surviving identity.
   UPDATE players SET
     sleeper_id = CASE WHEN v_winner.sleeper_id IS NULL THEN NULL ELSE sleeper_id END,
     nba_id = CASE WHEN v_winner.nba_id IS NULL THEN NULL ELSE nba_id END,
@@ -106,11 +105,18 @@ BEGIN
           AND own.is_on_ir = false AND own.is_on_taxi = false
      );
 
-  DELETE FROM weekly_lineups
-    WHERE player_id = loser_id
-      AND (league_id, league_season_id, member_id, game_date) IN (
-        SELECT league_id, league_season_id, member_id, game_date
-          FROM weekly_lineups WHERE player_id = winner_id
+  PERFORM private.correct_lineup_history();
+  DELETE FROM weekly_lineups AS duplicate
+    USING weekly_lineups AS other
+    WHERE other.league_id = duplicate.league_id
+      AND other.league_season_id = duplicate.league_season_id
+      AND other.member_id = duplicate.member_id
+      AND other.game_date = duplicate.game_date
+      AND (
+        (duplicate.player_id = loser_id AND other.player_id = winner_id
+          AND NOT (duplicate.slot_type <> 'BE' AND other.slot_type = 'BE'))
+        OR (duplicate.player_id = winner_id AND other.player_id = loser_id
+          AND duplicate.slot_type = 'BE' AND other.slot_type <> 'BE')
       );
   UPDATE weekly_lineups AS lineup
      SET player_id = winner_id
@@ -146,8 +152,6 @@ BEGIN
   PERFORM private.authorize_taxi_acquisition(league_id,league_season_id,member_id,winner_id,'merge',loser_id)
     FROM roster_players WHERE player_id=loser_id AND is_on_taxi;
 
-  -- roster_players: drop the loser's rows that already have a winner row in the
-  -- same (league, season), then re-point the rest.
   DELETE FROM roster_players
     WHERE player_id = loser_id
       AND (league_id, league_season_id) IN (
@@ -155,10 +159,9 @@ BEGIN
       );
   UPDATE roster_players SET player_id = winner_id WHERE player_id = loser_id;
 
-  -- Everything still under the loser identity belongs to a re-pointed roster
-  -- row or to history; it moves with the identity.
   UPDATE trade_block_items SET player_id = winner_id WHERE player_id = loser_id;
   UPDATE weekly_lineups    SET player_id = winner_id WHERE player_id = loser_id;
+  PERFORM private.correct_lineup_history(false);
 
   DELETE FROM player_projections
     WHERE player_id = loser_id

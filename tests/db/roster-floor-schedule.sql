@@ -1,4 +1,5 @@
 BEGIN;
+\ir hold-dispatcher.sql
 \ir rules-support.sql
 UPDATE public.nba_games SET status='Final' WHERE status='InProgress';
 DELETE FROM private.work_items;
@@ -53,7 +54,7 @@ DO $$
 DECLARE f record; v_item private.work_items%ROWTYPE;
 BEGIN
   SELECT * INTO f FROM pg_temp.floor_league(9721, 2, 16);
-  PERFORM private.enqueue_scheduled_work(date_trunc('hour', now()));
+  PERFORM private.enqueue_scheduled_work(date_trunc('hour', now()) + interval '30 minutes');
   SELECT * INTO v_item FROM private.work_items WHERE kind = 'roster-floor' AND league_id = f.league_id;
   PERFORM pg_temp.check_rules(FOUND, 'the schedule enqueues a roster-floor item');
   PERFORM pg_temp.check_rules(v_item.payload->>'leagueId' = f.league_id::text, 'the item carries the league');
@@ -104,7 +105,7 @@ BEGIN
   UPDATE public.nba_games SET status = 'Final'
    WHERE game_date IN (v_et - 1, v_et, v_local - 1, v_local);
   DELETE FROM private.work_items;
-  PERFORM private.enqueue_scheduled_work(date_trunc('hour', now()));
+  PERFORM private.enqueue_scheduled_work(date_trunc('hour', now()) + interval '15 minutes');
   SELECT count(*) INTO v_work FROM private.work_items
    WHERE kind = 'roster-floor' AND league_id = f.league_id;
   PERFORM pg_temp.check_rules(v_work = 1,
@@ -132,12 +133,12 @@ BEGIN
   DELETE FROM private.work_items;
   INSERT INTO private.roster_floor_weeks(league_id, league_season_id, week_number, week_end, status, completed_at)
     VALUES(f.league_id, f.season_id, 1, f.week_end, 'completed', now());
-  PERFORM private.enqueue_scheduled_work(date_trunc('hour', now()));
+  PERFORM private.enqueue_scheduled_work(date_trunc('hour', now()) + interval '45 minutes');
   PERFORM pg_temp.check_rules(NOT EXISTS(SELECT 1 FROM private.work_items
     WHERE kind = 'roster-floor' AND league_id = f.league_id),
     'a completed week is not enqueued again');
   UPDATE private.roster_floor_weeks SET status='pending', completed_at=NULL WHERE league_id=f.league_id;
-  PERFORM private.enqueue_scheduled_work(date_trunc('hour', now()));
+  PERFORM private.enqueue_scheduled_work(date_trunc('hour', now()) + interval '75 minutes');
   PERFORM pg_temp.check_rules(EXISTS(SELECT 1 FROM private.work_items
     WHERE kind = 'roster-floor' AND league_id = f.league_id),
     'an open week keeps the retry cadence');

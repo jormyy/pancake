@@ -10,6 +10,7 @@ import { useOnlineStatus } from '@/hooks/use-online-status'
 import { deferLeagueRefresh, leagueChangeAffects, listenForLeagueChanges } from '@/lib/league-changes'
 import { useLiveViewRecovery } from '@/hooks/use-live-view-recovery'
 import { homeHintAffects } from '@pancake/core'
+import { onLifecycle } from '@/lib/lifecycle'
 
 export function useScreenView<T>(scope: ScreenScope | null, enabled = true, options: { autoLoad?: boolean; publicLive?: boolean } = {}) {
     useLeagueDay(leagueTimezone(scope?.leagueId))
@@ -90,9 +91,8 @@ export function useScreenView<T>(scope: ScreenScope | null, enabled = true, opti
                 firstFrame = requestAnimationFrame(() => { secondFrame = requestAnimationFrame(() => { background = setTimeout(() => { void refresh(false, !resumingHome || recoveryFailed.current) }, 100) }) })
             } else void refresh(false, Boolean(cached) && (!resumingHome || recoveryFailed.current))
         }
-        const resume = () => { if (admitted && (typeof document === 'undefined' || document.visibilityState !== 'hidden')) void refresh() }
-        if (typeof document !== 'undefined') document.addEventListener('visibilitychange', resume)
-        return () => { clearTimeout(background); if (firstFrame !== undefined) cancelAnimationFrame(firstFrame); if (secondFrame !== undefined) cancelAnimationFrame(secondFrame); request.current += 1; changed?.cancel(); stopHints(); stop(); if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', resume) }
+        const stopLifecycle = onLifecycle(['visible', 'rejoin'], () => { if (admitted) void refresh() })
+        return () => { clearTimeout(background); if (firstFrame !== undefined) cancelAnimationFrame(firstFrame); if (secondFrame !== undefined) cancelAnimationFrame(secondFrame); request.current += 1; changed?.cancel(); stopHints(); stop(); stopLifecycle() }
     }, [key, admitted, online, generation, refresh, autoLoad, activity.active, recoveryEnabled, recoveryFailed])
     return { data, loading: enabled && online && (owns ? state.loading && data === undefined : !initial), refreshing: owns && state.loading && data !== undefined, error: owns && state.error ? state.error : !online && data === undefined && scope ? new Error('Offline. Open this screen online first.') : null, offline: !online, loaded: data !== undefined, refresh }
 }

@@ -110,11 +110,10 @@ describe('player filter inventory', () => {
   it('includes every declared single-choice value and NBA team', async () => {
     const { readFile } = await import('node:fs/promises')
     const scenarios = JSON.parse(await readFile('scripts/perf-lab/scenarios.json', 'utf8'))
-    const source = await readFile('app/(tabs)/players.tsx', 'utf8')
-    for (const [name, label] of [['POSITIONS', 'Position'], ['AVAILABILITY_FILTERS', 'Availability'], ['HEALTH_FILTERS', 'Health'], ['PLAYING_FILTERS', 'Game today'], ['CLASS_FILTERS', 'Experience']]) {
-      const block = new RegExp(`const ${name} = \\[([\\s\\S]*?)\\] as const`).exec(source)?.[1] ?? ''
-      const labels = [...block.matchAll(/label: '([^']+)'/g)].map(match => match[1])
-      expect(labels.length).toBeGreaterThan(1)
+    const filters = await import('../../lib/player-search-state')
+    const dialogs: [readonly { label: string }[], string][] = [[filters.PLAYER_POSITION_FILTERS, 'Position'], [filters.PLAYER_AVAILABILITY_FILTERS, 'Availability'], [filters.PLAYER_HEALTH_FILTERS, 'Health'], [filters.PLAYER_PLAYING_FILTERS, 'Game today'], [filters.PLAYER_CLASS_FILTERS, 'Experience']]
+    for (const [options, label] of dialogs) {
+      const labels = options.map(option => option.label)
       expect(scenarios.filter((scenario: { steps: { action: { dialog?: string; tap?: string } }[] }) => scenario.steps[0]?.action.dialog === label)
         .map((scenario: { steps: { action: { tap?: string } }[] }) => scenario.steps[0].action.tap)).toEqual(labels)
     }

@@ -11,6 +11,7 @@ assert.equal(project, 'pt4bafablel1')
 const tenants = JSON.parse(await sql('SELECT json_agg(external_id) FROM _realtime.tenants'))
 assert.equal(tenants.length, 1)
 assert.match(tenants[0], /^[a-z0-9._-]+$/)
+// eslint-disable-next-line pancake/eastern-day -- realtime.messages partitions are UTC days
 const day = new Date(Date.now() - 6 * 86400000).toISOString().slice(0, 10)
 const next = new Date(Date.parse(day) + 86400000).toISOString().slice(0, 10)
 const table = `realtime.messages_${day.replaceAll('-', '_')}`

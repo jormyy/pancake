@@ -21,6 +21,7 @@ export async function auditWebMockActions({ check, env, season, page, press, but
       const requested = await page.evaluate((scheduled) => {
         const date = new Date(Date.now() + (scheduled ? 86400_000 : -60_000))
         const pad = (value) => String(value).padStart(2, '0')
+        // eslint-disable-next-line pancake/eastern-day -- fills a device-local datetime input in the browser
         return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
       }, scheduled)
       await time.fill(requested)

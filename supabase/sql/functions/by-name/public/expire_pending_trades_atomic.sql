@@ -42,6 +42,7 @@ BEGIN
       target_member_id,
       related_trade_id,
       event_type,
+      visibility,
       title
     )
     SELECT
@@ -51,6 +52,7 @@ BEGIN
       expired.recipient_member_id,
       expired.id,
       'trade_expired',
+      'parties',
       'Trade offer expired'
     FROM expired
     RETURNING id
@@ -59,17 +61,12 @@ BEGIN
     expired.id,
     expired.proposer_member_id,
     expired.recipient_member_id,
-    CASE
-      WHEN EXISTS (
-        SELECT 1 FROM trade_participants AS participant WHERE participant.trade_id = expired.id
-      ) THEN ARRAY(
-        SELECT participant.member_id
-          FROM trade_participants AS participant
-         WHERE participant.trade_id = expired.id
-         ORDER BY participant.sort_order, participant.member_id
-      )
-      ELSE ARRAY[expired.proposer_member_id, expired.recipient_member_id]
-    END
+    ARRAY(
+      SELECT participant.member_id
+        FROM trade_participants AS participant
+       WHERE participant.trade_id = expired.id
+       ORDER BY participant.sort_order, participant.member_id
+    )
     FROM expired;
 END;
 $$;

@@ -1,6 +1,7 @@
 import { queueMutation, type MutationInput } from '@/lib/cache/mutation-queue'
 import { holdPwaUpdate } from '@/lib/pwa-update-guard'
 import { requestId } from '@/lib/api-client'
+import { isOnline, onLifecycle } from '@/lib/lifecycle'
 
 export type PwaMutationOptions = { requestId?: string; waitForOnline?: boolean; signal?: AbortSignal; queued?: MutationInput }
 
@@ -10,15 +11,14 @@ export function assertMutationOnline(): void {
 
 async function waitForOnline(signal?: AbortSignal): Promise<void> {
     signal?.throwIfAborted()
-    if (typeof navigator === 'undefined' || navigator.onLine !== false || typeof window === 'undefined') return
+    if (isOnline() || typeof window === 'undefined') return
     await new Promise<void>((resolve, reject) => {
         const cleanup = () => {
-            window.removeEventListener('online', online)
+            stop()
             signal?.removeEventListener('abort', aborted)
         }
-        const online = () => { cleanup(); resolve() }
+        const stop = onLifecycle(['online'], () => { cleanup(); resolve() })
         const aborted = () => { cleanup(); reject(signal?.reason) }
-        window.addEventListener('online', online, { once: true })
         signal?.addEventListener('abort', aborted, { once: true })
     })
 }

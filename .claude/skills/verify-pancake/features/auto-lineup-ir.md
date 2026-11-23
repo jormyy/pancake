@@ -17,7 +17,7 @@ Notices are computed from the current roster when Lineup opens or regains focus,
 ## How to get to it (user POV)
 
 - Lineup → open the screen; Auto Lineup notices load on open and on refocus, with no pin change.
-- Home → Auto-set → Edit lineup manually → Lineup screen notices.
+- Roster → player actions → `Move <name> in lineup` → Lineup screen notices.
 - Roster → Resolve roster → Activate the healthy IR player → choose IR for the injured player → Move and activate.
 - Players → Claim any player while IR is invalid → Resolve roster → `Swap with <injured player>`.
 

@@ -14,7 +14,7 @@ vi.mock('@/hooks/use-auth', () => ({ useAuth: () => ({ user: { id: 'user' } }) }
 vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => ({ current: { id: 'mine' }, currentLeague: { id: 'league' } }) }))
 vi.mock('@/hooks/use-screen-view', () => ({ useScreenView: () => ({ data: state.loaded ? { locks: state.locks } : null }) }))
 vi.mock('@/lib/trades', async importOriginal => ({ ...await importOriginal<typeof import('@/lib/trades')>(), readTradeAssetLocks: () => state.locks }))
-vi.mock('@/hooks/use-player-age', () => ({ usePlayerAge: () => null }))
+vi.mock('@/hooks/use-jersey-number', () => ({ useJerseyNumber: () => null }))
 vi.mock('@/hooks/use-league-timezone', () => ({ useLeagueTimezone: () => 'UTC' }))
 vi.mock('@/components/trades/SavedTradeEstimate', () => ({ SavedTradeEstimate: () => null }))
 const push = navigation.push

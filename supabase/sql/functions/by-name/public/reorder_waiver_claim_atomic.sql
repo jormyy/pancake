@@ -54,6 +54,7 @@ BEGIN
   END IF;
 
   PERFORM pg_advisory_xact_lock(hashtext(v_claim.league_id::text), hashtext(v_claim.league_season_id::text));
+  PERFORM private.lock_roster_scope(v_claim.league_id, ARRAY[p_member_id], '{}');
 
   SELECT *
     INTO v_claim
@@ -75,8 +76,6 @@ BEGIN
 
   SELECT waiver_mode INTO v_waiver_mode FROM leagues WHERE id = v_claim.league_id;
 
-  -- Older submissions can share an order. Preserve the processor's tie order,
-  -- then assign distinct positions so a requested swap always moves one claim.
   WITH ordered AS (
     SELECT id, row_number() OVER (ORDER BY claim_order, submitted_at, id)::int AS position
       FROM waiver_claims

@@ -30,6 +30,8 @@
     "scutil"
   ],
   "entry": [
+    "eslint/rules/*.js",
+    "scripts/db-source-rules/*.mjs",
     "tools/perf/{run,edge,profile,harness.test}.mjs",
     "tools/verify/{run,run.test,browser,fixture,observe,pick-years,seed-trade-acceptance,seed-trade-roster-holds,seed-auto-ir,seed-roster-floor,trigger-lineup-optimizer,trigger-roster-floor}.mjs",
     "tests/e2e/static-web-server.mjs",
@@ -104,6 +106,7 @@
     "supabase/tests/db/playoff-boundary-races.ts",
     "supabase/tests/db/playoff-missing-stats.ts",
     "supabase/tests/db/season-boundary-pagination.ts",
+    "supabase/tests/db/paged-reads.ts",
     "supabase/tests/db/stats-provider-status.ts",
     "supabase/tests/db/playoff-pending-corrections.ts",
     "supabase/tests/db/rollover-standings.ts",

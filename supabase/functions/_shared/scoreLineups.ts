@@ -3,7 +3,8 @@
 import { calculateFantasyPoints, roundFantasyPoints, snakeToStatLine } from './scoring.ts'
 import { isRegularSeasonGameId } from './nba.ts'
 import { supabase } from './supabase.ts'
-import { endOfETDayUTC, fetchAllPages } from './scoreShared.ts'
+import { fetchAllPages } from './fetchAllPages.ts'
+import { endOfETDayUTC } from './scoreShared.ts'
 
 type LineupPlayer = {
     member_id: string

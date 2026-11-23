@@ -17,8 +17,8 @@ BEGIN
   INSERT INTO public.league_seasons(id,league_id,season_year,is_current)
   VALUES(season,league,2192,true);
   SELECT COALESCE((SELECT hint.revision FROM public.league_change_hints hint WHERE hint.league_id=league AND topic='inventory'),0) INTO prior_revision;
-  INSERT INTO public.league_activity(league_id,league_season_id,actor_member_id,event_type,title,body)
-  VALUES(league,season,member,'trade_accepted','Trade accepted','Trade completed') RETURNING id INTO activity;
+  INSERT INTO public.league_activity(league_id,league_season_id,actor_member_id,event_type,visibility,title,body)
+  VALUES(league,season,member,'trade_accepted','league','Trade accepted','Trade completed') RETURNING id INTO activity;
   IF (SELECT hint.revision FROM public.league_change_hints hint WHERE hint.league_id=league AND topic='inventory') IS DISTINCT FROM prior_revision THEN
     RAISE EXCEPTION 'Activity must not emit an unsupported inventory detail in this release';
   END IF;
@@ -33,14 +33,14 @@ BEGIN
     RAISE EXCEPTION 'Removed activity emits an unsupported hint';
   END IF;
   SELECT hint.revision INTO prior_revision FROM public.league_change_hints hint WHERE hint.league_id=league AND topic='inventory';
-  INSERT INTO public.league_activity(league_id,actor_member_id,event_type,title,body)
-  SELECT league,member,event_type,'Hidden event','Hidden details'
+  INSERT INTO public.league_activity(league_id,actor_member_id,event_type,visibility,title,body)
+  SELECT league,member,event_type,CASE WHEN event_type IN ('trade_offered','trade_countered','trade_edited','trade_expired','trade_rejected','trade_withdrawn','trade_vetoed') THEN 'parties' ELSE 'league' END::activity_visibility,'Hidden event','Hidden details'
   FROM unnest(ARRAY['trade_offered','trade_countered','trade_edited','trade_expired','trade_block_updated','free_agent_added']) event_type;
   IF (SELECT hint.revision FROM public.league_change_hints hint WHERE hint.league_id=league AND topic='inventory') <> prior_revision THEN
     RAISE EXCEPTION 'Hidden or private activity publishes an inventory hint';
   END IF;
-  INSERT INTO public.league_activity(league_id,actor_member_id,event_type,title,body)
-  VALUES(league,member,'trade_accepted','Trade accepted','Trade completed');
+  INSERT INTO public.league_activity(league_id,actor_member_id,event_type,visibility,title,body)
+  VALUES(league,member,'trade_accepted','league','Trade accepted','Trade completed');
   IF (SELECT hint.revision FROM public.league_change_hints hint WHERE hint.league_id=league AND topic='inventory') IS DISTINCT FROM prior_revision THEN
     RAISE EXCEPTION 'Season fallback must not emit an unsupported activity hint';
   END IF;
