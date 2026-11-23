@@ -314,9 +314,9 @@ class EspnSnapshotError extends Error {
 }
 
 class EspnLiveSource {
+  backoffs = new Map;
   now;
   timeoutMs;
-  backoffs = new Map;
   constructor(now = () => Date.now(), timeoutMs = 2500) {
     this.now = now;
     this.timeoutMs = timeoutMs;

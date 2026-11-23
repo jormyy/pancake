@@ -12,10 +12,7 @@ LANGUAGE plpgsql
 SET search_path = public
 AS $$
 BEGIN
-  PERFORM pg_advisory_xact_lock(
-    hashtext(p_league_id::text),
-    hashtext(p_member_id::text)
-  );
+  PERFORM private.lock_roster_scope(p_league_id, ARRAY[p_member_id], '{}');
 
   PERFORM 1
     FROM leagues

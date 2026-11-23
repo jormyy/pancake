@@ -112,4 +112,3 @@ it(`${synthetic}still writes a confirmed full activation once when limits are un
     expect(mocks.activate).toHaveBeenCalledOnce()
 })
 
-vi.mock('@/lib/timezone', async importOriginal => ({ ...await importOriginal<typeof import('@/lib/timezone')>(), todayLeague: () => '2026-10-24' }))

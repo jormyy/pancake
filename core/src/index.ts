@@ -33,6 +33,9 @@ export type {
     SeasonWeekRow,
 } from './season/schedule'
 
+// Database reads
+export { fetchAllPages } from './db/fetchAllPages'
+
 // Dates
 export { endOfETDayUTC, toETDate, todayET } from './dates'
 

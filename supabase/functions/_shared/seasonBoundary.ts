@@ -4,7 +4,7 @@ import { gameAvailable, gamePhase } from './gamePhase.ts'
 import { isRegularSeasonGameId } from './gameId.ts'
 import { generateMatchups } from './matchupGeneration.ts'
 import { runBounded } from './runBounded.ts'
-import { fetchAllPages } from './scoreShared.ts'
+import { fetchAllPages } from './fetchAllPages.ts'
 import { syncScores } from './syncScores.ts'
 
 const BOUNDARY_GRACE_HOURS = 48

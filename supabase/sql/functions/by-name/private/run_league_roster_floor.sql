@@ -223,6 +223,7 @@ BEGIN
     ) THEN
       RAISE EXCEPTION 'Work lease is no longer current' USING ERRCODE = 'PT409';
     END IF;
+    PERFORM private.lock_roster_scope(p_league_id, v_members, '{}');
     FOR v_member IN
       SELECT unnest(v_members) AS id
     LOOP
@@ -253,18 +254,6 @@ BEGIN
           CONTINUE;
         END IF;
         v_short := true;
-        PERFORM pg_advisory_xact_lock(hashtext(p_league_id::text), hashtext(v_team::text));
-        SELECT count(*)
-          INTO v_active
-          FROM public.roster_players roster
-         WHERE roster.league_id = p_league_id
-           AND roster.league_season_id = p_league_season_id
-           AND roster.member_id = v_team
-           AND NOT roster.is_on_ir
-           AND NOT roster.is_on_taxi;
-        IF v_active >= v_target THEN
-          CONTINUE;
-        END IF;
         FOR v_player IN
           SELECT pool.player_id, pool.avg_fantasy_points
             FROM private.roster_floor_pool(p_league_id, p_league_season_id) pool
@@ -278,7 +267,7 @@ BEGIN
            )
            ORDER BY pool.avg_fantasy_points DESC, pool.player_id
         LOOP
-          PERFORM pg_advisory_xact_lock(hashtext(p_league_id::text), hashtext(v_player.player_id::text));
+          PERFORM private.lock_roster_scope(p_league_id, '{}', ARRAY[v_player.player_id]);
           IF NOT private.roster_floor_player_legal(p_league_id, p_league_season_id, v_player.player_id) THEN
             CONTINUE;
           END IF;

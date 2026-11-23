@@ -10,7 +10,7 @@ SELECT fixture.id,games.id,public.current_season_year_et(),1,24,6,8,32,false FRO
 INSERT INTO public.nba_games(nba_game_id,season_year,game_date,week_number,home_team,away_team,status,game_time)
 VALUES('002ui7profilenext',public.current_season_year_et(),(now() AT TIME ZONE 'America/New_York')::date + 1,1,'ATL','BOS','Scheduled',now()+interval '1 day')
 ON CONFLICT(nba_game_id) DO UPDATE SET game_time=excluded.game_time,game_date=excluded.game_date;
-UPDATE public.players SET injury_status='Out',injury_reason='Ankle',injury_expected_return='Day to day',dynasty_rank=1 WHERE sportsdata_id='e2e-player-001';
+UPDATE public.players SET injury_status='Out',injury_reason='Ankle',injury_expected_return='Day to day',dynasty_rank=1,dynasty_rank_source='hashtagbasketball.com' WHERE sportsdata_id='e2e-player-001';
 INSERT INTO public.dynasty_news(player_id,title,summary,source,url,published_at)
 SELECT id,'Profile fixture update','A synthetic local player update for the profile check.','Local fixture','https://example.test/local-profile',now() FROM public.players WHERE sportsdata_id='e2e-player-001' ON CONFLICT DO NOTHING;
 SELECT public.refresh_player_search_caches();

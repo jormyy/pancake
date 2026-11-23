@@ -1,3 +1,4 @@
+import { fetchAllPages } from '@pancake/core'
 import { rememberLeagueTimezone, leagueTimezone } from '@/lib/league-timezones'
 import { todayLeague } from '@/lib/timezone'
 import { sessionGeneration } from '@/lib/session-cache-registry'
@@ -205,24 +206,13 @@ export function isTradingClosed(
 }
 
 export async function getLeagueMembers(leagueId: string) {
-    const fetchPage = (from: number) => supabase
+    return fetchAllPages((from, to) => supabase
         .from('league_members')
         .select('id, role, team_name, user_id, profiles ( display_name, username )')
         .eq('league_id', leagueId)
         .order('joined_at')
         .order('id')
-        .range(from, from + 999)
-    const first = await fetchPage(0)
-    if (first.error) throw first.error
-    const rows = first.data ?? []
-    let pageLength = rows.length
-    while (pageLength === 1000) {
-        const page = await fetchPage(rows.length)
-        if (page.error) throw page.error
-        pageLength = page.data?.length ?? 0
-        rows.push(...page.data ?? [])
-    }
-    return rows
+        .range(from, to))
 }
 
 export async function updateTeamName(memberId: string, teamName: string) {

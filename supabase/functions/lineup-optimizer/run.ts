@@ -1,5 +1,6 @@
 import { supabase } from '../_shared/supabase.ts'
 import { toETDate } from '../_shared/date.ts'
+import { fetchAllPages } from '../_shared/fetchAllPages.ts'
 import { gameAvailable } from '../_shared/gamePhase.ts'
 import { chooseAutoSetAssignments } from './assignments.ts'
 import { MANUAL_DATE_LIMIT, processManualDates, type ManualOptimizationResult } from './manual.ts'
@@ -80,7 +81,6 @@ type MemberRoster = {
 }
 
 const FILL_ORDER = ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F', 'UTIL']
-const SCHEDULE_PAGE_SIZE = 1000
 
 export type ManualRequest = {
   mode: 'rest_of_season'
@@ -248,23 +248,18 @@ async function loadDateContexts(requestedDate: string | null): Promise<DateConte
 
 async function loadRemainingSeasonDateContexts(seasonYear: number, requestedDates?: string[]): Promise<DateContext[]> {
   const today = toETDate(new Date())
-  const games: GameRow[] = []
-  for (let from = 0; games.length <= 3000; from += SCHEDULE_PAGE_SIZE) {
-    let query = supabase
+  const games = await fetchAllPages((from, to) => {
+    const query = supabase
       .from('nba_games')
       .select('season_year, game_date, home_team, away_team, status, game_status_text, game_time, started_at')
       .eq('season_year', seasonYear)
       .gte('game_date', today)
       .order('game_date', { ascending: true })
       .order('game_time', { ascending: true })
-      .range(from, from + SCHEDULE_PAGE_SIZE - 1)
-    if (requestedDates) query = query.in('game_date', requestedDates)
-    const { data, error } = await query
-    if (error) throw error
-    const page = (data ?? []) as GameRow[]
-    games.push(...page)
-    if (page.length < SCHEDULE_PAGE_SIZE) break
-  }
+      .order('id')
+      .range(from, to)
+    return requestedDates ? query.in('game_date', requestedDates) : query
+  }) as GameRow[]
 
   const byDate = new Map<string, GameRow[]>()
   for (const game of games) {

@@ -6,6 +6,7 @@ import { openWebTarget, WEB_TARGETS, navigateWebTarget, waitForWebTargetReads } 
 import { stackEnvironment, requireSweepStack } from './layout-stability-ports.mjs'
 import { createDisposableLeagueFromSeedUsers, currentSeasonYear } from './soak-fixtures.mjs'
 import { runWithScenarioResourceOwner } from './scenario-resource-owner.mjs'
+import { toETDate } from '@pancake/core'
 
 const args = Object.fromEntries(process.argv.slice(2).map(arg => arg.replace(/^--/, '').split(/=(.*)/s).slice(0, 2)))
 const env = await stackEnvironment(args.env)
@@ -55,7 +56,7 @@ await runWithScenarioResourceOwner('screen write freshness', async resourceOwner
         await post('/waivers/claims', { memberId: members[0].id, leagueId: league.id, playerId: players[2].id, bidAmount: 0 })
         await client.page.getByText('1 claim pending', { exact: true }).waitFor({ timeout: 20000 })
         const claim = await checked(admin.from('waiver_claims').select('id').eq('league_id', league.id).eq('player_id', players[2].id).single())
-        const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10)
+        const yesterday = toETDate(new Date(Date.now() - 86400000))
         await checked(admin.from('waiver_claims').update({ process_date: yesterday }).eq('id', claim.id))
         await waitForWebTargetReads(client.page)
         const beforeAward = await version()

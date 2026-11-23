@@ -16,10 +16,7 @@ STABLE
 SET search_path = public
 AS $$
   SELECT EXISTS (
-    SELECT 1 FROM private.locked_assets(p_league_id,
-      COALESCE(p_league_season_id, (SELECT id FROM public.league_seasons WHERE league_id=p_league_id AND is_current)), p_member_id) locked
-    JOIN public.trades reservation ON reservation.id=locked.source_id AND reservation.status='accepted'
-    WHERE locked.source_kind='trade' AND (p_exclude_trade_id IS NULL OR locked.source_id<>p_exclude_trade_id)
-      AND ((locked.asset_kind='player' AND locked.asset_id=p_player_id) OR (locked.asset_kind='pick' AND locked.asset_id=p_pick_id))
+    SELECT 1 FROM private.roster_action_blocks('trade_accept', p_league_id, p_league_season_id, p_member_id, ARRAY[p_exclude_trade_id]) block
+    WHERE (block.asset_kind='player' AND block.asset_id=p_player_id) OR (block.asset_kind='pick' AND block.asset_id=p_pick_id)
   )
 $$;

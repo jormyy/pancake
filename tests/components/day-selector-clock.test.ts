@@ -10,10 +10,12 @@ vi.mock('react-native', () => ({ View: 'View', Text: 'Text', Platform: { OS: 'we
 vi.mock('@/components/Motion', () => ({ MotionPressable: 'Cell' }))
 vi.mock('@/lib/shared/week', () => ({ getSeasonWeekDates: async () => fixture.dates }))
 vi.mock('@/lib/supabase', () => ({ supabase: { from: () => {
-    const query = {
-        select: () => query, eq: () => query, gte: () => query,
-        lte: async () => ({ data: fixture.dates.map(date => ({ game_date: date, home_team: 'BOS', away_team: 'NYK' })), error: null }),
-    }
+    const result = () => ({ data: fixture.dates.map(date => ({ game_date: date, home_team: 'BOS', away_team: 'NYK' })), error: null })
+    const query: object = new Proxy({}, {
+        get: (_, key) => key === 'then'
+            ? (resolve: (value: ReturnType<typeof result>) => unknown) => resolve(result())
+            : () => query,
+    })
     return query
 } } }))
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true

@@ -7,6 +7,7 @@ import { createClient } from '@supabase/supabase-js'
 import { runWithScenarioResourceOwner } from './scenario-resource-owner.mjs'
 import { openWebTarget, pressWebControl, waitForWebTargetReady, waitForWebTargetReads } from './web-targets-browser.mjs'
 import { requireSweepLocal, requireSweepStack, resolveSweepPorts } from './layout-stability-ports.mjs'
+import { toETDate } from '@pancake/core'
 
 const args = Object.fromEntries(process.argv.slice(2).map(arg => {
   assert(arg.startsWith('--'))
@@ -148,7 +149,7 @@ await runWithScenarioResourceOwner('draft timer UI', async () => {
         await page.getByText('Opening night is not published yet.', { exact: false }).waitFor()
         await page.screenshot({ path: path.join(dir, `${name}-warning.png`) })
         await pressWebControl(target, page.getByRole('button', { name: 'Cancel', exact: true }))
-        await insert('nba_games', { id: openingGame, season_year: 2189, nba_game_id: '0028900035', game_date: new Date(Date.now() + 86400000).toISOString().slice(0, 10), week_number: 1, home_team: 'BOS', away_team: 'NYK', status: 'Scheduled' })
+        await insert('nba_games', { id: openingGame, season_year: 2189, nba_game_id: '0028900035', game_date: toETDate(new Date(Date.now() + 86400000)), week_number: 1, home_team: 'BOS', away_team: 'NYK', status: 'Scheduled' })
         await pressWebControl(target, start)
         await page.getByText(/could run past opening night/).waitFor()
         await page.screenshot({ path: path.join(dir, `${name}-overrun-warning.png`) })

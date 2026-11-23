@@ -3,12 +3,13 @@ import path from 'node:path'
 import process from 'node:process'
 import { evaluateConfiguredSourceHealth, injurySyncHealth } from './configured-source-health-contract.mjs'
 import { querySupabaseDb, writeMarkdownReport } from './env.mjs'
+import { toETDate } from '@pancake/core'
 
 const outputArg = process.argv.find((arg) => arg.startsWith('--output-dir='))
 const outputDir = path.resolve(outputArg?.slice('--output-dir='.length) ?? 'tests/source-health')
 const recoveryVerified = process.env.E2E_SOURCE_RECOVERY_VERIFIED === '1'
 const now = new Date()
-const offseason = [7, 8, 9].includes(now.getUTCMonth() + 1)
+const offseason = [7, 8, 9].includes(Number(toETDate(now).slice(5, 7)))
 
 const runRows = querySupabaseDb('local', 'configured source runs', `
   SELECT function_name, status, started_at, finished_at, rows_affected, error

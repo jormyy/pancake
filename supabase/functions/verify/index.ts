@@ -1,11 +1,5 @@
-/**
- * verify — health checks and data validation.
- *
- * GET /verify?action=validate-db[&seasonYear=2026]
- * GET /verify?action=season-totals[&seasonYear=2026]
- * POST /verify { action: "test-endpoints" }
- */
 import { supabase } from '../_shared/supabase.ts'
+import { fetchAllPages } from '../_shared/fetchAllPages.ts'
 import { fetchTodaysGames, fetchBoxScore, fetchSeasonSchedule } from '../_shared/nba.ts'
 import { serveInternal } from '../_shared/serve.ts'
 import { errorMessage } from '../_shared/responses.ts'
@@ -62,57 +56,32 @@ async function testNBAEndpoints() {
 }
 
 async function verifySeasonTotals(seasonYear: number) {
-  // Paginate player_game_stats to avoid PostgREST's 1000-row cap.
-  // A full season has ~25K rows, so a single SELECT silently truncates.
-  const PAGE = 1000
+  const stats = await fetchAllPages((from, to) => supabase
+    .from('player_game_stats')
+    .select('player_id, points, rebounds, assists, steals, blocks, three_pointers_made')
+    .eq('season_year', seasonYear)
+    .eq('did_not_play', false)
+    .order('id')
+    .range(from, to))
   const totals = new Map<string, { pts: number; reb: number; ast: number; stl: number; blk: number; tpm: number; gp: number }>()
-  let from = 0
-  while (true) {
-    const { data, error } = await supabase
-      .from('player_game_stats')
-      .select('player_id, points, rebounds, assists, steals, blocks, three_pointers_made')
-      .eq('season_year', seasonYear)
-      .eq('did_not_play', false)
-      .range(from, from + PAGE - 1)
-
-    if (error) throw error
-    if (!data || data.length === 0) break
-
-    for (const s of data) {
-      const t = totals.get(s.player_id) ?? { pts: 0, reb: 0, ast: 0, stl: 0, blk: 0, tpm: 0, gp: 0 }
-      t.pts += s.points ?? 0
-      t.reb += s.rebounds ?? 0
-      t.ast += s.assists ?? 0
-      t.stl += s.steals ?? 0
-      t.blk += s.blocks ?? 0
-      t.tpm += s.three_pointers_made ?? 0
-      t.gp++
-      totals.set(s.player_id, t)
-    }
-
-    if (data.length < PAGE) break
-    from += PAGE
+  for (const s of stats) {
+    const t = totals.get(s.player_id) ?? { pts: 0, reb: 0, ast: 0, stl: 0, blk: 0, tpm: 0, gp: 0 }
+    t.pts += s.points ?? 0
+    t.reb += s.rebounds ?? 0
+    t.ast += s.assists ?? 0
+    t.stl += s.steals ?? 0
+    t.blk += s.blocks ?? 0
+    t.tpm += s.three_pointers_made ?? 0
+    t.gp++
+    totals.set(s.player_id, t)
   }
 
-  // Get player names — paginate in case players table exceeds 1000 rows.
-  const nameMap = new Map<string, string>()
-  let pFrom = 0
-  while (true) {
-    const { data: players, error: pErr } = await supabase
-      .from('players')
-      .select('id, display_name')
-      .range(pFrom, pFrom + PAGE - 1)
-
-    if (pErr) throw pErr
-    if (!players || players.length === 0) break
-
-    for (const p of players as Array<{ id: string; display_name: string | null }>) {
-      nameMap.set(p.id, p.display_name ?? p.id)
-    }
-
-    if (players.length < PAGE) break
-    pFrom += PAGE
-  }
+  const players = await fetchAllPages((from, to) => supabase
+    .from('players')
+    .select('id, display_name')
+    .order('id')
+    .range(from, to))
+  const nameMap = new Map(players.map((p) => [p.id, p.display_name ?? p.id]))
 
   return [...totals.entries()]
     .map(([id, t]) => ({ player: nameMap.get(id) ?? id, gp: t.gp, pts: t.pts, reb: t.reb, ast: t.ast, stl: t.stl, blk: t.blk, tpm: t.tpm }))

@@ -36,8 +36,8 @@ BEGIN
     VALUES(event_id,f.league_id,f.season_id,f.member_ids[1],player_ids[1],'trade_in',pending);
   INSERT INTO compact_feed_events VALUES('kept',event_id);
   event_id:=gen_random_uuid();
-  INSERT INTO league_activity(id,league_id,league_season_id,actor_member_id,event_type,title)
-    VALUES(event_id,f.league_id,f.season_id,f.member_ids[1],'commissioner_announcement','Standalone announcement');
+  INSERT INTO league_activity(id,league_id,league_season_id,actor_member_id,event_type,visibility,title)
+    VALUES(event_id,f.league_id,f.season_id,f.member_ids[1],'commissioner_announcement','league','Standalone announcement');
   INSERT INTO compact_feed_events VALUES('kept',event_id);
 END;
 $$;

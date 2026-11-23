@@ -63,13 +63,13 @@ it.each([true, false])('describes the add destination accurately with active roo
     expect(add).not.toHaveBeenCalled()
 })
 
-it('shows age before experience in the roster player sheet', async () => {
+it('leaves age and experience out of the roster player sheet', async () => {
     const player = rosterPlayer()
     player.players = { ...player.players, birthdate: '1990-01-01', years_exp: 10 }
     await act(async () => { screen = create(React.createElement(RosterPlayerSheet, { player, actions: [], onClose: vi.fn() })) })
     const text = JSON.stringify(screen.toJSON())
-    expect(text).toContain('Yr 11')
-    expect(text.indexOf('36')).toBeLessThan(text.indexOf('Yr 11'))
+    expect(text).not.toContain('Yr 11')
+    expect(text).not.toContain('"36"')
 })
 
 it.each(['trade', 'claim'] as const)('keeps the drop action disabled with its pending %s message', async (sourceKind) => {

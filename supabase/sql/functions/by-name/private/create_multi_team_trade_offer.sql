@@ -312,6 +312,7 @@ BEGIN
     p_league_id,
     p_league_season_id,
     'trade_offered',
+    'parties',
     'Multi-team trade offer sent',
     NULL,
     p_proposer_member_id,

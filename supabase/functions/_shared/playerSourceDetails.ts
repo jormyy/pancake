@@ -1,7 +1,8 @@
+import { todayET } from './date.ts'
 export function sourceBirthdate(value: unknown): string | null {
   if (typeof value !== 'string') return null
   const day = value.match(/^\d{4}-\d{2}-\d{2}(?=T|$)/)?.[0]
-  if (!day || day < '1900-01-01' || day > new Date().toISOString().slice(0, 10)) return null
+  if (!day || day < '1900-01-01' || day > todayET()) return null
   const date = new Date(`${day}T12:00:00Z`)
   return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === day ? day : null
 }

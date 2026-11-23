@@ -1,4 +1,5 @@
 import { supabase } from '../_shared/supabase.ts'
+import { fetchAllPages } from '../_shared/fetchAllPages.ts'
 import { currentSeasonYear } from '../_shared/season.ts'
 import { fetchWithRetry } from '../_shared/retry.ts'
 import { serveInternal } from '../_shared/serve.ts'
@@ -278,22 +279,11 @@ async function insertProjectionRows(rows: FantasyProsProjectionInsert[]): Promis
 }
 
 async function fetchPlayersForProjection(): Promise<PlayerForProjection[]> {
-  const players: PlayerForProjection[] = []
-  const PAGE = 1000
-  let from = 0
-  while (true) {
-    const { data, error } = await supabase
-      .from('players')
-      .select('id, display_name, nba_team, status')
-      .order('id', { ascending: true })
-      .range(from, from + PAGE - 1)
-    if (error) throw error
-    if (!data || data.length === 0) break
-    players.push(...data)
-    if (data.length < PAGE) break
-    from += PAGE
-  }
-  return players
+  return await fetchAllPages((from, to) => supabase
+    .from('players')
+    .select('id, display_name, nba_team, status')
+    .order('id', { ascending: true })
+    .range(from, to))
 }
 
 async function syncInternalFallbackProjections(
@@ -306,32 +296,22 @@ async function syncInternalFallbackProjections(
   }
 
   const minWeek = Math.max(1, weekNumber - (LOOKBACK_WEEKS - 1))
-  const rows: InternalFallbackStatRow[] = []
-  const PAGE = 1000
-  let from = 0
-  while (true) {
-    const { data, error } = await supabase
-      .from('player_game_stats')
-      .select(
-        'player_id, points, rebounds, assists, steals, blocks, turnovers, ' +
-          'three_pointers_made, field_goals_made, field_goals_attempted, ' +
-          'free_throws_made, free_throws_attempted, double_double, triple_double, ' +
-          'minutes_played, did_not_play, nba_games!inner(nba_game_id)',
-      )
-      .eq('season_year', seasonYear)
-      .gte('week_number', minWeek)
-      .lte('week_number', weekNumber)
-      .like('nba_games.nba_game_id', '002%')
-      .order('player_id', { ascending: true })
-      .order('game_id', { ascending: true })
-      .range(from, from + PAGE - 1)
-      .returns<InternalFallbackStatRow[]>()
-    if (error) throw error
-    if (!data || data.length === 0) break
-    rows.push(...data)
-    if (data.length < PAGE) break
-    from += PAGE
-  }
+  const rows = await fetchAllPages((from, to) => supabase
+    .from('player_game_stats')
+    .select(
+      'player_id, points, rebounds, assists, steals, blocks, turnovers, ' +
+        'three_pointers_made, field_goals_made, field_goals_attempted, ' +
+        'free_throws_made, free_throws_attempted, double_double, triple_double, ' +
+        'minutes_played, did_not_play, nba_games!inner(nba_game_id)',
+    )
+    .eq('season_year', seasonYear)
+    .gte('week_number', minWeek)
+    .lte('week_number', weekNumber)
+    .like('nba_games.nba_game_id', '002%')
+    .order('player_id', { ascending: true })
+    .order('game_id', { ascending: true })
+    .range(from, to)
+    .returns<InternalFallbackStatRow[]>())
 
   if (!rows.length) {
     console.log('[sync-projections] No recent stats found for internal fallback.')

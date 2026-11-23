@@ -37,7 +37,7 @@ import { EmptyState } from '@/components/EmptyState'
 import { NoLeagueState } from '@/components/NoLeagueState'
 import { Button, ErrorBanner, Page, PageHeader, usePageMetrics } from '@/components/ui'
 
-import { countLabel, formatPoints, formatStat } from '@/lib/format'
+import { countLabel, formatAvgPoints, formatStat } from '@/lib/format'
 import { ROSTER_SLOT_TAG_WIDTH, RosterClaimItem, RosterPickItem, RosterPlayerItem, RosterSectionBand, RosterSlotTag, TaxiPlayerItem } from '@/components/roster/RosterItems'
 import { RosterPlayerSheet, type RosterSheetAction } from '@/components/roster/RosterPlayerSheet'
 import { getRosterStatusChangeLockMessage } from '@/lib/roster-locks'
@@ -47,7 +47,8 @@ import { getRosterStatusChangeLockMessage } from '@/lib/roster-locks'
 import { ClaimsPill } from '@/components/roster/ClaimsPill'
 import { RosterTrimBanner } from '@/components/roster/RosterTrimBanner'
 import { activeRosterOverflow, createRosterRecoveryRunner } from '@/lib/roster-overflow'
-import { AutoSetModal } from '@/components/AutoSetModal'
+import { AutoSetToggle } from '@/components/roster/AutoSetToggle'
+import { useLineupOptimizerSetting } from '@/hooks/use-lineup-optimizer-setting'
 import { ActivationOverflowModal } from '@/components/ActivationOverflowModal'
 
 
@@ -162,9 +163,9 @@ function RosterTablePlayerItem({
                 <View style={styles.rosterTablePlayerCell}>
                     <PlayerRowContent lineupPin={item.lineupPin} locks={locks} name={item.players.display_name} nbaId={item.players.nba_id} team={item.players.nba_team} positions={positions}
                         birthdate={item.players.birthdate} yearsExp={item.players.years_exp} careerGames={item.players.career_regular_season_games} injuryStatus={item.players.injury_status}
-                        stats={`${formatPoints(avgFpts)} FP · ${fmtStat(stats?.avg_minutes_played)} MIN`} />
+                        stats={`${formatAvgPoints(avgFpts)} FP · ${fmtStat(stats?.avg_minutes_played)} MIN`} />
                 </View>
-                <StatCell style={styles.rosterTableStat} value={avgFpts} highlight integer />
+                <StatCell style={styles.rosterTableStat} value={avgFpts} highlight />
                 <StatCell style={styles.rosterTableStat} value={stats?.avg_minutes_played} />
                 <StatCell style={styles.rosterTableStat} value={stats?.avg_points} />
                 <StatCell style={styles.rosterTableStat} value={stats?.avg_rebounds} />
@@ -225,7 +226,6 @@ export default function RosterScreen() {
     const [cancellingId, setCancellingId] = useState<string | null>(null)
     const [droppingId, setDroppingId] = useState<string | null>(null)
     const [sheetPlayerRaw, setSheetPlayer] = useState<RosterPlayer | null>(null)
-    const [autoSetVisibleRaw, setAutoSetVisible] = useState(false)
     const [activationPendingRaw, setActivationPending] = useState<{ rosterPlayerId: string; source: 'ir' | 'taxi'; limits: RosterLimits } | null>(null)
     const [activationSaving, setActivationSaving] = useState(false)
     const rosterRecoveryRunnerRef = useRef(createRosterRecoveryRunner())
@@ -245,7 +245,6 @@ export default function RosterScreen() {
     // ownsActionState pattern in use-lineup-actions).
     const [stateOwnerIdentity, setStateOwnerIdentity] = useState(ownerIdentity)
     const ownsActionState = stateOwnerIdentity === ownerIdentity
-    const autoSetVisible = ownsActionState && autoSetVisibleRaw
     const sheetPlayer = ownsActionState ? sheetPlayerRaw : null
     const activationPending = ownsActionState ? activationPendingRaw : null
 
@@ -257,7 +256,6 @@ export default function RosterScreen() {
         setCancellingId(null)
         setDroppingId(null)
         setSheetPlayer(null)
-        setAutoSetVisible(false)
         setActivationPending(null)
         setActivationSaving(false)
         setStateOwnerIdentity(ownerIdentity)
@@ -270,6 +268,9 @@ export default function RosterScreen() {
     const rosterView = useScreenView<RosterView>(user?.id && current?.id && leagueId
         ? screenScope('roster', leagueId, current.id, {}, user.id) : null)
     const refreshRosterView = rosterView.refresh
+    const seasonId = rosterView.data?.context?.seasonId ?? null
+    const optimizerScope = useMemo(() => current?.id && leagueId && seasonId ? { memberId: current.id, leagueId, seasonId } : null, [current?.id, leagueId, seasonId])
+    const autoLineup = useLineupOptimizerSetting(optimizerScope)
     const data = useMemo(() => rosterView.data ? rosterViewData(rosterView.data) : null, [rosterView.data])
     const { loading, refreshing, error } = rosterView
     const refresh = useCallback(async () => { await refreshRosterView(true) }, [refreshRosterView])
@@ -662,7 +663,7 @@ export default function RosterScreen() {
         }
         if (item._isEmpty) {
             return (
-                <View style={styles.emptySlot}>
+                <View style={[styles.emptySlot, !showRosterTable && styles.emptySlotPhone]}>
                     <RosterSlotTag slotType={item._slotType} />
                     <Text style={styles.emptySlotText}>
                         {item._section === 'ir' ? 'Empty IR slot'
@@ -790,7 +791,6 @@ export default function RosterScreen() {
         return membershipStatus === 'empty' ? <EmptyState message="Join or create a league first." /> : <NoLeagueState />
     }
 
-    const lineupLocked = rosterOverflow > 0
     const sideCards = (
         <>
             <View style={[styles.cardSlice, styles.cardTop, picks.length === 0 && styles.cardBottom]}>
@@ -820,18 +820,24 @@ export default function RosterScreen() {
                 actions={(
                     <View style={styles.headerActions}>
                     <ClaimsPill count={pendingClaimCount} />
-                    {roster.length > 0 ? <Button
-                        size="inline"
-                        style={{ minHeight: controlSize.minTouch }}
-                        variant={lineupLocked ? 'secondary' : 'primary'}
-                        title={rosterOverflow > 0 ? 'Trim Roster First' : 'Auto-set'}
-                        onPress={() => setAutoSetVisible(true)}
-                        disabled={rosterOverflow > 0}
-                        accessibilityLabel={rosterOverflow > 0 ? 'Trim roster before setting lineup' : 'Open auto-set lineup options'}
-                    /> : null}
                     </View>
                 )}
             />
+
+            {/* Lineup controls get their own row so the roster counts never truncate beside them. */}
+            {roster.length > 0 ? (
+                <View style={[styles.lineupControls, { paddingHorizontal: padX }]}>
+                    <Button
+                        size="inline"
+                        variant="outline"
+                        style={{ minHeight: controlSize.minTouch }}
+                        title="Edit lineup"
+                        onPress={() => push('/(modals)/lineup')}
+                        accessibilityLabel="Edit lineup and pins"
+                    />
+                    <AutoSetToggle enabled={autoLineup.enabled} disabled={!optimizerScope || autoLineup.saving || !online} onChange={(enabled) => { void autoLineup.setAutomatic(enabled) }} />
+                </View>
+            ) : null}
 
             {error ? (
                 <ErrorBanner message="Failed to load roster. Tap to retry." onRetry={refresh} />
@@ -895,11 +901,6 @@ export default function RosterScreen() {
                 onClose={() => setSheetPlayer(null)}
             />
 
-            <AutoSetModal
-                visible={autoSetVisible}
-                onClose={() => setAutoSetVisible(false)}
-                onEditManually={() => { setAutoSetVisible(false); push('/(modals)/lineup') }}
-            />
             {rosterLegality.modalProps.visible ? <IRResolutionModal {...rosterLegality.modalProps} /> : null}
             <ActivationOverflowModal
                 pending={activationPending}
@@ -929,6 +930,7 @@ const styles = StyleSheet.create({
     },
     summaryText: { ...textStyles.meta, fontWeight: fontWeight.semibold, fontVariant: ['tabular-nums'] as const },
     headerActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+    lineupControls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },
 
 
     body: { flex: 1, minHeight: 0 },
@@ -1027,6 +1029,9 @@ const styles = StyleSheet.create({
         gap: spacing.md,
         paddingHorizontal: spacing.lg,
     },
+    // Phone player rows inset their slot tag by spacing.sm; match it, and widen the gap by the
+    // same amount so the "Empty … slot" text keeps its place.
+    emptySlotPhone: { paddingHorizontal: spacing.sm, gap: spacing.md + spacing.lg - spacing.sm },
     emptySlotText: { ...textStyles.meta, color: colors.textPlaceholder, fontStyle: 'italic' },
     taxiEmpty: {
         minHeight: controlSize.minTouch,

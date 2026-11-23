@@ -62,6 +62,7 @@ BEGIN
     v_item.league_id,
     v_season_id,
     'trade_block_updated',
+    'league',
     'Trade block updated',
     'An item was removed from the trade block.',
     p_member_id,

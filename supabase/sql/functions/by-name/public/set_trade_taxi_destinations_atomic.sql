@@ -6,32 +6,16 @@ CREATE OR REPLACE FUNCTION public.set_trade_taxi_destinations_atomic(p_trade_id 
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path=public,private AS $$
 DECLARE
   __request_context jsonb;
+  v_trade trades%ROWTYPE;
 BEGIN
+  v_trade := private.begin_trade_action(p_trade_id, p_member_id, p_user_id, 'taxi');
   __request_context := private.request_begin('public.set_trade_taxi_destinations_atomic', jsonb_build_array(p_trade_id, p_member_id, p_player_ids, p_user_id), NULL, NULL);
   IF (__request_context->>'replay')::boolean THEN RETURN; END IF;
   <<request_write>>
-DECLARE v_trade trades%ROWTYPE; v_player_id uuid; v_member_id uuid; v_slots int; v_count int;
+DECLARE v_player_id uuid; v_slots int; v_count int;
 BEGIN
-  SELECT * INTO v_trade FROM trades WHERE id=p_trade_id;
-  IF NOT FOUND THEN RAISE EXCEPTION 'Trade not found' USING ERRCODE='P0002'; END IF;
-  IF NOT EXISTS(SELECT 1 FROM league_members WHERE id=p_member_id AND league_id=v_trade.league_id AND user_id=p_user_id) THEN
-    RAISE EXCEPTION 'Not authorized to choose this roster destination.' USING ERRCODE='42501';
-  END IF;
-  -- Match acceptance and roster mutations: members, players, then the trade.
-  FOR v_member_id IN SELECT member_id FROM trade_participants WHERE trade_id=p_trade_id ORDER BY member_id LOOP
-    PERFORM pg_advisory_xact_lock(hashtext(v_trade.league_id::text),hashtext(v_member_id::text));
-  END LOOP;
-  FOR v_player_id IN SELECT DISTINCT player_id FROM trade_items WHERE trade_id=p_trade_id AND player_id IS NOT NULL ORDER BY player_id LOOP
-    PERFORM pg_advisory_xact_lock(hashtext(v_trade.league_id::text),hashtext(v_player_id::text));
-  END LOOP;
-  SELECT * INTO v_trade FROM trades WHERE id=p_trade_id AND status='pending' FOR UPDATE;
-  IF NOT FOUND THEN SELECT * INTO v_trade FROM trades WHERE id=p_trade_id; END IF;
-  IF NOT FOUND THEN RAISE EXCEPTION 'Trade not found' USING ERRCODE='P0002'; END IF;
   IF v_trade.status<>'pending' OR (v_trade.expires_at IS NOT NULL AND v_trade.expires_at<=now()) THEN
     RAISE EXCEPTION 'Choose roster destinations while the trade offer is pending.' USING ERRCODE='P0001';
-  END IF;
-  IF NOT EXISTS(SELECT 1 FROM trade_items WHERE trade_id=p_trade_id AND to_member_id=p_member_id) THEN
-    RAISE EXCEPTION 'This member receives no assets in this trade.' USING ERRCODE='42501';
   END IF;
   IF p_player_ids IS NULL OR cardinality(p_player_ids)>100 OR EXISTS(SELECT 1 FROM unnest(p_player_ids) p GROUP BY p HAVING p IS NULL OR count(*)>1) THEN
     RAISE EXCEPTION 'Taxi selections must be a unique list of incoming players.' USING ERRCODE='22023';

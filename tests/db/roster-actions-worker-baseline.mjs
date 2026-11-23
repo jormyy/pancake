@@ -8,6 +8,7 @@ serveInternal('process-waivers', async () => {
 })
 
 async function processWaiverClaims() {
+  // eslint-disable-next-line pancake/eastern-day -- mirrors process-waivers throughDate
   const throughDate = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10)
 
   const rows = await drainDueClaims(async () => {
