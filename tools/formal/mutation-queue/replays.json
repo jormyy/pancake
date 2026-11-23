@@ -1,0 +1,21 @@
+{
+  "initial": { "online": false, "tabs": ["A", "A"] },
+  "search": { "depth": 5, "budget": { "actions": 2, "switches": 2, "reloads": 1, "retries": 1, "network": 3, "storage": 2, "proof": 2 } },
+  "replays": [
+    {
+      "name": "PR #172: a save fails, another tab completes the action, the account switches and back, a new action is queued",
+      "fixedBy": "ce1c1c2e",
+      "steps": ["online", "enqueue T1", "storage-down", "fail X@T1", "storage-up", "reload T2", "succeed X@T2", "switch T1", "switch T1", "enqueue T1"]
+    },
+    {
+      "name": "d49c985e: a send fails while offline, then the tab comes back online",
+      "fixedBy": "0162e14b",
+      "steps": ["online", "enqueue T1", "offline", "fail X@T1", "online", "wake T1"]
+    },
+    {
+      "name": "4a78d43a: one tab completes an action another tab queued, then the completion record cannot be read",
+      "fixedBy": "771ead2e",
+      "steps": ["enqueue T2", "online", "wake T1", "succeed X@T1", "proof-unreadable", "wake T2"]
+    }
+  ]
+}

@@ -1,7 +1,7 @@
 import type { LeagueScheduleView } from '@/lib/cache/view-types'
 import type { Draft } from '@/lib/draft'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { browserReadsAllowed } from '@/hooks/use-browser-read-activity'
+import { readsAllowed } from '@/lib/lifecycle'
 import { useIsFocused } from '@react-navigation/native'
 import { useScreenView } from '@/hooks/use-screen-view'
 import { readScreenView , invalidateScreenViews } from '@/lib/cache/screen-cache'
@@ -43,7 +43,7 @@ export function useLeagueTabResources(leagueId: string | undefined, memberId: st
     const invalidateTab = useCallback((_tab: LeagueTab) => { if (leagueId) invalidateScreenViews(leagueId) }, [leagueId])
     const refreshMockRooms = useCallback(() => refreshTab('mockRooms'), [refreshTab])
     const loadMoreActivity = useCallback(async () => {
-        if (!scope || !authorized || !focused || !browserReadsAllowed() || view.refreshing || !selected.hasMore || pending.current || tab !== 'history') return
+        if (!scope || !authorized || !focused || !readsAllowed() || view.refreshing || !selected.hasMore || pending.current || tab !== 'history') return
         pending.current = true
         const sequence = ++request.current
         const previous = snapshot.current

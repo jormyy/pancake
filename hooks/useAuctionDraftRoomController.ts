@@ -15,9 +15,6 @@ import {
     type RealtimeSubscriptionStatus,
 } from '@/lib/realtime'
 
-
-/** Short enough for a live auction countdown; the rejoin reloads the room to catch up. */
-const AUCTION_REJOIN_DELAY_MS = 3_000
 export type DraftTab = 'budgets' | 'history'
 
 export function useAuctionDraftRoomController({
@@ -53,11 +50,8 @@ export function useAuctionDraftRoomController({
 
     const [realtimeStatus, setRealtimeStatus] =
         useState<RealtimeSubscriptionStatus | 'CONNECTING'>('CONNECTING')
-    // A CLOSED channel never rejoins on its own; a new epoch builds a fresh subscription.
-    const [subscriptionEpoch, setSubscriptionEpoch] = useState(0)
     const activeDraftIdRef = useRef<string | undefined>(draftId)
 
-    // Nomination / player search
     const [nominating, setNominating] = useState(false)
     const [searchQuery, setSearchQuery] = useState('')
     const [searchResults, setSearchResults] = useState<DraftSearchPlayer[]>([])
@@ -65,13 +59,11 @@ export function useAuctionDraftRoomController({
     const [searchError, setSearchError] = useState<string | null>(null)
     const [submittingNom, setSubmittingNom] = useState(false)
 
-    // Countdown timer
     const [timeLeft, setTimeLeft] = useState(0)
     const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
     // Track which nomination the bid field was last seeded for, so the 5s poll /
     // realtime refresh never clobbers a value the user is actively typing.
     const lastNomIdRef = useRef<string | null>(initialCache?.state?.openNomination?.id ?? null)
-    // Mirror of bidText so load() can read the current value without a dep.
     const bidTextRef = useRef(bidText)
     const expiryAttemptRef = useRef<{
         key: string; attempts: number; nextAt: number; inFlight: boolean; completed: boolean
@@ -87,7 +79,6 @@ export function useAuctionDraftRoomController({
     const inFlightRef = useRef<{ epoch: number; identity: string; promise: Promise<boolean> } | null>(null)
     const pollRevisionRef = useRef<string | null | undefined>(undefined)
 
-    // Keep bidTextRef in sync so load() can read current typed value without a dep.
     useEffect(() => { bidTextRef.current = bidText }, [bidText])
 
     const visibleState = stateOwner === identity ? state : null
@@ -143,7 +134,6 @@ export function useAuctionDraftRoomController({
             try {
                 const payload = viewLeagueId && memberId ? await readScreenView<DraftState>(screenScope('draft-room', viewLeagueId, memberId, { draftId: requestedDraftId })) : null
                 const s = payload?.draft ? payload : null
-                // Ignore a stale, out-of-order result once a newer load has started.
                 if (!isCurrent(readEpoch) || seq !== loadSeqRef.current || activeDraftIdRef.current !== requestedDraftId) return false
                 writePersistentCache(cacheKey, { state: s })
                 snapshotRef.current = s
@@ -208,11 +198,9 @@ export function useAuctionDraftRoomController({
         } else if (!canAct() || pendingRefreshRef.current) void load()
     }, [epoch, canRead, canAct, load])
 
-    // Load + subscribe. Mutations fail closed unless this channel is live.
     useEffect(() => {
         if (!draftId) return
         let active = true
-        if (subscriptionEpoch > 0) void load()
         // A bidding war fires several inserts per second and every one of them
         // reloads the whole draft state; coalesce the burst into one reload.
         let refreshTimer: ReturnType<typeof setTimeout> | null = null
@@ -242,28 +230,17 @@ export function useAuctionDraftRoomController({
                 pending = false
             },
         }
-        let rejoin: ReturnType<typeof setTimeout> | null = null
         const channel = subscribeToDraft(draftId, null, refresh.trigger, (status) => {
             if (!active) return
             if (status !== 'SUBSCRIBED') blockActions()
             setRealtimeStatus(status)
-            // CHANNEL_ERROR and TIMED_OUT rejoin inside the client; CLOSED is terminal, so subscribe again.
-            if (status === 'CLOSED' && !rejoin) {
-                rejoin = setTimeout(() => {
-                    rejoin = null
-                    if (!active) return
-                    setRealtimeStatus('CONNECTING')
-                    setSubscriptionEpoch((epoch) => epoch + 1)
-                }, AUCTION_REJOIN_DELAY_MS)
-            }
         }, load)
         return () => {
             active = false
-            if (rejoin) clearTimeout(rejoin)
             refresh.cancel()
             reportRealtimeCleanup('auction draft', unsubscribeFromDraft(channel))
         }
-    }, [draftId, load, subscriptionEpoch, canRead, blockActions])
+    }, [draftId, load, canRead, blockActions])
 
     useEffect(() => {
         if (!viewLeagueId) return
@@ -272,7 +249,6 @@ export function useAuctionDraftRoomController({
         })
     }, [viewLeagueId, load])
 
-    // Countdown tick
     useEffect(() => {
         if (timerRef.current) clearInterval(timerRef.current)
         if (!countdownNomination || !canRead()) return
@@ -315,7 +291,6 @@ export function useAuctionDraftRoomController({
         }
     }, [countdownNomination, draftId, load, canAct, canRead, epoch])
 
-    // Player search
     useEffect(() => {
         if (!nominating || !draftId) {
             searchSeqRef.current += 1
@@ -439,8 +414,6 @@ export function useAuctionDraftRoomController({
 
     const realtimeConnected = realtimeStatus === 'SUBSCRIBED' && activity.ready
 
-    // Memoize O(N) derivations from state so we don't recompute them every render
-    // (poll fires every 5s; without memos every parent re-render rebuilds these arrays/maps).
     const closedNominations = useMemo(
         () =>
             visibleState
@@ -461,15 +434,7 @@ export function useAuctionDraftRoomController({
         return counts
     }, [closedNominations])
 
-    const refresh = useCallback(async () => {
-        // Tap to retry also rebuilds a closed live channel, not only the room data.
-        if (realtimeStatus === 'CLOSED') {
-            setRealtimeStatus('CONNECTING')
-            setSubscriptionEpoch((epoch) => epoch + 1)
-            return
-        }
-        await load()
-    }, [load, realtimeStatus])
+    const refresh = useCallback(async () => { await load() }, [load])
 
     return {
         state: visibleState,

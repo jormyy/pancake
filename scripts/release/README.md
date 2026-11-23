@@ -1,13 +1,11 @@
 # Release from a Mac
 
 Run `npm run release -- --dry-run --candidate <full-sha>` first.
-The default input file is `evidence/release-inputs.json`.
-Use `--config <file>` to select another file.
-The script needs Node 22, Git, Supabase CLI, gh, Deno, and tar.
-Database dumps also need Docker.
+The runner reads `evidence/release-inputs.json` by default. Use `--config <file>` to select another file.
+It needs Node 22, Git, Supabase CLI, gh, Deno, and tar. Database dumps also need Docker.
 Use the logged-in Supabase and gh CLIs for a live release.
 Do not put production credentials in input files or receipts.
-The runner removes CLI token and database-password environment overrides.
+The production Supabase project is `ceeytbfmwsnzalxlkalc`.
 
 ## Inputs
 
@@ -27,14 +25,12 @@ Create this file before a local rehearsal:
 }
 ```
 
-Paths resolve from the candidate checkout, except check-log paths.
-Check-log paths resolve from the checks receipt's folder.
+Paths resolve from the candidate checkout. Check-log paths resolve from the checks receipt's folder.
 Keep evidence outside tracked files.
 `expectedMain` must match the local `origin/main` reference.
 The candidate must include that reference and equal HEAD.
 The checkout must be clean, including untracked files.
-A dry run also permits a clean detached candidate checkout.
-Live releases require a branch other than main.
+A dry run also permits a clean detached checkout. A live release needs a branch other than main.
 
 The replay receipt must contain:
 
@@ -48,15 +44,13 @@ The replay receipt must contain:
 }
 ```
 
-A replay can instead record its candidate in `source.application.commit`.
-`fullAcceptance: true` can replace the late-start acceptance fields.
-Any recorded error, failure, cleanup error, or invariant failure blocks release.
+A replay can record its candidate in `source.application.commit` instead.
+`fullAcceptance: true` can replace the `lateStart` fields.
+Any recorded error, failure, cleanup error, or invariant failure blocks the release.
 Do not invent replay evidence to unblock a rehearsal.
-The existing late-season summary omits the source commit.
-Wrap that summary with its verified source commit before supplying it here.
-Retain the original summary and source evidence beside the wrapper.
+The late-season summary has no source commit. Wrap it with its verified commit and keep the original beside the wrapper.
 
-The checks receipt records completed full local checks:
+The checks receipt records the full local checks:
 
 ```json
 {
@@ -64,17 +58,15 @@ The checks receipt records completed full local checks:
   "passed": true,
   "commands": [
     { "command": "npm run check:comprehensive", "exitCode": 0, "log": "quality.log", "sha256": "<log-sha256>" },
-    { "command": "npm test", "exitCode": 0, "log": "tests.log", "sha256": "<log-sha256>" }
+    { "command": "npm run check:gate", "exitCode": 0, "log": "gate.log", "sha256": "<log-sha256>" }
   ]
 }
 ```
 
 Logs must exist and match their hashes.
-The runner consumes these receipts; it does not rerun the full suites.
-Use focused tests while developing this script.
-A focused check alone does not satisfy this release prerequisite.
+The runner does not rerun the full suites. A focused check alone does not satisfy this receipt.
 
-The dry-run pull request receipt contains:
+The dry-run pull request receipt stands in for GitHub:
 
 ```json
 {
@@ -85,104 +77,126 @@ The dry-run pull request receipt contains:
 }
 ```
 
-This local record rehearses the merge checks without contacting GitHub.
-It does not prove that a hosted pull request exists.
-
-## Local rehearsal
+## Rehearse locally
 
 Use a private mini stack with project ID `pt4bafablerelease` and ports 59400 through 59499.
-Keep `stackRoot` separate from the clean candidate checkout.
-Copy its Supabase files into that folder before changing local config.
-Keep migration files identical to the candidate.
-Disable automatic migrations and seeds for the initial start.
-Start the stack, disable cron execution, then apply candidate migrations.
-Use the [local setup](../../docs/verification.md#local-stack) for keys, functions, and the web export.
-Stamp the local Edge source with the candidate SHA before serving it.
-Preserve the candidate's deployment inputs when computing its Edge digest.
-Serve the release export and API on loopback.
-Keep production credentials out of the local environment.
+
+1. Copy the candidate's Supabase files into `stackRoot`, outside the candidate checkout.
+2. Disable automatic migrations and seeds, start the stack, disable cron, then apply the candidate migrations.
+3. Follow the [local stack setup](../../docs/verification.md#local-stack) for keys, functions, and the web export.
+4. Stamp the local Edge source with the candidate SHA, and keep its deployment inputs.
+5. Serve the release export and API on loopback.
+6. Run the rehearsal:
 
 ```sh
 node scripts/release/release.mjs --dry-run --candidate <full-sha>
 ```
 
-Every release stage runs its checks.
-The backup reads and dumps the private database.
-The runner checks Edge entries with Deno in an isolated source copy.
+The rehearsal runs every stage against local targets.
 It calls `supabase db push --local --dry-run` before both database stages.
 It never applies migrations in this mode.
-It checks the local PR record and the served frontend's candidate identity.
-The local candidate SHA stands in for the future squash SHA.
-Health, missing-chunk caching, and recent invocation errors use real local targets.
-No Supabase deploy, gh command, Vercel API call, or remote Git query runs.
-Redirects fail instead of escaping loopback.
-Missing replay or check evidence fails the rehearsal.
-The receipt marks simulated steps and suppressed writes.
-It does not certify hosted deployment behavior.
+No Supabase deploy, gh command, Vercel call, or remote Git query runs.
+The receipt marks simulated steps. It does not prove hosted behavior.
 
-## Live release
+## Release live
 
 Use HTTPS targets, add `projectRef` and `pr`, and omit local-only inputs.
-Link the checkout to that Supabase project through the logged-in CLI first.
-Use an existing reviewed PR with the exact candidate head and main base.
-Set `expectedBundleDigest` when an independently verified deployment digest is available.
-`waitSeconds` defaults to 600.
-Keep the previous deployed Edge commit available in local Git history.
-Its trusted source must reproduce the live health digest exactly.
-A missing or mismatched prior artifact blocks release before deployment.
+Link the checkout to the Supabase project first.
+Use a reviewed PR with the exact candidate head and main base.
+Set `expectedBundleDigest` when you have an independently verified digest. `waitSeconds` defaults to 600.
+Keep the previous deployed Edge commit in local Git history.
+Its trusted source must reproduce the live health digest exactly. A mismatch blocks the release.
 
 ```sh
 npm run release -- --candidate <full-sha> --config evidence/live-release-inputs.json
 ```
 
-The order is preflight, backup, changed Edge, DB dry run, DB push, squash merge, frontend wait, provenance, Edge restamp, smoke, receipt.
-The explicit Edge-first contract follows the manual runbook for this release.
+The order is preflight, backup, changed Edge, DB dry run, DB push, squash merge, frontend wait, provenance, Edge restamp, smoke, and receipt.
+This runner is Edge-first, unlike the manual order in the [database runbook](../../supabase/RELEASE-DB.md).
 Replay evidence must cover Edge compatibility with the old database.
-The older database-first recipes do not describe this command's order.
-
-Preflight checks the clean candidate, unchanged remote main, full checks, replay, linked project, notes, and recovery SQL.
-Backup saves migration history, schema, data, frontend identity, Edge identity, and the previous verified Edge source.
-The changed-function set uses `git diff --name-only origin/main...HEAD -- supabase/functions`.
-It adds direct and transitive shared importers, including reexports and literal dynamic imports.
-The API also deploys so health reports the complete artifact identity.
-Removed or unconfigured function changes fail instead of silently skipping deployment.
+The changed-function set comes from `git diff --name-only origin/main...HEAD -- supabase/functions`, plus shared importers. `api` always deploys.
 DB planning must list exactly the candidate migrations absent from the target.
 The real push must leave migration history equal to candidate history.
-Merge uses the reviewed notes and `--match-head-commit`.
 The squash commit must have the expected main parent and candidate tree.
-Frontend polling reads `/release-provenance.json`; it does not need Vercel credentials.
-Restamping changes the Edge commit SHA while preserving its artifact digest.
-Smoke requires healthy Edge, a fake chunk returning `404` with `no-store`, and zero recent invocation errors.
+Smoke needs healthy Edge, a fake chunk that returns `404` with `no-store`, and zero recent invocation errors.
 
-## Resume and rollback
+## Resume and roll back
 
-State defaults to `evidence/releases/<candidate>/<dry-run-or-live>/state.json`.
-Use `--state <file>` to select another evidence folder.
-A lock prevents two runs from sharing that state.
-After a crash, remove its `.lock` directory only after confirming the original process has stopped.
-Rerun the same command to resume the first unfinished step.
+State lives in `evidence/releases/<candidate>/<dry-run-or-live>/state.json`. Use `--state <file>` to move it.
+A lock stops two runs from sharing one state.
+After a crash, confirm the old process stopped, then remove its `.lock` directory.
+Rerun the same command to resume at the first unfinished step.
 Completed backups and receipts must retain their recorded hashes.
-The runner rechecks preflight, Edge identity, database history, and frontend identity on resume.
-It also rechecks saved squash merges and completed smoke checks.
-Inputs, mode, and candidate stay bound to the state.
-A database push can repeat safely because migration history determines pending work.
-An interrupted squash merge recovers the merged PR's recorded commit.
-An interrupted function deploy can redeploy the same source.
 
 ```sh
 npm run release -- --rollback --candidate <full-sha>
 ```
 
-Rollback reads its saved inputs from state.
-It does not require the original config or prerequisite files.
-Rollback verifies backup hashes and redeploys the saved previous Edge source.
-It checks the previous Edge identity and writes a separate rollback receipt.
-New functions absent from the previous release remain deployed and appear in that receipt.
+Rollback reads its inputs from state, verifies the backup, and redeploys the saved previous Edge source.
+New functions that the previous release lacks stay deployed and appear in the rollback receipt.
 The command prints the saved recovery SQL path.
 It never executes recovery SQL or reverses database migrations.
-Frontend rollback remains a separate operator action.
-A rolled-back state cannot resume promotion.
-Use `--dry-run --rollback` with dry-run state to check the saved artifact without deployment.
+Roll back the frontend yourself. A rolled-back state cannot resume promotion.
+Use `--dry-run --rollback` to check the saved artifact without a deploy.
+
+## Build provenance
+
+`npm run build:web:release` exports the web app and writes `dist/release-provenance.json`.
+The marker records the source commit, a file manifest, the four deployment inputs, and a SHA-256 bundle digest.
+Public copies and document markers belong to the manifest. Do not change them after stamping.
+
+Recover a deployed artifact:
+
+```sh
+npm run release:recover-artifact -- --url <deployment> --expected-sha <sha> --expected-digest <digest> --output <new-directory>
+```
+
+The complete bundle digest must match the independently captured expected digest.
+Recovered inputs serve as evidence; the recovery command never executes them.
+The backup's previous Edge source digest must match live health before any deployment.
+Deployed soak reports must match `E2E_DEPLOYED_FRONTEND_SHA` and `E2E_DEPLOYED_FRONTEND_COMPATIBILITY_DIGEST`.
+
+Production builds copy the live release's public assets so open pages can load older route scripts.
+They read the marker from `https://pancakedynasty.vercel.app`. Set `PANCAKE_PREDECESSOR_URL` to override it.
+The marker must contain a 40-character hexadecimal commit SHA and a 64-character hexadecimal bundle digest.
+The marker must keep the same source and digest during discovery and recovery.
+Remote recovery runs only with `VERCEL_ENV=production` or `PANCAKE_FETCH_PREDECESSOR=1`.
+Set `PANCAKE_PREVIOUS_RELEASE_ROOT` to use a local previous export instead.
+Never use an export with a different API issuer as a production predecessor.
+Changing the predecessor needs a clean export.
+
+When a route loader keeps its filename but changes its targets, the build compares the loader with only its asset paths normalized.
+All other source text and dependency keys must match.
+Every old target must remain available with its verified predecessor bytes, including targets that do not change.
+Every new target must exist in the output.
+The compatibility receipt lists copied predecessor files, so it never marks that new loader as retained.
+
+Keep the direct `@expo/metro-config` pin equal to Expo's exact pin when you update Expo.
+Then rerun repeated release builds and check that the digest stays the same.
+Verify update paths with `tests/e2e/form-submission-update.mjs` when you change the service worker or draft recovery.
+
+## Migration attestations
+
+`tests/e2e/release-history-attestations.json` owns approved migration versions, fingerprints, and convergence bodies.
+`tests/e2e/db-security-catalog-attestations.json` owns the recorded production catalog phase.
+Each applied range member must match its statement count and stored-SQL fingerprint.
+Each `convergenceRedefinitions` entry must name an approved migration containing the recorded body in dollar-quoted SQL.
+A later schema release must extend the reviewed range and update changed convergence expectations.
+
+Refresh the attestations only from an isolated local stack with every repository migration applied:
+
+```sh
+node scripts/regenerate-release-history-attestations.mjs
+node scripts/regenerate-release-history-attestations.mjs --check
+npm run security:db-catalog -- --local --phase=post-migration
+```
+
+Set `SUPABASE_DB_URL` and `PANCAKE_TEST_DB_PORT` to that stack.
+Reset the stack after you change an applied migration.
+An ordered upgrade must match a fresh installation at the same candidate version.
+Do not regenerate pins from an unexplained live difference.
+Advance the production catalog only with evidence captured at the exact deployed version.
+An authorized manual application must exclude concurrent migration writers and repeat the immediate checks against the successful soak's plan digest.
 
 ## Focused checks
 
@@ -192,6 +206,3 @@ npm run lint:all
 npm run typecheck
 npm run typecheck:tests
 ```
-
-Tests use local source fixtures and mocked commands without network access.
-They cover ordering, every interrupted stage, changed shared importers, target guards, database plans, merge guards, smoke failures, and input binding.

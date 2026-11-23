@@ -524,6 +524,21 @@ it('releases a held initial read on suspension and ignores its late result', asy
     expect(mocks.readView).toHaveBeenCalledTimes(2)
 })
 
+it('starts a fresh read after reconnecting instead of joining the read that going offline replaced', async () => {
+    let release!: (value: typeof mocks.lineup) => void
+    mocks.readView.mockReturnValueOnce(new Promise(resolve => { release = resolve }))
+    await mount()
+    mocks.context.online = false
+    await act(async () => screen.update(React.createElement(Component)))
+    mocks.lineup = { starters: [], bench: [], benchSlots: 6 }
+    mocks.context.online = true
+    await act(async () => screen.update(React.createElement(Component)))
+    expect(mocks.readView).toHaveBeenCalledTimes(2)
+    expect(emptyRows()).toHaveLength(6)
+    await act(async () => { release({ starters: [], bench: [], benchSlots: 2 }) })
+    expect(emptyRows()).toHaveLength(6)
+})
+
 
 it('waits for league identity before deciding that the lineup is empty', async () => {
     mocks.context.current = null as unknown as typeof mocks.context.current
