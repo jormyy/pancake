@@ -39,6 +39,12 @@ export function useRookieDraftRoomController({
     const rosterSizeRef = useRef(rosterSize)
     rosterSizeRef.current = rosterSize
     const deferredTrimRef = useRef<(() => void) | null>(null)
+    const activeOverflow = useCallback((roster: RosterPlayer[]) => {
+        const currentRosterSize = rosterSizeRef.current
+        if (currentRosterSize == null) return null
+        const active = partitionRoster(roster).active
+        return { excess: active.length - currentRosterSize, dropList: active }
+    }, [])
     useEffect(() => {
         const resume = deferredTrimRef.current
         if (rosterSize == null || !resume) return
@@ -489,10 +495,13 @@ export function useRookieDraftRoomController({
             try {
                 const roster = await getRoster(stableMemberId, leagueId, visibleState?.draft.leagueSeasonId)
                 if (!(mutationIsCurrent(generation, identity) && completionEpochRef.current === completionEpoch)) return
-                const active = partitionRoster(roster).active
-                const excess = active.length - rosterSize
-                if (excess > 0) {
-                    setTrimOverflow({ excess, dropList: active })
+                const overflow = activeOverflow(roster)
+                if (!overflow) {
+                    draftEndCheckedRef.current = false
+                    return
+                }
+                if (overflow.excess > 0) {
+                    setTrimOverflow(overflow)
                 } else if (draftId) {
                     setTrimOverflow(null)
                     await activateRookieDraftLeague(draftId)
@@ -505,7 +514,7 @@ export function useRookieDraftRoomController({
                 }
             }
         })()
-    }, [draftCompleted, draftSeasonIsCurrent, draftLeagueMatches, visibleState, picking, draftId, leagueId, rosterSize, memberId, load, ownerIdentity, canAct, activity.ready, mutationIsCurrent, completionError])
+    }, [draftCompleted, draftSeasonIsCurrent, draftLeagueMatches, visibleState, picking, draftId, leagueId, rosterSize, memberId, load, ownerIdentity, canAct, activity.ready, mutationIsCurrent, completionError, activeOverflow])
 
     async function handleTrimDrop(rosterPlayerId: string) {
         if (!canAct() || !trimOverflow || completionError || trimmingId || !draftCompleted || !draftSeasonIsCurrent || completionPhaseRef.current !== completionPhase || !visibleState || visibleState.draft.isMock || !draftLeagueMatches ||
@@ -522,14 +531,12 @@ export function useRookieDraftRoomController({
             if (!stableMemberId || !leagueId) return
             const roster = await getRoster(stableMemberId, leagueId, leagueSeasonId)
             if (!isCurrent()) return
-            const currentRosterSize = rosterSizeRef.current
-            if (currentRosterSize == null) { deferredTrimRef.current = resumeTrim; return }
-            const active = partitionRoster(roster).active
-            const excess = active.length - currentRosterSize
+            const overflow = activeOverflow(roster)
+            if (!overflow) { deferredTrimRef.current = resumeTrim; return }
             setRosterOverflow(null)
             setRosterForDrop([])
-            setTrimOverflow(excess <= 0 ? null : { excess, dropList: active })
-            if (excess <= 0 && draftId && isCurrent()) await load()
+            setTrimOverflow(overflow.excess <= 0 ? null : overflow)
+            if (overflow.excess <= 0 && draftId && isCurrent()) await load()
         }
         const resumeTrim = () => {
             if (!isCurrent()) return

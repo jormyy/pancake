@@ -47,7 +47,7 @@ import { LoadingState, PageHeader, usePageMetrics } from '@/components/ui'
 import { Card } from '@/components/ui/Card'
 import { SectionBand } from '@/components/ui/SectionBand'
 import { showAlert, showSuccess } from '@/lib/alert'
-import { partitionRoster, rosterLimits, rosterLocation } from '@/lib/roster-capacity'
+import { partitionRoster, rosterLimits, rosterLocation, sameRosterLimits, staleRosterLimitsNotice } from '@/lib/roster-capacity'
 
 import { EmptyState } from '@/components/EmptyState'
 import { useGoBack } from '@/components/ui/useGoBack'
@@ -66,6 +66,8 @@ export default function ClaimPlayerScreen() {
     const goBack = useGoBack('/players')
 
     const limits = useMemo(() => rosterLimits(currentLeague), [currentLeague])
+    const limitsRef = useRef(limits)
+    limitsRef.current = limits
     const rosterSize = limits?.rosterSize
     const leagueId = currentLeague?.id
     const memberId = current?.id
@@ -294,6 +296,11 @@ export default function ClaimPlayerScreen() {
                 showAlert('Access changed', 'You no longer belong to this league.')
                 return
             }
+            if (!sameRosterLimits(limits, limitsRef.current)) {
+                const notice = staleRosterLimitsNotice(limitsRef.current)
+                showAlert(notice.title, notice.message)
+                return
+            }
             if (claimId) {
                 await editWaiverClaim(claimId, current.id, {
                     dropPlayerId: selectedDrop?.players.id ?? null,
@@ -323,7 +330,8 @@ export default function ClaimPlayerScreen() {
     }
 
     const processDateStr = savedProcessDate ? scheduledClaimLabel(savedProcessDate, currentLeague?.timezone) : claimProcessDateLabel(clearsAt, new Date(), currentLeague?.timezone)
-    const claimReady = online && canAct() && !loading && !loadError && !!player
+    const limitsPendingReason = player && !limits && !loadError ? staleRosterLimitsNotice(null).message : null
+    const claimReady = online && canAct() && !loading && !loadError && !!player && !!limits
     const selectedDropLocks = readAssetLocks(selectedDrop).filter(lock => lock.sourceId !== claimId)
     const submitDisabled = submitting || !claimReady || balanceUnknown || (needsDrop && !selectedDrop) || selectedDropLocks.length > 0 || placementBlocked || holdCheck.conflicts.length > 0
     const compactDropMode = isCompactLandscape && needsDrop
@@ -363,7 +371,7 @@ export default function ClaimPlayerScreen() {
                 onPress={handleSubmit}
                 accessibilityRole="button"
                 accessibilityLabel={claimId ? "Save waiver claim" : "Submit waiver claim"}
-                {...blockedActionProps(addBlockedReason, submitDisabled)}
+                {...blockedActionProps(addBlockedReason ?? limitsPendingReason, submitDisabled)}
                 disabled={submitDisabled}
             >
                 {/* Narrow phones drop "Claim" so the page title still fits beside it. */}
@@ -547,6 +555,9 @@ export default function ClaimPlayerScreen() {
                     <Pressable onPress={refreshTransactionState} accessibilityRole="button" accessibilityLabel="Retry FAAB balance" style={{ padding: spacing.lg }}>
                         <Text accessibilityRole="alert" style={{ color: colors.danger }}>Could not load your FAAB balance. Tap to retry.</Text>
                     </Pressable>
+                ) : null}
+                {limitsPendingReason ? (
+                    <Text role="status" accessibilityLiveRegion="polite" testID="claim-limits-loading" style={{ padding: spacing.lg, color: colors.textSecondary }}>{limitsPendingReason}</Text>
                 ) : null}
                 {/* Until the claim loads, its facts (date, drop rule) would be guesses. */}
                 {loading && !player ? <LoadingState /> : !player ? (
