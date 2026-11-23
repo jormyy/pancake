@@ -11,11 +11,10 @@ AS $$
 DECLARE
   v_member_id uuid;
   v_season_id uuid;
-  v_today date;
   v_roster public.roster_players%ROWTYPE;
 BEGIN
-  SELECT m.id, s.id, (now() AT TIME ZONE COALESCE(l.timezone, 'America/Los_Angeles'))::date
-    INTO v_member_id, v_season_id, v_today
+  SELECT m.id, s.id
+    INTO v_member_id, v_season_id
     FROM public.league_members m
     JOIN public.leagues l ON l.id = m.league_id AND l.deleted_at IS NULL
     JOIN public.league_seasons s ON s.league_id = l.id AND s.is_current
@@ -26,9 +25,7 @@ BEGIN
   IF p_date IS NULL OR (p_pin IS NOT NULL AND p_pin NOT IN ('start', 'bench')) THEN
     RAISE EXCEPTION 'Choose Start, Auto, or Bench for a lineup date.' USING ERRCODE = '22023';
   END IF;
-  IF p_date < v_today THEN
-    RAISE EXCEPTION 'Past lineups cannot be changed.' USING ERRCODE = 'P0001';
-  END IF;
+  PERFORM private.assert_lineup_day_open(p_date);
   PERFORM pg_advisory_xact_lock(hashtext(p_league_id::text), hashtext(v_member_id::text));
   PERFORM pg_advisory_xact_lock(hashtext(v_member_id::text), hashtext(p_date::text));
   PERFORM public.assert_current_league_season_for_lineup(p_league_id, v_season_id);

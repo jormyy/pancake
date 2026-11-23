@@ -1,6 +1,7 @@
 // https://docs.expo.dev/guides/using-eslint/
 const { defineConfig } = require('eslint/config')
 const expoConfig = require('eslint-config-expo/flat')
+const { easternDayConfig } = require('./eslint/eastern-day.config')
 
 const rosterCapacityMessage = 'Read roster location and limits through lib/roster-capacity (rosterLocation/partitionRoster/rosterLimits); inline is_on_ir/is_on_taxi checks counted taxi players as active in PR #5.'
 const rosterCapacityNames = 'is_on_ir|is_on_taxi|roster_size|ir_slots|taxi_slots'
@@ -57,4 +58,5 @@ module.exports = defineConfig([
             ],
         },
     },
+    easternDayConfig,
 ])

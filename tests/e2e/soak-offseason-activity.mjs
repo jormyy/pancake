@@ -16,6 +16,7 @@ import {
   writeFile,
 } from './soak-support.mjs'
 import { backendJson } from './soak-backend-support.mjs'
+import { toETDate } from '@pancake/core'
 
 const offseasonFixtureSeasonYear = (season) => 7500 + season
 
@@ -190,7 +191,7 @@ export const assertOffseasonActivityScenario = async ({ supabase, env, state, se
     .eq('player_id', freeAgent.id)
   if (clearsError) throw new Error(`${label}: waiver clears_at update failed: ${clearsError.message}`)
   const { error: processDateError } = await supabase.from('waiver_claims')
-    .update({ process_date: new Date(Date.now() - 86_400_000).toISOString().slice(0, 10) })
+    .update({ process_date: toETDate(new Date(Date.now() - 86_400_000)) })
     .eq('league_id', fixture.league.id)
     .eq('status', 'pending')
   if (processDateError) throw new Error(`${label}: claim process_date update failed: ${processDateError.message}`)

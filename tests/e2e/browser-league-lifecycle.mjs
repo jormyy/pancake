@@ -7,6 +7,7 @@ import { resolvedEnv, requireEnv, describeEndpoint } from './env.mjs'
 import { installRuntimeOverrides, normalizeBrowserErrors } from './browser-runtime-overrides.mjs'
 import { clickButtonByName, createBrowser, fillSignInCredentials, listBrowserSessions } from './browser-agent.mjs'
 import { createFixtureResourceOwner } from './trade-fixture.mjs'
+import { todayET } from '@pancake/core'
 
 const ROOT = process.cwd()
 const ARTIFACT_ROOT = browserArtifactPath('artifacts')
@@ -135,7 +136,7 @@ export const verifyLeagueState = async ({ admin, leagueId, commissionerUserId, m
   }
 
   const memberCount = members?.length ?? 0
-  const currentSeasonYear = season?.[0]?.season_year ?? new Date().getUTCFullYear()
+  const currentSeasonYear = season?.[0]?.season_year ?? Number(todayET().slice(0, 4))
   const { count: pickCount, error: pickError } = await admin
     .from('draft_picks')
     .select('id', { count: 'exact', head: true })
