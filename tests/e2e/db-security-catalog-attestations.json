@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261215140000",
+  "candidateVersion": "20261215150000",
   "common": {
     "functions": [
       {
@@ -2757,6 +2757,10 @@
     {
       "filename": "20261215140000_dynasty_rank_owner.sql",
       "sha256": "be1e0e386c8e2a224b0d7bfe3192d877ff1e59fb082c2d9ee8c6d160949d5719"
+    },
+    {
+      "filename": "20261215150000_roster_action_policy.sql",
+      "sha256": "d1e70c433238859048e76cfd05c9a0c0e5898b55d2cd93e3e9f3666b34148a4d"
     }
   ],
   "preMigration": {
