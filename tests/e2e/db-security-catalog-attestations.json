@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261214011900",
+  "candidateVersion": "20261215080000",
   "common": {
     "functions": [
       {
@@ -578,7 +578,7 @@
           "strict": false,
           "language": "sql",
           "arguments": "p_league_id uuid, p_league_season_id uuid, p_player_id uuid, p_member_id uuid DEFAULT NULL::uuid",
-          "bodySha256": "29ce477c9ddc19dcc86698f44d8a11fecb01b755ac0d331bc0c3f19fe511b6be",
+          "bodySha256": "c3ea5ff5f7ab1e73fe31fc4676eba59bf89895352d22443806d6c0a6b05e20ab",
           "volatility": "v",
           "anonExecute": true,
           "publicExecute": true,
@@ -2749,6 +2749,10 @@
     {
       "filename": "20261214011900_total_add_week.sql",
       "sha256": "8ab3428350ed1a189cda20fb1ff35df09e7d2acb120136d7b24f9067db9b44c6"
+    },
+    {
+      "filename": "20261215080000_immutable_lineup_history.sql",
+      "sha256": "126f03726e19626196f40b5d1290321dde37a543f892df2bd4674ca364c72551"
     }
   ],
   "preMigration": {

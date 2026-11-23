@@ -3714,6 +3714,13 @@
       "statementCount": 2,
       "statementsSha256": "8335cc6820df943ebdd03ffca64519dca2b9cdd930a087402c21a0b8332dd259",
       "sha256": "8ab3428350ed1a189cda20fb1ff35df09e7d2acb120136d7b24f9067db9b44c6"
+    },
+    {
+      "name": "immutable_lineup_history",
+      "version": "20261215080000",
+      "statementCount": 12,
+      "statementsSha256": "2945d3c9489b014a32cb0b3e844276e415c84c1a8b505dd45925a7b395a4f1b3",
+      "sha256": "126f03726e19626196f40b5d1290321dde37a543f892df2bd4674ca364c72551"
     }
   ]
 }
