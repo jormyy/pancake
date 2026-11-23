@@ -46,6 +46,28 @@ BEGIN
   UPDATE private.screen_refresh_queue q SET version=q.version+1 WHERE league_season_id=f.season_id RETURNING q.version INTO version;
   PERFORM private.refresh_player_averages(f.league_id,f.season_id,version);
   PERFORM pg_temp.check_rules(NOT EXISTS(SELECT FROM public.player_season_averages WHERE league_season_id=f.season_id),'an empty source clears the cache');
+  INSERT INTO public.player_game_stats(player_id,game_id,season_year,week_number,points,minutes_played)
+    VALUES(player,game,9877,1,10,20),(stale_player,game,9877,1,20,20);
+  UPDATE private.screen_refresh_queue q SET version=q.version+1 WHERE league_season_id=f.season_id RETURNING q.version INTO version;
+  PERFORM private.refresh_player_averages(f.league_id,f.season_id,version);
+  UPDATE public.player_game_stats SET points=points+1 WHERE game_id=game;
+  DELETE FROM private.screen_average_dirty WHERE league_season_id=f.season_id AND player_id=stale_player;
+  UPDATE private.screen_refresh_queue q SET version=q.version+1 WHERE league_season_id=f.season_id RETURNING q.version INTO version;
+  PERFORM private.refresh_player_averages(f.league_id,f.season_id,version);
+  PERFORM pg_temp.check_rules((SELECT (averages->>'avg_points')::numeric=11 FROM public.player_season_averages
+    WHERE league_season_id=f.season_id AND player_id=player),'a bounded refresh rereads a dirty player');
+  PERFORM pg_temp.check_rules((SELECT (averages->>'avg_points')::numeric=20 FROM public.player_season_averages
+    WHERE league_season_id=f.season_id AND player_id=stale_player),'a bounded refresh leaves clean players unread');
+  DELETE FROM private.screen_average_dirty WHERE league_season_id=f.season_id;
+  UPDATE private.screen_refresh_queue q SET version=q.version+1 WHERE league_season_id=f.season_id RETURNING q.version INTO version;
+  PERFORM pg_temp.check_rules(private.refresh_player_averages(f.league_id,f.season_id,version),'a refresh with no dirty players succeeds');
+  PERFORM pg_temp.check_rules((SELECT (averages->>'avg_points')::numeric=20 FROM public.player_season_averages
+    WHERE league_season_id=f.season_id AND player_id=stale_player),'a refresh with no dirty players rereads nothing');
+  UPDATE private.screen_refresh_queue SET averages_initialized=false WHERE league_season_id=f.season_id;
+  UPDATE private.screen_refresh_queue q SET version=q.version+1 WHERE league_season_id=f.season_id RETURNING q.version INTO version;
+  PERFORM private.refresh_player_averages(f.league_id,f.season_id,version);
+  PERFORM pg_temp.check_rules((SELECT (averages->>'avg_points')::numeric=21 FROM public.player_season_averages
+    WHERE league_season_id=f.season_id AND player_id=stale_player),'a full refresh rereads every player');
 END;
 $$;
 SELECT count(*) AS passed_checks FROM rules_checks;
