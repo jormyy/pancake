@@ -16,8 +16,7 @@ The default-on migration enables existing teams once. New teams start enabled.
 Managers can turn the switch off. Later seasons keep that choice.
 The panel disables changes when the lineup is read only or offline.
 Manual edits remain available by selecting players and slots.
-Home and Roster open the same action choices through Auto-set.
-Their sheets also offer Edit lineup manually.
+Roster's Auto-set switch saves the same preference; it reads on until the stored setting says otherwise.
 An automatic run can replace unlocked manual choices.
 Unchanged checks after a completed run leave later manual edits alone.
 Enabling automation takes effect at the next eligible dispatch and does not rewrite future dates.

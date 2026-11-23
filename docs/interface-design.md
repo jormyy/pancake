@@ -275,10 +275,11 @@ The day strip follows the switch with 2px spacing above and below.
 Every empty starter, bench, IR, and taxi place remains visible.
 Offline and read-only states disable lineup moves.
 Manual changes apply only to the selected day.
-The editor and roster Auto-set sheet have no period choices.
+The editor has no period choices.
 
-Home and Roster retain Auto-set with the label Open auto-set lineup options.
-Their sheets offer only Edit lineup manually.
+Roster's header has an Auto-set switch, labelled Auto-set lineup, that saves the same preference as Keep updated automatically.
+It reads on until the stored setting says otherwise, and is disabled offline.
+Beside it, Edit lineup opens the editor, where Start, Auto, and Bench pins are set. Home has no Auto-set control.
 The claims pill reads `0 Waivers`, `1 Waiver`, or the plural count.
 Zero opens Players; a positive count opens Waivers.
 Waivers shows budget, priority, next run, and pickup count above pending claims.

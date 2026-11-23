@@ -63,9 +63,3 @@ export function arrangeActiveRoster<P extends { players: { id: string } }>(
     return { starters, bench }
 }
 
-/** Short label shown in a roster row's slot column. */
-export function rosterSlotLabel(slotType: string): string {
-    if (slotType === 'BE') return 'BENCH'
-    if (slotType === 'TX') return 'TAXI'
-    return slotType
-}

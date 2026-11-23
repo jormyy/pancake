@@ -4,7 +4,7 @@ import { View, Text, StyleSheet, Platform } from 'react-native'
 import { LineupPlayer } from '@/lib/lineup'
 import { LiveStatLine } from '@/lib/games'
 import { computeLiveFantasyPoints } from '@/lib/scoring'
-import { POSITION_COLORS } from '@/constants/positions'
+import { slotColor } from '@/constants/positions'
 import { alpha, borderWidth, colors, componentTokens, controlSize, fontSize, fontWeight, radii, spacing, textStyles, uiColors, tracking } from '@/constants/tokens'
 import { PosTag } from '@/components/PosTag'
 import { TeamLogo } from '@/components/TeamLogo'
@@ -15,7 +15,7 @@ import type { StatColumn } from '@/lib/score-breakdown'
 import { LivePulse, MotionPressable, MotionView } from '@/components/Motion'
 import { Avatar } from '@/components/Avatar'
 import { formatLeagueClock } from '@/lib/timezone'
-import { matchupName } from '@/components/player/matchup-name'
+import { LOGO_CHARS, matchupName } from '@/components/player/matchup-name'
 
 const SLOT_W = componentTokens.matchupRow.slotWidth
 const FPTS_W = componentTokens.matchupRow.pointsWidth
@@ -238,7 +238,9 @@ function PlayerSide({
     onOpenPlayer?: () => void
     onOpenDetails?: () => void
 }) {
-    const nameRef = useFittedText(player ? matchupName(player.displayName) : '')
+    // The team logo shares the name's line, so it takes part of the name's character budget.
+    const displayName = player ? matchupName(player.displayName, player.nbaTeam ? LOGO_CHARS : 0) : ''
+    const nameRef = useFittedText(displayName)
     const gameParts = player ? matchupParts(player.nbaTeam, matchup, timezone) : null
     const detail = matchupLine(gameParts)
     const detailRef = useFittedText(gameParts?.suffix ?? '', true, 1)
@@ -275,7 +277,7 @@ function PlayerSide({
                 numberOfLines={1}
                 ellipsizeMode="clip"
             >
-                {matchupName(player.displayName)}
+                {displayName}
             </Text>
         )
         const logo = player.nbaTeam ? <TeamLogo key={`logo-${player.nbaTeam}`} team={player.nbaTeam} size={GAME_LOGO_SIZE} textStyle={styles.sideMeta} /> : null
@@ -373,11 +375,7 @@ function MatchupRowImpl({
     onOpenDetails,
     onOpenPlayer,
 }: MatchupRowProps) {
-    const slotColor = slotType === 'IR'
-        ? uiColors.accentDanger
-        : slotType === 'TX'
-            ? uiColors.neutralTint
-            : (POSITION_COLORS[slotType] ?? uiColors.neutralTint)
+    const chipColor = slotColor(slotType)
     // Starter and IR labels are heavier than bench and taxi so starters read first.
     const strongSlot = slotType !== 'BE' && slotType !== 'TX'
     const myStats = myPlayer ? liveStats.get(myPlayer.playerId) : undefined
@@ -428,13 +426,13 @@ function MatchupRowImpl({
                 style={[
                     styles.slotChipCenter,
                     compact && styles.slotChipCenterCompact,
-                    { backgroundColor: alpha(slotColor, 0.13) },
+                    { backgroundColor: alpha(chipColor, 0.13) },
                 ]}
                 accessibilityLabel={isExtraOppRow ? undefined : myPlayer
                     ? `${slotType} slot, ${myPlayer.displayName}`
                     : `Empty ${slotType} slot ${slotIndex + 1}`}
             >
-                <Text style={[styles.slotChipText, strongSlot && styles.slotChipTextStrong, { color: slotColor }]}>
+                <Text style={[styles.slotChipText, strongSlot && styles.slotChipTextStrong, { color: chipColor }]}>
                     {isExtraOppRow ? '—' : slotType}
                 </Text>
             </View>

@@ -10,6 +10,7 @@ import { MatchupForecastSummary } from '@/components/MatchupForecastSummary'
 import { MatchupLineupView } from '@/components/MatchupLineupView'
 import { DaySelector } from '@/components/DaySelector'
 import { ScoreBreakdownSheet } from '@/components/ScoreBreakdownSheet'
+import { MatchupPlayerSheet } from '@/components/player/MatchupPlayerSheet'
 import { statLineupWidth } from '@/components/MatchupRow'
 import { ErrorBanner, Page, usePageMetrics } from '@/components/ui'
 import { DeferredContent } from '@/components/ui/DeferredContent'
@@ -37,6 +38,7 @@ export default function OtherMatchupScreen() {
     const data = useMatchupData(matchupId ? current : null, user, league, membershipValidated, membershipError, refreshMemberships, matchupId, date)
     const { matchup, myLineup, oppLineup, selectedDate, weekDays, forecastState, liveSnapshot } = data
     const [details, setDetails] = useState<Details | null>(null)
+    const [previewPlayer, setPreviewPlayer] = useState<LineupPlayer | null>(null)
     const settings = useMemo(() => league?.scoring_settings && typeof league.scoring_settings === 'object' && !Array.isArray(league.scoring_settings) ? league.scoring_settings as Record<string, number> : {}, [league?.scoring_settings])
     const columns = useMemo(() => lineupStatColumns(settings), [settings])
     const showColumns = !narrow && usableWidth >= statLineupWidth(columns)
@@ -63,7 +65,7 @@ export default function OtherMatchupScreen() {
                                 myLineup={myLineup} oppLineup={oppLineup} playingTeams={playingTeams}
                                 liveStats={liveSnapshot.liveStats} liveTeams={liveTeams} scoringSettings={settings}
                                 teamMatchups={liveSnapshot.teamMatchups} statColumns={showColumns ? columns : null}
-                                onOpenDetails={setDetails} onOpenPlayer={player => router.push({ pathname: '/player/[id]', params: { id: player.playerId } })}
+                                onOpenDetails={setDetails} onOpenPlayer={setPreviewPlayer}
                                 capacity={{ bench: myLineup.benchSlots, ir: limits?.irSlots ?? 0, taxi: limits?.taxiSlots ?? 0 }}
                                 compact={narrow} dense={height < 620}
                                 daySelector={<DaySelector days={weekDays} selectedDate={selectedDate} onSelect={data.setSelectedDate} compact={compact} />}
@@ -76,6 +78,8 @@ export default function OtherMatchupScreen() {
             <ScoreBreakdownSheet visible={details !== null} onClose={() => setDetails(null)} slotType={details?.slotType ?? ''}
                 mine={{ player: details?.myPlayer ?? null, stats: details?.myPlayer ? liveSnapshot.liveStats.get(details.myPlayer.playerId) : undefined }}
                 theirs={{ player: details?.oppPlayer ?? null, stats: details?.oppPlayer ? liveSnapshot.liveStats.get(details.oppPlayer.playerId) : undefined }} settings={settings} />
+            <MatchupPlayerSheet player={previewPlayer} leagueId={league?.id} onClose={() => setPreviewPlayer(null)}
+                onOpenPage={player => router.push({ pathname: '/player/[id]', params: { id: player.playerId } })} />
         </Page>
     )
 }
