@@ -1,584 +1,263 @@
-# Roster lifecycle
+# League rules
 
-Database rules preserve ownership, history, and reservations during roster changes. This contract defines cleanup, waivers, add limits, taxi eligibility, trade plans, and playoff structure.
+This doc states the league rules that managers see and the invariants the database must keep.
+The database owns every rule below. The phone shows results and never decides legality.
+[Architecture](architecture.md#writes-and-offline-replay) owns request IDs, receipts, and offline replay.
 
-## Relationship map
+## Roster records and cleanup
 
-A roster row is `roster_players (league, season, member, player, is_on_ir, is_on_taxi)`.
-Every other roster-linked record falls into one of three classes.
+When a player leaves a roster, linked live state changes in the same transaction:
 
-| Record | Class | Rule when the player leaves the roster or becomes inactive |
-| --- | --- | --- |
-| `trade_block_items` (player) | live state | Removed when ownership ends. IR/taxi listings require the inactive-trade setting and survive roster-location changes. |
-| `trade_block_items` (pick) | live state | Removed when the pick changes owner or is used in a draft. |
-| `weekly_lineups` (future, unlocked dates) | live state | Cleared for that member and player. Rows for started or finished games stay for scoring. |
-| `waiver_claims` pending `drop_player_id` | live state | Legacy claims lose the stale drop reference. Opted-in trade-plan leagues cancel the claim with a reason. Pending drop reservations restrict IR/taxi moves. |
-| `trades` pending with the lost asset | live state | Expired with `completion_failure_reason` and a `trade_expired` activity row. Inactive assets follow the league setting and settlement checks. |
-| `trades` accepted | reservation | Deletes and IR/taxi moves of reserved players are rejected; a reserved pick cannot be used in a draft or change owner until the trade completes or is vetoed. |
-| `roster_transactions`, `waiver_wire_log`, succeeded `waiver_claims`, `league_activity` | history | Never deleted. A succeeded claim keeps its drop player. A player merge re-points the surviving identity and closes an open waiver entry whose player is rostered under it. |
-| `weekly_add_counts`, `faab_balances`, `waiver_priorities`, `standings` | member/season state | Not player-linked; unchanged. |
-| `nominations`, `bids`, `snake_draft_picks` | draft history | Unchanged. |
-| Client caches | derived | Refresh through the owning loader on focus and relevant changes; [architecture](architecture.md#versioned-cache-and-push-invalidation) defines league hints. |
+- Trade-block listings for the player end. Pick listings end when the pick changes owner or is used.
+- Future lineup rows for unstarted games clear. Rows for started or finished games stay for scoring.
+- Pending trades that need the lost asset expire with a visible reason and a `trade_expired` event.
+- A pending claim that planned to drop the player loses that drop, or cancels with a reason in trade-plan leagues.
 
-## Enforcement
-
-Roster and pick triggers synchronize linked state inside the ownership transaction.
-They clear future unlocked lineups and stale listings, then expire dependent offers.
+`roster_transactions`, `waiver_wire_log`, succeeded `waiver_claims`, and `league_activity` are history and are never deleted.
+A player merge moves history to the surviving identity and rejects unresolved ownership conflicts.
 Past-season removals do not clear current live state.
-Accepted trade assets remain reserved until settlement or a terminal outcome.
-Waiver and trade-plan reservations share team and player locks.
-
-`private.lineup_game_started` owns the database lock predicate.
-`private.is_ir_designation` owns IR injury eligibility.
-Player merges preserve history under the surviving identity and reject unresolved ownership conflicts.
-The [backend inventory](architecture.md#screen-views) maps public action paths.
+`tests/db/roster-lifecycle-oracle.sql` checks these invariants after generated actions.
 
 ## History lock
 
-Roster moves preserve past dates, completed slates, and locked slots.
-A completed slate stays unchanged even when a player has no known NBA team.
+Roster moves never change past dates, completed slates, or locked slots.
 Only future slots with unstarted games can clear.
-A saved lineup receipt keeps its original row before a player changes NBA teams.
-This keeps the lock when a box score or participation record is missing.
-Drops, IR, taxi, trades, and waiver results share the cleanup rule.
+A saved lineup receipt keeps its row when a player changes NBA teams, so a missing box score cannot unlock it.
+`private.lineup_game_started` owns the lock predicate for every path.
 
-The history repair restores missing rows from complete saved receipts.
-It preserves each row ID, slot, date, and timestamp.
-It skips conflicts, missing identities, and seasons whose score inputs are retired.
-Each restored row creates a `lineup.history_restored` league event.
-A repeated repair restores zero additional rows.
-Rows lost before receipts exist require separate evidence; the repair does not guess their slots.
+## Lineups and Auto Lineup
 
-## IR activation and swaps
+Auto Lineup fills unlocked starter slots for each enabled team.
+New teams start enabled, and a manager can turn it off for the season.
+The toggle rejects offline admission and never replays that intent on reconnect.
+An automatic run can replace unlocked manual choices.
+A run that finds nothing to change leaves rows, IDs, and timestamps untouched.
 
-Scheduled waiver claims can place eligible players straight into IR.
-Straight-to-IR and straight-to-taxi claim destinations need no extra league opt-in.
-An activation can swap an IR player with an eligible active player when both groups are full.
-The server checks the final roster and applies both moves in one transaction.
-A failed move leaves both players in their original places.
-Game locks and trade or waiver reservations still apply.
+A manager can pin an active player to Start or Bench for one date.
+IR and taxi players cannot take pins, and past or locked dates are read only.
+A pin change runs the date optimizer at once, even with the automatic setting off.
+A manual move that contradicts a pin clears that pin.
+Roster removal deletes the membership's pins. IR and taxi moves delete today's and future pins.
 
-## Auto Lineup and injured reserve
+The solver keeps locked slots, fills the most open slots, then honors Bench pins before Start pins.
+It then maximizes healthy playing projections and keeps slot choices open for later games.
+Out, IR, postponed, and no-game players score zero but can fill an otherwise empty slot.
 
-Auto Lineup manages IR through `public.auto_manage_ir_service`.
-The service RPC takes the member lock, rechecks the member's `lineup_optimizer_settings.enabled`, then takes the player locks before reading.
-It writes nothing when the setting is not enabled.
-It applies every move through `private.toggle_ir_for_activation`, so manual and automatic moves share the same checks.
-Each designate, swap pair, or lone activation is its own sub-transaction.
-A failed group rolls back alone and is reported; other groups continue.
-After applying, the call asserts taxi rows are unchanged, no roster player was dropped, no new roster problem appeared, and IR and active counts did not grow past their limits.
-Any assertion failure rolls back the whole call.
-The call only runs for an active or playoff league with the current season.
-Planning lives in `private.plan_auto_ir`, which both the service and the notices reader use.
+The daily run becomes due at 06:00 Eastern, or ten minutes before an earlier tipoff.
+Each team records one successful daily check per Eastern date.
+A pre-tipoff run opens two minutes before each distinct tipoff and stays open one minute after it.
+A fingerprint of rosters, injuries, games, scoring, slots, pins, and projections reopens a window when inputs change.
+A game with no known tipoff opens no window until the feed supplies a time.
+A locked player never moves, even if later declared Out or removed from the roster.
+A player whose game starts while benched stays benched.
+One member's failure records an error receipt and does not fail the other members.
+The same input revision skips that failure. A new claim token fences a stale worker.
+Pending trade offers do not block starter and bench changes.
 
-IR eligibility is `private.is_ir_designation` on the player's injury status.
-A return date is reliable only when it is a valid `YYYY-MM-DD` date on or after the league's Eastern date.
-Unknown, malformed, and past dates are uncertain.
-Two candidates are comparable only when both returns are reliable and the dates differ.
-The later reliable return has priority.
-Injured IR incumbents with a reliable return compete with active injured players on return date.
-Incumbents with an uncertain return, or that are game-locked or reserved, keep their slot and are not compared.
-Auto Lineup fills open IR slots first, then swaps one-for-one with healthy IR occupants, then exchanges with the earliest-returning incumbents outside the selected group.
-An incumbent exchange is one atomic pair and re-reads both players before writing.
-If either player's reliable return changed, or another compared incumbent now outranks the exchanged one, the pair is skipped and nothing is written for it.
-It selects players only when the choice is unambiguous.
-Tied or uncertain players at the boundary stay put and produce an `ir_choice_uncertain` notice.
-When the incumbents at the eviction boundary are tied, no incumbent is exchanged and the tied incumbents produce the notice.
-When the IR is over capacity, no designate or swap is planned; a healthy occupant is activated alone when the active roster has room, otherwise it produces a `healthy_ir_bench_full` notice.
-A healthy occupant with no swap partner is activated alone only when the active roster has room.
-Otherwise it stays and produces a `healthy_ir_swap_available` notice when an unplaced injured active player is unlocked and unreserved, a `healthy_ir_swap_locked` notice when every unplaced injured active player is game-locked or reserved, or a `healthy_ir_bench_full` notice when no injured active player exists.
+## IR and Auto IR
+
+An activation can swap an IR player with an active player when both groups are full, in one transaction.
+Scheduled claims can place an eligible player straight into IR or taxi with no extra league setting.
+`private.is_ir_designation` owns IR injury eligibility.
+
+Auto Lineup also manages IR for enabled members.
+Manual and automatic IR moves share one set of checks.
+Auto IR fills open IR slots, swaps out healthy occupants, then trades places by return date.
+The later reliable return date wins. A tie or uncertain date moves nobody and produces an `ir_choice_uncertain` notice.
+Game-locked and reserved players stay put and retry on the next run.
+
 An ineligible taxi player produces a `taxi_ineligible` notice; Auto Lineup never touches taxi.
-Game-locked and reserved players are skipped and retried on the next run.
 Auto Lineup never drops a player.
+A failed move group rolls back alone. A broken post-run invariant rolls back the whole call.
+Notices are never stored. `public.get_auto_ir_notices` derives them from the current roster.
 
-`public.get_auto_ir_notices` returns the caller's own notices from the current roster.
-It resolves the member from `auth.uid()` and accepts no member id.
-It returns `enabled` and an empty notice list when the setting is off or the caller is not a member.
-The app reads it when Lineup opens, regains focus, or changes a pin or optimizer run.
-Notices are never stored.
-
-## League-wide Auto IR
-
-`private.league_roster_policies.auto_ir_all_members` with `ir_activated_at` set makes every member of the league eligible for Auto IR, including members with Auto Lineup off.
+A league policy can turn on Auto IR for every member, including members with Auto Lineup off.
 The daily run admits those members on every Eastern date, with or without a scheduled NBA game, and applies IR only; a manual member never receives a starter change.
-The pre-tipoff run admits them in each tipoff window and applies IR before any starter choice.
-`public.get_pending_auto_ir_members` requires the activation latch, so a policy row with a NULL latch admits nobody.
-`private.enqueue_lineup_optimizer` and `private.enqueue_pre_tipoff_optimizer` also require the latch, so the schedulers enqueue nothing new until the explicit activation action runs.
-`private.activate_league_roster_policy(league_id)` is that action: it sets `floor_activated_at` and `ir_activated_at` together, is idempotent, and touches one league. No migration, worker, or scheduler activates the policy, so an all-manual league starts only after the documented activation step.
-The pre-tipoff fingerprint includes every input `private.plan_auto_ir` reads: roster membership, injury status and expected return, IR and taxi flags, league roster size and IR slots, and trade and claim reservations.
-A return-date correction or a released reservation therefore reopens a completed dispatch.
+Each tipoff window applies IR first, then reads the roster again before it picks starters.
+The policy stays inert until `private.activate_league_roster_policy` sets its latches. No worker or migration sets them.
 A transient IR failure (lock contention, serialization failure, statement timeout, or a fetch timeout) is retried inside the run and never writes a durable member receipt.
-If the retries are exhausted, the dispatch finishes failed and the work item retries with unchanged inputs; a later attempt performs the move once contention clears.
-`public.auto_manage_ir_service` reports each move's SQLSTATE in `skipped`. For a league with the activated policy, a transient SQLSTATE (`55P03`, `40001`, `40P01`, `57014`) re-raises and rolls back the whole member pass, so the worker sees a failure instead of a skip. The floor also treats a transient SQLSTATE in `skipped` as transient, so a floor-only league defers instead of awarding. Ordinary skips (capacity, asset locks, trade reservations, injury uncertainty) still return normally and complete the run.
-The official league's tipoff work is its own `pre-tipoff-policy` work item and dispatch scope, keyed by tipoff and league, with a 45-second lease, a 5-second retry, and no dead-lettering before tipoff, so a worker that disappears is replaced inside the window.
-The shared `pre-tipoff` item serves only leagues without an activated policy and keeps the five-minute lease and base backoff.
-An old worker is refused the scoped claim with `PT409`, so it cannot duplicate the official league's IR or starters.
-Daily fail-and-retry applies only to the activated policy league.
+A policy league runs its tipoff work in its own scoped work item. A stale worker without that scope is refused with `PT409`.
 
-## Continuous waivers
+## Waivers and FAAB
 
-Every available player requires a scheduled claim. No ordinary pickup changes ownership immediately.
-The worker awards claims at midnight in `leagues.timezone`, including daylight saving changes.
-The dispatcher creates one dated waiver task per timezone and checks due work each quarter hour.
-Daily trade-value work remains independent of those waiver tasks.
-The default timezone is `America/Los_Angeles`. Run labels show `12:00 AM PT` there.
-Commissioners can change the timezone. Open holds and pending claims then follow its midnight.
-Home, Roster, and waiver labels use that same league date.
-NBA scoring dates and weekly add boundaries retain their Eastern calendar rules.
-A claim submitted at the cutoff waits until the next daily run.
-Dropped players also complete their 48-hour hold before an eligible scheduled run.
-The server rejects instant-add RPCs and direct free-agent inserts with SQLSTATE `PA002`.
-Claims do not require a waiver-wire entry when the player is unowned.
+Every available player requires a scheduled claim. There are no instant pickups.
+The server rejects instant adds and direct free-agent inserts with `PA002`.
+Claims award at midnight in `leagues.timezone`, which defaults to `America/Los_Angeles`.
+A claim submitted at the cutoff waits for the next run.
+A dropped player completes a 48-hour hold before any run can award that player.
 
-The highest valid FAAB bid wins. Equal bids use rolling team priority, then that team's claim order.
-Successful winners move behind other teams. Zero-dollar bids remain valid.
-Only a successful award spends FAAB or consumes an add. Its conditional drop occurs in the same transaction.
+An older due run settles before a newer one.
+The highest valid FAAB bid wins across every pending claim in the league, not one player at a time. Zero-dollar bids are valid.
+Equal bids use rolling team priority, then that team's claim order. A winner moves to the back.
+A busy team or player defers the whole league; a lower claim never passes it.
+Only a successful award spends FAAB or uses an add. Its conditional drop commits with it.
+`npm run check:formal:waiver-run` model-checks these rules against the latest processor SQL.
 Accepted-trade FAAB reservations reduce the available balance.
-Creation, editing, reordering, and cancellation preserve private bids.
-The scheduled cutoff freezes edits, reordering, and cancellation while a worker is delayed.
+Other managers never see pending bids.
+The cutoff freezes edits, reorders, and cancellations while a worker is late.
 Retries and overlapping workers cannot award the same player twice.
-
-Players exposes Players, Waivers, Rankings, and News in that order.
-Waivers loads when opened and shows available FAAB, the next run, priority, pending claims, and recent results.
-Player rows and profiles open the shared claim form. Pending claims link back to Waivers.
-The shared form also edits bids, destinations, and conditional drops.
-
-`test:db:continuous-faab` checks pending ownership, awards, balances, priority, retries, and stale-client rejection.
-`test:db:continuous-faab-schedule` checks cutoff and daylight saving boundaries.
+A successful award cancels other claims that need the same drop.
 
 ## Weekly roster floor
 
-A league opts in through `private.league_roster_policies.weekly_roster_floor`.
-No row or a null floor means the job does nothing.
-The job runs once per scheduled week on the week's `season_weeks.week_end` day, after the league's local midnight waiver run and after that run records durable settlement.
-The source-of-truth chain is `private.enqueue_scheduled_work`/`public.dispatch_work` -> `process-waivers` -> `public.process_due_waiver_claims_atomic` (drained until no due claims remain) -> `public.settle_waiver_runs`.
-`public.settle_waiver_runs` writes `private.waiver_run_settlements` for each league and season whose league-local date has no pending claim due at or before the run and no uncleared wire hold that clears after the run.
-The `public.settle_latest_waiver_runs` fallback also settles each floor league's latest ended matchup week, for that league only, so a missed date-specific run does not leave the floor week `settlement_pending`.
-The Sunday (`week_end`) run is the last scheduled run of the league week: the dispatcher enqueues one waiver run per league-local date, and the next league-local date starts the next week.
-`private.roster_floor_week_ready` requires the settlement row for `process_date = week_end`; a missing row returns `settlement_pending` and the floor retries every 15 minutes on the week_end day.
-A backlog of due claims delays it.
+A league can opt in to a weekly minimum of active players.
+The floor job runs on each week's last day, after that day's waiver run records settlement.
+It needs both activation latches because it must perform the healthy IR returns before it awards.
 It never runs while an NBA game is in progress and never adds a player whose game has started.
-A game counts as in progress when its status is `Scheduled` or `InProgress`, `private.lineup_game_available` accepts its status text, and its status is InProgress or its `game_time` or `started_at` has passed, for today or yesterday in Eastern time.
-Postponed and cancelled games do not block.
-A week that cannot finish stays `pending` in `private.roster_floor_weeks` with `last_deferral_reason` and `last_deferred_at`, and both the dispatcher and `process-waivers` retry it.
-It completes late when its prerequisites clear before the next matchup week's own floor run is due.
-Once that run is due, the older week becomes `expired` with `expired_at` and the next week runs normally.
-A completed week is recorded and never re-opened; a failed or deferred attempt rolls back fully and retries.
-
-The run first applies `public.auto_manage_ir_service` to every member, then counts active players.
 Teams with fewer than the floor active players receive adds up to exactly the floor; teams at or above it are never touched.
-The target is capped by `leagues.roster_size`.
-The pool is unrostered players in the league season with a current-season league-scored average (`public.player_season_averages.avg_fantasy_points IS NOT NULL`), an NBA team, and no injury designation (`players.injury_status IS NULL`, the Players search healthy filter), with no open waiver hold, no pending claim, no pre-draft rookie block, no trade reservation, and no started game.
-No-stats, teamless, day-to-day, questionable and out players are not in the pool, so an exhausted pool means no such player remains.
-It is ranked by `public.player_season_averages.avg_fantasy_points` for the league season, descending, with `player_id` ascending as the tie-break.
-`private.roster_floor_averages_ready` gates every pass before any IR return or award. It requires the league season's `private.screen_refresh_queue` row to be initialized, its `averages_scoring` to equal the league's current `scoring_settings`, and `private.screen_average_dirty` to be empty. It takes no row lock. Instead the pass captures `private.roster_floor_averages_watermark` (cached row count, latest `refreshed_at`, latest `version`) at preflight and rechecks both the readiness predicate and the watermark after every award and again before it marks the week completed; a change raises `PF002` and the whole pass rolls back as `averages_pending`. A scoring change, a delayed average refresh after a stats correction, or an uninitialized or missing cache returns `averages_pending` and awards nobody; absent averages never mean exhaustion.
-The team order holds every member, shuffled once per week, and the order is stored on the week record.
-The pass locks the league's member rows with `FOR KEY SHARE` before it reads the stored order, drops a departed member, appends a member who joined while the week was pending by `joined_at` and `id`, and keeps surviving teams in their stored relative order; a member cannot be deleted between that check and the award writes.
-Teams at or above the floor are skipped at award time.
-Each pass awards at most one player per team; passes repeat until every team reaches the floor or the pool is exhausted.
-A mid-pass deferral rolls back the whole pass, including the IR returns and awards, so the retry recomputes from current state and keeps the round-robin order.
-A roster change between attempts cannot fill a team past the floor.
 
-Adds use `acquired_via = 'roster_floor'` and write a `fa_add` roster transaction.
-They leave FAAB, claims, waiver priority, and weekly add counts unchanged.
-The free-agent insert guard (`PA002`) stays in force for every other path.
-Nothing refills on a drop, trade, or IR change; only the weekly job adds.
-The job takes the league, then member, then player advisory locks in the same order as the waiver processor.
-`private.enqueue_scheduled_work` and `public.dispatch_work` enqueue a `roster-floor` work item every 15 minutes; the item invokes the `process-waivers` worker, which drains claims, records settlement, and then calls `public.process_roster_floor_service`.
-The floor stays inert until `private.activate_league_roster_policy` sets `floor_activated_at` and `ir_activated_at`; no worker sets either latch.
-The floor needs both latches because it must perform the healthy IR returns before it awards.
-The daily and pre-tipoff league-wide IR admission needs `ir_activated_at` for the same reason.
+The pool holds unrostered, healthy players on an NBA team with a current league-scored average.
+It excludes players with a wire hold, a pending claim, a trade reservation, or a started game.
+The best league-scored average ranks first.
+Teams take one player per pass in a weekly shuffled order until each team reaches the floor or the pool runs out.
+A scoring change, a delayed average refresh after a stats correction, or an uninitialized or missing cache returns `averages_pending` and awards nobody; absent averages never mean exhaustion.
 When a member's IR pass fails transiently, including a transient SQLSTATE reported in the service's `skipped` array, the floor returns `deferred` with `ir_transient` and rolls back the whole pass, so it never awards a free agent ahead of a healthy legal IR return.
 
-Release order: (1) the five migrations are inert alone: the tables, functions, and OFFICIAL LEAGUE policy row are live, and no roster, lineup, dispatch, or notice changes, because both latches stay NULL and the schedulers require them; (2) deploy the release `lineup-optimizer`; (3) deploy the release `process-waivers`; (4) run `SELECT private.activate_league_roster_policy('faab8d8f-6a60-4bbc-8f5d-44050b652cdd');` once, separately authorized and run by Forge, after both workers are deployed and verified. If `process-waivers` ships first, the floor stays deferred with `worker_pending` and awards nobody.
-
-Rollback is exact and ordered: roll back both Edge functions first, then clear both latches. Keep the window short.
-1. `UPDATE private.league_roster_policies SET floor_activated_at = NULL, ir_activated_at = NULL WHERE league_id = 'faab8d8f-6a60-4bbc-8f5d-44050b652cdd';`. During the window the latches are still set, so `enqueue_scheduled_work` and `dispatch_work` keep enqueueing `roster-floor` items on the ET date equal to `week_end`, one per 15-minute bucket; dispatch invokes the old v77, which ignores the body, runs a normal waiver drain and `expire_waiver_wire_logs`, and returns ok, so the item succeeds. Extra normal drains on the `week_end` date only, no settlement recorded, no floor, no roster change beyond normal waiver processing, no failed items. The old v61 manages only enabled settings, ignores the additive `auto_ir` column, makes no league-wide IR move, changes no policy-aware notice, and sets no starter for a manual team. The deactivation fence makes a leftover scoped tipoff dispatch fail without writing a lineup, IR move, or receipt: the latch update waits for an in-flight scoped effect, and every later scoped effect is refused with `PT410`.
-2. Read back: `SELECT league_id, weekly_roster_floor, auto_ir_all_members, floor_activated_at, ir_activated_at FROM private.league_roster_policies WHERE league_id = 'faab8d8f-6a60-4bbc-8f5d-44050b652cdd';`. Both latches must be NULL.
-During the window the official league's pre-tipoff work is a scoped `pre-tipoff-policy` item; the old v61 claims it without a scope and is refused with `PT409`, so it does not run that window and cannot duplicate the official league's IR or starters. The official league's pre-tipoff IR and opt-in starters wait until activation is cleared, after which that league returns to the shared `pre-tipoff` item. That wait is the accepted trade-off.
-
-Operator fork: the shipped policy allows late catch-up of week N until week N+1's run is due; the alternative would expire week N at the end of its week-end day, so no week-N add could land inside week N+1. The alternative is not implemented.
-Readback: `SELECT league_id, league_season_id, week_number, week_end, status, last_deferral_reason, last_deferred_at, expired_at FROM private.roster_floor_weeks ORDER BY week_end DESC, week_number DESC;` and `SELECT id, status, attempts, due_at, last_error, payload->>'tipoffAt' AS tipoff_at, payload->>'leagueId' AS league_id FROM private.work_items WHERE kind = 'pre-tipoff-policy' ORDER BY id DESC;`.
-After the member and player locks, `private.roster_floor_player_legal` rechecks health, claims, wire holds, trade reservations, roster membership, asset eligibility, and the per-player game lock with `clock_timestamp()`; an ineligible top candidate moves to the next legal player.
-The global no-live check is repeated at write time.
-
-`tests/db/roster-floor.sql` checks counts, order, pool exhaustion, waiver backlog, games, IR, reservations, ties, unchanged FAAB and claims, drops, and the unenabled control league.
-`tests/db/roster-floor-schedule.sql` checks the queue, dispatch, paused and shed controls, week identity, and readiness.
-`tests/db/roster-floor-membership.sql` checks a departed member, a newcomer, an exhausted pool that keeps surviving stored order ahead of the newcomer, two competing short teams, and a repeat run.
-`tests/e2e/roster-floor-membership-concurrency-db.mjs` checks a removal that commits while the floor waits and a member delete that waits for an open floor transaction.
-`tests/e2e/roster-floor-concurrency-db.mjs` checks repeat and concurrent runs.
+A completed week is recorded and never re-opened; a failed or deferred attempt rolls back fully and retries.
+A deferred week can finish late until the next week's floor run is due. Then it expires.
+Floor adds spend no FAAB, priority, or weekly adds. Nothing refills between weekly runs.
 
 ## Weekly add limits
 
-`weekly_add_limit` caps successful waiver claims per add week.
-`private.assert_weekly_add_available` checks capacity during claim submission and successful waiver processing.
-Legacy instant-add calls fail without dropping or acquiring a player.
+`weekly_add_limit` caps successful claims per add week.
+Add weeks follow `season_weeks` in Eastern time and reset at midnight after each week ends.
+After the last week, counts roll every seven days.
+A commissioner override changes the count but not the reset time.
 
-Add weeks follow `season_weeks` in Eastern Time, as defined by `private.add_week_timezone`.
-Counts reset at midnight after the scheduled week ends.
-Dates before the first scheduled week belong to that week.
-After the final scheduled week, counts roll every seven days from the next day.
-A new season without a schedule keeps the prior season's cadence.
-`private.current_add_week` returns the week number and reset instant.
-`current_add_week_number` supplies the counter's week number.
+## Taxi eligibility
 
-The server returns the used count, reset instant, and rejection reason.
-The client treats an ended cached week as eligible for a new server check.
-Commissioner overrides change the count without changing its reset boundary.
-
-## Retries
-
-Each write below gets a UUID before it enters the offline queue or sends a request.
-Transport retries keep that UUID and the original payload.
-The client retries a lost connection once, including a failure while reading the response body.
-A new action gets a new UUID.
-Queue records can restore the same UUID through `withPwaMutation` options.
-The offline queue persists input and request IDs without access tokens.
-It holds the PWA update guard while work remains pending.
-A failed replay blocks later actions until retry.
-
-The API requires `x-request-id` on POST requests.
-It forwards the ID with the verified user to database calls and internal lineup optimization.
-Database calls use the authenticated user, even if a caller supplies another actor header.
-Service calls accept an actor from the trusted server.
-Internal jobs without a client action keep their existing behavior.
-
-`private.request_receipts` stores the actor, function, input hash, result, and creation time.
-One transaction lock serializes calls with the same ID.
-The write and its receipt commit together.
-A repeat returns the first result before it checks changed roster or draft state.
-Reusing an ID for another actor, function, or payload fails.
-A failed transaction leaves no receipt.
-A corrected action uses a new ID.
-Trade quote regeneration does not change the action identity.
-
-Nested atomic calls share the outer receipt.
-Season optimization derives a stable child ID for each member and date.
-Its first committed assignment wins if a retry recomputes projections.
-The existing retention job removes receipts older than seven days in bounded batches.
-Clients cannot read or change receipts directly.
-
-Each write-family recipe overlaps two sessions, repeats the action twice more, and checks equal results and one receipt.
-Row triggers record the writes and prove that retries add none.
-The settings recipe disables the guard as a negative control and requires the check to fail.
-
-| Write paths | Guarded database entry points | Proof |
-| --- | --- | --- |
-| Lineup moves and auto-set | `set_player_slot_atomic`, `set_player_slot_moves_atomic`, `auto_set_lineup_atomic`, `auto_set_lineup_service_atomic`, `update_lineup_slots_atomic` | [Lineup recipe](../tests/db/idempotency-lineup.sql) |
-| Claim create, edit, cancel, reorder | `create_waiver_claim_atomic`, `edit_waiver_claim_atomic`, `cancel_waiver_claim_atomic`, `reorder_waiver_claim_atomic` | [Claims recipe](../tests/db/idempotency-claims.sql) |
-| Trade propose, edit, counter, accept, reject, withdraw, veto, vote | `submit_trade_offer_atomic`, `propose_trade_atomic`, `propose_multi_team_trade_atomic`, `accept_trade_atomic`, `accept_trade_with_plan_atomic`, `reject_trade_atomic`, `withdraw_trade_atomic`, `veto_trade_atomic` | [Trades recipe](../tests/db/idempotency-trades.sql) |
-| Trade roster plans, destinations, and block | `set_trade_roster_plan_atomic`, `set_trade_taxi_destinations_atomic`, `add_trade_block_item_atomic`, `remove_trade_block_item_atomic` | Shared receipt guard; [client guard inventory](../tests/lib/api-client.test.ts) |
-| Draft picks, nominations, bids | `make_snake_pick_atomic`, `auto_pick_snake_pick_atomic`, `commissioner_snake_pick_atomic`, `create_auction_nomination_atomic`, `place_auction_bid_atomic`, `withdraw_auction_nomination_atomic` | [Draft recipe](../tests/db/idempotency-draft.sql) |
-| IR, taxi, activation, drop | `toggle_ir_atomic`, `toggle_taxi_atomic`, `activate_roster_player_with_lineup_atomic`, `activate_roster_player_with_overflow_atomic`, `drop_player_atomic` | [Roster recipe](../tests/db/idempotency-roster.sql); short drop overloads delegate to the guarded entry |
-| Legacy instant adds | `add_free_agent_atomic`, `drop_and_add_free_agent_atomic` | Shared guard; existing continuous-waiver rejection stays in force |
-| League, lineup slot, team, notification, and optimizer settings | `update_league_settings_atomic`, `update_league_configuration_atomic`, `update_lineup_slots_atomic`, `save_client_settings_atomic`, `commissioner_adjust_faab_balance_atomic`, `commissioner_override_weekly_add_count_atomic` | [Settings recipe](../tests/db/idempotency-settings.sql) |
-| Announcements | `notif_publish_announcement_atomic` | [Announcements recipe](../tests/db/idempotency-announcements.sql) |
-| League create and join | `create_league`, `join_league_by_invite_code` | [Leagues recipe](../tests/db/idempotency-leagues.sql) |
-| Failed requests, actor and input binding, retention, permissions | Shared receipt helpers | [Core recipe](../tests/db/idempotency-core.sql) |
-
-Run each recipe with `psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/idempotency-FAMILY.sql`.
-Use only an isolated local stack.
-The shared support and cleanup files are recipe parts.
-Database catalog and function-source checks verify every wrapper against the migrated database.
-The guard inventory checks each client retry target against its canonical function source.
-
-## Verification
-
-```sh
-npm run test:db:roster-lifecycle
-npm run test:db:roster-oracle
-npm run test:db:weekly-add-limit
-npm run test:db:waiver-window
-npm run test:db:dynasty-rules
-npm run test:db:continuous-faab
-npm run test:db:continuous-faab-schedule
-psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/roster-floor.sql
-psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/roster-floor-schedule.sql
-node tests/e2e/roster-floor-concurrency-db.mjs
-psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/inactive-trade-block.sql
-npm run test:db:trade-roster-plans
-npm run test:db:trade-plan-moves-capacity
-npm run test:db:trade-plan-concurrency
-npm run test:db:general-brackets
-```
-
-The roster oracle checks ownership, cleanup, history, reservations, and league boundaries after generated actions.
-Run these checks against an isolated migrated stack.
-
-## Trade window
-
-Trades stay open in offseason, the rookie draft, the active season, and playoffs.
-Setup and the startup auction close trading.
-The server checks this window when managers propose, accept, or settle trades.
-A commissioner trade deadline blocks new offers after that date.
-Pending offers remain private to their parties.
-Activity records offers, edits, counters, acceptance, rejection, withdrawal, veto, expiry, and completion.
-Pending trade transitions remain visible only to participants.
-Completed trades remain public within the league.
-Events retain player identity and names when ownership later changes.
-Trade-block changes stay out of the feed.
-New NBA rookies cannot enter free-agent adds or waiver claims before the league completes its rookie draft.
-
-## Draft pick years
-
-The database stores each pick by fantasy `season_year`.
-Its rookie draft occurs in the summer of `season_year - 1`.
-Pick labels and server messages use that calendar draft year.
-For current season 2027, the three future classes are stored as 2028–2030 and displayed as 2027–2029.
-
-League creation and member joining allocate three rounds for each of those three future classes.
-A normal season advance adds exactly one new future class and preserves existing owners.
-It retains the current rookie class for the upcoming draft.
-A skipped-year advance fills missing current and future classes without changing historical picks.
-Setup rollover shifts existing assets with the season and keeps the same three-class window.
-Draft reset and reseeding reuse existing pick assets.
-Mock drafts create slots without creating owned pick assets.
-
-Only three future classes can enter trades.
-Unused current-class picks retain the existing offseason and live-draft restrictions.
-Cleanup deletes distant picks only when they are unused and have no references, including activity history, or rookie draft assignment.
-Referenced distant picks remain stored, but cannot enter new trades until their class reaches the window.
-
-## Taxi eligibility and trade plans
-
-Every league uses one taxi rule: `years_exp = 0` or fewer than 65 career NBA regular-season games.
-Draft position does not affect eligibility.
-An undrafted rookie qualifies.
-A second-year player with 64 games qualifies.
+A player is taxi eligible with `years_exp = 0` or fewer than 65 career NBA regular-season games, whatever the draft position.
 A nonrookie needs a known count to enter taxi.
 An unknown count never makes an existing taxi player illegal.
-The server stores a completed-season base in `career_games_base` and its cutoff in `career_games_base_season`.
-Below 65, the current total adds regular-season appearances after that cutoff.
-An appearance has positive minutes or any positive counting statistic.
-The DNP flag does not decide whether a player appeared.
-The one-time ESPN lookup sums per-season GP through the previous season.
-The current ESPN season and its career total do not set the base.
-This avoids old gaps in our boxes and a delayed ESPN current-game update.
+Players must stay eligible while on taxi.
+
+The career count is a completed-season base plus appearances after its cutoff.
+A base below 65 gets one successful ESPN lookup of per-season games through the previous season.
 ESPN, rookie, and threshold bases are never fetched again.
 Players with 65 or more stored games never enter the lookup queue, regardless of base source.
-Their stored counts remain available; exact totals above 65 do not affect taxi eligibility.
-A coverage base below 65 remains due for one successful ESPN lookup because our historical boxes have gaps.
-A successful lookup replaces coverage only when the new total does not lower the stored count.
-Unavailable or lower ESPN totals leave the existing count and base unchanged.
-Failed lookups retry no more than weekly.
-The worker attempts at most 300 players per run, with 16 concurrent jobs and a 90-second start budget.
-Each player's external lookups stop after eight seconds.
-Earlier sync work reduces the remaining lookup budget.
-Players on an NBA team run first, followed by players closest to 65 stored career games.
-Within each group, unknown counts follow known counts; the oldest attempts break ties.
-Unstarted players keep their place for the next daily run.
+A lookup or recount never lowers a stored count of 65 or more.
 
-The migration preserves every existing non-null count and leaves its base unset.
-Those players keep their count until an ESPN base lookup or a fallback that does not lower the count.
-For missing counts, a verified rookie gets base zero through the previous season.
-That requires no observed appearance before the current season.
-Otherwise, complete covered experience gets a provisional base of zero through 2020.
-That coverage base stays usable while its one-time ESPN lookup is pending.
-Completed covered seasons must equal `years_exp`; a current-season appearance adds one additional season.
-A player with at least 65 covered appearances also gets base zero through 2020.
-This last value is a lower bound that keeps taxi decisions correct.
-Other missing counts remain unknown.
-A late first appearance alone never proves complete career coverage.
-
-Stats saves, corrections, deletions, game corrections, and merges recount based players within the same transaction.
-Once a stored count reaches 65, later recounts cannot lower it.
-Corrections below 65 still use the recounted total.
-Unbased players retain their existing counts until a base succeeds.
-Replays do not add games twice.
-Explicit count writes, including NULL, remain valid for the deployed Edge and fixture setup.
-Timestamp-only writes preserve that value.
-A later stats save recounts players with a base; automatic recounts preserve known counts of at least 65.
-
-The server stores the current total in `players.career_regular_season_games`.
-The phone uses stored experience and career counts for display-only Rookie and Taxi tags.
-The combined taxi badge reads `T:12` for 12 career regular-season games.
+The roster badge reads `T:12` for 12 career regular-season games.
 It never uses the current season game count.
-Rookie means `years_exp = 0`; Taxi also requires the league to have taxi slots.
-The server remains authoritative for every roster action.
 An eligible rookie with an unknown count shows `T:—`; unknown never means zero.
-An unknown count hides the Taxi tag for other players unless they already occupy taxi.
-A taxi-held player keeps the count visible in roster rows, previews and player detail.
-A known ineligible taxi player uses the warning color and an accessible “no longer eligible” label.
-The badge does not override activation or roster legality rules.
-Game-day injury refreshes run separately every 15 minutes.
 
-`taxi_start_season_year` records the first taxi season. Trades and season carryover retain that value.
-A missing start uses the earliest recorded taxi roster or acquisition season. Drops and later draft acquisitions do not restart that clock.
-With `taxi_max_seasons = 2`, the third season promotes the player during the existing rollover.
-The player stays owned. An overflowing active roster blocks restricted acquisitions and trades.
-Existing lineup capacity checks still apply.
-A taxi exit still prevents a return to that team's taxi.
-Players must stay eligible while on taxi.
-New game counts or experience can make a taxi roster illegal.
-
-Eligible players can enter taxi through drafts, trades, or scheduled waiver claims.
-Straight-to-taxi claims check eligibility, slots, tenure, and prior exits.
-Accepted trades hold their incoming taxi slots until settlement.
-Adds cannot use those slots, and claims fall back to active space or their planned drop.
-An add cannot request both IR and taxi.
-IR remains the default claim destination for eligible Out players when a slot is open.
-A manager can submit a straight-to-taxi claim after the player's game starts.
-The scheduled worker still decides ownership and placement.
-A `to_taxi` claim checks taxi placement again when the worker processes it.
-If taxi placement fails, the claim uses active roster space or its planned drop.
-If neither fits, the claim fails with a clear reason.
-Claim edits preserve the stored taxi choice when the caller omits it.
+`taxi_start_season_year` records the first taxi season and survives trades and rollovers.
+With `taxi_max_seasons = 2`, rollover promotes the player in the third season.
+A player who leaves taxi cannot return to that team's taxi.
 
 ## Legal roster gate
 
-An ineligible IR player, ineligible taxi player, or excess active player makes a roster illegal.
-The server names ineligible IR and taxi players.
-It reports active roster excess once for the team.
-`PA003` identifies active roster overflow.
-`PA005` identifies ineligible IR players.
-`PA009` identifies ineligible taxi players.
-The server blocks free-agent adds, new claims, claim edits that add, sent trade offers, and trade acceptance.
-Pending claims fail during processing while the roster remains illegal.
-Managers can activate IR or taxi players, move eligible players to IR, drop players, or cancel claims and offers.
-The acquisition guard does not block lineup edits, activations, or drops.
-Existing lineup capacity, reservation, and game-lock checks still apply.
-The Roster banner offers actions that make the team legal.
+An ineligible IR player, an ineligible taxi player, or excess active players make a roster illegal.
+The server reports `PA003` for active overflow, `PA005` for ineligible IR, and `PA009` for ineligible taxi.
+An illegal roster blocks new claims, claim edits that add, sent offers, and trade acceptance.
+Pending claims fail at processing while the roster stays illegal.
+Lineup edits, activations, IR moves, drops, and cancellations stay available. The Roster banner offers them.
 
-## Inactive trade assets
+## Trades
 
-The league's inactive-trade setting controls IR and taxi assets in offers and on the trade block.
-Without that setting, IR and taxi players cannot enter new listings.
-With it enabled, owned inactive players can remain listed during roster-location changes.
-Losing ownership still removes a listing and expires dependent offers.
-The setting never bypasses resulting-roster limits or settlement checks.
+Trades are open in the offseason, the rookie draft, the season, and playoffs.
+Setup, the startup auction, and a passed commissioner deadline close trading.
+New NBA rookies cannot be added or claimed before the league completes its rookie draft.
 
-## Trade plans
+### Plans and legality
 
+`private.check_trade_legality` owns the verdict and every suggested fix.
+The composer and the acceptance preview show that same result.
 All trades require legal resulting rosters before acceptance and settlement.
-The inactive-trade setting controls which owned assets can be sent. It does not disable roster limits.
-Each manager chooses incoming IR/taxi destinations, retained-player moves, and planned drops while the offer is pending.
-Retained players can move to regular space or eligible IR. They cannot enter taxi through a roster move.
-The proposer can include the plan in the existing idempotent submission payload.
-Counterparties can save choices before acceptance or submit choices with acceptance.
-The review and acceptance views show each team's resulting roster and capacity.
-Every accepting manager confirms named drops. Acceptance submits the exact plan shown in that confirmation.
-Every participant must accept before settlement.
-League review settings select immediate processing, commissioner review, or member voting.
-Acceptance stores and checks the plan.
-Immediate processing can settle the trade within that same call.
-Deferred review keeps the roster unchanged until settlement.
-Settlement checks every participant again, then applies all drops, moves, transfers, and FAAB changes in one transaction.
-A failed transaction restores assets, drops, placements, waiver entries, and tenure.
-Vetoes, rejection, withdrawal, and expiry apply no roster changes.
-Taxi assets retain taxi placement and tenure. IR assets enter the active roster unless the receiver chooses eligible IR placement.
+An outgoing IR player does not free a regular slot.
+
+Each manager picks incoming IR or taxi destinations, retained-player moves, and drops while the offer is pending.
+Only a team's own manager can save its retained moves and drops.
+A retained player can move to regular space or eligible IR, never into taxi.
 Only Out or IR-designated incoming players can enter IR.
+Every accepting manager confirms named drops. Acceptance submits the exact plan in that confirmation.
+Every participant must accept before settlement.
 
-The active limit remains `roster_size`, which includes starters and bench players.
-The total limit is `roster_size + ir_slots + taxi_slots`. IR and taxi also have separate limits.
-Trades do not place incoming players into lineup slots. Existing lineup validation controls the configured starter slots.
-Capacity uses the full plan, including outgoing players and chosen drops, for all participants.
-Drops happen only at settlement. They use the existing release function and enter 48-hour waivers.
+The active limit is `roster_size`. The total limit adds `ir_slots` and `taxi_slots`.
+Capacity counts the full plan for every participant, including outgoing players and drops.
+Trades never place incoming players into lineup slots.
+Drops happen only at settlement and enter 48-hour waivers.
 
-Pending planned drops and moves block conflicting trade assets, plans, waiver drops, and roster moves.
-The reverse checks apply to plan creation. Shared team locks and sorted player locks serialize reservations.
-Accepted assets, planned drops, and moves remain reserved through settlement or a terminal outcome.
-Combined accepted plans reserve required regular, IR, and taxi capacity.
-New awards and acceptances cannot consume that capacity. Unrelated legal roster actions remain available.
-Deferred roster checks protect direct writes and permit atomic swaps. Awards also check capacity before spending FAAB.
-Vetoes and terminal outcomes release these reservations without an extra balance or capacity ledger.
-`test:db:trade-plan-moves-capacity` covers retained moves, recovery, authorization, combined capacity, failed awards, and release.
-`test:db:trade-plan-concurrency` and `test:db:trade-waiver-concurrency` verify competing transactions.
-Ownership cleanup expires dependent offers with their existing visible failure reason and notification outbox.
-When a claim uses trade-plan reservations, losing its planned drop cancels the claim with an explicit reason.
+League review settings choose immediate processing, commissioner review, or member voting.
+Acceptance stores the plan and moves no players, FAAB, or drops.
+Settlement checks every participant again and applies every change in one transaction.
+A settlement that fails legality keeps the trade accepted and marks it **Needs attention**.
+A manager can repair their own plan, and the worker checks again before settlement.
+The proposer can cancel an accepted trade before its review window ends.
+Vetoes, rejections, withdrawals, cancellations, and expiries change no roster.
 
-## Flexible playoff rounds
+The league's inactive-trade setting decides whether IR and taxi players can be offered or listed.
+The setting never bypasses resulting-roster limits or settlement checks.
+The roster guard accepts a trade move only with proof from the executing transaction. A session setting alone authorizes nothing.
 
-Explicit playoff entrants use a full seeded elimination tree with `ceil(log2(entrants))` rounds.
-Top seeds receive first-round byes.
-Each round starts after the previous round's configured weeks.
-Calendar validation counts skipped weeks as elapsed time.
-
-The season stores explicit seeds in `playoff_bracket_seed_ids`.
-Matchups store `playoff_round` and `playoff_position`.
-These fields drive advancement and freeze consumed results, including consecutive early rounds.
-Matchup types label early rounds, semifinals, and the final.
-
-Null entrant settings retain the legacy four- or six-team bracket and original seed snapshot.
-The legacy array constraint remains intact.
-Migration does not assign new seed snapshots to existing seasons.
-
-## Timeline
-
-Each team has one timeline from the league event log.
-The timeline remains available through its route and claim history links.
-Home has no timeline entry.
-Each claim and trade row opens its related history.
-Counteroffers and edits stay in the original offer's history.
-
-Managers see their own failed claims, recorded reasons, and bids.
-Other managers see public results without private bids, notes, or lineup assignments.
-Pending trade steps stay visible to the participants.
-Completed trades and score results appear for both teams.
-Trade events retain the participant IDs from that action.
-Direct table reads cannot access private event details.
-The reader checks the caller's league membership before it projects those details.
-
-The screen filters claims, trades, lineups, and scores.
-All activity also includes real draft picks, auction awards, and settings changes.
-Mock draft picks stay out of the timeline.
-Settings events record changed values, including lineup slot changes.
-Unchanged saves add no event.
-Each row shows a relative time and the recorded reason without changes.
-Trade failures retain the exact recorded completion reason.
-
-Older activity uses a timestamp and event ID cursor.
-IDs travel as strings, and the cursor preserves timestamp precision.
-Equal timestamps page without gaps or duplicate rows.
-The reader calls `public.view_team_timeline` through the authenticated database client.
-No separate Edge route is required.
-`private.timeline_event_catalog()` defines each kind and its visibility.
-
-`tests/db/timeline-read.sql` checks access, private details, order, and cursor paging.
-`tests/db/timeline-lifecycle.sql` performs claims, a counter trade, an auto-set, and score finalization.
-It checks both managers' timelines and pages through the real events.
-`tests/db/timeline-producers.sql` covers three-team acceptance, settings, real picks, auction awards, retries, and private trade failures.
-`tests/lib/timeline/app-browser.mjs` contains the earlier Home-entry browser fixture.
-That entry is removed from the current Home screen.
-Use the current navigation suite for entry-point verification.
-The browser smoke route list also includes Timeline.
-
-## Pending asset locks
+### Pending locks
 
 A sent trade locks its outgoing players and picks.
-A recipient's requested assets stay available until that recipient accepts.
-An edit or counteroffer can replace its source offer without breaking that offer's reservation.
-Pending roster plans also lock their planned drops and moves.
-Pending waiver claims lock the claimed player and their selected drop.
-Each lock ends when its trade or claim reaches a terminal state.
+A recipient's requested assets lock only when that recipient accepts.
+Pending locks must read item players, planned drops, and planned moves.
+A pending claim locks the claimed player and its selected drop.
+A locked asset cannot leave the roster, change IR or taxi placement, or enter another trade.
+Errors and the phone's lock badge name the trade or claim that holds the asset.
+Accepted assets, drops, moves, and capacity stay reserved until settlement or a terminal outcome.
+New awards and acceptances cannot use reserved capacity.
 
-Locked assets cannot leave the roster, change IR or taxi placement, change lineup slots, or enter another trade.
-An unchanged lineup remains valid.
-Managers cancel the pending action before they change its assets.
-Errors name the trade or claim that holds the asset.
-The waiver editor keeps its own selected drop available.
-Other pending actions stay locked in that editor.
-Settlement can apply its own plan without releasing another action's locks.
-A successful waiver award cancels other claims that need the same drop.
+### Estimates and values
 
-`private.locked_assets` supplies each lock and its reason.
-Roster, lineup, and waiver snapshots include those locks in the same request.
-The trade asset controls use the roster snapshot.
-Lock changes publish a league version before deferred trade activity finishes.
-The phone shows a lock badge, the server reason, and a link to the pending action.
+The trade editor asks `POST /trades/estimate` for a quote on the exact asset routes.
+Estimates never bypass roster, ownership, or trade-window checks.
+A quote expires after ten minutes, and a late response never replaces a newer one.
+A submitted offer attaches its quote in the same transaction.
+The quote must belong to the sender and match the saved routes, league, and season.
+An offer sent without a quote commits first and gets its quote later from queued work.
+Saved quotes never change. Revaluation with current inputs returns a separate result and saves nothing.
+
+`core/src/dynasty/tradeScoring.ts` owns the model version, curve, and fairness tolerance.
+Each player or pick contributes `1000 * (value / 1000) ** 5`, with no consolidation bonus. FAAB keeps its own rate.
+A package gap of at most five percent is Fair.
+Every roster location counts. A plan that overfills a section loses its lowest curved values.
+Imported values get no age, health, strategy, or scoring adjustment.
+A missing imported value counts as zero and appears in the missing inputs.
+
+OneNumberHoops supplies trade values. Michael has written permission to collect and copy them.
+Tests read fixtures and use fake fetches; they never request the live source.
+The worker publishes at most one live sync per Eastern day and checks robots first.
+A malformed or incomplete import rejects the whole snapshot and keeps the published values.
+An internal CSV import accepts the same data when the live fetch fails.
+Third-round picks take 40% of the matching second-round value, floored at league replacement value.
+An unknown pick slot uses a stored prediction from the original owner's team strength.
+
+Hashtag Basketball supplies ranking screens, player forecasts, and `players.dynasty_rank`.
+Trade publication never writes Hashtag ranks.
+
+## Playoffs
+
+Explicit playoff entrants use a seeded elimination tree with `ceil(log2(entrants))` rounds.
+Top seeds take byes, and each round starts after the previous round's configured weeks.
+A null entrant setting keeps the legacy four- or six-team bracket.
+
+## Draft pick years
+
+The database stores each pick by fantasy `season_year`. Its rookie draft happens in the summer of `season_year - 1`, and labels show that year.
+For season 2027, the future classes are stored as 2028 to 2030 and shown as 2027 to 2029.
+Each league holds three rounds for each of three future classes.
+A season advance adds one future class and keeps every existing owner.
+Only those three future classes can enter trades.
+Cleanup deletes a distant pick only when it is unused and has no references.
 
 ## Rookie draft order
 
-## Linear order
+Rookie drafts use linear order by default. Each original team keeps its slot in every round.
+A traded pick goes to its current owner and keeps its original slot.
+Commissioners can choose `snake` with the `rookie_draft_order` setting.
+Worse records pick first. Equal records use higher points per game, then the stored seed.
+Each draft saves its order choice and seed when it starts, so repeated generation gives the same order.
 
-Rookie drafts use linear order by default.
-Each original team keeps the same slot in every round.
-A traded pick goes to its current owner without moving its original slot.
-Commissioners can select `snake` with the `rookie_draft_order` league setting.
-Snake order reverses every second round.
-Each draft saves its order choice and seed when it starts.
-Worse records pick first.
-Equal records use higher points per game first, then the stored seed.
-Points per game uses the played-game count, not the raw points total.
-Rookie mock drafts follow the same saved order rule.
-Saved draft orders remain stable when the server repeats generation.
-Existing drafts keep their saved snake order.
+## Timeline privacy
+
+Each team has one timeline from the league event log.
+Managers see their own failed claims, reasons, and bids.
+Other managers see public results without private bids, notes, or lineup choices.
+Pending trade steps stay visible to participants only. Completed trades are public in the league.
+Trade-block changes and mock draft picks stay out of the feed.
+`public.view_team_timeline` checks league membership before it shows private details.
+`private.timeline_event_catalog()` defines each event kind and its visibility.

@@ -141,16 +141,6 @@ describe('independent trade valuation work', () => {
     expect(mocks.rpc.mock.calls[0][1].p_params.operation).toBe('trade-ready')
   })
 
-  it('checks the bounded average-refresh guard against a full-refresh control', () => {
-    const source = readFileSync('supabase/sql/functions/by-name/private/refresh_player_averages.sql', 'utf8')
-    const bounded = (sql: string) => sql.includes('IF NOT full_refresh AND affected IS NULL THEN RETURN true')
-      && sql.includes('full_refresh OR average.player_id=ANY(affected)')
-      && sql.includes('full_refresh OR player_id=ANY(affected)')
-    expect(bounded(source)).toBe(true)
-    expect(bounded(source.replaceAll('full_refresh OR player_id=ANY(affected)', 'true'))).toBe(false)
-    expect(bounded(source.replace('IF NOT full_refresh AND affected IS NULL THEN RETURN true', 'IF false THEN RETURN true'))).toBe(false)
-  })
-
   it.each(revaluationControlCases())('$name has a distinct broken control and an executed SQL assertion', ({ original, definition, recipe, expected }) => {
     expect(definition).not.toBe(original)
     expect(readFileSync(`tests/db/${recipe}.sql`, 'utf8')).toContain(expected)

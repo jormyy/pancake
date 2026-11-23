@@ -68,6 +68,7 @@ skills-lock.json
 !.claude/skills/
 .claude/skills/*
 !.claude/skills/verify-pancake/
+!.claude/skills/formal-trade-roster-holds/
 
 # editor
 .vscode/*
