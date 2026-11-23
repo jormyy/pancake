@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261214011800",
+  "candidateVersion": "20261215030000",
   "common": {
     "functions": [
       {
@@ -2745,6 +2745,10 @@
     {
       "filename": "20261214011800_tipoff_mode_aware_completion.sql",
       "sha256": "d4dc37396f8f1e8d65105ef1e104c7feb8605d91abd04134e175dbae4171abcb"
+    },
+    {
+      "filename": "20261215030000_game_availability_single_rule.sql",
+      "sha256": "3219274978fffad9898eb008269c57825c2b045d645d8e2b57af32c5e9c320e9"
     }
   ],
   "preMigration": {

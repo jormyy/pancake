@@ -414,7 +414,6 @@ async function finalizeWeekIfComplete(
     referenceDate: Date,
     failedRecoveryDates: ReadonlySet<string>,
 ) {
-    // Get the week's date range from season_weeks (authoritative)
     const { data: weekData, error: weekErr } = await supabase
         .from('season_weeks')
         .select('week_start, week_end')
@@ -581,8 +580,6 @@ async function finalizeWeekIfComplete(
     console.log(`[scores] Finalized/reconciled week ${weekNumber} for league ${leagueId}`)
 }
 
-// Calculates and persists home/away points for all matchups in a given week.
-//
 // Finalized playoff points persist with their decision in finalizeWeekIfComplete.
 // The database rejects a late live-score write after finalization or advancement.
 async function updateWeekPoints(
@@ -854,7 +851,6 @@ async function syncStatsForCompletedWeeks(
     await syncStatsForDates(dateKeys, onDateError)
 }
 
-// Update current matchups and replay corrected historical seasons.
 export async function syncScores(leagueId?: string, referenceDate = new Date(), options: { recoverStats?: boolean; onPublicationRetry?: () => void } = {}) {
     const seasons = await fetchAllPages<{
         id: string

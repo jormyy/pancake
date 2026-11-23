@@ -125,7 +125,10 @@ it('preserves unavailable players while the rest of the matchup overlays', () =>
         saved.liveBasis![0].players.push({ ...saved.liveBasis![0].players[0], playerId: 'unavailable', nbaId: '11', gameId: '0022', team: 'LAL' })
         saved.liveGames = [...saved.todaysGames]
         saved.todaysGames.push({ ...saved.todaysGames[0], id: 'unavailable-game', nba_game_id: '0022', home_team: 'LAL', away_team: 'GSW', status, game_status_text })
-        const view = liveScoreView(saved, snapshot(), { points: 1 }, now)
+        const live = snapshot()
+        live.games.push({ ...live.games[0], id: '0022', nbaId: '0022', home: { team: 'LAL', score: 7, players: [['11', 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 12, 0]] },
+            away: { team: 'GSW', score: 5, players: [] } })
+        const view = liveScoreView(saved, live, { points: 1 }, now)
         expect(view.matchup?.myPoints).toBe(104)
         expect(view.delayed).toBe(false)
         expect(view.liveStats.unavailable).toBeUndefined()
