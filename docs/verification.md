@@ -38,10 +38,19 @@ For `npm run test:db`, set `PANCAKE_TEST_DB_PORT`, `PANCAKE_TEST_API_PORT`, and 
 Keep them aligned with `supabase/config.toml` for the whole run.
 Stop the stack and remove `supabase/.temp/start-secrets` before you run the quality gate.
 
+## Merge gate
+
+`npm run check:gate` is the one list of merge checks.
+CI runs it on every pull request head and on main; the release preflight requires its green log.
+It runs the quality checks, the app and core tests, the attestation check, and every `tools/formal/*/check.mjs`.
+A red gate blocks the merge, even when main fails the same way.
+Fix the failure or delete the test in the same pull request.
+
 ## Checks
 
 | Check | Command |
 | --- | --- |
+| Merge gate (quality, tests, attestations, formal models) | `npm run check:gate` |
 | Lint, types, dead code, and generated-source parity | `npm run check:quality` |
 | Unit and contract tests | `npx vitest run` |
 | Database recipes | `npm run test:db` |
@@ -65,7 +74,8 @@ These tests read docs and need no database:
 ```sh
 npx vitest run tests/release-edge-compatibility.test.ts tests/e2e-release-contracts.test.ts tests/release-script.test.ts
 npm run check:surface-matrix
-node scripts/regenerate-release-history-attestations.mjs --check
+npm run check:attestations
+npm test
 ```
 
 The release-order test reads `supabase/RELEASE-DB.md`.
@@ -79,7 +89,7 @@ This keeps local builds from contacting the live release.
 
 ## Formal checks
 
-`npm run check:formal` runs every `tools/formal/*/check.mjs`; the `Formal` GitHub Actions workflow runs it on each pull request and push to `main`.
+`npm run check:formal` runs every `tools/formal/*/check.mjs`; `npm run check:gate` includes it, so CI runs it on each pull request and push to `main`.
 It needs Java 11 or later; add `-- --install` once to fetch the pinned TLC jar into `~/.cache/pancake-formal`.
 The trade-roster-holds check fails when a covered file or the migration set differs from `tools/formal/trade-roster-holds/coverage.json`.
 `npm run test:db:trade-hold-model-replay` replays the model's failure paths on a disposable database.

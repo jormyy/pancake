@@ -58,7 +58,7 @@ The checks receipt records the full local checks:
   "passed": true,
   "commands": [
     { "command": "npm run check:comprehensive", "exitCode": 0, "log": "quality.log", "sha256": "<log-sha256>" },
-    { "command": "npm test", "exitCode": 0, "log": "tests.log", "sha256": "<log-sha256>" }
+    { "command": "npm run check:gate", "exitCode": 0, "log": "gate.log", "sha256": "<log-sha256>" }
   ]
 }
 ```
