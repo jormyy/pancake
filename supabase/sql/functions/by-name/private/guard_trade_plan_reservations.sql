@@ -18,10 +18,10 @@ BEGIN
   IF v_trade.status IN ('pending','accepted') THEN
     v_exempt := ARRAY[NEW.trade_id] || ARRAY(SELECT source.id FROM trades source WHERE source.status='pending'
       AND source.league_id=v_trade.league_id AND source.league_season_id=v_trade.league_season_id
-      AND ((source.id=v_trade.edited_from_trade_id AND source.proposer_member_id=v_trade.proposer_member_id
-          AND source.recipient_member_id=v_trade.recipient_member_id)
-        OR (source.id=v_trade.countered_from_trade_id AND source.recipient_member_id=v_trade.proposer_member_id
-          AND source.proposer_member_id=v_trade.recipient_member_id)));
+      AND source.id IN (v_trade.edited_from_trade_id,v_trade.countered_from_trade_id)
+      AND (source.proposer_member_id=v_trade.proposer_member_id) = (source.id IS NOT DISTINCT FROM v_trade.edited_from_trade_id)
+      AND EXISTS (SELECT 1 FROM trade_participants party WHERE party.trade_id=source.id AND party.member_id=v_trade.proposer_member_id)
+      AND EXISTS (SELECT 1 FROM trade_participants party WHERE party.trade_id=source.id AND party.member_id=v_member));
     v_action := CASE WHEN TG_TABLE_NAME='trade_items' THEN 'trade_offer' ELSE 'trade_plan' END;
     FOR v_player IN SELECT DISTINCT id FROM unnest(v_ids) id WHERE id IS NOT NULL ORDER BY id LOOP
       PERFORM private.assert_roster_action_allowed(v_action, v_trade.league_id, v_trade.league_season_id, v_member, v_player, NULL, v_exempt);

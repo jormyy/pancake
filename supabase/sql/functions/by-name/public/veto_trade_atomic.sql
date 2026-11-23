@@ -96,8 +96,6 @@ BEGIN
     INTO v_eligible_count
     FROM league_members AS member
    WHERE member.league_id = v_trade.league_id
-     AND member.id <> v_trade.proposer_member_id
-     AND member.id <> v_trade.recipient_member_id
      AND NOT EXISTS (
        SELECT 1
          FROM trade_participants AS participant
@@ -136,13 +134,10 @@ BEGIN
     'threshold', v_threshold,
     'proposerMemberId', v_trade.proposer_member_id,
     'recipientMemberId', v_trade.recipient_member_id,
-    'participantMemberIds', COALESCE(
-      (
-        SELECT jsonb_agg(participant.member_id ORDER BY participant.sort_order, participant.member_id)
-          FROM trade_participants AS participant
-         WHERE participant.trade_id = p_trade_id
-      ),
-      jsonb_build_array(v_trade.proposer_member_id, v_trade.recipient_member_id)
+    'participantMemberIds', (
+      SELECT jsonb_agg(participant.member_id ORDER BY participant.sort_order, participant.member_id)
+        FROM trade_participants AS participant
+       WHERE participant.trade_id = p_trade_id
     )
   ); EXIT request_write;
 END request_write;

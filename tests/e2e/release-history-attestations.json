@@ -3762,6 +3762,13 @@
       "statementCount": 20,
       "statementsSha256": "314451522a6446195fa06dacc0d0ef0261be350fd9765411b76d94774a7c1320",
       "sha256": "ad29e7d9181535ecf284a126b3cc9e1995b4e78558fe6bcb37736d0e2119394a"
+    },
+    {
+      "name": "trades_read_participants",
+      "version": "20261215190000",
+      "statementCount": 16,
+      "statementsSha256": "e16cc4fcc2b0549aa537f422d5c6cdaba4abd49cb1c94957799ff1dffde5bf0d",
+      "sha256": "51cd9e591aee1d77f81dd218243e81148d188d8e8415ca29637fc298a30601fe"
     }
   ]
 }

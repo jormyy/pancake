@@ -14,15 +14,11 @@ AS $$
       FROM public.trades AS trade
      WHERE trade.id = p_trade_id
        AND trade.league_id IN (SELECT private.my_league_ids())
-       AND (
-         trade.proposer_member_id IN (SELECT private.my_member_ids())
-         OR trade.recipient_member_id IN (SELECT private.my_member_ids())
-         OR EXISTS (
-           SELECT 1
-             FROM public.trade_participants AS participant
-            WHERE participant.trade_id = trade.id
-              AND participant.member_id IN (SELECT private.my_member_ids())
-         )
+       AND EXISTS (
+         SELECT 1
+           FROM public.trade_participants AS participant
+          WHERE participant.trade_id = trade.id
+            AND participant.member_id IN (SELECT private.my_member_ids())
        )
   )
 $$;

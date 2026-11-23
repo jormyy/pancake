@@ -17,6 +17,9 @@ BEGIN
     INSERT INTO public.trade_items(trade_id,from_member_id,to_member_id,faab_amount,side)
       VALUES(v_trade,CASE WHEN n=27 THEN other.member_ids[1] ELSE f.member_ids[1] END,
         CASE WHEN n=27 THEN other.member_ids[2] ELSE f.member_ids[2] END,10,'proposer');
+    INSERT INTO public.trade_participants(trade_id,member_id,sort_order,is_initiator)
+      VALUES(v_trade,CASE WHEN n=27 THEN other.member_ids[1] ELSE f.member_ids[1] END,0,true),
+        (v_trade,CASE WHEN n=27 THEN other.member_ids[2] ELSE f.member_ids[2] END,1,false);
   END LOOP;
   inputs:=public.get_trade_estimate_reanalysis_inputs(ids[1]);
   INSERT INTO public.trade_estimate_quotes(league_id,league_season_id,member_id,terms,inputs,analysis,model_version,input_version)

@@ -124,8 +124,10 @@ BEGIN
   END IF;
 
   IF v_source IS NOT NULL THEN
-    SELECT league_id,league_season_id,CASE WHEN p_action LIKE 'counter%' THEN proposer_member_id ELSE recipient_member_id END
-      INTO v_league,v_season,v_recipient FROM trades WHERE id=v_source;
+    SELECT league_id,league_season_id INTO v_league,v_season FROM trades WHERE id=v_source;
+    IF NOT v_multi THEN
+      SELECT member_id INTO v_recipient FROM trade_participants WHERE trade_id=v_source AND member_id<>p_member_id;
+    END IF;
     IF NOT v_multi AND p_payload ? 'recipientMemberId'
       AND (p_payload->>'recipientMemberId')::uuid IS DISTINCT FROM v_recipient THEN
       RAISE EXCEPTION 'The replacement must keep the original counterparty.' USING ERRCODE='22023';

@@ -104,7 +104,8 @@ BEGIN
   IF EXISTS(SELECT 1 FROM trades pending WHERE pending.league_id=p_league_id
     AND pending.league_season_id=p_league_season_id AND pending.status='pending'
     AND (pending.expires_at IS NULL OR pending.expires_at>now())
-    AND pending.proposer_member_id=p_proposer_member_id AND pending.recipient_member_id=p_recipient_member_id
+    AND pending.proposer_member_id=p_proposer_member_id
+    AND EXISTS(SELECT 1 FROM trade_participants party WHERE party.trade_id=pending.id AND party.member_id=p_recipient_member_id)
     AND pending.id IS DISTINCT FROM p_edited_from_trade_id AND pending.id IS DISTINCT FROM p_countered_from_trade_id
     AND v_terms=(SELECT private.canonical_trade_estimate_terms(jsonb_agg(jsonb_build_object(
       'fromMemberId',item.from_member_id,'toMemberId',item.to_member_id,'playerId',item.player_id,
