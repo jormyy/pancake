@@ -1,6 +1,6 @@
-export type MatchupGenerationResult = { inserted: number; skipped: boolean }
-
 import { supabase } from './supabase.ts'
+
+export type MatchupGenerationResult = { inserted: number; skipped: boolean }
 
 export async function generateMatchups(
   leagueId: string,
