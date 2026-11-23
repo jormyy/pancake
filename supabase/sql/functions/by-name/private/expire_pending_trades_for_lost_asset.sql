@@ -62,8 +62,6 @@ BEGIN
        ) OR EXISTS (SELECT 1 FROM trade_participants participant WHERE participant.trade_id=trade.id AND participant.member_id=p_member_id AND p_player_id=ANY(participant.drop_player_ids)))
      RETURNING trade.id, trade.league_id, trade.league_season_id, trade.proposer_member_id, trade.recipient_member_id
   )
-  -- The reason stays on the trade (visible to its parties); the league-wide
-  -- activity row names no asset of a pending offer.
   INSERT INTO league_activity (
     league_id,
     league_season_id,
@@ -71,6 +69,7 @@ BEGIN
     target_member_id,
     related_trade_id,
     event_type,
+    visibility,
     title
   )
   SELECT
@@ -80,6 +79,7 @@ BEGIN
     expired.recipient_member_id,
     expired.id,
     'trade_expired',
+    'parties',
     'Trade offer expired'
     FROM expired;
 

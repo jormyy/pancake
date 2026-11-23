@@ -16,7 +16,7 @@ BEGIN
   UPDATE leagues SET trade_veto_mode='commissioner',trade_veto_window_hours=24 WHERE id=f.league_id;
   pending:=public.propose_trade_atomic(f.league_id,f.season_id,f.member_ids[1],f.member_ids[2],'{}','{}','{}','{}',NULL,NULL,1,1);
   FOREACH event IN ARRAY ARRAY['trade_countered','trade_edited','trade_expired'] LOOP
-    PERFORM private.log_league_activity(f.league_id,f.season_id,event,'Private offer',NULL,f.member_ids[1],f.member_ids[2],NULL,pending);
+    PERFORM private.log_league_activity(f.league_id,f.season_id,event,'parties','Private offer',NULL,f.member_ids[1],f.member_ids[2],NULL,pending);
   END LOOP;
   accepted:=public.propose_trade_atomic(f.league_id,f.season_id,f.member_ids[1],f.member_ids[2],'{}','{}','{}','{}',NULL,NULL,2,2);
   PERFORM public.accept_trade_atomic(accepted,f.member_ids[2]);
@@ -33,10 +33,10 @@ BEGIN
     SELECT 'two',completed,id FROM league_activity WHERE related_trade_id=completed AND event_type='trade_completed'
     UNION ALL SELECT 'four',multi,id FROM league_activity WHERE related_trade_id=multi AND event_type='trade_completed';
   INSERT INTO feed_trades(label,activity_id) VALUES('legacy',private.log_league_activity(f.league_id,f.season_id,
-    'trade_completed','Legacy completed trade',NULL,f.member_ids[1],f.member_ids[2]));
-  PERFORM private.log_league_activity(f.league_id,f.season_id,'trade_block_updated','Hidden listing',NULL,f.member_ids[1]);
-  INSERT INTO league_activity(league_id,actor_member_id,event_type,title,created_at)
-    VALUES(f.league_id,f.member_ids[1],'trade_block_updated','Legacy hidden listing',now()+interval '2 hours');
+    'trade_completed','league','Legacy completed trade',NULL,f.member_ids[1],f.member_ids[2]));
+  PERFORM private.log_league_activity(f.league_id,f.season_id,'trade_block_updated','league','Hidden listing',NULL,f.member_ids[1]);
+  INSERT INTO league_activity(league_id,actor_member_id,event_type,visibility,title,created_at)
+    VALUES(f.league_id,f.member_ids[1],'trade_block_updated','league','Legacy hidden listing',now()+interval '2 hours');
   UPDATE league_activity SET created_at=now()+interval '1 hour'
     WHERE league_id=f.league_id AND event_type IN ('trade_offered','trade_countered','trade_edited','trade_expired','trade_block_updated');
   FOR sample IN SELECT * FROM (VALUES(0,NULL::int),(1,64),(2,65),(1,NULL::int),(NULL::int,12)) AS samples(experience,games) LOOP
@@ -46,8 +46,8 @@ BEGIN
     SELECT id,'Feed',id::text,'PG',ARRAY['PG'],years_exp,career_regular_season_games FROM feed_players;
   INSERT INTO roster_transactions(id,league_id,league_season_id,member_id,player_id,transaction_type)
     SELECT transaction_id,f.league_id,f.season_id,f.member_ids[1],id,'fa_add' FROM feed_players;
-  INSERT INTO league_activity(id,league_id,league_season_id,actor_member_id,related_player_id,event_type,title)
-    SELECT activity_id,f.league_id,f.season_id,f.member_ids[1],id,'player_injured','Player injury' FROM feed_players;
+  INSERT INTO league_activity(id,league_id,league_season_id,actor_member_id,related_player_id,event_type,visibility,title)
+    SELECT activity_id,f.league_id,f.season_id,f.member_ids[1],id,'player_injured','league','Player injury' FROM feed_players;
 END;
 $$;
 SET LOCAL ROLE authenticated;

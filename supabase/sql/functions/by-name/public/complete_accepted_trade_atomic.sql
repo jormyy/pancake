@@ -331,6 +331,7 @@ BEGIN
     v_trade.league_id,
     v_trade.league_season_id,
     'trade_completed',
+    'league',
     'Trade completed',
     NULL,
     v_trade.proposer_member_id,

@@ -42,6 +42,7 @@ BEGIN
       target_member_id,
       related_trade_id,
       event_type,
+      visibility,
       title
     )
     SELECT
@@ -51,6 +52,7 @@ BEGIN
       expired.recipient_member_id,
       expired.id,
       'trade_expired',
+      'parties',
       'Trade offer expired'
     FROM expired
     RETURNING id

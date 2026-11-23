@@ -42,6 +42,9 @@ It takes every roster lock through `private.lock_roster_scope` in one order, kee
 It redefines the trade RPCs in place with the same signatures, and needs no Edge or frontend release.
 `20261215190000_trades_read_participants.sql` follows it, for 804 migrations.
 It backfills missing trade participant rows, redefines the trade functions in place with the same signatures, and needs no Edge or frontend release.
+`20261215200000_activity_visibility.sql` follows it, for 805 migrations.
+Every `league_activity` row now carries a required `visibility`, and negotiation rows must be `parties`.
+It replaces `private.log_league_activity` with a version that takes the visibility, redefines every producer with it, and needs no Edge or frontend release.
 Database, then Edge, then merge the frontend.
 The frontend needs no release.
 
