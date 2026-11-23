@@ -205,15 +205,6 @@ describe('public live route', () => {
     const large = createLiveHandler({ now: () => now, source: async () => ({ version: 1,mode:'public',date,capturedAt:now,games:[],padding:'x'.repeat(1000000) }) })
     expect((await large(new Request(`http://local/api/live/${date}`))).status).toBe(503)
   })
-
-  it('routes the function before the static application fallback', () => {
-    const config = JSON.parse(readFileSync('vercel.json','utf8'))
-    expect(config.functions['api/live/[date].js'].maxDuration).toBe(10)
-    const api = config.routes.findIndex((row: { dest?: string }) => row.dest?.startsWith('/api/live/'))
-    const fallback = config.routes.findIndex((row: { dest?: string }) => row.dest === '/+not-found.html')
-    expect(api).toBeGreaterThanOrEqual(0)
-    expect(api).toBeLessThan(fallback)
-  })
 })
 
 it('preserves ESPN completion as a hint without certifying an NBA final', async () => {

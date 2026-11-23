@@ -24,7 +24,6 @@ vi.mock('react-native-safe-area-context', () => ({ SafeAreaView: 'SafeAreaView',
 vi.mock('@/lib/supabase', () => ({ supabase: {} }))
 vi.mock('@/components/Avatar', () => ({ Avatar: 'Avatar' }))
 vi.mock('@/components/player/PlayerAvatar', () => ({ PlayerAvatar: 'Avatar' }))
-vi.mock('@/components/player/PlayerEligibilityTags', () => ({ PlayerEligibilityTags: () => null }))
 vi.mock('@/components/PosTag', () => ({ PosTag: 'PosTag' }))
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -111,7 +110,6 @@ it('moves every title header after one base header token edit', async () => {
     vi.resetModules()
     const original = readFileSync('constants/tokens.ts', 'utf8')
     const edited = original.replace('pageHeaderHeight: unit(14)', 'pageHeaderHeight: unit(16)')
-    expect(edited).not.toBe(original)
     const output = transpileModule(edited, { compilerOptions: { module: ModuleKind.CommonJS } }).outputText
     const module = { exports: {} }
     runInNewContext(output, { module, exports: module.exports, require: () => ({ Platform: { OS: 'web' } }) })

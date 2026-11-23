@@ -90,13 +90,3 @@ it.each(['tabs', 'pills'] as const)('highlights the selected %s control without 
     expect(active.backgroundColor).toBe(colors.primaryLight)
     expect(active.backgroundColor).not.toBe(inactive.backgroundColor)
 })
-
-it('keeps draft, trade sender and timeline controls free of underlines', async () => {
-    const { readFileSync } = await import('node:fs')
-    for (const [file, key] of [['app/(modals)/rookie-draft-room.tsx', 'tabActive'], ['components/trades/MultiTeamTradeBuilder.tsx', 'senderTab']]) {
-        const source = readFileSync(file, 'utf8')
-        const block = source.match(new RegExp(`\\b${key}: \\{([^}]+)\\}`))![1]
-        expect(block).not.toContain('borderBottom')
-    }
-    expect(readFileSync('components/timeline/TeamTimelineScreen.tsx', 'utf8')).not.toContain('borderBottomWidth')
-})

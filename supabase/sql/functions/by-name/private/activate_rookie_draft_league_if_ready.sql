@@ -110,8 +110,8 @@ BEGIN
             AND pick.member_id = roster.member_id AND pick.player_id = roster.player_id
           JOIN players AS player ON player.id = roster.player_id AND player.years_exp = 0
         WHERE roster.league_season_id = v_current_season.id AND roster.member_id = v_member.id
-          AND NOT EXISTS(SELECT 1 FROM private.locked_assets(v_draft.league_id,v_current_season.id,v_member.id) locked
-            WHERE locked.asset_kind='player' AND locked.asset_id=roster.player_id)
+          AND NOT EXISTS(SELECT 1 FROM private.roster_action_blocks('to_taxi',v_draft.league_id,v_current_season.id,v_member.id) block
+            WHERE block.asset_kind='player' AND block.asset_id=roster.player_id)
           AND roster.acquired_via = 'draft' AND NOT roster.is_on_ir AND NOT roster.is_on_taxi
         ORDER BY pick.overall_pick DESC, roster.id FOR UPDATE OF roster SKIP LOCKED
       LOOP

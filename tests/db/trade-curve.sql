@@ -24,6 +24,8 @@ BEGIN
   PERFORM pg_temp.check_rules((SELECT count(*)=2 FROM jsonb_array_elements(inputs->'rosters') team,jsonb_array_elements(team->'players') player WHERE (player->>'tradeValue')::numeric IN(500,950)),'incumbents retain their source values');
   INSERT INTO public.trades(league_id,league_season_id,proposer_member_id,recipient_member_id,status)
     VALUES(f.league_id,f.season_id,f.member_ids[1],f.member_ids[2],'pending') RETURNING id INTO offer;
+  INSERT INTO public.trade_participants(trade_id,member_id,sort_order,is_initiator,accepted_at)
+    VALUES(offer,f.member_ids[1],0,true,now()),(offer,f.member_ids[2],1,false,NULL);
   INSERT INTO public.trade_items(trade_id,from_member_id,to_member_id,player_id,side)
     VALUES(offer,f.member_ids[1],f.member_ids[2],p[1],'proposer'),(offer,f.member_ids[2],f.member_ids[1],p[2],'recipient');
   INSERT INTO public.trade_estimates(trade_id,unavailable_reason) VALUES(offer,'Pending calculation') ON CONFLICT DO NOTHING;

@@ -27,7 +27,8 @@ Preconditions:
 - Require both populated teams and all four roster groups.
 
 - **Your roster.** Select Roster from the current snapshot. Require the expected player names in each group and compare `roster_players` with the database observation.
-- **Sheet.** Run `BROWSER click '[aria-label="Open auto-set lineup options"]'`. Require the same sheet as Home. Choose `Edit lineup manually`, then return.
+- **Edit lineup.** Run `BROWSER click '[aria-label="Edit lineup and pins"]'`. Require the Lineup page with Start/Auto/Bench pins, then return.
+- **Auto-set.** Require the `[role="switch"][aria-label="Auto-set lineup"]` header switch with `aria-checked="true"` for a team that never turned it off. Click it, require `aria-checked="false"` and `lineup_optimizer_settings.enabled=false` for that member and season, then click it again and require `true`.
 - **Player.** Run `BROWSER click '[aria-label="Open E2E Player001"]'`. Snapshot the player sheet and follow `View E2E Player001 player page`. Require that player’s statistics page.
 - **Other team.** From League standings select the opponent’s visible team name. Require `/team-roster?memberId=...`, that manager’s players, and no ownership controls for your own lineup.
 - **IR.** Open Player015, choose Activate from IR, and confirm. Reopen the player, choose Move to IR, and confirm. Compare stored flags.

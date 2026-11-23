@@ -14,33 +14,22 @@ AS $$
 DECLARE
   __request_context jsonb;
   __request_result jsonb;
+  v_trade trades%ROWTYPE;
 BEGIN
+  v_trade := private.begin_trade_action(p_trade_id, p_member_id, NULL, 'veto');
   __request_context := private.request_begin('public.veto_trade_atomic', jsonb_build_array(p_trade_id, p_member_id), NULL, NULL);
   IF (__request_context->>'replay')::boolean THEN RETURN __request_context->'result'; END IF;
   <<request_write>>
 DECLARE
-  v_trade trades%ROWTYPE;
   v_member league_members%ROWTYPE;
   v_league leagues%ROWTYPE;
   v_is_commissioner boolean;
-  v_is_trade_party boolean;
   v_member_veto_count int;
   v_eligible_count int;
   v_threshold int;
   v_vetoed boolean;
   v_rows int;
 BEGIN
-  SELECT *
-    INTO v_trade
-    FROM trades
-   WHERE id = p_trade_id
-   FOR UPDATE;
-
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'Trade not found.'
-      USING ERRCODE = 'P0002';
-  END IF;
-
   IF v_trade.status <> 'accepted'::trade_status THEN
     RAISE EXCEPTION 'This trade is not in its veto window.'
       USING ERRCODE = 'P0001';
@@ -74,24 +63,7 @@ BEGIN
      AND league_id = v_trade.league_id
    FOR SHARE;
 
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'League member not found.'
-      USING ERRCODE = 'P0002';
-  END IF;
-
   v_is_commissioner := v_member.role IN ('commissioner'::league_member_role, 'co_commissioner'::league_member_role);
-  v_is_trade_party := v_member.id IN (v_trade.proposer_member_id, v_trade.recipient_member_id)
-    OR EXISTS (
-      SELECT 1
-        FROM trade_participants AS participant
-       WHERE participant.trade_id = p_trade_id
-         AND participant.member_id = v_member.id
-    );
-
-  IF v_is_trade_party THEN
-    RAISE EXCEPTION 'Trade parties cannot veto their own trade.'
-      USING ERRCODE = 'P0001';
-  END IF;
 
   IF COALESCE(v_league.trade_veto_mode, 'member_vote') = 'commissioner' AND NOT v_is_commissioner THEN
     RAISE EXCEPTION 'Only commissioners can veto trades in this league.'
@@ -124,8 +96,6 @@ BEGIN
     INTO v_eligible_count
     FROM league_members AS member
    WHERE member.league_id = v_trade.league_id
-     AND member.id <> v_trade.proposer_member_id
-     AND member.id <> v_trade.recipient_member_id
      AND NOT EXISTS (
        SELECT 1
          FROM trade_participants AS participant
@@ -164,13 +134,10 @@ BEGIN
     'threshold', v_threshold,
     'proposerMemberId', v_trade.proposer_member_id,
     'recipientMemberId', v_trade.recipient_member_id,
-    'participantMemberIds', COALESCE(
-      (
-        SELECT jsonb_agg(participant.member_id ORDER BY participant.sort_order, participant.member_id)
-          FROM trade_participants AS participant
-         WHERE participant.trade_id = p_trade_id
-      ),
-      jsonb_build_array(v_trade.proposer_member_id, v_trade.recipient_member_id)
+    'participantMemberIds', (
+      SELECT jsonb_agg(participant.member_id ORDER BY participant.sort_order, participant.member_id)
+        FROM trade_participants AS participant
+       WHERE participant.trade_id = p_trade_id
     )
   ); EXIT request_write;
 END request_write;

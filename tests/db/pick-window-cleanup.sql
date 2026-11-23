@@ -56,7 +56,7 @@ BEGIN
   INSERT INTO snake_draft_picks(draft_id,overall_pick,round,pick_in_round,member_id,draft_pick_id)
   VALUES(draft,1,1,1,members[1],protected[6]);
   INSERT INTO public.pick_window_test_reference VALUES(protected[7]);
-  PERFORM private.log_league_activity(league,season,'trade_block_updated','Trade block updated',p_metadata=>jsonb_build_object('pick_id',protected[8]));
+  PERFORM private.log_league_activity(league,season,'trade_block_updated','league','Trade block updated',p_metadata=>jsonb_build_object('pick_id',protected[8]));
   INSERT INTO pick_cleanup_fixture VALUES(league,protected,extras);
 END;
 $$;

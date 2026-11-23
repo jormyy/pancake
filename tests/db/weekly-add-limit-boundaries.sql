@@ -1,7 +1,3 @@
--- Weekly add limit reset boundaries: the reset instant the server reports (and
--- puts in its rejection message) must follow the add-week rule owned by
--- private.current_add_week for every schedule shape.
--- Runs inside one transaction and rolls back.
 BEGIN;
 
 INSERT INTO auth.users (id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
@@ -29,58 +25,55 @@ CREATE OR REPLACE FUNCTION pg_temp.et_midnight(p_date date) RETURNS timestamptz 
   SELECT p_date::timestamp AT TIME ZONE 'America/New_York'
 $$;
 
+CREATE OR REPLACE FUNCTION pg_temp.next_monday() RETURNS date LANGUAGE sql AS $$
+  SELECT date_trunc('week', today)::date + 7 FROM add_limit_ids
+$$;
+
 CREATE OR REPLACE FUNCTION pg_temp.expect_reset(p_case text, p_expected_week int, p_expected_reset timestamptz) RETURNS void LANGUAGE plpgsql AS $$
 DECLARE ids add_limit_ids%ROWTYPE; v_week int; v_reset timestamptz;
 BEGIN
   SELECT * INTO ids FROM add_limit_ids;
   SELECT week.week_number, week.resets_at INTO v_week, v_reset FROM private.current_add_week(ids.league_id, ids.season_id) AS week;
-  IF v_week IS DISTINCT FROM p_expected_week THEN
+  IF p_expected_week IS NOT NULL AND v_week IS DISTINCT FROM p_expected_week THEN
     RAISE EXCEPTION '%: week % expected %', p_case, v_week, p_expected_week;
+  END IF;
+  IF p_expected_week IS NULL AND (v_week IS NULL OR v_week IN (SELECT weeks.week_number FROM public.season_weeks AS weeks WHERE weeks.season_year IN (2097, 2098))) THEN
+    RAISE EXCEPTION '%: unscheduled days took key %, which a scheduled week can own', p_case, v_week;
   END IF;
   IF v_reset IS DISTINCT FROM p_expected_reset THEN
     RAISE EXCEPTION '%: reset % expected %', p_case, v_reset, p_expected_reset;
   END IF;
 END $$;
 
--- A: today sits inside week 2 -> resets the day after week 2 ends.
 INSERT INTO public.season_weeks (season_year, week_number, week_start, week_end)
 SELECT 2098, 1, ids.today - 10, ids.today - 4 FROM add_limit_ids AS ids
 UNION ALL SELECT 2098, 2, ids.today - 3, ids.today + 3 FROM add_limit_ids AS ids
 UNION ALL SELECT 2098, 3, ids.today + 4, ids.today + 10 FROM add_limit_ids AS ids;
 SELECT pg_temp.expect_reset('A inside week', 2, pg_temp.et_midnight(ids.today + 4)) FROM add_limit_ids AS ids;
 
--- B: today is the last day of week 2 -> resets tomorrow.
 UPDATE public.season_weeks SET week_start = (SELECT today - 6 FROM add_limit_ids), week_end = (SELECT today FROM add_limit_ids) WHERE season_year = 2098 AND week_number = 2;
 UPDATE public.season_weeks SET week_start = (SELECT today + 1 FROM add_limit_ids), week_end = (SELECT today + 7 FROM add_limit_ids) WHERE season_year = 2098 AND week_number = 3;
 SELECT pg_temp.expect_reset('B last day of week', 2, pg_temp.et_midnight(ids.today + 1)) FROM add_limit_ids AS ids;
 
--- C: today is the first day of week 3 -> resets in seven days.
 UPDATE public.season_weeks SET week_start = (SELECT today - 7 FROM add_limit_ids), week_end = (SELECT today - 1 FROM add_limit_ids) WHERE season_year = 2098 AND week_number = 2;
 UPDATE public.season_weeks SET week_start = (SELECT today FROM add_limit_ids), week_end = (SELECT today + 6 FROM add_limit_ids) WHERE season_year = 2098 AND week_number = 3;
 SELECT pg_temp.expect_reset('C first day of week', 3, pg_temp.et_midnight(ids.today + 7)) FROM add_limit_ids AS ids;
 
--- D: a gap before the next scheduled week counts toward that week.
 UPDATE public.season_weeks SET week_start = (SELECT today + 2 FROM add_limit_ids), week_end = (SELECT today + 8 FROM add_limit_ids) WHERE season_year = 2098 AND week_number = 3;
-SELECT pg_temp.expect_reset('D gap before next week', 3, pg_temp.et_midnight(ids.today + 9)) FROM add_limit_ids AS ids;
+SELECT pg_temp.expect_reset('D gap before next week', NULL, pg_temp.et_midnight(ids.today + 2)) FROM add_limit_ids AS ids;
 
--- E: past the final scheduled week the count rolls every seven days.
 DELETE FROM public.season_weeks WHERE season_year = 2098 AND week_number IN (2, 3);
--- week 1 ended today - 4: buckets [today-3, today+3], so the reset is today + 4 and the week number is 2.
-SELECT pg_temp.expect_reset('E past schedule', 2, pg_temp.et_midnight(ids.today + 4)) FROM add_limit_ids AS ids;
+SELECT pg_temp.expect_reset('E past schedule', NULL, pg_temp.et_midnight(ids.today + 4)) FROM add_limit_ids AS ids;
 UPDATE public.season_weeks SET week_start = (SELECT today - 16 FROM add_limit_ids), week_end = (SELECT today - 10 FROM add_limit_ids) WHERE season_year = 2098 AND week_number = 1;
--- week 1 ended today - 10: buckets [today-9, today-3], [today-2, today+4], so week 3 resets today + 5.
-SELECT pg_temp.expect_reset('E second offseason bucket', 3, pg_temp.et_midnight(ids.today + 5)) FROM add_limit_ids AS ids;
+SELECT pg_temp.expect_reset('E second offseason bucket', NULL, pg_temp.et_midnight(ids.today + 5)) FROM add_limit_ids AS ids;
 
--- F: a new season with no schedule yet anchors on the prior season's last week.
 UPDATE public.season_weeks SET season_year = 2097 WHERE season_year = 2098;
-SELECT pg_temp.expect_reset('F unscheduled new season', 1001, pg_temp.et_midnight(ids.today + 5)) FROM add_limit_ids AS ids;
+SELECT pg_temp.expect_reset('F unscheduled new season', NULL, pg_temp.et_midnight(ids.today + 5)) FROM add_limit_ids AS ids;
 
--- G: no schedule anywhere -> week 1 with no known reset.
 DELETE FROM public.season_weeks WHERE season_year IN (2097, 2098);
-SELECT pg_temp.expect_reset('G no schedule', 1, NULL);
+DELETE FROM public.league_seasons WHERE id = '00000000-0000-0000-0000-0000000c0300';
+SELECT pg_temp.expect_reset('G no schedule', NULL, pg_temp.et_midnight(pg_temp.next_monday()));
 
--- H: the rejection message and the member state carry the same reset instant,
--- the same sentence, and the same label.
 INSERT INTO public.season_weeks (season_year, week_number, week_start, week_end)
 SELECT 2098, 5, ids.today - 2, ids.today + 4 FROM add_limit_ids AS ids;
 INSERT INTO public.weekly_add_counts (league_id, league_season_id, member_id, week_number, add_count)
@@ -91,7 +84,6 @@ DECLARE ids add_limit_ids%ROWTYPE; v_message text; v_state record; v_expected ti
 BEGIN
   SELECT * INTO ids FROM add_limit_ids;
   v_expected := pg_temp.et_midnight(ids.today + 5);
-  -- Independent rendering of the same instant: weekday, month, day, midnight.
   v_expected_text := trim(to_char(ids.today + 5, 'Dy')) || ', ' || trim(to_char(ids.today + 5, 'Mon')) || ' '
     || extract(day FROM ids.today + 5)::int || ' at 12:00 AM';
   BEGIN

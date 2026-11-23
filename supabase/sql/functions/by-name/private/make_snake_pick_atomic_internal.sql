@@ -16,6 +16,7 @@ SET search_path = public
 AS $$
 DECLARE
   v_draft drafts%ROWTYPE;
+  v_league_id uuid;
   v_next_pick snake_draft_picks%ROWTYPE;
   v_on_roster_id uuid;
   v_already_picked_id uuid;
@@ -27,7 +28,12 @@ DECLARE
   v_rows int;
   v_next_timer_expires_at timestamptz;
 BEGIN
-  PERFORM pg_advisory_xact_lock(hashtext(p_draft_id::text), 0);
+  SELECT league_id INTO v_league_id FROM drafts WHERE id = p_draft_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Draft not found' USING ERRCODE = 'P0002';
+  END IF;
+
+  PERFORM private.lock_roster_scope(v_league_id, '{}', ARRAY[p_player_id], p_draft_id);
 
   SELECT *
     INTO v_draft
@@ -42,11 +48,6 @@ BEGIN
   IF v_draft.status <> 'in_progress' THEN
     RAISE EXCEPTION 'Draft is not in progress' USING ERRCODE = 'P0001';
   END IF;
-
-  PERFORM pg_advisory_xact_lock(
-    hashtext(v_draft.league_id::text),
-    hashtext(p_player_id::text)
-  );
 
   SELECT *
     INTO v_next_pick

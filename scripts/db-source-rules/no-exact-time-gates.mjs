@@ -58,14 +58,14 @@ const exactTimeGates = (definition) => {
   return [...new Map(gates.map((gate) => [gate.line, gate])).values()].sort((left, right) => left.line - right.line)
 }
 
-export default function noExactTimeGates(definitions) {
+export default function noExactTimeGates({ definitions }) {
   return [...definitions].flatMap(([key, definition]) =>
     exactTimeGates(definition).map((gate) => `${key} line ${gate.line} '${gate.text}': ${EXACT_TIME_GATE_FIX}`))
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const { latestFunctionDefinitions } = await import('../check-db-function-sources.mjs')
-  const failures = noExactTimeGates(await latestFunctionDefinitions())
+  const failures = noExactTimeGates({ definitions: await latestFunctionDefinitions() })
   for (const failure of failures) console.error(`- ${failure}`)
   if (failures.length > 0) process.exitCode = 1
 }

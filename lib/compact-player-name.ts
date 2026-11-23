@@ -1,14 +1,20 @@
 const MAX_CHARS = 14
+/** Characters a text-sized team logo (plus its gap) takes from the name's budget. */
+export const LOGO_CHARS = 2
 
-/** "Shai Gilgeous-Alexander" → "S. Gilgeous…": first initial always kept, long names end in an ellipsis. */
-export function compactPlayerName(name: string): string {
+/**
+ * "Shai Gilgeous-Alexander" → "S. Gilgeous…": first initial always kept, long names end in an ellipsis.
+ * Pass `reservedChars` when something shares the name's line, e.g. `LOGO_CHARS` for a team logo.
+ */
+export function compactPlayerName(name: string, reservedChars = 0): string {
+    const maxChars = MAX_CHARS - reservedChars
     const parts = name.trim().split(/\s+/).filter(Boolean)
     if (parts.length > 1 && /^(jr\.?|sr\.?|ii|iii|iv|v)$/i.test(parts.at(-1)!)) parts.pop()
     const surname = parts.at(-1) ?? ''
     const full = parts.length < 2 ? surname : `${Array.from(parts[0])[0]}. ${surname}`
     const chars = Array.from(full)
-    if (chars.length <= MAX_CHARS) return full
-    const cut = chars.slice(0, MAX_CHARS - 1).join('')
+    if (chars.length <= maxChars) return full
+    const cut = chars.slice(0, maxChars - 1).join('')
     // Inside a hyphenated surname, drop the partial piece after the hyphen: "Gilgeous-A" → "Gilgeous".
     const surnameStart = full.length - surname.length
     const hyphen = cut.lastIndexOf('-')

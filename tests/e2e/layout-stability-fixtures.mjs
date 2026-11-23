@@ -56,7 +56,7 @@ export async function prepareSweepFixtures({ env, statePath, resourceOwner, port
   const news = await checked(admin.from('dynasty_news').select('id').eq('source', 'layout-sweep'))
   if (!news.length) await checked(admin.from('dynasty_news').insert({ player_id: players[0].id, source: 'layout-sweep', title: 'E2E Player001 returns to the starting lineup', summary: 'The synthetic player completes practice and starts this week.', published_at: new Date().toISOString() }))
   const activity = await checked(admin.from('league_activity').select('id').eq('league_id', state.leagueId).limit(1))
-  if (!activity.length) await checked(admin.from('league_activity').insert({ league_id: state.leagueId, league_season_id: season.id, actor_member_id: me.id, event_type: 'commissioner_note', title: 'Season preparation is complete', body: 'Managers review their rosters before opening week.' }))
+  if (!activity.length) await checked(admin.from('league_activity').insert({ league_id: state.leagueId, league_season_id: season.id, actor_member_id: me.id, event_type: 'commissioner_note', visibility: 'league', title: 'Season preparation is complete', body: 'Managers review their rosters before opening week.' }))
   const pending = await checked(admin.from('trades').select('id').eq('league_id', state.leagueId).eq('status', 'pending').limit(1))
   await checked(admin.from('leagues').update({ status: 'active' }).eq('id', state.leagueId))
   await checked(admin.from('drafts').update({ status: 'completed' }).eq('id', auctionDraft.id))

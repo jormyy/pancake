@@ -1,6 +1,6 @@
 import { strict as assert } from 'node:assert'
 
-const calls: Array<{ name: string; body: Record<string, unknown> }> = []
+const calls: { name: string; body: Record<string, unknown> }[] = []
 const queries: URLSearchParams[] = []
 let reject = false
 let rpcResult = { inserted: 19, skipped: false }

@@ -2,6 +2,7 @@ import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { describe, expect, it, vi } from 'vitest'
 import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
+import { announceRejoin } from '@/lib/lifecycle'
 
 vi.mock('react-native', () => ({ Platform: { OS: 'web' }, AppState: { currentState: 'active' } }))
 
@@ -172,8 +173,6 @@ describe('useFocusAsyncData web reconnect and foreground', () => {
     const dispatch = (target: EventTarget, type: string) => target.dispatchEvent(new Event(type))
 
     it('reacts to online/foreground only while focused: online always refetches, foreground only when stale', async () => {
-        // The suite runs in a node environment; stand in for the browser globals
-        // the hook listens on, and remove them afterwards.
         const fakeWindow = new EventTarget()
         let visibility = 'visible'
         const fakeDocument = Object.defineProperty(new EventTarget(), 'visibilityState', { get: () => visibility })
@@ -184,19 +183,18 @@ describe('useFocusAsyncData web reconnect and foreground', () => {
         const Probe = () => { useFocusAsyncData(fetcher, ['k'], { staleMs: 60_000 }); return null }
         let renderer!: ReactTestRenderer
         await act(async () => { renderer = create(React.createElement(Probe)) })
-        // Screens stay mounted but unfocused on web: before focus, browser events must be ignored.
         await act(async () => { dispatch(fakeWindow, 'online') })
         expect(fetcher).toHaveBeenCalledTimes(0)
 
         let blur: (() => void) | void
         await act(async () => { blur = (focusCallbacks.at(-1) as () => (() => void) | void)() })
-        expect(fetcher).toHaveBeenCalledTimes(1) // focus loads once
+        expect(fetcher).toHaveBeenCalledTimes(1)
 
         await act(async () => { dispatch(fakeDocument, 'visibilitychange') })
-        expect(fetcher).toHaveBeenCalledTimes(1) // fresh: gate holds
+        expect(fetcher).toHaveBeenCalledTimes(1)
 
         await act(async () => { dispatch(fakeWindow, 'online') })
-        expect(fetcher).toHaveBeenCalledTimes(2) // reconnect on the focused screen always refetches
+        expect(fetcher).toHaveBeenCalledTimes(2)
 
         visibility = 'hidden'
         await act(async () => { dispatch(fakeDocument, 'visibilitychange') })
@@ -204,11 +202,11 @@ describe('useFocusAsyncData web reconnect and foreground', () => {
 
         await act(async () => { if (typeof blur === 'function') blur() })
         await act(async () => { dispatch(fakeWindow, 'online') })
-        expect(fetcher).toHaveBeenCalledTimes(2) // blurred screen ignores reconnect
+        expect(fetcher).toHaveBeenCalledTimes(2)
 
         await act(async () => { renderer.unmount() })
         await act(async () => { dispatch(fakeWindow, 'online') })
-        expect(fetcher).toHaveBeenCalledTimes(2) // listeners removed on unmount
+        expect(fetcher).toHaveBeenCalledTimes(2)
         delete globals.window
         delete globals.document
     })
@@ -266,4 +264,23 @@ it('saves the revision captured before a held read rather than the newer revisio
     expect(save).toHaveBeenCalledWith('old', 'before')
     expect(latest.isSnapshot).toBe(true)
     await act(async () => { renderer.unmount() })
+})
+
+it('refetches the focused resource after the realtime socket rejoins', async () => {
+    vi.useFakeTimers()
+    const fetcher = vi.fn(async () => 'value')
+    const Probe = () => { useFocusAsyncData(fetcher, ['rejoin'], { staleMs: 60_000 }); return null }
+    let renderer!: ReactTestRenderer
+    await act(async () => { renderer = create(React.createElement(Probe)) })
+    await act(async () => { (focusCallbacks.at(-1) as () => void)() })
+    expect(fetcher).toHaveBeenCalledOnce()
+    announceRejoin()
+    announceRejoin()
+    await act(async () => { await vi.advanceTimersByTimeAsync(1_000) })
+    expect(fetcher).toHaveBeenCalledTimes(2)
+    await act(async () => { renderer.unmount() })
+    announceRejoin()
+    await act(async () => { await vi.advanceTimersByTimeAsync(1_000) })
+    expect(fetcher).toHaveBeenCalledTimes(2)
+    vi.useRealTimers()
 })
