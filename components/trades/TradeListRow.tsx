@@ -108,6 +108,7 @@ export const TradeBlockPlayerRow = memo(function TradeBlockPlayerRow({
     onList: (player: RosterPlayer) => void | Promise<void>
 }) {
     const player = item.player.players
+    const location = rosterLocation(item.player)
     const positions = playerEligiblePositions({ position: player.position, eligiblePositions: player.eligible_positions })
     const context = playerSeasonContextText({
         yearsExp: player.years_exp,
@@ -117,8 +118,8 @@ export const TradeBlockPlayerRow = memo(function TradeBlockPlayerRow({
     return (
         <View style={[styles.blockRow, !tile && styles.compactBlockRow, tile && styles.tile]}>
             <TradePlayerLink compact playerId={player.id} name={player.display_name} nbaId={player.nba_id} team={player.nba_team} positions={positions}
-                birthdate={player.birthdate} yearsExp={player.years_exp} careerGames={player.career_regular_season_games} injuryStatus={player.injury_status} onTaxi={rosterLocation(item.player) === 'taxi'}
-                metadata={<Text style={styles.blockMeta}>{rosterLocation(item.player) === 'ir' ? 'IR' : rosterLocation(item.player) === 'taxi' ? 'TAXI' : 'Active'}</Text>} stats={context} />
+                birthdate={player.birthdate} yearsExp={player.years_exp} careerGames={player.career_regular_season_games} injuryStatus={player.injury_status} onTaxi={location === 'taxi'}
+                metadata={<Text style={styles.blockMeta}>{location === 'ir' ? 'IR' : location === 'taxi' ? 'TAXI' : 'Active'}</Text>} stats={context} />
             <Pressable style={[styles.blockAction, listed && styles.blockActionDisabled]}
                 onPress={() => onList(item.player)} disabled={listed || busy}
                 accessibilityRole="button" accessibilityLabel={`${listed ? 'Listed' : 'List'} ${player.display_name} on trade block`}

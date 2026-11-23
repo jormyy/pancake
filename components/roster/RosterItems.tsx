@@ -275,24 +275,25 @@ export const RosterPlayerItem = memo(function RosterPlayerItem({
 }) {
     const player = item.players
     const isBusy = togglingId === item.id || taxiingId === item.id || droppingId === item.id
+    const onIr = rosterLocation(item) === 'ir'
 
     const locks = readAssetLocks(item)
     return (
         <View><RosterPlayerRow item={item} avgFpts={avgFpts} avgMinutes={avgMinutes}
             leading={<><RosterSlotTag slotType={slotType} /><PendingMutationBadge rowId={player.id} /></>}
             onPress={() => onPress(item)} onLongPress={locks.length ? undefined : () => onLongPress(item)} actions={<>
-            {(rosterLocation(item) === 'ir' || allowIR && isIREligible(player.injury_status)) ? (
+            {(onIr || allowIR && isIREligible(player.injury_status)) ? (
                 <View style={styles.rowActions}>
                     <MotionPressable
                         style={styles.rosterActionTarget}
                         onPress={() => onToggleIR(item)}
                         disabled={isBusy || locks.length > 0}
                         accessibilityRole="button"
-                        accessibilityLabel={`${rosterLocation(item) === 'ir' ? 'Activate' : 'Move'} ${player.display_name}${rosterLocation(item) === 'ir' ? '' : ' to IR'}`}
+                        accessibilityLabel={`${onIr ? 'Activate' : 'Move'} ${player.display_name}${onIr ? '' : ' to IR'}`}
                     >
-                        <View style={[styles.rosterAction, rosterLocation(item) === 'ir' && styles.irButtonActive]}>
-                            <Text style={[styles.actionButtonText, rosterLocation(item) === 'ir' && styles.actionButtonTextActive]}>
-                                {rosterLocation(item) === 'ir' ? 'Activate' : 'IR'}
+                        <View style={[styles.rosterAction, onIr && styles.irButtonActive]}>
+                            <Text style={[styles.actionButtonText, onIr && styles.actionButtonTextActive]}>
+                                {onIr ? 'Activate' : 'IR'}
                             </Text>
                         </View>
                     </MotionPressable>

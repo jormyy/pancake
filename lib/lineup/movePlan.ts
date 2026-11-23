@@ -1,7 +1,7 @@
 import { canPlaySlot } from '@/constants/slots'
 import type { LineupPlayer, LineupSlot, LineupSlotMove } from './read'
 import { isIREligible } from '@pancake/core'
-import { rosterLimits, type LeagueRosterLimits } from '@/lib/roster-capacity'
+import { rosterLimits, staleRosterLimitsNotice, type LeagueRosterLimits } from '@/lib/roster-capacity'
 
 export type LineupSelection =
     | { kind: 'starter'; index: number }
@@ -109,13 +109,7 @@ export function planLineupMove({
 
         if (irPlayer && !activePlayer) {
             const limits = rosterLimits(league)
-            if (!limits) {
-                return {
-                    kind: 'invalid',
-                    title: 'Roster settings loading',
-                    message: 'League roster settings are still loading. Try again in a moment.',
-                }
-            }
+            if (!limits) return { kind: 'invalid', ...staleRosterLimitsNotice(null) }
             if (activeRosterCount(lineup) >= limits.rosterSize) {
                 return {
                     kind: 'overflow',
@@ -151,13 +145,7 @@ export function planLineupMove({
 
         if (taxiPlayer) {
             const limits = rosterLimits(league)
-            if (!limits) {
-                return {
-                    kind: 'invalid',
-                    title: 'Roster settings loading',
-                    message: 'League roster settings are still loading. Try again in a moment.',
-                }
-            }
+            if (!limits) return { kind: 'invalid', ...staleRosterLimitsNotice(null) }
             if (activeRosterCount(lineup) >= limits.rosterSize) {
                 return {
                     kind: 'overflow',
