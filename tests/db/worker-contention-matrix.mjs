@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { hold, liveFixture, must, quote, report, sql } from './worker-harness.mjs'
 
 const FOREGROUND_LOCK_TIMEOUT = '5ms'
+const FORECAST_QUEUE_FIX = 'live scoring must not upsert private.matchup_forecast_queue. Queue forecasts only when lineup, roster or score inputs change, in private.queue_changed_matchup_forecasts. History: 4cb9be93 removed game and stat topics from the forecast queue trigger; 32e76a43 only shortened the injury hold.'
 
 const live = (build) => ({ setup: liveFixture, ...build })
 
@@ -18,15 +19,16 @@ const cases = [
     name: 'live stat save while the injury worker holds a player row',
     holds: (f) => [`UPDATE public.players SET injury_status='Out' WHERE id=${quote(f.players[0])}`],
     run: (f) => `SELECT public.save_live_game_stats_atomic(${quote(f.ids.game)},${quote(f.provider)},${f.stats(11)}::jsonb,400)`,
-    fix: 'a points-only stat change must not lock public.players. Recount careers in private.recount_changed_player_careers only when an appearance or player-game identity changes.',
-    history: '32e76a43 fixed this after production live-poll lock timeouts',
+    fix: {
+      players: 'a points-only stat change must not lock public.players. Recount careers in private.recount_changed_player_careers only when an appearance or player-game identity changes. History: 32e76a43 fixed this after production live-poll lock timeouts.',
+      matchup_forecast_queue: FORECAST_QUEUE_FIX,
+    },
   }),
   live({
     name: 'live scoreboard save while an injury identity link is open',
     holds: (f) => [`SELECT public.link_player_sources_atomic('espn',${quote(JSON.stringify([{ provider_id: String(88000001), display_name: `Lock ${f.players[1]}`, nba_team: 'BOS', position: 'PG' }]))}::jsonb)`],
     run: (f) => `SELECT public.save_live_scoreboard_atomic(${quote(f.ids.game)},${quote(f.provider)},'InProgress',12,10,'Q1',400)`,
-    fix: 'a worker write must not hold a private.matchup_forecast_queue row that live scoring upserts. Queue forecast work as append-only hints that one drainer coalesces with SKIP LOCKED.',
-    history: '32e76a43 split the injury identity batch; the shared queue row is the remaining hot row',
+    fix: { matchup_forecast_queue: FORECAST_QUEUE_FIX },
   }),
   queue({
     name: 'duplicate work_enqueue while a lease update holds the active item',
@@ -35,8 +37,7 @@ const cases = [
     holds: (f) => [`UPDATE private.work_items SET lease_until=clock_timestamp()+interval '5 minutes' WHERE key=${quote(`${f.prefix}-running`)}`],
     run: (f) => `SELECT coalesce(private.work_enqueue('process-trades',${quote(`${f.prefix}-duplicate`)},clock_timestamp(),jsonb_build_object('test',${quote(f.prefix)}))::text,'skipped')`,
     expect: 'skipped',
-    fix: 'private.work_enqueue must return before INSERT ... ON CONFLICT when an active item has the same identity, so a duplicate never waits on a held lease row.',
-    history: '065807e6 fixed this after the 2026-10-28 dispatch stalls',
+    fix: 'private.work_enqueue must return before INSERT ... ON CONFLICT when an active item has the same identity, so a duplicate never waits on a held lease row. History: 065807e6 fixed this after the 2026-10-28 dispatch stalls.',
   }),
   queue({
     name: 'overlapping dispatch_work while another dispatcher holds its lock',
@@ -44,7 +45,7 @@ const cases = [
     run: () => 'SELECT public.dispatch_work()',
     expect: '0',
     within: 500,
-    fix: 'public.dispatch_work must take its advisory lock with pg_try_advisory_xact_lock and return 0 when another dispatcher holds it.',
+    fix: 'public.dispatch_work must take its advisory lock with pg_try_advisory_xact_lock and return 0 when another dispatcher holds it. History: 35edab57.',
   }),
   queue({
     name: 'scheduled dispatch while workers renew leases and the network queue is locked',
@@ -64,7 +65,7 @@ const cases = [
       'lockTimeouts',count(*) FILTER(WHERE key LIKE ${quote(`${f.prefix}-pending-%`)} AND last_error ILIKE '%lock timeout%'))
       FROM private.work_items`,
     expectAfter: '{"pending": 24, "running": 4, "lockTimeouts": 0}',
-    fix: 'a saturated dispatcher must stop claiming network work within its 5 s cron budget and leave pending items pending. Keep the running cap in private.work_claim and the loop limit in public.dispatch_work.',
+    fix: 'a saturated dispatcher must stop claiming network work within its 5 s cron budget and leave pending items pending. Keep the running cap in private.work_claim and the loop limit in public.dispatch_work at 4. History: f1c1f6ec lowered both from 8.',
   }),
 ]
 
@@ -78,6 +79,9 @@ const lockReason = (error) => {
   const context = error.split('\n').filter((line) => /^(CONTEXT|PL\/pgSQL function|SQL statement)/.test(line.trim()))
   return `${error.split('\n')[0]}${context.length ? ` (${context.slice(0, 3).map((line) => line.trim()).join('; ')})` : ''}`
 }
+
+const fixFor = (entry, detail) => typeof entry.fix === 'string' ? entry.fix
+  : entry.fix[detail.match(/relation "([^"]+)"/)?.[1]] ?? Object.values(entry.fix).join(' Or: ')
 
 const results = []
 for (const entry of cases) {
@@ -98,9 +102,9 @@ for (const entry of cases) {
         : entry.expect !== undefined && result.out.split('\n').at(-1) !== entry.expect ? `returned ${result.out}, expected ${entry.expect}`
           : after !== entry.expectAfter && after !== null ? `left ${after}, expected ${entry.expectAfter}`
             : `finished in ${Math.round(result.ms)} ms${timeout ? ` at lock_timeout ${timeout}` : ''}`
-    results.push({ name: entry.name, ok, detail, fix: entry.fix, history: entry.history })
+    results.push({ name: entry.name, ok, detail, fix: fixFor(entry, detail) })
   } catch (error) {
-    results.push({ name: entry.name, ok: false, detail: `setup failed: ${error.message.split('\n')[0]}`, fix: entry.fix, history: entry.history })
+    results.push({ name: entry.name, ok: false, detail: `setup failed: ${error.message.split('\n')[0]}`, fix: fixFor(entry, '') })
   } finally {
     for (const release of releases.reverse()) await release()
     fixture?.cleanup()

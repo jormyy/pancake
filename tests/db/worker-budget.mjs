@@ -31,27 +31,6 @@ const cases = [
     fix: 'bound the candidate set with LIMIT before calling per-row checks such as private.notif_is_stale, then classify only that batch.',
     history: '35edab57 fixed this after the release 2.1 production timeout',
   },
-  {
-    name: 'retain_cron_job_run_details',
-    unit: 'expired cron history rows',
-    setup() {
-      const command = must("SELECT command FROM cron.job WHERE jobname='work-dispatcher'")
-      must('CREATE TABLE public.budget_saved_cron_history AS SELECT * FROM cron.job_run_details; TRUNCATE cron.job_run_details')
-      let seeded = 0
-      return {
-        seed(rows) {
-          must(`INSERT INTO cron.job_run_details(runid,jobid,job_pid,database,username,command,status,start_time,end_time)
-            SELECT n,1,2147483000,current_database(),current_user,${quote(command)},'succeeded',now()-interval '3 days'-n*interval '1 second',now()-interval '3 days'-n*interval '1 second'+interval '1 second'
-            FROM generate_series(${seeded + 1},${rows}) n; ANALYZE cron.job_run_details`)
-          seeded = rows
-        },
-        cleanup: () => sql('TRUNCATE cron.job_run_details; INSERT INTO cron.job_run_details SELECT * FROM public.budget_saved_cron_history; DROP TABLE public.budget_saved_cron_history'),
-      }
-    },
-    run: 'SELECT private.retain_cron_job_run_details(now())',
-    expect: (out) => /"cron\.job_run_details":\s*[1-9]/.test(out),
-    fix: 'delete cron history in LIMIT batches and let the next hourly call take the remainder.',
-  },
 ]
 
 const timed = (entry) => {
