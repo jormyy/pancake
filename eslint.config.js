@@ -1,6 +1,7 @@
 // https://docs.expo.dev/guides/using-eslint/
 const { defineConfig } = require('eslint/config')
 const expoConfig = require('eslint-config-expo/flat')
+const gamePhase = require('./eslint/rules/game-phase')
 
 const rosterCapacityMessage = 'Read roster location and limits through lib/roster-capacity (rosterLocation/partitionRoster/rosterLimits); inline is_on_ir/is_on_taxi checks counted taxi players as active in PR #5.'
 const rosterCapacityNames = 'is_on_ir|is_on_taxi|roster_size|ir_slots|taxi_slots'
@@ -28,6 +29,12 @@ module.exports = defineConfig([
         rules: {
             'import/first': 'off',
         },
+    },
+    {
+        files: ['app/**/*.{ts,tsx}', 'components/**/*.{ts,tsx}', 'hooks/**/*.{ts,tsx}', 'contexts/**/*.{ts,tsx}', 'lib/**/*.{ts,tsx}', 'core/src/**/*.ts'],
+        ignores: ['core/src/live/phase.ts'],
+        plugins: { pancake: { rules: { 'game-phase': gamePhase } } },
+        rules: { 'pancake/game-phase': 'error' },
     },
     {
         files: ['app/**/*.{ts,tsx}', 'components/**/*.{ts,tsx}', 'hooks/**/*.{ts,tsx}', 'contexts/**/*.{ts,tsx}', 'lib/**/*.{ts,tsx}'],

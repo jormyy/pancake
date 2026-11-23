@@ -23,7 +23,7 @@ WITH context AS MATERIALIZED (
     g.live_scoreboard_elapsed_seconds,g.live_stats_elapsed_seconds
   FROM context c JOIN public.nba_games g ON g.season_year=c.season_year
     AND g.game_date BETWEEN GREATEST(c.week_start,c.today) AND c.week_end
-  WHERE public.is_regular_season_game_id(g.nba_game_id)
+  WHERE public.is_regular_season_game_id(g.nba_game_id) AND private.lineup_game_available(g.status,g.game_status_text)
 ), history AS (
   SELECT r.player_id,array_agg(public.projection_stat_fantasy_points(
     h.points,h.rebounds,h.assists,h.steals,h.blocks,h.three_pointers_made,h.turnovers,
@@ -42,7 +42,7 @@ WITH context AS MATERIALIZED (
 ), projections AS (
   SELECT d.game_date AS requested_date,p.player_id,p.projection_fantasy_points,p.projection_source_label,
     p.projection_fetched_at,p.projection_date,p.projection_is_fresh
-  FROM context c CROSS JOIN (SELECT DISTINCT game_date FROM games WHERE status NOT IN('Final','Postponed','Cancelled')) d
+  FROM context c CROSS JOIN (SELECT DISTINCT game_date FROM games WHERE status<>'Final') d
   CROSS JOIN LATERAL public.get_league_projection_rows(c.league_id,c.season_year,d.game_date,'today',
     ARRAY(SELECT player_id FROM roster),100,0) p
 )

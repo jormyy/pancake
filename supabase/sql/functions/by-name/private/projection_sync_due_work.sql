@@ -16,7 +16,7 @@ AS $$
   ), calendar AS (
     SELECT clock.*,min(game.game_time) AS first_tipoff FROM clock
     LEFT JOIN public.nba_games game ON game.game_date=clock.today AND game.season_year=clock.season_year
-      AND game.status NOT IN ('Cancelled','Postponed') AND public.is_regular_season_game_id(game.nba_game_id)
+      AND private.lineup_game_available(game.status,game.game_status_text) AND public.is_regular_season_game_id(game.nba_game_id)
     GROUP BY today,local_time,clock.season_year
   ), periods AS (
     SELECT *,today::text||CASE WHEN p_now>=first_tipoff-interval '1 hour' THEN ':pregame' ELSE ':08' END AS period

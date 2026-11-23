@@ -25,7 +25,7 @@ BEGIN
   SELECT COALESCE(array_agg(DISTINCT g.game_date ORDER BY g.game_date),'{}'::date[]) INTO v_dates
   FROM public.nba_games g WHERE g.season_year=c.season_year
     AND g.game_date BETWEEN GREATEST(c.week_start,v_today) AND c.week_end
-    AND public.is_regular_season_game_id(g.nba_game_id) AND g.status NOT IN('Final','Postponed','Cancelled');
+    AND public.is_regular_season_game_id(g.nba_game_id) AND g.status<>'Final' AND private.lineup_game_available(g.status,g.game_status_text);
   IF p_game_date IS NULL THEN
     INSERT INTO private.forecast_season_points AS stored(league_id,season_year,player_id,scoring_hash,source_revision,fantasy_points)
     SELECT c.league_id,c.season_year,a.player_id,c.scoring_hash,t.xmin::text,

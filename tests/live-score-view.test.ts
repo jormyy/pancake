@@ -120,11 +120,11 @@ it('counts a resolved game only once across exact and fallback identities', () =
 })
 
 it('preserves unavailable players while the rest of the matchup overlays', () => {
-    for (const status of ['Postponed', 'Canceled', 'Suspended']) {
+    for (const [status, game_status_text] of [['Scheduled', 'PPD - postponed'], ['Scheduled', 'Postponed'], ['Scheduled', 'Cancelled'], ['InProgress', 'Suspended']]) {
         const saved = home()
         saved.liveBasis![0].players.push({ ...saved.liveBasis![0].players[0], playerId: 'unavailable', nbaId: '11', gameId: '0022', team: 'LAL' })
         saved.liveGames = [...saved.todaysGames]
-        saved.todaysGames.push({ ...saved.todaysGames[0], id: 'unavailable-game', nba_game_id: '0022', home_team: 'LAL', away_team: 'GSW', status })
+        saved.todaysGames.push({ ...saved.todaysGames[0], id: 'unavailable-game', nba_game_id: '0022', home_team: 'LAL', away_team: 'GSW', status, game_status_text })
         const view = liveScoreView(saved, snapshot(), { points: 1 }, now)
         expect(view.matchup?.myPoints).toBe(104)
         expect(view.delayed).toBe(false)

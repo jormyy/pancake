@@ -1,5 +1,6 @@
 import { supabase } from './supabase.ts'
 import { toETDate } from './date.ts'
+import { gameAvailable, gamePhase } from './gamePhase.ts'
 import { isRegularSeasonGameId } from './gameId.ts'
 import { generateMatchups } from './matchupGeneration.ts'
 import { runBounded } from './runBounded.ts'
@@ -79,9 +80,7 @@ async function seasonCorrectionWindow(
     .from('nba_games').select('nba_game_id, game_date, status, game_status_text')
     .eq('season_year', season.season_year).gte('game_date', firstDate).lte('game_date', week.week_end)
     .order('id').range(from, to))
-  const dates = games.filter(game => isRegularSeasonGameId(game.nba_game_id)
-    && ['Scheduled', 'InProgress', 'Final'].includes(game.status)
-    && !/postpon|cancel|suspend|(^|[^a-z])ppd([^a-z]|$)/i.test(game.game_status_text ?? ''))
+  const dates = games.filter(game => isRegularSeasonGameId(game.nba_game_id) && gameAvailable(game))
     .map(game => game.game_date).sort()
   const lastDate = dates.at(-1) ?? week.week_end
   const elapsed = Date.parse(toETDate(referenceDate)) - Date.parse(lastDate) > 86_400_000
@@ -504,8 +503,8 @@ async function refreshUnavailableRegularSeason(
     .from('nba_games').select('nba_game_id,status,game_status_text,stats_synced_at')
     .eq('season_year', season.season_year).in('week_number', weekNumbers).order('id').range(from, to))
   const regularGames = games.filter((game) => isRegularSeasonGameId(game.nba_game_id))
-  const unavailable = (game: typeof regularGames[number]) => /postpon|cancel|suspend|(^|[^a-z])ppd([^a-z]|$)/i.test(game.game_status_text ?? '')
-  if (!regularGames.some(unavailable) || regularGames.some((game) => !unavailable(game) && (game.status !== 'Final' || !game.stats_synced_at))) return false
+  const phases = regularGames.map(gamePhase)
+  if (!phases.includes('unavailable') || phases.some((phase) => phase !== 'unavailable' && phase !== 'settled')) return false
   await syncScores(leagueId, referenceDate, { recoverStats: false })
   return true
 }

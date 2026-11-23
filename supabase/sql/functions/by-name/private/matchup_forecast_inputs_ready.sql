@@ -35,7 +35,7 @@ SELECT EXISTS(SELECT 1 FROM context) AND NOT EXISTS (
   SELECT 1 FROM context c CROSS JOIN roster r JOIN public.nba_games g ON g.season_year=c.season_year
     AND g.game_date BETWEEN GREATEST(c.week_start,c.today) AND c.week_end
   LEFT JOIN private.forecast_projection_inputs p ON p.matchup_id=c.id AND p.game_date=g.game_date
-  WHERE public.is_regular_season_game_id(g.nba_game_id) AND g.status NOT IN('Final','Postponed','Cancelled')
+  WHERE public.is_regular_season_game_id(g.nba_game_id) AND g.status<>'Final' AND private.lineup_game_available(g.status,g.game_status_text)
     AND (p.matchup_id IS NULL OR p.observed_date<>c.today OR p.revision<>c.projection_revision
       OR p.scoring_hash<>c.scoring_hash OR p.roster_hash<>r.fingerprint OR p.valid_until<=now())
 );

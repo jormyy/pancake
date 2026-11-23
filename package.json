@@ -70,7 +70,7 @@
     "check:surface-matrix": "node tests/e2e/surface-matrix.mjs",
     "check:source-recovery": "node tests/e2e/source-failure-recovery.mjs",
     "check:edge-functions": "node scripts/check-edge-functions.mjs",
-    "check:quality": "npm run lint:all && npm run typecheck && npm run typecheck:tests && npm run typecheck:e2e && npm run typecheck:harness-boundaries && npm run typecheck:core && npm run check:core-cjs && npm run check:dead-code && npm run check:edge-shared && npm run check:edge-function-inventory && npm run check:db-function-sources && npm run check:surface-matrix && npm run check:design-system",
+    "check:quality": "npm run lint:all && npm run lint:edge && npm run typecheck && npm run typecheck:tests && npm run typecheck:e2e && npm run typecheck:harness-boundaries && npm run typecheck:core && npm run check:core-cjs && npm run check:dead-code && npm run check:edge-shared && npm run check:edge-function-inventory && npm run check:db-function-sources && npm run check:db-source-rules && npm run check:surface-matrix && npm run check:design-system",
     "check:comprehensive": "npm run check:quality && npm run check:edge-functions && npm run check:database-types && npm run check:db-function-catalog",
     "test": "vitest run && node --test scripts/mutation/waivers/targets.test.mjs",
     "test:db:draft-goal": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/draft-goal-behavior.sql",
@@ -509,7 +509,9 @@
     "test:db:r10-tipoff-lock-order": "node tests/e2e/r10-tipoff-lock-order-db.mjs",
     "test:db:r6-floor-retry": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/r6-floor-retry.sql",
     "test:db:r6-floor-retry-red": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/r6-floor-retry-red.sql",
-    "test:db:r6-floor-lease": "node tests/e2e/r6-floor-lease-db.mjs"
+    "test:db:r6-floor-lease": "node tests/e2e/r6-floor-lease-db.mjs",
+    "lint:edge": "eslint --no-config-lookup -c eslint/edge.config.js supabase/functions --max-warnings=0",
+    "check:db-source-rules": "node scripts/db-source-rules/no-dead-postponed-status.mjs"
   },
   "dependencies": {
     "@expo-google-fonts/outfit": "^0.4.3",

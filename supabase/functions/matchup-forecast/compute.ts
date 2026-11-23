@@ -85,8 +85,7 @@ export function computeForecast(context: ForecastContext) {
   const averages = new Map((context.seasonAverages ?? []).map(row => [row.player_id, row.avg_fantasy_points]))
   const previous = new Map((context.previous?.games ?? []).map(row => [`${row.playerId}:${row.gameId}`, row]))
   const projections = new Map(context.projections.map(row => [`${row.player_id}:${row.requested_date}`, row]))
-  const relevantGames = context.games.filter(game => !['Postponed', 'Cancelled'].includes(game.status))
-  const playerGame = (player: Player, date: string) => relevantGames.find(game => game.game_date === date &&
+  const playerGame = (player: Player, date: string) => context.games.find(game => game.game_date === date &&
     (game.home_team === player.nba_team || game.away_team === player.nba_team))
   const projectionFor = (player: Player, game: Game) => {
     const isStarted = started(game, now)
@@ -108,7 +107,7 @@ export function computeForecast(context: ForecastContext) {
       ? { projection: average, source: 'Season average estimate', sourceAt: null }
       : { projection: 0, source: 'Zero estimate', sourceAt: null }
   }
-  for (const date of [...new Set(relevantGames.map(game => game.game_date))]) {
+  for (const date of [...new Set(context.games.map(game => game.game_date))]) {
     for (const team of context.teams) {
       const saved = context.lineups.filter(row => row.member_id === team.memberId && row.game_date === date)
       const roster = context.roster.filter(row => row.member_id === team.memberId && !row.is_on_ir && !row.is_on_taxi)
@@ -137,7 +136,7 @@ export function computeForecast(context: ForecastContext) {
     }
   }
   for (const player of context.roster) {
-    for (const game of relevantGames) {
+    for (const game of context.games) {
       if (game.home_team !== player.nba_team && game.away_team !== player.nba_team) continue
       if (!eligible.has(`${player.player_id}:${game.game_date}`) || game.status === 'Final') continue
       const fraction = remaining(game)
