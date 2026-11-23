@@ -77,6 +77,14 @@ Keep `VERCEL_ENV` non-production and `PANCAKE_FETCH_PREDECESSOR` unset for local
 For update checks, point `PANCAKE_PREVIOUS_RELEASE_ROOT` at a verified local export.
 This keeps local builds from contacting the live release.
 
+## Formal checks
+
+`npm run check:formal` runs every `tools/formal/*/check.mjs`; the `Formal` GitHub Actions workflow runs it on each pull request and push to `main`.
+It needs Java 11 or later; add `-- --install` once to fetch the pinned TLC jar into `~/.cache/pancake-formal`.
+The trade-roster-holds check fails when a covered file or the migration set differs from `tools/formal/trade-roster-holds/coverage.json`.
+`npm run test:db:trade-hold-model-replay` replays the model's failure paths on a disposable database.
+See the [formal-trade-roster-holds](../.claude/skills/formal-trade-roster-holds/SKILL.md) skill.
+
 ## Installed iPhone checks
 
 Use `node scripts/ios-sim/run.mjs --help` for repeatable simulator captures.
