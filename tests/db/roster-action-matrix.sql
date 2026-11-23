@@ -2,6 +2,14 @@ BEGIN;
 \ir rules-support.sql
 CREATE TEMP TABLE matrix_cells (action text, hold text, command text, observed text, PRIMARY KEY (action, hold));
 
+CREATE FUNCTION pg_temp.attempt(p_command text) RETURNS text LANGUAGE plpgsql AS $$
+BEGIN
+  EXECUTE p_command;
+  RETURN NULL;
+EXCEPTION WHEN OTHERS THEN RETURN SQLERRM;
+END;
+$$;
+
 CREATE FUNCTION pg_temp.observe(p_command text) RETURNS text LANGUAGE plpgsql AS $$
 BEGIN
   BEGIN
@@ -24,6 +32,8 @@ DECLARE
   free_agents uuid[] := ARRAY(SELECT gen_random_uuid() FROM generate_series(1,12));
   game_date date := (now() AT TIME ZONE 'America/New_York')::date + 1;
   accepted uuid;
+  ir_claim text;
+  taxi_claim text;
   h integer;
   r uuid;
 BEGIN
@@ -57,8 +67,8 @@ BEGIN
   PERFORM public.accept_trade_atomic(accepted,f.member_ids[3]);
   PERFORM pg_temp.check_rules((SELECT status='accepted' FROM public.trades WHERE id=accepted),'accepted trade holds its assets');
   PERFORM public.create_waiver_claim_atomic(f.league_id,f.member_ids[1],free_agents[1],active[3]);
-  PERFORM public.create_waiver_claim_atomic(f.league_id,f.member_ids[1],free_agents[2],ir[3]);
-  PERFORM public.create_waiver_claim_atomic(f.league_id,f.member_ids[1],free_agents[3],taxi[3]);
+  ir_claim := pg_temp.attempt(format('SELECT public.create_waiver_claim_atomic(%L,%L,%L,%L)',f.league_id,f.member_ids[1],free_agents[2],ir[3]));
+  taxi_claim := pg_temp.attempt(format('SELECT public.create_waiver_claim_atomic(%L,%L,%L,%L)',f.league_id,f.member_ids[1],free_agents[3],taxi[3]));
 
   FOR h IN 1..3 LOOP
     SELECT id INTO r FROM public.roster_players WHERE league_season_id=f.season_id AND player_id=active[h];
@@ -74,7 +84,11 @@ BEGIN
       ('trade_offer',holds[h],format('SELECT public.propose_trade_atomic(%L,%L,%L,%L,ARRAY[%L]::uuid[],ARRAY[%L]::uuid[],''{}'',''{}'')',
         f.league_id,f.season_id,f.member_ids[1],f.member_ids[2],active[h],partners[3]));
   END LOOP;
-  UPDATE matrix_cells SET observed=pg_temp.observe(command);
+  UPDATE matrix_cells SET command=NULL,observed='rejected the claim that places the hold: '||ir_claim
+    WHERE action='from_ir' AND hold='claim_reserved' AND ir_claim IS NOT NULL;
+  UPDATE matrix_cells SET command=NULL,observed='rejected the claim that places the hold: '||taxi_claim
+    WHERE action='from_taxi' AND hold='claim_reserved' AND taxi_claim IS NOT NULL;
+  UPDATE matrix_cells SET observed=pg_temp.observe(command) WHERE command IS NOT NULL;
 END;
 $$;
 
