@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261215220000",
+  "candidateVersion": "20261223130000",
   "common": {
     "functions": [
       {
@@ -2809,6 +2809,10 @@
     {
       "filename": "20261215220000_lineup_day_open.sql",
       "sha256": "49e157948c05c58450d915b79241f6a003a2221b89c18c2010af5d3dd45ebf26"
+    },
+    {
+      "filename": "20261223130000_single_pick_allocator.sql",
+      "sha256": "b8609ae876c2cec8d60fbdd11219eb006785337321cbd2d7d1996ad334e37c82"
     }
   ],
   "preMigration": {
