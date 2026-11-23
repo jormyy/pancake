@@ -102,7 +102,7 @@ This avoids contacting the live production release.
 | Injury dispatch | `npm run test:db:server-injury-schedule`, `npm run test:db:server-roster-dispatch-repairs` |
 | Atomic trade plans | `npm run test:db:trade-roster-plans`, `npm run test:db:trade-plan-concurrency` |
 | Multi-team trade acceptance | `npm run test:db:trade-acceptance-multi-team`, `npm run test:db:trade-acceptance-concurrency` |
-| Trade roster holds | `npm run test:db:trade-roster-holds`, `npm run test:db:trade-roster-holds-concurrency` |
+| Trade roster holds | `npm run test:db:trade-roster-holds`, `npm run test:db:trade-roster-holds-concurrency`, `npm run test:db:trade-hold-model-replay` |
 | Retained trade moves and reserved capacity | `npm run test:db:trade-plan-moves-capacity`, `npm run test:db:trade-waiver-concurrency` |
 | Continuous FAAB claims | `npm run test:db:continuous-faab`, `npm run test:db:continuous-faab-schedule` |
 | Historical trade revaluation | `npm run test:db:trade-historical-revaluation` |
@@ -121,6 +121,16 @@ This avoids contacting the live production release.
 | Auction turn notices, computed at commit from the settled draft | `npm run test:db:notif-t10-auction` |
 
 These checks use controlled fixtures. They do not establish hosted latency or physical-device behavior.
+
+## Formal checks
+
+`npm run check:formal:trade-roster-holds` model-checks the roster room that trade acceptances hold.
+It needs Java 11 or later and TLC 1.7.4; add `-- --install` once to fetch the pinned TLC jar into `~/.cache/pancake-formal`.
+It passes only when the current rule holds in every state and the pre-#187 rule still fails with its trace.
+The `Formal` GitHub Actions workflow runs `npm run check:formal`, which runs every `tools/formal/*/check.mjs`, on each pull request and push to `main`.
+It fails on purpose when a file listed in `tools/formal/trade-roster-holds/coverage.json` or the migration set differs from the one recorded there.
+`npm run test:db:trade-hold-model-replay` replays the model's failure paths on a disposable database.
+The [formal-trade-roster-holds](../.claude/skills/formal-trade-roster-holds/SKILL.md) skill explains the model and how to update it.
 
 ## Release feature checks
 

@@ -1803,5 +1803,5 @@ Every blocked write path raises `PT409` with `DETAIL` `{"code":"roster_hold","co
 `public.create_waiver_claim_atomic` and `public.edit_waiver_claim_atomic` now reject a claim that would consume a held spot.
 Waiver execution already converts the hold rejection into a clean `failed_roster` claim, so the next claim proceeds.
 The function catalog gains the new signatures; existing signatures, owners, and grants are unchanged.
-Run `npm run test:db:trade-roster-holds` and `npm run test:db:trade-roster-holds-concurrency` on a private stack.
+Run `npm run test:db:trade-roster-holds`, `npm run test:db:trade-roster-holds-concurrency`, and `npm run test:db:trade-hold-model-replay` on a private stack.
 Regenerate database types, the function catalog, and release attestations.
