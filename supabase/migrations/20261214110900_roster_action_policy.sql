@@ -1,5 +1,5 @@
 CREATE TYPE private.roster_action AS ENUM ('drop','lineup_move','to_ir','from_ir','to_taxi','from_taxi','transfer',
-  'trade_move','trade_offer','trade_plan','trade_accept','claim_add','claim_drop');
+  'trade_move','trade_settle_move','trade_offer','trade_plan','trade_accept','claim_add','claim_drop');
 CREATE TYPE private.roster_hold AS ENUM ('offer_pending','trade_reserved','claim_reserved');
 
 CREATE OR REPLACE FUNCTION private.roster_action_policy()
@@ -14,7 +14,8 @@ LANGUAGE sql IMMUTABLE SET search_path = '' AS $$
     ('to_taxi','offer_pending','PA004'),('to_taxi','trade_reserved','PA004'),('to_taxi','claim_reserved','PA004'),
     ('from_taxi','offer_pending','PA004'),('from_taxi','trade_reserved','PA004'),('from_taxi','claim_reserved','PA004'),
     ('transfer','offer_pending','PA004'),('transfer','trade_reserved','PA004'),('transfer','claim_reserved','PA004'),
-    ('trade_move','offer_pending',NULL),('trade_move','trade_reserved','PA004'),('trade_move','claim_reserved','PA004'),
+    ('trade_move','offer_pending',NULL),('trade_move','trade_reserved','PA004'),('trade_move','claim_reserved',NULL),
+    ('trade_settle_move','offer_pending',NULL),('trade_settle_move','trade_reserved','PA004'),('trade_settle_move','claim_reserved','PA004'),
     ('trade_offer','offer_pending',NULL),('trade_offer','trade_reserved','PA004'),('trade_offer','claim_reserved','PA004'),
     ('trade_plan','offer_pending','PA004'),('trade_plan','trade_reserved','PA004'),('trade_plan','claim_reserved','PA004'),
     ('trade_accept','offer_pending',NULL),('trade_accept','trade_reserved','PA004'),('trade_accept','claim_reserved',NULL),
@@ -145,7 +146,8 @@ BEGIN
   IF (OLD.league_id,OLD.league_season_id,OLD.member_id,OLD.player_id) IS DISTINCT FROM (NEW.league_id,NEW.league_season_id,NEW.member_id,NEW.player_id)
     OR OLD.is_on_ir IS DISTINCT FROM NEW.is_on_ir OR OLD.is_on_taxi IS DISTINCT FROM NEW.is_on_taxi THEN
     PERFORM private.assert_roster_action_allowed(CASE
-        WHEN v_completing_trade_id IS NOT NULL THEN 'trade_move'
+        WHEN v_completing_trade_id IS NOT NULL AND OLD.member_id<>NEW.member_id THEN 'trade_move'
+        WHEN v_completing_trade_id IS NOT NULL THEN 'trade_settle_move'
         WHEN (OLD.league_id,OLD.league_season_id,OLD.member_id,OLD.player_id) IS DISTINCT FROM (NEW.league_id,NEW.league_season_id,NEW.member_id,NEW.player_id) THEN 'transfer'
         WHEN NEW.is_on_ir AND NOT OLD.is_on_ir THEN 'to_ir'
         WHEN OLD.is_on_ir AND NOT NEW.is_on_ir THEN 'from_ir'

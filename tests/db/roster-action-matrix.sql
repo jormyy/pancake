@@ -37,11 +37,13 @@ BEGIN
         UNION ALL SELECT 'taxi',* FROM unnest(taxi) WITH ORDINALITY a(id,ordinal)
         UNION ALL SELECT 'partner',* FROM unnest(partners) WITH ORDINALITY a(id,ordinal)
         UNION ALL SELECT 'free',* FROM unnest(free_agents) WITH ORDINALITY a(id,ordinal)) roster;
+  PERFORM private.authorize_taxi_acquisition(f.league_id,f.season_id,f.member_ids[1],id,'draft',id) FROM unnest(taxi) id;
   INSERT INTO public.roster_players(league_id,league_season_id,member_id,player_id,acquired_via,is_on_ir,is_on_taxi)
     SELECT f.league_id,f.season_id,f.member_ids[1],id,'draft',kind='ir',kind='taxi'
       FROM (SELECT 'active' kind,unnest(active) id UNION ALL SELECT 'ir',unnest(ir) UNION ALL SELECT 'taxi',unnest(taxi)) roster;
   INSERT INTO public.roster_players(league_id,league_season_id,member_id,player_id,acquired_via)
-    VALUES(f.league_id,f.season_id,f.member_ids[2],partners[1],'draft'),(f.league_id,f.season_id,f.member_ids[3],partners[2],'draft');
+    VALUES(f.league_id,f.season_id,f.member_ids[2],partners[1],'draft'),(f.league_id,f.season_id,f.member_ids[3],partners[2],'draft'),
+      (f.league_id,f.season_id,f.member_ids[2],partners[3],'draft');
   INSERT INTO public.lineup_slot_templates(league_id,slot_type,slot_count)
     VALUES(f.league_id,'PG',3),(f.league_id,'SG',1),(f.league_id,'BE',10)
     ON CONFLICT(league_id,slot_type) DO UPDATE SET slot_count=EXCLUDED.slot_count;
@@ -69,8 +71,8 @@ BEGIN
       ('from_ir',holds[h],format('UPDATE public.roster_players SET is_on_ir=false WHERE league_season_id=%L AND player_id=%L',f.season_id,ir[h])),
       ('from_taxi',holds[h],format('UPDATE public.roster_players SET is_on_taxi=false WHERE league_season_id=%L AND player_id=%L',f.season_id,taxi[h])),
       ('claim_drop',holds[h],format('SELECT public.create_waiver_claim_atomic(%L,%L,%L,%L)',f.league_id,f.member_ids[1],free_agents[3+h],active[h])),
-      ('trade_offer',holds[h],format('SELECT public.propose_trade_atomic(%L,%L,%L,%L,ARRAY[%L]::uuid[],''{}''::uuid[],''{}'',''{}'')',
-        f.league_id,f.season_id,f.member_ids[1],f.member_ids[2],active[h]));
+      ('trade_offer',holds[h],format('SELECT public.propose_trade_atomic(%L,%L,%L,%L,ARRAY[%L]::uuid[],ARRAY[%L]::uuid[],''{}'',''{}'')',
+        f.league_id,f.season_id,f.member_ids[1],f.member_ids[2],active[h],partners[3]));
   END LOOP;
   UPDATE matrix_cells SET observed=pg_temp.observe(command);
 END;

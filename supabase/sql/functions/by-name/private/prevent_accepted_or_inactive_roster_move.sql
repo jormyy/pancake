@@ -38,7 +38,8 @@ BEGIN
   IF (OLD.league_id,OLD.league_season_id,OLD.member_id,OLD.player_id) IS DISTINCT FROM (NEW.league_id,NEW.league_season_id,NEW.member_id,NEW.player_id)
     OR OLD.is_on_ir IS DISTINCT FROM NEW.is_on_ir OR OLD.is_on_taxi IS DISTINCT FROM NEW.is_on_taxi THEN
     PERFORM private.assert_roster_action_allowed(CASE
-        WHEN v_completing_trade_id IS NOT NULL THEN 'trade_move'
+        WHEN v_completing_trade_id IS NOT NULL AND OLD.member_id<>NEW.member_id THEN 'trade_move'
+        WHEN v_completing_trade_id IS NOT NULL THEN 'trade_settle_move'
         WHEN (OLD.league_id,OLD.league_season_id,OLD.member_id,OLD.player_id) IS DISTINCT FROM (NEW.league_id,NEW.league_season_id,NEW.member_id,NEW.player_id) THEN 'transfer'
         WHEN NEW.is_on_ir AND NOT OLD.is_on_ir THEN 'to_ir'
         WHEN OLD.is_on_ir AND NOT NEW.is_on_ir THEN 'from_ir'
