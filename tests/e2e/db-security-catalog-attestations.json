@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261215150000",
+  "candidateVersion": "20261215160000",
   "common": {
     "functions": [
       {
@@ -2761,6 +2761,10 @@
     {
       "filename": "20261215150000_roster_action_policy.sql",
       "sha256": "d1e70c433238859048e76cfd05c9a0c0e5898b55d2cd93e3e9f3666b34148a4d"
+    },
+    {
+      "filename": "20261215160000_forecast_new_week_immediately.sql",
+      "sha256": "3816e7ecd08c9c0466e9406667a257381526dfcb06c1da03822af7be11338aa9"
     }
   ],
   "preMigration": {
