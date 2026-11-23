@@ -36,6 +36,7 @@ import { invalidateSeasonCache } from '@/lib/shared/season'
 import { invalidateWeekNumberCache } from '@/lib/shared/week'
 import { readStoredAuthState } from '@/lib/supabase'
 import { sessionGeneration } from '@/lib/session-cache-registry'
+import { useScope, type ScopeTicket } from '@/hooks/use-scope'
 import { readLineupSnapshot, saveLineupSnapshot, discardLineupSnapshot, updateLineupOptimizerSnapshot, type LineupSnapshot } from '@/lib/lineup/snapshot'
 import { showAlert } from '@/lib/alert'
 import { rosterLimits } from '@/lib/roster-capacity'
@@ -52,7 +53,6 @@ import { useGoBack } from '@/components/ui/useGoBack'
 
 const TWO_COLUMN_MIN_WIDTH = 940
 
-// Memoized row component that only re-renders when its props change
 const StarterRow = memo(function StarterRow({
     slot,
     index,
@@ -126,7 +126,6 @@ const StarterRow = memo(function StarterRow({
     )
 })
 
-// Memoized bench player row component
 const BenchRow = memo(function BenchRow({
     player,
     index,
@@ -249,19 +248,16 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
     const [lineupLoading, setLineupLoading] = useState(true)
     const [lineupRefreshing, setLineupRefreshing] = useState(false)
     const [lineupError, setLineupError] = useState<string | null>(null)
-    const lineupLoadSeqRef = useRef(0)
     const preselectedKeyRef = useRef<string | null>(null)
     const ownerKey = snapshotScope ? `${snapshotScope.ownerId}:${snapshotScope.memberId}:${snapshotScope.leagueId}:${snapshotScope.day}` : null
     const activeOwnerRef = useRef(ownerKey)
-    if (activeOwnerRef.current !== ownerKey) {
-        activeOwnerRef.current = ownerKey
-        lineupLoadSeqRef.current += 1
-    }
+    activeOwnerRef.current = ownerKey
+    const loadScope = useScope(ownerKey)
     const selectedDateRef = useRef(selectedDate)
     selectedDateRef.current = selectedDate
     const [savedSnapshot, setSavedSnapshot] = useState(true)
     const [contextAuthority, setContextAuthority] = useState(false)
-    const loadPendingRef = useRef<{ key: string; requestId: number; promise: Promise<boolean> } | null>(null)
+    const loadPendingRef = useRef<{ key: string; ticket: ScopeTicket; promise: Promise<boolean> } | null>(null)
     const [dataOwnerKey, setDataOwnerKey] = useState(ownerKey)
     const dataOwnerRef = useRef(dataOwnerKey)
     dataOwnerRef.current = dataOwnerKey
@@ -274,10 +270,8 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
     const freshness = !online ? 'offline' as const : liveData ? 'fresh' as const : 'refreshing' as const
     const { ready: gamesReady, liveTeams } = useMemo(() => getGameDisplayState(todaysGames, freshness), [todaysGames, freshness])
 
-    const requestIsCurrent = useCallback((requestId: number, generation: number) =>
-        activeOwnerRef.current === ownerKey && lineupLoadSeqRef.current === requestId && browserReadsAllowed()
-        && currentDay === todayLeague(timezone) && generation === sessionGeneration() && readStoredAuthState().session?.user.id === userId,
-    [ownerKey, userId, currentDay, timezone])
+    const readAllowed = useCallback(() => browserReadsAllowed() && currentDay === todayLeague(timezone) && readStoredAuthState().session?.user.id === userId,
+        [userId, currentDay, timezone])
 
     const applySnapshot = useCallback((value: Pick<LineupSnapshot, 'context' | 'date' | 'days' | 'starters' | 'bench' | 'benchSlots' | 'ir' | 'taxi' | 'optimizerEnabled'>, saved: boolean) => {
         setDataOwnerKey(ownerKey)
@@ -324,11 +318,9 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
         if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return Promise.resolve(false)
         const wanted = requestedDate ?? (dataOwnerRef.current === ownerKey ? selectedDateRef.current : currentDay)
         const pendingKey = `${ownerKey}:${sessionGeneration()}:${online}:${wanted}:${leagueRevision}`
-        // Join a pending load only while it is still the newest request; a load that a later
-        // request (such as going offline) superseded will discard its result.
         const joinable = loadPendingRef.current
-        if (joinable?.key === pendingKey && joinable.requestId === lineupLoadSeqRef.current) return joinable.promise
-        const requestId = ++lineupLoadSeqRef.current
+        if (joinable?.key === pendingKey && joinable.ticket.live()) return joinable.promise
+        const ticket = loadScope.latest(readAllowed)
         const generation = sessionGeneration()
         const cached = readLineupSnapshot(snapshotScope, wanted)
         if (cached) applySnapshot(cached, true)
@@ -352,40 +344,37 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
         const task = (async () => {
             try {
                 const lineup = await readScreenView<LineupView>(screenScope('lineup', snapshotScope.leagueId, snapshotScope.memberId, { date: wanted }, snapshotScope.ownerId))
-                if (!requestIsCurrent(requestId, generation)) return false
-                setLiveView({ owner: ownerKey, value: lineup })
                 const lineupCtx = { seasonId: lineup.context.seasonId!, seasonYear: lineup.context.seasonYear, weekNumber: lineup.context.weekNumber ?? 1, today: lineup.context.today }
-                const days = lineup.weekDays
                 const date = lineup.date
-                const optimizerEnabled = lineup.optimizer?.enabled ?? false
-                if (!requestIsCurrent(requestId, generation)) return false
-                const value = { context: lineupCtx, date, days, starters: lineup.starters, bench: lineup.bench, benchSlots: lineup.benchSlots, ir: lineup.ir, taxi: lineup.taxi, optimizerEnabled }
-                saveLineupSnapshot(snapshotScope, generation, value)
-                applySnapshot(value, false)
-                setContextAuthority(true)
-                lastReadRef.current = { ownerKey, generation, date, at: Date.now(), leagueRevision, streamRevision: leagueSnapshotRevision(snapshotScope.leagueId, 'lineup') }
-                return true
+                const value = { context: lineupCtx, date, days: lineup.weekDays, starters: lineup.starters, bench: lineup.bench, benchSlots: lineup.benchSlots, ir: lineup.ir, taxi: lineup.taxi, optimizerEnabled: lineup.optimizer?.enabled ?? false }
+                return ticket.commit(() => {
+                    setLiveView({ owner: ownerKey, value: lineup })
+                    saveLineupSnapshot(snapshotScope, generation, value)
+                    applySnapshot(value, false)
+                    setContextAuthority(true)
+                    lastReadRef.current = { ownerKey, generation, date, at: Date.now(), leagueRevision, streamRevision: leagueSnapshotRevision(snapshotScope.leagueId, 'lineup') }
+                })
             } catch (error) {
-                if (requestIsCurrent(requestId, generation)) {
+                ticket.commit(() => {
                     lastReadRef.current = null
                     failedLoad(error)
-                }
+                })
                 return false
             } finally {
-                if (requestIsCurrent(requestId, generation)) { setLineupLoading(false); setLineupRefreshing(false) }
+                ticket.commit(() => { setLineupLoading(false); setLineupRefreshing(false) })
             }
         })()
-        const pending = { key: pendingKey, requestId, promise: task }
+        const pending = { key: pendingKey, ticket, promise: task }
         loadPendingRef.current = pending
         void task.finally(() => {
             if (loadPendingRef.current !== pending) return
             loadPendingRef.current = null
             const lastRead = lastReadRef.current
             if (lastRead?.ownerKey === ownerKey && lastRead.generation === generation && lastRead.at === 0
-                && requestIsCurrent(requestId, generation)) void load(selectedDateRef.current)
+                && ticket.live()) void load(selectedDateRef.current)
         })
         return task
-    }, [snapshotScope, ownerKey, online, currentDay, applySnapshot, requestIsCurrent, failedLoad, leagueRevision, missingContextPending, missingContextError])
+    }, [snapshotScope, ownerKey, online, currentDay, applySnapshot, loadScope, readAllowed, failedLoad, leagueRevision, missingContextPending, missingContextError])
 
     useEffect(() => {
         if (!snapshotScope) return
@@ -406,12 +395,11 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
         leagueSnapshotRef.current = leagueRevision
         void load()
     }, [load, online, currentDay, leagueId, leagueRevision])
-    useEffect(() => () => { lineupLoadSeqRef.current += 1 }, [])
     useEffect(() => {
         const refresh = () => {
             if (!browserReadsAllowed()) {
                 if (loadPendingRef.current) {
-                    lineupLoadSeqRef.current += 1
+                    loadScope.supersede()
                     loadPendingRef.current = null
                     lastReadRef.current = null
                     setContextAuthority(false)
@@ -443,7 +431,7 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
             window.removeEventListener('offline', refresh)
             document.removeEventListener('visibilitychange', refresh)
         }
-    }, [currentDay, load, leagueId, ownerKey, leagueRevision, timezone])
+    }, [currentDay, load, loadScope, leagueId, ownerKey, leagueRevision, timezone])
 
     const ownsLineup = dataOwnerKey === ownerKey
     const visibleCtx = ownsLineup ? ctx : null
@@ -476,17 +464,8 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
     } : null
     const actionContext = readOnly ? null : actionOwner
     const optimizerOwner = actionOwner ? `${ownerKey}:${actionOwner.seasonId}` : null
-    const optimizerOwnerRef = useRef(optimizerOwner)
-    const optimizerRequestRef = useRef(0)
-    if (optimizerOwnerRef.current !== optimizerOwner) {
-        optimizerOwnerRef.current = optimizerOwner
-        optimizerRequestRef.current += 1
-    }
+    const optimizerScope = useScope(optimizerOwner)
     useEffect(() => { setOptimizerSaving(false) }, [optimizerOwner])
-    useEffect(() => () => { optimizerRequestRef.current += 1 }, [])
-    const optimizerRequestIsCurrent = (requestId: number, generation: number) =>
-        optimizerRequestRef.current === requestId && optimizerOwnerRef.current === optimizerOwner
-        && generation === sessionGeneration() && readStoredAuthState().session?.user.id === userId
     const lineupForActions = useMemo(
         () => visibleCtx ? { starters: visibleStarters, bench: visibleBench } : null,
         [visibleBench, visibleCtx, visibleStarters],
@@ -593,51 +572,22 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
         await load(date)
     }
 
-    async function handleEnableSeasonOptimizer() {
+    async function changeSeasonOptimizer(enabled: boolean) {
         if (!actionContext) return
-        const requestId = ++optimizerRequestRef.current
+        const ticket = optimizerScope.latest(() => readStoredAuthState().session?.user.id === userId)
         const generation = sessionGeneration()
         setOptimizerSaving(true)
         try {
-            await setLineupOptimizerEnabled(
-                actionContext.memberId,
-                actionContext.leagueId,
-                actionContext.seasonId,
-                true,
-            )
-            if (optimizerRequestIsCurrent(requestId, generation)) {
-                if (snapshotScope) updateLineupOptimizerSnapshot(snapshotScope, generation, actionContext.seasonId, true)
-                setSeasonOptimizerEnabled(true)
+            await setLineupOptimizerEnabled(actionContext.memberId, actionContext.leagueId, actionContext.seasonId, enabled)
+            ticket.commit(() => {
+                if (snapshotScope) updateLineupOptimizerSnapshot(snapshotScope, generation, actionContext.seasonId, enabled)
+                setSeasonOptimizerEnabled(enabled)
                 void refreshIrNotices()
-            }
+            })
         } catch (e) {
-            if (optimizerRequestIsCurrent(requestId, generation)) showAlert('Auto-set daily failed', getErrorMessage(e))
+            ticket.commit(() => showAlert('Auto-set daily failed', getErrorMessage(e)))
         } finally {
-            if (optimizerRequestIsCurrent(requestId, generation)) setOptimizerSaving(false)
-        }
-    }
-
-    async function handleDisableSeasonOptimizer() {
-        if (!actionContext) return
-        const requestId = ++optimizerRequestRef.current
-        const generation = sessionGeneration()
-        setOptimizerSaving(true)
-        try {
-            await setLineupOptimizerEnabled(
-                actionContext.memberId,
-                actionContext.leagueId,
-                actionContext.seasonId,
-                false,
-            )
-            if (optimizerRequestIsCurrent(requestId, generation)) {
-                if (snapshotScope) updateLineupOptimizerSnapshot(snapshotScope, generation, actionContext.seasonId, false)
-                setSeasonOptimizerEnabled(false)
-                void refreshIrNotices()
-            }
-        } catch (e) {
-            if (optimizerRequestIsCurrent(requestId, generation)) showAlert('Auto-set daily failed', getErrorMessage(e))
-        } finally {
-            if (optimizerRequestIsCurrent(requestId, generation)) setOptimizerSaving(false)
+            ticket.commit(() => setOptimizerSaving(false))
         }
     }
 
@@ -686,7 +636,7 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
                 <LineupControls
                     automatic={seasonOptimizerEnabled}
                     automaticDisabled={readOnly || optimizerSaving || pinSaving}
-                    onAutomaticChange={(enabled) => { void (enabled ? handleEnableSeasonOptimizer() : handleDisableSeasonOptimizer()) }}
+                    onAutomaticChange={(enabled) => { void changeSeasonOptimizer(enabled) }}
                 />
             </View>
 
@@ -700,7 +650,6 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
                 Tap a player, then a slot or another player to swap. Players whose games have started stay in place.
             </Text>
 
-            {/* Day selector */}
             {weekDays.length > 0 && (
                 <DaySelector timezone={currentLeague?.timezone} days={weekDays} selectedDate={selectedDate} onSelect={handleDaySelect} compact={compactDays} />
             )}
@@ -730,7 +679,6 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
                 <View style={[styles.columns, twoColumn && styles.columnsWide]}>
                 {visibleStarters.length > 0 ? (
                 <View style={[styles.column, twoColumn && styles.columnWide]}>
-                {/* Starters */}
                 <SectionBand variant="plain" label="Starters" style={styles.firstSectionLabel} />
                 <MotionView style={styles.card} preset="rise">
                     {visibleStarters.map((slot, i) => (
