@@ -24,7 +24,6 @@ DECLARE
   v_member_id        uuid;
   v_member_count     int;
   v_league_season_id uuid;
-  v_season_year      int;
   v_priority         int;
 BEGIN
   IF v_user_id IS NULL THEN
@@ -76,8 +75,8 @@ BEGIN
       USING ERRCODE = 'P0001';
   END IF;
 
-  SELECT id, season_year
-  INTO   v_league_season_id, v_season_year
+  SELECT id
+  INTO   v_league_season_id
   FROM   public.league_seasons
   WHERE  league_id = v_league.id
     AND  is_current = true;
@@ -99,11 +98,7 @@ BEGIN
   INSERT INTO public.waiver_priorities (league_id, league_season_id, member_id, priority)
   VALUES (v_league.id, v_league_season_id, v_member_id, v_priority);
 
-  INSERT INTO public.draft_picks (league_id, season_year, round, original_owner_id, current_owner_id)
-  SELECT v_league.id, year_value, round_value, v_member_id, v_member_id
-  FROM generate_series(v_season_year, v_season_year + v_league.future_pick_years - 1) AS year_value
-  CROSS JOIN generate_series(1, 3) AS round_value
-  ON CONFLICT (league_id, season_year, round, original_owner_id) DO NOTHING;
+  PERFORM private.reconcile_future_picks(v_league.id);
 
   __request_result := jsonb_build_object(
     'id',     v_league.id,

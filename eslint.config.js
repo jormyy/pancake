@@ -4,6 +4,7 @@ const expoConfig = require('eslint-config-expo/flat')
 
 const rosterCapacityMessage = 'Read roster location and limits through lib/roster-capacity (rosterLocation/partitionRoster/rosterLimits); inline is_on_ir/is_on_taxi checks counted taxi players as active in PR #5.'
 const rosterCapacityNames = 'is_on_ir|is_on_taxi|roster_size|ir_slots|taxi_slots'
+const pickYears = require('./eslint/rules/pick-years')
 
 module.exports = defineConfig([
     expoConfig,
@@ -28,6 +29,11 @@ module.exports = defineConfig([
         rules: {
             'import/first': 'off',
         },
+    },
+    {
+        files: ['lib/trade*.ts', 'lib/rookieDraft.ts', 'lib/draft*.ts', 'lib/dynasty*.ts', 'components/trades/**/*.{ts,tsx}', 'components/league/**/*.{ts,tsx}', 'components/roster/**/*.{ts,tsx}', 'app/**/*{draft,trade,pick}*.{ts,tsx}', 'hooks/**/*{draft,trade,pick,dynasty}*.{ts,tsx}'],
+        plugins: { pancake: { rules: { 'pick-years': pickYears } } },
+        rules: { 'pancake/pick-years': 'error' },
     },
     {
         files: ['app/**/*.{ts,tsx}', 'components/**/*.{ts,tsx}', 'hooks/**/*.{ts,tsx}', 'contexts/**/*.{ts,tsx}', 'lib/**/*.{ts,tsx}'],

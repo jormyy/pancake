@@ -5,26 +5,27 @@
 CREATE OR REPLACE FUNCTION private.reconcile_future_picks(p_league_id uuid)
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 DECLARE
-  v_year int;
-  v_years smallint;
+  v_rounds constant int := 3;
+  v_first int;
+  v_last int;
   v_reference record;
   v_predicate text := '';
 BEGIN
-  SELECT league.future_pick_years,season.season_year INTO v_years,v_year
-  FROM public.leagues league JOIN public.league_seasons season ON season.league_id=league.id AND season.is_current
-  WHERE league.id=p_league_id FOR UPDATE OF league;
-  IF NOT FOUND THEN RETURN; END IF;
+  PERFORM 1 FROM public.leagues WHERE id=p_league_id FOR UPDATE;
+  SELECT window_years.first_draft_year,window_years.last_draft_year INTO v_first,v_last
+  FROM private.future_pick_window(p_league_id) window_years;
+  IF v_first IS NULL THEN RETURN; END IF;
 
   INSERT INTO public.draft_picks(league_id,season_year,round,original_owner_id,current_owner_id)
   SELECT p_league_id,year_value,round_value,member.id,member.id
   FROM public.league_members member
-  CROSS JOIN generate_series(v_year,v_year+v_years-1) year_value
-  CROSS JOIN generate_series(1,3) round_value
+  CROSS JOIN generate_series(v_first,v_last) year_value
+  CROSS JOIN generate_series(1,v_rounds) round_value
   WHERE member.league_id=p_league_id
   ON CONFLICT(league_id,season_year,round,original_owner_id) DO NOTHING;
 
   PERFORM 1 FROM public.draft_picks pick
-  WHERE pick.league_id=p_league_id AND pick.season_year>v_year+v_years-1
+  WHERE pick.league_id=p_league_id AND pick.season_year>v_last
     AND pick.current_owner_id=pick.original_owner_id AND NOT pick.is_used
     AND pick.used_at IS NULL AND pick.rookie_draft_id IS NULL
   ORDER BY pick.id FOR UPDATE;
@@ -44,6 +45,6 @@ BEGIN
     AND pick.current_owner_id=pick.original_owner_id AND NOT pick.is_used AND pick.used_at IS NULL AND pick.rookie_draft_id IS NULL
     AND NOT EXISTS(SELECT 1 FROM public.league_activity activity WHERE activity.league_id=pick.league_id
       AND activity.metadata->>''pick_id''=pick.id::text)' || v_predicate
-    USING p_league_id,v_year+v_years-1;
+    USING p_league_id,v_last;
 END;
 $$;

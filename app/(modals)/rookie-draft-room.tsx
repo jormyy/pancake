@@ -17,6 +17,7 @@ import { ScreenFrame } from '@/components/ui/ScreenFrame'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useLeagueContext } from '@/contexts/league-context'
 import { type RookieProspect } from '@/lib/rookieDraft'
+import { draftYearForSeason, leagueSeasonYear } from '@/lib/picks'
 import { breakpoints, colors, controlSize, fontSize, fontWeight, layout, radii, scrim, spacing, table, textStyles, uiColors, lineHeight } from '@/constants/tokens'
 import { MotionPressable } from '@/components/Motion'
 import { showSuccess } from '@/lib/alert'
@@ -135,7 +136,7 @@ export default function RookieDraftRoomScreen() {
     const canUsePauseControl = !canCommissionerPick
     const pickTimerExpired =
         draft.status === 'in_progress' && !!nextPick?.timerExpiresAt && secondsLeft === 0
-    const draftTitle = `${draft.seasonYear == null ? '' : `${draft.seasonYear - 1} `}${draft.isMock ? 'Mock Rookie Draft' : 'Rookie Draft'}`
+    const draftTitle = `${draft.seasonYear == null ? '' : `${draftYearForSeason(leagueSeasonYear(draft.seasonYear))} `}${draft.isMock ? 'Mock Rookie Draft' : 'Rookie Draft'}`
 
     const isPending = draft.status === 'pending'
     const totalPicks = picks.length

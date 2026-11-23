@@ -3,6 +3,7 @@ import { tradeHarness, tradePayload, blockPayload } from '../helpers/trade-view-
 import { trade } from '../helpers/fixtures'
 import { act } from 'react-test-renderer'
 import { beforeEach, expect, it, vi } from 'vitest'
+import { storedDraftYear } from '@/lib/picks'
 
 const mutations = vi.hoisted(() => ({ add: vi.fn(), remove: vi.fn() }))
 vi.mock('@/lib/trades', async original => ({ ...await original<typeof import('@/lib/trades')>(), addTradeBlockItem: mutations.add, removeTradeBlockItem: mutations.remove }))
@@ -77,7 +78,7 @@ it('keeps block listings, roster and averages when the complete view refresh fai
 })
 it('retains a saved mutation when its following view refresh fails', async () => {
     await h.render({ tab: 'block' }); boundary.read.mockRejectedValueOnce(new Error('refresh unavailable'))
-    await act(async () => { await h.block.addPick({ kind: 'pick', pickId: 'pick', seasonYear: 2027, round: 1, originalTeamName: 'Own' }) })
+    await act(async () => { await h.block.addPick({ kind: 'pick', pickId: 'pick', seasonYear: storedDraftYear(2027), round: 1, originalTeamName: 'Own' }) })
     expect(mutations.add).toHaveBeenCalledOnce()
     expect(h.block.actionError).toBeNull()
     expect(h.block.error).toBe('refresh unavailable')
@@ -86,7 +87,7 @@ it('serializes block mutations and refreshes both successful writes', async () =
     await h.render({ tab: 'block' }); const first = held<void>()
     mutations.add.mockReturnValueOnce(first.promise)
     let one!: Promise<void>, two!: Promise<void>
-    const pick = { kind: 'pick' as const, pickId: 'pick', seasonYear: 2027, round: 1, originalTeamName: 'Own' }
+    const pick = { kind: 'pick' as const, pickId: 'pick', seasonYear: storedDraftYear(2027), round: 1, originalTeamName: 'Own' }
     await act(async () => { one = h.block.addPick(pick); two = h.block.addPick({ ...pick, pickId: 'next' }) })
     expect(mutations.add).toHaveBeenCalledOnce()
     await act(async () => { first.resolve(); await one; await two })
@@ -96,7 +97,7 @@ it('serializes block mutations and refreshes both successful writes', async () =
 it('does not refresh after a mutation outlives its owner', async () => {
     await h.render({ tab: 'block' }); const first = held<void>(); mutations.add.mockReturnValueOnce(first.promise)
     let request!: Promise<void>
-    await act(async () => { request = h.block.addPick({ kind: 'pick', pickId: 'pick', seasonYear: 2027, round: 1, originalTeamName: 'Own' }) })
+    await act(async () => { request = h.block.addPick({ kind: 'pick', pickId: 'pick', seasonYear: storedDraftYear(2027), round: 1, originalTeamName: 'Own' }) })
     await h.render({ tab: 'block', member: 'next' }); const reads = boundary.read.mock.calls.length
     await act(async () => { first.resolve(); await request })
     expect(boundary.read).toHaveBeenCalledTimes(reads)

@@ -3,7 +3,7 @@ import { readAssetLocks } from '@/lib/locked-assets'
 import { useLeagueTimezone } from '@/hooks/use-league-timezone'
 import { PendingMutationBadge } from '@/components/PendingMutationBadge'
 import { SectionBand } from '@/components/ui/SectionBand'
-import { pickLabel, draftYear } from '@/lib/picks'
+import { pickLabel } from '@/lib/picks'
 import { useUnsentFormUpdate } from '@/hooks/use-unsent-form-update'
 import { isTaxiEligible } from '@pancake/core'
 import { PlayerEligibilityContext } from '@/contexts/player-eligibility-context'
@@ -232,7 +232,7 @@ export const RosterPickItem = memo(function RosterPickItem({
         <View><MotionView style={styles.row} preset="rise">
             <View style={styles.pickCircle}>
                 <Text style={styles.pickCircleText}>
-                    &apos;{String(draftYear(pick.seasonYear)).slice(2)}
+                    &apos;{String(pick.seasonYear).slice(2)}
                 </Text>
             </View>
             <View style={styles.info}>

@@ -7,6 +7,7 @@ import { TradeAssetColumn } from '@/components/trades/TradeAssetColumn'
 import { TradeCard } from '@/components/trades/TradeCard'
 import { readPlayerHeader, tradePlayerDetailRoute } from '@/components/player/navigation'
 import { rosterPlayer, trade } from '../../helpers/fixtures'
+import { storedDraftYear } from '@/lib/picks'
 
 const state = vi.hoisted(() => ({ locks: [] as unknown[], loaded: true }))
 vi.mock('@/hooks/use-auth', () => ({ useAuth: () => ({ user: { id: 'user' } }) }))
@@ -102,7 +103,7 @@ it('retains the details control without enclosing any player controls', async ()
 
 it('keeps a draft pick row opening trade details while players open stats', async () => {
     const open = vi.fn()
-    const offer = trade({ routedItems: [{ kind: 'pick', pickId: 'pick', seasonYear: 2028, round: 1, originalTeamName: 'Team A', fromMemberId: 'member-a', toMemberId: 'member-b' }] })
+    const offer = trade({ routedItems: [{ kind: 'pick', pickId: 'pick', seasonYear: storedDraftYear(2028), round: 1, originalTeamName: 'Team A', fromMemberId: 'member-a', toMemberId: 'member-b' }] })
     await act(async () => { tree = create(React.createElement(TradeCard, {
         trade: offer, myMemberId: offer.proposerMemberId, tab: 'offers', acting: false,
         onAccept: vi.fn(), onReject: vi.fn(), onVeto: vi.fn(), onWithdraw: vi.fn(), onAnalyze: vi.fn(), onOpen: open,

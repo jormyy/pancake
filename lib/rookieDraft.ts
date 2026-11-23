@@ -1,3 +1,4 @@
+import type { DraftYear } from '@/lib/picks'
 import { validateRookieTimerSeconds } from '@/lib/draft-options'
 import { supabase } from '@/lib/supabase'
 import { RealtimeChannel } from '@supabase/supabase-js'
@@ -64,7 +65,7 @@ export type RookieProspect = {
 
 export type LeaguePickItem = {
     id: string
-    seasonYear: number
+    seasonYear: DraftYear
     round: number
     isUsed: boolean
     originalOwnerMemberId: string

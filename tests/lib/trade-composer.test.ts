@@ -12,6 +12,7 @@ import {
 import type { Trade } from '@/lib/trades'
 import { endOfETDayUTC } from '@/lib/shared/dates'
 import { MAX_TRADE_EXPIRATION_DAYS, MAX_TRADE_FAAB_AMOUNT, MAX_TRADE_NOTES_BYTES } from '@pancake/core'
+import { storedDraftYear } from '@/lib/picks'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const NOW_MS = Date.parse('2026-01-01T00:00:00.000Z')
@@ -47,9 +48,9 @@ function trade(overrides: Partial<Trade> = {}): Trade {
         participants: [],
         routedItems: [
             { kind: 'player', playerId: 'p-offer', playerName: 'Offer Player', position: 'G', nbaTeam: 'LAL', fromMemberId: 'proposer', toMemberId: 'recipient' },
-            { kind: 'pick', pickId: 'pick-offer', seasonYear: 2028, round: 1, originalTeamName: 'A', fromMemberId: 'proposer', toMemberId: 'recipient' },
+            { kind: 'pick', pickId: 'pick-offer', seasonYear: storedDraftYear(2028), round: 1, originalTeamName: 'A', fromMemberId: 'proposer', toMemberId: 'recipient' },
             { kind: 'player', playerId: 'p-request', playerName: 'Request Player', position: 'F', nbaTeam: 'BOS', fromMemberId: 'recipient', toMemberId: 'proposer' },
-            { kind: 'pick', pickId: 'pick-request', seasonYear: 2029, round: 2, originalTeamName: 'B', fromMemberId: 'recipient', toMemberId: 'proposer' },
+            { kind: 'pick', pickId: 'pick-request', seasonYear: storedDraftYear(2029), round: 2, originalTeamName: 'B', fromMemberId: 'recipient', toMemberId: 'proposer' },
         ],
         ...overrides,
     }
