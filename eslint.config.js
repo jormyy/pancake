@@ -18,6 +18,7 @@ const sourceTextContracts = [
     'tests/release-history-attestations.test.ts',
     'tests/e2e-attestation-head.test.ts',
     'tests/helpers/attested-migrations.ts',
+    'tests/database-types-parity.test.ts',
 ]
 
 const rulesDirectory = path.join(__dirname, 'eslint/rules')
