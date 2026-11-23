@@ -42,10 +42,19 @@ Stop the private stack before removing its generated `supabase/.temp/start-secre
 The [layout setup](../tests/e2e/layout-stability-README.md) generates local-only environment and seed files outside the checkout.
 The [simulator](../scripts/season-sim/README.md) and [profiler](../scripts/bench/README.md) require their own fixed targets.
 
+## Merge gate
+
+`npm run check:gate` is the one list of merge checks.
+CI runs it on every pull request head and on main; the release preflight requires its green log.
+It runs the quality checks, the app and core tests, the attestation check, and every `tools/formal/*/check.mjs`.
+A red gate blocks the merge, even when main fails the same way.
+Fix the failure or delete the test in the same pull request.
+
 ## Checks
 
 | Check | Command | Prerequisite |
 | --- | --- | --- |
+| Merge gate | `npm run check:gate` | Installed dependencies and Java 21 for formal models |
 | Quality | `npm run check:quality` | Installed dependencies |
 | Dependency advisories | `npm run security:audit` | Registry access |
 | Edge runtime | `npm run check:edge-functions` | Deno and its imports |
@@ -72,8 +81,8 @@ Run these checks without a database connection:
 ```sh
 npx vitest run tests/release-edge-compatibility.test.ts tests/e2e-release-contracts.test.ts tests/release-script.test.ts tests/e2e-surface-matrix.test.ts tests/e2e-attestation-head.test.ts tests/release-history-attestations.test.ts
 npm run check:surface-matrix
-node scripts/regenerate-release-history-attestations.mjs --check
-npx vitest run
+npm run check:attestations
+npm test
 ```
 
 Use Node 22 and installed dependencies.

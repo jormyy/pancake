@@ -60,10 +60,11 @@ npm start
 
 Use [verify-pancake](.claude/skills/verify-pancake/SKILL.md) for isolated local browser verification.
 Start with `npm run verify:launch` and follow the generated evidence path.
+Run `npm run check:gate` before you open a pull request.
+CI runs the same command on every pull request head, and a red gate blocks the merge.
 Run focused checks while developing:
 
 ```sh
-npm run check:quality
 npm test
 npm run test:db
 npm run perf:budget
