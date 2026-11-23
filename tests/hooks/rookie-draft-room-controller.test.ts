@@ -10,7 +10,7 @@ vi.mock('@/lib/persistent-cache', () => ({ readPersistentCache: (key: string) =>
 const mocks = vi.hoisted(() => ({
     activate: vi.fn(),
     drop: vi.fn(),
-    appStateListener: vi.fn(),
+    visibility: 'visible',
     getRevision: vi.fn(), version: null as null | ((snapshot: { changes: { topic: string }[] }) => void),
     getRoster: vi.fn(),
     getState: vi.fn(),
@@ -22,13 +22,6 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@react-navigation/native', () => ({ useIsFocused: () => true }))
 vi.mock('react-native', () => ({
     Alert: { alert: vi.fn() },
-    AppState: {
-        currentState: 'active',
-        addEventListener: vi.fn((_event: string, listener: (state: string) => void) => {
-            mocks.appStateListener.mockImplementation(listener)
-            return { remove: vi.fn() }
-        }),
-    },
 }))
 vi.mock('@/lib/cache/screen-cache', () => ({ readScreenView: async (scope: { params: { draftId: string; query?: string } }, options: { checkVersion: boolean }) => options.checkVersion === false
     ? { prospects: await mocks.getPlayers(scope.params.draftId, scope.params.query) }
@@ -71,7 +64,15 @@ const deferred = <Value,>() => {
     return { promise, resolve, reject }
 }
 
+const page = Object.defineProperty(new EventTarget(), 'visibilityState', { get: () => mocks.visibility })
+const appState = (state: 'active' | 'background') => {
+    mocks.visibility = state === 'active' ? 'visible' : 'hidden'
+    page.dispatchEvent(new Event('visibilitychange'))
+}
+
 beforeEach(() => {
+    vi.stubGlobal('document', page)
+    mocks.visibility = 'visible'
     screenCache.clear()
     vi.clearAllMocks()
     mocks.getPlayers.mockResolvedValue([])
@@ -188,7 +189,7 @@ describe('useRookieDraftRoomController', () => {
         await act(async () => { await previousTrim('veteran'); await latest.handleTrimDrop('veteran') })
         expect(mocks.drop).not.toHaveBeenCalled()
         status = 'completed'
-        await act(async () => { mocks.appStateListener('background'); mocks.appStateListener('active') })
+        await act(async () => { appState('background'); appState('active') })
         expect(mocks.activate).toHaveBeenCalledWith('draft')
         await act(async () => { renderer.unmount() })
     })
@@ -250,8 +251,8 @@ describe('useRookieDraftRoomController', () => {
         const recoveryMessage = 'Player dropped. Refresh the roster before making another change.'
         expect(latest.completionError).toBe(recoveryMessage)
         await act(async () => {
-            mocks.appStateListener('background')
-            mocks.appStateListener('active')
+            appState('background')
+            appState('active')
         })
         expect(latest.completionError).toBe(recoveryMessage)
         expect(mocks.getRoster).toHaveBeenCalledTimes(3)
@@ -561,10 +562,10 @@ it('restarts a completion check discarded while the app is hidden', async () => 
         return null
     })) })
     expect(mocks.getRoster).toHaveBeenCalledTimes(1)
-    await act(async () => { mocks.appStateListener('background') })
+    await act(async () => { appState('background') })
     await act(async () => { first.resolve([]); await first.promise })
     expect(mocks.activate).not.toHaveBeenCalled()
-    await act(async () => { mocks.appStateListener('active') })
+    await act(async () => { appState('active') })
     expect(mocks.getRoster).toHaveBeenCalledTimes(2)
     expect(mocks.activate).toHaveBeenCalledExactlyOnceWith('draft')
     await act(async () => { renderer.unmount() })

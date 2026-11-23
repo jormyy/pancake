@@ -6,8 +6,7 @@ import { useAuctionDraftRoomController } from '@/hooks/useAuctionDraftRoomContro
 vi.mock('@/lib/persistent-cache', () => ({ readPersistentCache: () => null, writePersistentCache: vi.fn() }))
 
 const mocks = vi.hoisted(() => ({
-    appState: 'active',
-    listeners: new Set<(state: string) => void>(),
+    visibility: 'visible',
     getDraftState: vi.fn(async () => null),
     revision: vi.fn<(...args: string[]) => Promise<string | null>>(async () => 'revision-1'),
     version: null as null | ((snapshot: { changes: { topic: string }[] }) => void),
@@ -17,15 +16,6 @@ vi.mock('@/lib/cache/screen-cache', () => ({ readScreenView: () => mocks.getDraf
 vi.mock('@/lib/league-version', () => ({ subscribeLeagueVersion: (_league: string, listener: typeof mocks.version) => { mocks.version = listener; return () => { mocks.version = null } } }))
 vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => ({ currentLeague: { id: 'league' } }) }))
 vi.mock('@react-navigation/native', () => ({ useIsFocused: () => true }))
-vi.mock('react-native', () => ({
-    AppState: {
-        get currentState() { return mocks.appState },
-        addEventListener: (_event: string, listener: (state: string) => void) => {
-            mocks.listeners.add(listener)
-            return { remove: () => mocks.listeners.delete(listener) }
-        },
-    },
-}))
 vi.mock('@/lib/draft', () => ({
     getDraftState: mocks.getDraftState,
     getDraftPollRevision: mocks.revision,
@@ -52,16 +42,18 @@ const Probe = ({ draftId = 'draft-1' }: { draftId?: string }) => {
 }
 const mount = async () => { await act(async () => { renderer = create(React.createElement(Probe)) }) }
 const advance = async (ms: number) => { await act(async () => { await vi.advanceTimersByTimeAsync(ms) }) }
-const transition = async (next: string) => {
+let page: EventTarget
+const transition = async (next: 'active' | 'background') => {
     await act(async () => {
-        mocks.appState = next
-        for (const listener of mocks.listeners) listener(next)
+        mocks.visibility = next === 'active' ? 'visible' : 'hidden'
+        page.dispatchEvent(new Event('visibilitychange'))
     })
 }
 beforeEach(() => {
     vi.useFakeTimers()
-    mocks.appState = 'active'
-    mocks.listeners.clear()
+    mocks.visibility = 'visible'
+    page = Object.defineProperty(new EventTarget(), 'visibilityState', { get: () => mocks.visibility })
+    vi.stubGlobal('document', page)
     mocks.revision.mockReset().mockResolvedValue('revision-1')
     mocks.getDraftState.mockClear()
 })
@@ -69,6 +61,7 @@ afterEach(() => {
     act(() => renderer?.unmount())
     renderer = undefined
     vi.useRealTimers()
+    vi.unstubAllGlobals()
 })
 const changed = async () => { await act(async () => mocks.version?.({ changes: [{ topic: 'draft' }] })) }
 
@@ -112,5 +105,9 @@ it('removes its version observer and lifecycle listeners on teardown', async () 
     await act(async () => renderer!.unmount())
     renderer = undefined
     expect(mocks.version).toBeNull()
-    expect(mocks.listeners.size).toBe(0)
+    const reads = mocks.getDraftState.mock.calls.length
+    await transition('background')
+    await transition('active')
+    await advance(60_000)
+    expect(mocks.getDraftState).toHaveBeenCalledTimes(reads)
 })

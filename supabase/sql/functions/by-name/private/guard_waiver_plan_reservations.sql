@@ -4,17 +4,14 @@
 
 CREATE OR REPLACE FUNCTION private.guard_waiver_plan_reservations()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
-DECLARE v_player uuid; lock_reason text;
+DECLARE v_player uuid;
 BEGIN
   IF NEW.status<>'pending' THEN RETURN NEW; END IF;
-  PERFORM pg_advisory_xact_lock(hashtext(NEW.league_id::text),hashtext(NEW.member_id::text));
+  PERFORM private.lock_roster_scope(NEW.league_id, ARRAY[NEW.member_id], ARRAY[NEW.player_id, NEW.drop_player_id]);
   FOR v_player IN SELECT DISTINCT id FROM unnest(ARRAY[NEW.player_id,NEW.drop_player_id]) id
     WHERE id IS NOT NULL ORDER BY id LOOP
-    PERFORM pg_advisory_xact_lock(hashtext(NEW.league_id::text),hashtext(v_player::text));
-    SELECT locked.reason INTO lock_reason FROM private.locked_assets(NEW.league_id,NEW.league_season_id,NEW.member_id) locked
-      WHERE locked.asset_kind='player' AND locked.asset_id=v_player AND locked.source_kind='trade'
-      ORDER BY locked.source_id LIMIT 1;
-    IF lock_reason IS NOT NULL THEN RAISE EXCEPTION '%', lock_reason USING ERRCODE='PA004'; END IF;
+    PERFORM private.assert_roster_action_allowed(CASE WHEN v_player=NEW.drop_player_id THEN 'claim_drop' ELSE 'claim_add' END::private.roster_action,
+      NEW.league_id, NEW.league_season_id, NEW.member_id, v_player);
   END LOOP;
   RETURN NEW;
 END;

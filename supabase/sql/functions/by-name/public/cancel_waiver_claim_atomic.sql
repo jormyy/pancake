@@ -22,7 +22,16 @@ DECLARE
   v_status waiver_claim_status;
   v_rows int;
   v_process_date date;
+  v_league_id uuid;
 BEGIN
+  SELECT league_id INTO v_league_id FROM waiver_claims WHERE id = p_claim_id AND member_id = p_member_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Claim not found.'
+      USING ERRCODE = 'P0002';
+  END IF;
+
+  PERFORM private.lock_roster_scope(v_league_id, ARRAY[p_member_id], '{}');
+
   SELECT claim.status, claim.process_date
     INTO v_status, v_process_date
     FROM waiver_claims AS claim

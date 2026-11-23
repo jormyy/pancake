@@ -13,6 +13,7 @@ DECLARE
   v_active int; v_ir int; v_taxi int; v_total int; v_limit int; v_count int; v_excess int;
   v_year int; v_available int; v_cost int; v_location text; v_rule text; v_name text; v_ir_out text; v_fix text;
   v_reserved_ids uuid[];
+  v_claim_reserved_ids uuid[];
 BEGIN
   SELECT * INTO STRICT v_league FROM leagues WHERE id=p_league_id;
   SELECT season_year INTO STRICT v_year FROM league_seasons WHERE id=p_season_id AND league_id=p_league_id;
@@ -35,9 +36,11 @@ BEGIN
       FROM retained r JOIN players p ON p.id=r.player_id;
     SELECT COALESCE(jsonb_agg(jsonb_build_object('playerId',p.id,'name',p.display_name)),'[]') INTO v_drops
       FROM players p WHERE COALESCE(v_plan->'dropPlayerIds','[]') ? p.id::text;
-    SELECT COALESCE(array_agg(locked.asset_id),'{}'::uuid[]) INTO v_reserved_ids
-      FROM private.locked_assets(p_league_id,p_season_id,v_team.id) locked
-      WHERE locked.source_kind='trade' AND locked.source_id IS DISTINCT FROM p_trade_id;
+    SELECT COALESCE(array_agg(block.asset_id) FILTER (WHERE block.hold<>'claim_reserved'),'{}'::uuid[]),
+        COALESCE(array_agg(block.asset_id) FILTER (WHERE block.hold='claim_reserved'),'{}'::uuid[])
+      INTO v_reserved_ids, v_claim_reserved_ids
+      FROM private.roster_action_blocks('trade_plan',p_league_id,p_season_id,v_team.id,ARRAY[p_trade_id]) block
+      WHERE block.asset_kind='player';
     FOR v_row IN
       SELECT DISTINCT p.id,p.display_name,p.injury_status FROM players p WHERE p.id IN
         (SELECT (value->>'playerId')::uuid FROM jsonb_array_elements(v_roster)
@@ -45,7 +48,7 @@ BEGIN
     LOOP
       v_error:=NULL;
       IF v_row.id=ANY(v_reserved_ids) THEN v_error:='Reserved by another trade.';
-      ELSIF EXISTS(SELECT 1 FROM waiver_claims WHERE league_season_id=p_season_id AND member_id=v_team.id AND status='pending' AND drop_player_id=v_row.id) THEN v_error:='Reserved as a pending waiver drop.'; END IF;
+      ELSIF v_row.id=ANY(v_claim_reserved_ids) THEN v_error:='Reserved as a pending waiver drop.'; END IF;
       IF v_error IS NOT NULL THEN v_unavailable:=v_unavailable||jsonb_build_object(v_row.id,v_error); END IF;
       v_ir_error:=CASE WHEN v_league.ir_slots=0 THEN 'This league has no IR slots.' WHEN NOT private.is_ir_designation(v_row.injury_status) THEN 'IR requires an Out or IR designation.' END;
       v_taxi_error:=CASE WHEN NOT EXISTS(SELECT 1 FROM jsonb_to_recordset(p_items) AS i("playerId" uuid,"toMemberId" uuid)

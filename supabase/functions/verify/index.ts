@@ -1,10 +1,3 @@
-/**
- * verify — health checks and data validation.
- *
- * GET /verify?action=validate-db[&seasonYear=2026]
- * GET /verify?action=season-totals[&seasonYear=2026]
- * POST /verify { action: "test-endpoints" }
- */
 import { supabase } from '../_shared/supabase.ts'
 import { fetchTodaysGames, fetchBoxScore, fetchSeasonSchedule } from '../_shared/nba.ts'
 import { serveInternal } from '../_shared/serve.ts'
@@ -94,7 +87,6 @@ async function verifySeasonTotals(seasonYear: number) {
     from += PAGE
   }
 
-  // Get player names — paginate in case players table exceeds 1000 rows.
   const nameMap = new Map<string, string>()
   let pFrom = 0
   while (true) {
@@ -106,7 +98,7 @@ async function verifySeasonTotals(seasonYear: number) {
     if (pErr) throw pErr
     if (!players || players.length === 0) break
 
-    for (const p of players as Array<{ id: string; display_name: string | null }>) {
+    for (const p of players as { id: string; display_name: string | null }[]) {
       nameMap.set(p.id, p.display_name ?? p.id)
     }
 

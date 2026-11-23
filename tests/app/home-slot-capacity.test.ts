@@ -52,15 +52,15 @@ vi.mock('@/hooks/use-draft-room-launcher', () => ({ useDraftRoomLauncher: () => 
 vi.mock('@/lib/supabase', () => ({ supabase: {} }))
 vi.mock('@/lib/score-breakdown', () => ({ lineupStatColumns: () => [] }))
 vi.mock('@/lib/shared/dates', () => ({ todayET: () => '2026-10-11' }))
-vi.mock('@/lib/format', () => ({ countLabel: String, formatPoints: String }))
+vi.mock('@/lib/format', () => ({ countLabel: String, formatAvgPoints: String, formatPoints: String }))
 vi.mock('@/components/ui', () => ({ Page: 'Page', ErrorBanner: 'ErrorBanner', usePageMetrics: () => ({ padX: 16, usableWidth: 358 }) }))
 vi.mock('@/components/EmptyState', () => ({ EmptyState: 'EmptyState' }))
 vi.mock('@/components/NoLeagueState', () => ({ NoLeagueState: 'NoLeagueState' }))
 vi.mock('@/components/Scoreboard', () => ({ Scoreboard: 'Scoreboard' }))
 vi.mock('@/components/ScoreCard', () => ({ ScoreCard: 'ScoreCard' }))
 vi.mock('@/components/DaySelector', () => ({ DaySelector: 'DaySelector' }))
-vi.mock('@/components/AutoSetModal', () => ({ AutoSetModal: 'AutoSetModal' }))
 vi.mock('@/components/ScoreBreakdownSheet', () => ({ ScoreBreakdownSheet: 'ScoreBreakdownSheet' }))
+vi.mock('@/components/player/MatchupPlayerSheet', () => ({ MatchupPlayerSheet: 'MatchupPlayerSheet' }))
 vi.mock('@/components/LeagueSwitcher', () => ({ LeagueSwitcher: 'LeagueSwitcher' }))
 vi.mock('@/components/MatchupRow', () => ({ MatchupColumnHeader: 'MatchupColumnHeader', MatchupRow: 'MatchupRow', statLineupWidth: () => 800 }))
 vi.mock('@/components/Motion', () => ({ MotionPressable: 'MotionPressable', MotionView: 'MotionView' }))
@@ -169,18 +169,11 @@ it('shows a recent complete game display during the initial live refresh', async
     expect(rows('PG')[0].props.liveTeams.size).toBe(0)
 })
 
-it('opens the manual editor from the auto-set sheet', async () => {
+it('leaves lineup auto-set to Roster, not the Home matchup', async () => {
     populatedStarters()
     await mount()
-    const sheet = screen.root.findByType('AutoSetModal' as React.ElementType)
-    expect(sheet.props.visible).toBe(false)
-    await act(async () => screen.root.findAllByProps({ accessibilityLabel: 'Open auto-set lineup options' })[0].props.onPress())
-    expect(sheet.props.visible).toBe(true)
-    expect(sheet.props.onToday).toBeUndefined()
-    expect(sheet.props.onWholeWeek).toBeUndefined()
-    expect(sheet.props.onRestOfSeason).toBeUndefined()
-    await act(async () => sheet.props.onEditManually())
-    expect(mocks.push).toHaveBeenCalledWith('/lineup')
+    expect(screen.root.findAllByProps({ accessibilityLabel: 'Open auto-set lineup options' })).toHaveLength(0)
+    expect(screen.root.findAllByType('AutoSetModal' as React.ElementType)).toHaveLength(0)
 })
 
 it('replaces old rows with one error and leaves the day selector active', async () => {
@@ -291,14 +284,21 @@ it('keeps announcements off Home when it returns to the foreground', async () =>
     }
 })
 
-it('routes player identity to the profile and points to the scoring sheet', async () => {
+it('previews a tapped player, links to the profile, and points to the scoring sheet', async () => {
     populatedStarters()
     mocks.push.mockClear()
     await mount()
     const row = rows('PG')[0]
     const player = row.props.myPlayer
+    const preview = () => screen.root.findByType('MatchupPlayerSheet' as React.ElementType)
+    expect(preview().props.player).toBeNull()
     await act(async () => row.props.onOpenPlayer(player))
+    expect(preview().props.player).toBe(player)
+    expect(mocks.push).not.toHaveBeenCalled()
+    await act(async () => preview().props.onOpenPage(player))
     expect(mocks.push).toHaveBeenCalledExactlyOnceWith({ pathname: '/player/[id]', params: { id: player.playerId } })
+    await act(async () => preview().props.onClose())
+    expect(preview().props.player).toBeNull()
     expect(screen.root.findByType('ScoreBreakdownSheet' as React.ElementType).props.visible).toBe(false)
     await act(async () => row.props.onOpenDetails({ myPlayer: player, oppPlayer: row.props.oppPlayer, slotType: 'PG' }))
     expect(screen.root.findByType('ScoreBreakdownSheet' as React.ElementType).props.visible).toBe(true)

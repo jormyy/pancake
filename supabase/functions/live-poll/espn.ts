@@ -30,7 +30,13 @@ type Backoff = { failures: number; retryAt: number }
 export class EspnLiveSource {
   private backoffs = new Map<string, Backoff>()
 
-  constructor(private readonly now: () => number = () => Date.now(), private readonly timeoutMs = 2500) {}
+  private readonly now: () => number
+  private readonly timeoutMs: number
+
+  constructor(now: () => number = () => Date.now(), timeoutMs = 2500) {
+    this.now = now
+    this.timeoutMs = timeoutMs
+  }
 
   private async request<T>(key: string, run: () => Promise<T>): Promise<T> {
     const previous = this.backoffs.get(key)
