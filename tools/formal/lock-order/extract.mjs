@@ -411,6 +411,34 @@ const mapSteps = (steps, change) =>
     return change(step)
   })
 
+const rosterScope = 'private.lock_roster_scope'
+const noKeys = (arg) => !arg || /^(?:NULL|'\{\}')(?:::uuid(?:\[\])?)?$/i.test(arg)
+
+const splitArgs = (text) => {
+  const parts = []
+  let depth = 0
+  let start = 0
+  for (let i = 0; i < text.length; i += 1) {
+    if (text[i] === '(' || text[i] === '[') depth += 1
+    else if (text[i] === ')' || text[i] === ']') depth -= 1
+    else if (text[i] === ',' && depth === 0) {
+      parts.push(text.slice(start, i))
+      start = i + 1
+    }
+  }
+  parts.push(text.slice(start))
+  return parts.map((part) => part.replace(/\s+/g, ' ').trim())
+}
+
+const rosterScopeSteps = (argsText, where, callerCode) => {
+  const [, members, players, draft] = splitArgs(argsText)
+  const lock = (resource) => ({ kind: 'advisory', resource, mode: 'update', wait: true, via: [where] })
+  const escaped = draft?.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const guarded = escaped && new RegExp(`\\bIF\\s+${escaped}\\s+IS\\s+NOT\\s+NULL\\s+THEN\\b`, 'i').test(callerCode)
+  const draftSteps = noKeys(draft) ? [] : guarded ? [{ condition: `${draft} IS NOT NULL`, branches: [[lock('advisory draft:0')], []] }] : [lock('advisory draft:0')]
+  return [...draftSteps, ...(noKeys(members) ? [] : [lock('advisory league:member')]), ...(noKeys(players) ? [] : [lock('advisory league:player')])]
+}
+
 export const extract = (sources) => {
   const { functions, triggers } = readSources(sources)
   const byName = new Map()
@@ -445,6 +473,10 @@ export const extract = (sources) => {
       const candidates = byName.get(name) ?? (hit[1] ? null : byName.get(`private.${hit[2].toLowerCase()}`))
       if (!candidates) continue
       const open = hit.index + hit[0].length - 1
+      if (name === rosterScope) {
+        items.push({ at: hit.index, steps: [{ call: rosterScopeSteps(definition.body.slice(open + 1, closingParen(definition.body, open)), site(lineAt(definition.body, hit.index)), code) }] })
+        continue
+      }
       const count = splitTopLevel(definition.body.slice(open + 1, closingParen(definition.body, open))).length
       const fits = candidates.filter((candidate) => count >= candidate.params.min && count <= candidate.params.max)
       const options = (fits.length ? fits : candidates).map((candidate) => resolve(candidate, inner)).filter((steps) => steps.length)

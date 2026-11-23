@@ -145,6 +145,7 @@
     "private.lock_live_poll_holder(uuid)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.lock_nba_source(integer,boolean)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.lock_roster_activation(uuid,text,uuid)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
+    "private.lock_roster_scope(uuid,uuid[],uuid[],uuid)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.lock_trade_offer_assets(uuid,uuid[],uuid[])": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.locked_assets(uuid,uuid,uuid)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.log_league_activity(uuid,uuid,text,text,text,uuid,uuid,uuid,uuid,uuid,jsonb)": {"acl":["PUBLIC|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},

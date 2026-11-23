@@ -9,7 +9,7 @@ RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE v_same boolean;
 BEGIN
   PERFORM public.assert_current_league_season_for_lineup(p_league_id, p_league_season_id);
-  PERFORM pg_advisory_xact_lock(hashtext(p_league_id::text), hashtext(p_member_id::text));
+  PERFORM private.lock_roster_scope(p_league_id, ARRAY[p_member_id], '{}');
   PERFORM pg_advisory_xact_lock(hashtext(p_member_id::text), hashtext(p_game_date::text));
   PERFORM 1 FROM public.leagues WHERE id = p_league_id FOR NO KEY UPDATE;
   PERFORM 1 FROM public.players WHERE id IN (
