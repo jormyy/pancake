@@ -3721,6 +3721,13 @@
       "statementCount": 12,
       "statementsSha256": "2945d3c9489b014a32cb0b3e844276e415c84c1a8b505dd45925a7b395a4f1b3",
       "sha256": "126f03726e19626196f40b5d1290321dde37a543f892df2bd4674ca364c72551"
+    },
+    {
+      "name": "dynasty_rank_owner",
+      "version": "20261215140000",
+      "statementCount": 4,
+      "statementsSha256": "671189814405ac035aaf37dcdb3692579666b87daff77fb1fc635fb7b0a0d3dc",
+      "sha256": "be1e0e386c8e2a224b0d7bfe3192d877ff1e59fb082c2d9ee8c6d160949d5719"
     }
   ]
 }

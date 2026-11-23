@@ -62,7 +62,7 @@
   ],
   "migrations": {
     "dir": "supabase/migrations",
-    "through": "20261215080000_immutable_lineup_history.sql",
-    "sha256": "d0f76667e5e8e634201cd5c2d7bad476cb684fba050de077190c0f78f044c35b"
+    "through": "20261215140000_dynasty_rank_owner.sql",
+    "sha256": "2ccd6fb1bf36e42498230433eb212c05cb286ccf135c4ffb9a983d4a5ef69565"
   }
 }
