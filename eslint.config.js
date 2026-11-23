@@ -1,9 +1,19 @@
-// https://docs.expo.dev/guides/using-eslint/
+const fs = require('node:fs')
+const path = require('node:path')
 const { defineConfig } = require('eslint/config')
 const expoConfig = require('eslint-config-expo/flat')
 
-const rosterCapacityMessage = 'Read roster location and limits through lib/roster-capacity (rosterLocation/partitionRoster/rosterLimits); inline is_on_ir/is_on_taxi checks counted taxi players as active in PR #5.'
-const rosterCapacityNames = 'is_on_ir|is_on_taxi|roster_size|ir_slots|taxi_slots'
+const rulesDirectory = path.join(__dirname, 'eslint/rules')
+const restrictions = fs.readdirSync(rulesDirectory).filter(file => file.endsWith('.js')).sort()
+    .map(file => ({ name: path.basename(file, '.js'), ...require(path.join(rulesDirectory, file)) }))
+
+const pancake = {
+    rules: Object.fromEntries(restrictions.map(({ name, restrictedSyntax }) => [name, {
+        meta: { type: 'problem', schema: [] },
+        create: context => Object.fromEntries(restrictedSyntax.map(({ selector, message }) =>
+            [selector, node => context.report({ node, message })])),
+    }])),
+}
 
 module.exports = defineConfig([
     expoConfig,
@@ -29,32 +39,10 @@ module.exports = defineConfig([
             'import/first': 'off',
         },
     },
-    {
-        files: ['app/**/*.{ts,tsx}', 'components/**/*.{ts,tsx}', 'hooks/**/*.{ts,tsx}', 'contexts/**/*.{ts,tsx}', 'lib/**/*.{ts,tsx}'],
-        ignores: ['lib/roster-capacity.ts', 'lib/league.ts', 'lib/commissioner-settings-draft.ts'],
-        rules: {
-            'no-restricted-syntax': ['error',
-                {
-                    selector: `MemberExpression[property.name=/^(${rosterCapacityNames})$/]:not(AssignmentExpression > MemberExpression.left)`,
-                    message: rosterCapacityMessage,
-                },
-                {
-                    selector: `MemberExpression[computed=true][property.value=/^(${rosterCapacityNames})$/]:not(AssignmentExpression > MemberExpression.left)`,
-                    message: rosterCapacityMessage,
-                },
-                {
-                    selector: `ObjectPattern > Property[key.name=/^(${rosterCapacityNames})$/]`,
-                    message: rosterCapacityMessage,
-                },
-                {
-                    selector: `ObjectPattern > Property[key.value=/^(${rosterCapacityNames})$/]`,
-                    message: rosterCapacityMessage,
-                },
-                {
-                    selector: `MemberExpression[computed=true][property.type="TemplateLiteral"][property.expressions.length=0][property.quasis.0.value.cooked=/^(${rosterCapacityNames})$/]:not(AssignmentExpression > MemberExpression.left)`,
-                    message: rosterCapacityMessage,
-                },
-            ],
-        },
-    },
+    ...restrictions.map(({ name, files, ignores }) => ({
+        files,
+        ignores,
+        plugins: { pancake },
+        rules: { [`pancake/${name}`]: 'error' },
+    })),
 ])
