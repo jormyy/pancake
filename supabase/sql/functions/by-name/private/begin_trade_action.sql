@@ -42,6 +42,7 @@ BEGIN
     CONTINUE WHEN v_member_id IS NULL;
     IF v_wait THEN
       PERFORM pg_advisory_xact_lock(hashtext(v_trade.league_id::text), hashtext(v_member_id::text));
+      v_wait := false;
     ELSIF NOT pg_try_advisory_xact_lock(hashtext(v_trade.league_id::text), hashtext(v_member_id::text)) THEN
       RAISE EXCEPTION 'The league is busy. Try this trade again.' USING ERRCODE = 'PA010';
     END IF;
@@ -55,6 +56,7 @@ BEGIN
     CONTINUE WHEN v_player_id IS NULL;
     IF v_wait THEN
       PERFORM pg_advisory_xact_lock(hashtext(v_trade.league_id::text), hashtext(v_player_id::text));
+      v_wait := false;
     ELSIF NOT pg_try_advisory_xact_lock(hashtext(v_trade.league_id::text), hashtext(v_player_id::text)) THEN
       RAISE EXCEPTION 'The league is busy. Try this trade again.' USING ERRCODE = 'PA010';
     END IF;
@@ -66,15 +68,23 @@ BEGIN
        AND league_id = v_trade.league_id
        AND (p_user_id IS NULL OR user_id = p_user_id)
      FOR SHARE NOWAIT;
-    IF p_member_id IS NOT NULL AND NOT FOUND THEN
-      RAISE EXCEPTION '%', CASE p_action
-        WHEN 'plan' THEN 'Only the receiving manager can choose placements and drops.'
-        ELSE 'Not authorized to act for this member.'
-      END USING ERRCODE = '42501';
-    END IF;
-    SELECT * INTO v_trade FROM trades WHERE id = p_trade_id FOR NO KEY UPDATE NOWAIT;
   EXCEPTION WHEN lock_not_available THEN
     RAISE EXCEPTION 'The league is busy. Try this trade again.' USING ERRCODE = 'PA010';
+  END;
+  IF p_member_id IS NOT NULL AND NOT FOUND THEN
+    RAISE EXCEPTION '%', CASE p_action
+      WHEN 'plan' THEN 'Only the receiving manager can choose placements and drops.'
+      ELSE 'Not authorized to act for this member.'
+    END USING ERRCODE = '42501';
+  END IF;
+
+  BEGIN
+    SELECT * INTO v_trade FROM trades WHERE id = p_trade_id FOR NO KEY UPDATE NOWAIT;
+  EXCEPTION WHEN lock_not_available THEN
+    SELECT * INTO v_trade FROM trades WHERE id = p_trade_id;
+    IF v_trade.status = 'pending' OR p_action NOT IN ('accept','reject','retract','edit','counter','taxi') THEN
+      RAISE EXCEPTION 'The league is busy. Try this trade again.' USING ERRCODE = 'PA010';
+    END IF;
   END;
 
   SELECT * INTO v_participant FROM trade_participants WHERE trade_id = p_trade_id AND member_id = p_member_id;

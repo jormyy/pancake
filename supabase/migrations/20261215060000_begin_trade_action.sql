@@ -68,6 +68,7 @@ BEGIN
     CONTINUE WHEN v_member_id IS NULL;
     IF v_wait THEN
       PERFORM pg_advisory_xact_lock(hashtext(v_trade.league_id::text), hashtext(v_member_id::text));
+      v_wait := false;
     ELSIF NOT pg_try_advisory_xact_lock(hashtext(v_trade.league_id::text), hashtext(v_member_id::text)) THEN
       RAISE EXCEPTION 'The league is busy. Try this trade again.' USING ERRCODE = 'PA010';
     END IF;
@@ -81,6 +82,7 @@ BEGIN
     CONTINUE WHEN v_player_id IS NULL;
     IF v_wait THEN
       PERFORM pg_advisory_xact_lock(hashtext(v_trade.league_id::text), hashtext(v_player_id::text));
+      v_wait := false;
     ELSIF NOT pg_try_advisory_xact_lock(hashtext(v_trade.league_id::text), hashtext(v_player_id::text)) THEN
       RAISE EXCEPTION 'The league is busy. Try this trade again.' USING ERRCODE = 'PA010';
     END IF;
@@ -92,15 +94,23 @@ BEGIN
        AND league_id = v_trade.league_id
        AND (p_user_id IS NULL OR user_id = p_user_id)
      FOR SHARE NOWAIT;
-    IF p_member_id IS NOT NULL AND NOT FOUND THEN
-      RAISE EXCEPTION '%', CASE p_action
-        WHEN 'plan' THEN 'Only the receiving manager can choose placements and drops.'
-        ELSE 'Not authorized to act for this member.'
-      END USING ERRCODE = '42501';
-    END IF;
-    SELECT * INTO v_trade FROM trades WHERE id = p_trade_id FOR NO KEY UPDATE NOWAIT;
   EXCEPTION WHEN lock_not_available THEN
     RAISE EXCEPTION 'The league is busy. Try this trade again.' USING ERRCODE = 'PA010';
+  END;
+  IF p_member_id IS NOT NULL AND NOT FOUND THEN
+    RAISE EXCEPTION '%', CASE p_action
+      WHEN 'plan' THEN 'Only the receiving manager can choose placements and drops.'
+      ELSE 'Not authorized to act for this member.'
+    END USING ERRCODE = '42501';
+  END IF;
+
+  BEGIN
+    SELECT * INTO v_trade FROM trades WHERE id = p_trade_id FOR NO KEY UPDATE NOWAIT;
+  EXCEPTION WHEN lock_not_available THEN
+    SELECT * INTO v_trade FROM trades WHERE id = p_trade_id;
+    IF v_trade.status = 'pending' OR p_action NOT IN ('accept','reject','retract','edit','counter','taxi') THEN
+      RAISE EXCEPTION 'The league is busy. Try this trade again.' USING ERRCODE = 'PA010';
+    END IF;
   END;
 
   SELECT * INTO v_participant FROM trade_participants WHERE trade_id = p_trade_id AND member_id = p_member_id;
@@ -143,40 +153,20 @@ $$;
 -- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
 -- npm run check:db-function-sources verifies every latest migration function has exact source parity.
 
-CREATE OR REPLACE FUNCTION private.begin_trade_offer(
-  p_member_id uuid,
-  p_user_id uuid,
-  p_member_ids uuid[],
-  p_player_ids uuid[]
-)
+CREATE OR REPLACE FUNCTION private.begin_trade_offer(p_member_id uuid, p_user_id uuid)
 RETURNS uuid
 LANGUAGE plpgsql
+STABLE
 SET search_path = public
 AS $$
 DECLARE
   v_league_id uuid;
-  v_member_id uuid;
-  v_player_id uuid;
 BEGIN
   SELECT league_id INTO v_league_id FROM league_members WHERE id = p_member_id AND user_id = p_user_id;
   IF p_user_id IS NULL OR NOT FOUND THEN
     RAISE EXCEPTION 'Not authorized to act for this member.' USING ERRCODE = '42501';
   END IF;
-
-  FOR v_member_id IN SELECT DISTINCT id FROM unnest(p_member_id || p_member_ids) AS id WHERE id IS NOT NULL ORDER BY id LOOP
-    PERFORM pg_advisory_xact_lock(hashtext(v_league_id::text), hashtext(v_member_id::text));
-  END LOOP;
-  FOR v_player_id IN SELECT DISTINCT id FROM unnest(p_player_ids) AS id WHERE id IS NOT NULL ORDER BY id LOOP
-    PERFORM pg_advisory_xact_lock(hashtext(v_league_id::text), hashtext(v_player_id::text));
-  END LOOP;
-
-  PERFORM 1 FROM league_members WHERE id = p_member_id AND user_id = p_user_id FOR SHARE NOWAIT;
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'Not authorized to act for this member.' USING ERRCODE = '42501';
-  END IF;
   RETURN v_league_id;
-EXCEPTION WHEN lock_not_available THEN
-  RAISE EXCEPTION 'The league is busy. Try this trade again.' USING ERRCODE = 'PA010';
 END;
 $$;
 
@@ -1101,8 +1091,6 @@ DECLARE
   v_member_league uuid;
   v_multi boolean := p_action LIKE '%-multi';
   v_source uuid;
-  v_lock_members uuid[];
-  v_lock_players uuid[];
 BEGIN
   IF p_request_id IS NULL OR p_action IS NULL
     OR p_action NOT IN ('propose','propose-multi','edit','edit-multi','counter','counter-multi')
@@ -1115,19 +1103,18 @@ BEGIN
       RAISE EXCEPTION 'The source trade is required.' USING ERRCODE='22023';
     END IF;
   END IF;
-  v_lock_members := ARRAY[(p_payload->>'recipientMemberId')::uuid] || CASE WHEN v_multi
-    THEN ARRAY(SELECT jsonb_array_elements_text(COALESCE(p_payload->'participantMemberIds','[]'::jsonb)))::uuid[]
-    ELSE '{}' END;
-  v_lock_players := CASE WHEN v_multi
-    THEN ARRAY(SELECT (item->>'playerId')::uuid FROM jsonb_array_elements(COALESCE(p_payload->'items','[]'::jsonb)) AS items(item))
-    ELSE ARRAY(SELECT jsonb_array_elements_text(COALESCE(p_payload->'offerPlayerIds','[]'::jsonb)))::uuid[]
-      || ARRAY(SELECT jsonb_array_elements_text(COALESCE(p_payload->'requestPlayerIds','[]'::jsonb)))::uuid[]
-  END;
   IF v_source IS NULL THEN
-    v_member_league := private.begin_trade_offer(p_member_id, p_user_id, v_lock_members, v_lock_players);
+    v_member_league := private.begin_trade_offer(p_member_id, p_user_id);
   ELSE
     v_member_league := (private.begin_trade_action(v_source, p_member_id, p_user_id, split_part(p_action,'-',1),
-      p_member_id || v_lock_members, v_lock_players)).league_id;
+      ARRAY[p_member_id, (p_payload->>'recipientMemberId')::uuid] || CASE WHEN v_multi
+        THEN ARRAY(SELECT jsonb_array_elements_text(COALESCE(p_payload->'participantMemberIds','[]'::jsonb)))::uuid[]
+        ELSE '{}' END,
+      CASE WHEN v_multi
+        THEN ARRAY(SELECT (item->>'playerId')::uuid FROM jsonb_array_elements(COALESCE(p_payload->'items','[]'::jsonb)) AS items(item))
+        ELSE ARRAY(SELECT jsonb_array_elements_text(COALESCE(p_payload->'offerPlayerIds','[]'::jsonb)))::uuid[]
+          || ARRAY(SELECT jsonb_array_elements_text(COALESCE(p_payload->'requestPlayerIds','[]'::jsonb)))::uuid[]
+      END)).league_id;
   END IF;
   BEGIN
     __request_context := private.request_begin('public.submit_trade_offer_atomic', jsonb_build_array(p_user_id, p_request_id, p_member_id, p_action, p_payload - 'estimateId'), p_request_id, NULL, p_user_id);
@@ -1786,5 +1773,5 @@ END;
 $$;
 
 REVOKE ALL ON FUNCTION private.trade_lock_keys(uuid[]) FROM PUBLIC, anon, authenticated, service_role;
-REVOKE ALL ON FUNCTION private.begin_trade_offer(uuid,uuid,uuid[],uuid[]) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION private.begin_trade_offer(uuid,uuid) FROM PUBLIC, anon, authenticated, service_role;
 REVOKE ALL ON FUNCTION private.begin_trade_action(uuid,uuid,uuid,text,uuid[],uuid[]) FROM PUBLIC, anon, authenticated, service_role;
