@@ -6,6 +6,7 @@ import { readPersistentCache, removePersistentCache, writePersistentCache } from
 import { reportRealtimeCleanup, subscribeToTableChanges, unsubscribeFromTableChanges } from '@/lib/realtime'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useScope } from '@/hooks/use-scope'
+import { onLifecycle } from '@/lib/lifecycle'
 
 export type { LeagueMembership }
 
@@ -207,23 +208,10 @@ export function useLeagues() {
 
     useEffect(() => {
         if (!userId) return
-        const catchUp = () => { void refreshQueue.ensure() }
-        const reconnect = () => { refreshQueue.trigger() }
-        if (typeof window !== 'undefined') {
-            window.addEventListener('focus', catchUp)
-            window.addEventListener('online', reconnect)
-        }
-        const onVisibility = () => {
-            if (document.visibilityState !== 'hidden') catchUp()
-        }
-        if (typeof document !== 'undefined') document.addEventListener('visibilitychange', onVisibility)
-        return () => {
-            if (typeof window !== 'undefined') {
-                window.removeEventListener('focus', catchUp)
-                window.removeEventListener('online', reconnect)
-            }
-            if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', onVisibility)
-        }
+        return onLifecycle(['focus', 'visible', 'online'], event => {
+            if (event === 'online') refreshQueue.trigger()
+            else void refreshQueue.ensure()
+        })
     }, [refreshQueue, userId])
 
     const leagueRealtimeKey = useMemo(

@@ -51,7 +51,7 @@ import { useRosterHoldCheck } from '@/hooks/use-roster-hold-check'
 import { addLimitSummary } from '@/lib/pickup'
 import { PlayerRow } from '@/lib/players'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { browserReadsAllowed } from '@/hooks/use-browser-read-activity'
+import { readsAllowed } from '@/lib/lifecycle'
 
 
 
@@ -198,7 +198,7 @@ function PlayerSearchSection() {
         push(playerDetailRoute(player, !ownedMap.has(player.id)))
     }, [push, ownedMap])
     const handlePreparePlayer = useCallback(() => {
-        if (browserReadsAllowed()) void import('@/app/player/[id]').catch(() => undefined)
+        if (readsAllowed()) void import('@/app/player/[id]').catch(() => undefined)
     }, [])
     const renderPlayerItem = useCallback(({ item }: { item: PlayerRow }) => (
         <PlayerSearchItem

@@ -1,5 +1,6 @@
 import { requestId } from '@/lib/api-client'
 import { sessionOwner, onSessionCachesCleared, sessionGeneration } from '@/lib/session-cache-registry'
+import { onLifecycle } from '@/lib/lifecycle'
 
 export type QueuedMutation = { transport?: 'api' | 'rpc'; id: string; accountId: string; leagueId: string | null; rowIds: string[]; path: string; body: string; status: 'pending' | 'failed'; error: string | null; createdAt: number; order?: number }
 export type MutationInput = Pick<QueuedMutation, 'accountId' | 'leagueId' | 'rowIds' | 'path' | 'body' | 'transport'>
@@ -566,7 +567,7 @@ export function replayMutations(): Promise<void> {
     return task
 }
 
-if (typeof window !== 'undefined') window.addEventListener('online', () => { void replayMutations() })
+onLifecycle(['online'], () => { void replayMutations() })
 onSessionCachesCleared(discardPending => {
     for (const waiter of waiters.values()) waiter.reject(new Error('Your account changed. Please retry.'))
     waiters.clear()
