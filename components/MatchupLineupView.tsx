@@ -39,6 +39,7 @@ export function MatchupLineupView({
     daySelector,
     footer,
     hideSlotCounts = false,
+    projections,
 }: {
     myLineup: Required<LineupMoveData>
     oppLineup: Required<LineupMoveData>
@@ -58,6 +59,8 @@ export function MatchupLineupView({
     daySelector?: ReactNode
     hideSlotCounts?: boolean
     footer?: ReactNode
+    /** Fantasy projections for the selected day, shown faintly until each player's game starts. */
+    projections?: Map<string, number>
 }) {
     const noStarters = !myLineup.starters.some((slot) => slot.player) && !oppLineup.starters.some((slot) => slot.player)
     const maxBench = Math.max(myLineup.bench.length, oppLineup.bench.length, capacity.bench)
@@ -171,6 +174,7 @@ export function MatchupLineupView({
                                         statColumns={statColumns}
                                         onOpenDetails={onOpenDetails}
                                         onOpenPlayer={onOpenPlayer}
+                                        projections={projections}
                                     />
                                 ))}
                             </>

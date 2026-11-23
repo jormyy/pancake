@@ -11,6 +11,7 @@ import { MatchupLineupView } from '@/components/MatchupLineupView'
 import { DaySelector } from '@/components/DaySelector'
 import { ScoreBreakdownSheet } from '@/components/ScoreBreakdownSheet'
 import { MatchupPlayerSheet } from '@/components/player/MatchupPlayerSheet'
+import { useDayProjections } from '@/hooks/use-day-projections'
 import { statLineupWidth } from '@/components/MatchupRow'
 import { ErrorBanner, Page, usePageMetrics } from '@/components/ui'
 import { DeferredContent } from '@/components/ui/DeferredContent'
@@ -40,6 +41,8 @@ export default function OtherMatchupScreen() {
     const [details, setDetails] = useState<Details | null>(null)
     const [previewPlayer, setPreviewPlayer] = useState<LineupPlayer | null>(null)
     const settings = useMemo(() => league?.scoring_settings && typeof league.scoring_settings === 'object' && !Array.isArray(league.scoring_settings) ? league.scoring_settings as Record<string, number> : {}, [league?.scoring_settings])
+    const projectionLineups = useMemo(() => [myLineup, oppLineup], [myLineup, oppLineup])
+    const dayProjections = useDayProjections(league?.id, selectedDate, projectionLineups, settings)
     const columns = useMemo(() => lineupStatColumns(settings), [settings])
     const showColumns = !narrow && usableWidth >= statLineupWidth(columns)
     const playingTeams = useMemo(() => new Set(weekDays.find(day => day.date === selectedDate)?.playingTeams ?? []), [weekDays, selectedDate])
@@ -65,7 +68,7 @@ export default function OtherMatchupScreen() {
                                 myLineup={myLineup} oppLineup={oppLineup} playingTeams={playingTeams}
                                 liveStats={liveSnapshot.liveStats} liveTeams={liveTeams} scoringSettings={settings}
                                 teamMatchups={liveSnapshot.teamMatchups} statColumns={showColumns ? columns : null}
-                                onOpenDetails={setDetails} onOpenPlayer={setPreviewPlayer}
+                                onOpenDetails={setDetails} onOpenPlayer={setPreviewPlayer} projections={dayProjections}
                                 capacity={{ bench: myLineup.benchSlots, ir: limits?.irSlots ?? 0, taxi: limits?.taxiSlots ?? 0 }}
                                 compact={narrow} dense={height < 620}
                                 daySelector={<DaySelector days={weekDays} selectedDate={selectedDate} onSelect={data.setSelectedDate} compact={compact} />}
