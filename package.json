@@ -71,6 +71,7 @@
     "check:surface-matrix": "node tests/e2e/surface-matrix.mjs",
     "check:source-recovery": "node tests/e2e/source-failure-recovery.mjs",
     "check:edge-functions": "node scripts/check-edge-functions.mjs",
+    "check:formal": "node tools/formal/check-all.mjs",
     "check:formal:trade-roster-holds": "node tools/formal/trade-roster-holds/check.mjs",
     "check:quality": "npm run lint:all && npm run typecheck && npm run typecheck:tests && npm run typecheck:e2e && npm run typecheck:harness-boundaries && npm run typecheck:core && npm run check:core-cjs && npm run check:dead-code && npm run check:edge-shared && npm run check:edge-function-inventory && npm run check:db-function-sources && npm run check:surface-matrix && npm run check:design-system",
     "check:comprehensive": "npm run check:quality && npm run check:edge-functions && npm run check:database-types && npm run check:db-function-catalog",
