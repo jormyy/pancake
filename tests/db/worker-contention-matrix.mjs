@@ -45,7 +45,7 @@ const cases = [
     run: () => 'SELECT public.dispatch_work()',
     expect: '0',
     within: 500,
-    fix: 'public.dispatch_work must take its advisory lock with pg_try_advisory_xact_lock and return 0 when another dispatcher holds it. History: 35edab57.',
+    fix: 'public.dispatch_work must take its advisory lock with pg_try_advisory_xact_lock and return 0 when another dispatcher holds it. History: c6874602 added the try-lock with the worker pause control.',
   }),
   queue({
     name: 'scheduled dispatch while workers renew leases and the network queue is locked',
