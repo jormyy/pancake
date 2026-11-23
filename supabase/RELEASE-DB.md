@@ -31,8 +31,8 @@ Do not unschedule a retired per-job cron. Cron calls `public.dispatch_work()` fo
 ## Release order for this release
 
 The supplied production head is `20261214011300` (`trade_roster_holds`), with 791 migrations.
-This release adds six migrations, for 797 migrations:
-`20261214011400_league_roster_policies.sql`, `20261214011500_weekly_roster_floor.sql`, `20261214011600_league_auto_ir_schedule.sql`, `20261214011700_enable_official_league_roster_policy.sql`, `20261214011800_tipoff_mode_aware_completion.sql`, and `20261214011900_total_add_week.sql`.
+This release adds seven migrations, for 798 migrations:
+`20261214011400_league_roster_policies.sql`, `20261214011500_weekly_roster_floor.sql`, `20261214011600_league_auto_ir_schedule.sql`, `20261214011700_enable_official_league_roster_policy.sql`, `20261214011800_tipoff_mode_aware_completion.sql`, `20261214011900_total_add_week.sql`, and `20261215080000_immutable_lineup_history.sql`.
 Database, then Edge, then merge the frontend.
 The frontend needs no release.
 
@@ -369,3 +369,11 @@ Every other day falls in a bucket of at most 7 days that starts after the previo
 A league with no schedule and no earlier season now resets every Monday instead of never, and the days before week 1 no longer count toward week 1.
 Counts already stored for unscheduled days move to new keys once, so those members get a fresh limit at deploy.
 Run `npm run test:db:add-week-property`, `npm run test:db:weekly-add-limit`, and `npm run test:db:limits-all-star-week` on a private stack.
+
+## Immutable lineup history
+
+`20261215080000_immutable_lineup_history.sql` replaces the `history_capture_lineup` restore trigger with `guard_lineup_history`, a `BEFORE UPDATE OR DELETE` trigger on `public.weekly_lineups`.
+A row whose game date is past or whose game started now raises SQLSTATE `55000` instead of being silently restored.
+Deleting a league still removes its rows, and `private.correct_lineup_history()` allows a deliberate correction inside one transaction.
+`private.history_restore_lineups()` is dropped.
+Run `npm run test:db:lineup-history-immutable` and `npm run test:db:season-lineup-full-roster` on a private stack.

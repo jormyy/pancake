@@ -7,6 +7,7 @@
     "test:db:league-history": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" -X -v ON_ERROR_STOP=1 -f tests/db/league-history.sql",
     "test:db:league-version-hint-budget": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/league-version-hint-budget.sql",
     "test:db:league-schedule-links": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" -X -v ON_ERROR_STOP=1 -f tests/db/league-schedule-links.sql",
+    "test:db:lineup-history-immutable": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" -X -v ON_ERROR_STOP=1 -f tests/db/lineup-history-immutable.sql",
     "test:db:lineup-pins": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" -X -v ON_ERROR_STOP=1 -f tests/db/lineup-pins.sql",
     "test:db:auto-manage-ir": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/auto-manage-ir.sql",
     "test:db:league-auto-ir-policy": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/league-auto-ir-policy.sql",
