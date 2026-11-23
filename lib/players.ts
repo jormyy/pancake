@@ -7,6 +7,7 @@ import {
     type PlayerSearchSortMode,
 } from '@/lib/player-search-sort'
 
+/** Resolves a player's eligible positions, falling back to the primary position. */
 export function getEligiblePositions(player: { eligible_positions?: string[] | null; position?: string | null }): string[] {
     if (player.eligible_positions?.length) return player.eligible_positions as string[]
     return player.position ? [player.position] : []

@@ -140,6 +140,7 @@ export async function processEnabledLineupOptimizers(requestedDate: string | nul
   const settings = await loadEnabledOptimizerSettings(supabase, [...new Set(dateContexts.map((context) => context.seasonYear))])
   const loadProjections = createScheduledProjectionLoader(supabase, settings)
 
+  // Many enabled members share a league; load each league and season once.
   const leagues = new Map<string, LeagueRow | null>()
   const seasons = new Map<string, SeasonRow | null>()
 
