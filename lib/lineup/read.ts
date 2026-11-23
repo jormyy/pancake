@@ -1,3 +1,4 @@
+import { fetchAllPages } from '@pancake/core'
 import { withPwaMutation } from '@/lib/shared/pwa-mutation'
 import { supabase } from '@/lib/supabase'
 import type { Database, RosterSlotType } from '@/types/database'
@@ -70,7 +71,6 @@ export async function getLineupContext(
 }
 
 export async function getWeekDays(weekNumber: number, seasonYear: number, timezone?: string): Promise<WeekDay[]> {
-    // Fetch week boundaries first, then query games by date range.
     // Querying by week_number on nba_games is unreliable — rows can have stale/incorrect
     // week_number values if the schedule was synced out of order or re-seeded.
     const dates = await getSeasonWeekDates(seasonYear, weekNumber, timezone)
@@ -85,15 +85,16 @@ export async function getWeekDays(weekNumber: number, seasonYear: number, timezo
         const startStr = dates[0]
         const endStr = dates[dates.length - 1]
 
-        const { data: games, error: gamesError } = await supabase
+        const games = await fetchAllPages((from, to) => supabase
             .from('nba_games')
             .select('game_date, home_team, away_team')
             .eq('season_year', seasonYear)
             .gte('game_date', startStr)
             .lte('game_date', endStr)
-        if (gamesError) throw gamesError
+            .order('id')
+            .range(from, to))
 
-        for (const g of games ?? []) {
+        for (const g of games) {
             const date = g.game_date
             if (!dateTeams.has(date)) dateTeams.set(date, [])
             const arr = dateTeams.get(date)!
@@ -113,7 +114,6 @@ export async function getWeekDays(weekNumber: number, seasonYear: number, timezo
             })
         }
     } else {
-        // Fallback: week_start unknown — fall back to week_number query
         const { data: games, error: gamesError } = await supabase
             .from('nba_games')
             .select('game_date, home_team, away_team')

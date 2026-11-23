@@ -6,8 +6,8 @@ import { syncStatsForDates } from './stats'
 import { toETDate } from '../lib/utils/date'
 import type { Json } from '../types/database'
 import { calcWeekMaxPossiblePointsByMember, calcWeekPointsByMember } from './scoreLineups'
+import { fetchAllPages } from '../lib/fetchAllPages'
 import {
-    fetchAllPages,
     loadLeagueMemberIds,
     loadSeasonWeekBounds,
     weekNumberForGameDate,

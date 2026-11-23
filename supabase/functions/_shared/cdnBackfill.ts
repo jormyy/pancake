@@ -12,6 +12,7 @@ import {
   markBackfillGameCompleted,
   markBackfillGameFailed,
   markBackfillGameMissing,
+  mustFetchAllPages,
   mustSupabase,
   syncBackfillLedgerProgress,
   updateBackfillJob,
@@ -197,26 +198,15 @@ async function finishCdnEnumChunk(
 }
 
 async function loadFinalCdnGames(seasonYear: number): Promise<DbGame[]> {
-  const games: DbGame[] = []
-  let page = 0
-  while (true) {
-    const rows = await mustSupabase(
-      'load final CDN games',
-      supabase
-        .from('nba_games')
-        .select('id, nba_game_id, week_number')
-        .eq('season_year', seasonYear)
-        .eq('status', 'Final')
-        .like('nba_game_id', '002%')
-        .order('game_date', { ascending: true })
-        .range(page * 1000, (page + 1) * 1000 - 1),
-    )
-    if (!rows?.length) break
-    games.push(...rows as DbGame[])
-    if (rows.length < 1000) break
-    page++
-  }
-  return games
+  return await mustFetchAllPages('load final CDN games', (from, to) => supabase
+    .from('nba_games')
+    .select('id, nba_game_id, week_number')
+    .eq('season_year', seasonYear)
+    .eq('status', 'Final')
+    .like('nba_game_id', '002%')
+    .order('game_date', { ascending: true })
+    .order('id')
+    .range(from, to)) as DbGame[]
 }
 
 async function fetchCdnGame(gameId: string): Promise<CdnGame | null> {

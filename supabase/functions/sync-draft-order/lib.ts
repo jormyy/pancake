@@ -1,4 +1,5 @@
 import { supabase } from '../_shared/supabase.ts'
+import { fetchAllPages } from '../_shared/fetchAllPages.ts'
 import { errorMessage } from '../_shared/responses.ts'
 import { fetchWithRetry } from '../_shared/retry.ts'
 import { resolvePlayerImports } from '../_shared/playerImports.ts'
@@ -310,22 +311,23 @@ function validateDraftPicks(picks: NBADraftPick[]): NBADraftPick[] {
 }
 
 async function verifySyncedDraftBoard(picks: NBADraftPick[]): Promise<void> {
-  const { data, error } = await supabase
+  const data = await fetchAllPages((from, to) => supabase
     .from('players')
     .select('nba_draft_number')
     .eq('years_exp', 0)
     .not('nba_draft_number', 'is', null)
     .order('nba_draft_number', { ascending: true })
-  if (error) throw error
+    .order('id')
+    .range(from, to))
 
   const expected = new Set(picks.map((pick) => pick.overallPick))
-  const actual = new Set((data ?? []).map((player) => Number(player.nba_draft_number)))
+  const actual = new Set(data.map((player) => Number(player.nba_draft_number)))
   const missing = [...expected].filter((pick) => !actual.has(pick))
   const extras = [...actual].filter((pick) => !expected.has(pick))
-  if (missing.length > 0 || extras.length > 0 || (data ?? []).length !== picks.length) {
+  if (missing.length > 0 || extras.length > 0 || data.length !== picks.length) {
     throw new Error(
       `Verification failed after sync. missing=[${missing.join(',')}], extras=[${extras.join(',')}], ` +
-      `rows=${(data ?? []).length}, expected=${picks.length}`,
+      `rows=${data.length}, expected=${picks.length}`,
     )
   }
 }

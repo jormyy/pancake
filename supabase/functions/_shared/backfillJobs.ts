@@ -1,4 +1,5 @@
 import { errorMessage } from './responses.ts'
+import { fetchAllPages } from './fetchAllPages.ts'
 import { supabase } from './supabase.ts'
 import type { Database, Json } from './database.ts'
 
@@ -13,7 +14,6 @@ type BackfillLedgerProgress = {
   failed_items: number
   missing_items: number
 }
-const PAGE_SIZE = 1000
 // A chunk of 30 paced games finishes well inside this; a crashed chunk frees the job after it.
 const BACKFILL_CLAIM_LEASE_MS = 5 * 60_000
 
@@ -155,27 +155,16 @@ export async function endBackfillRetry(run: BackfillRun): Promise<void> {
 }
 
 export async function loadBackfillRetryGameKeys(run: BackfillRun): Promise<Set<string>> {
-  const keys = new Set<string>()
-  let page = 0
-  while (true) {
-    const rows = await mustSupabase(
-      'load failed backfill games for retry',
-      supabase
-        .from('backfill_game_attempts')
-        .select('game_key')
-        .eq('job_id', run.jobId)
-        .eq('source', run.source)
-        .eq('status', 'failed')
-        .lt('updated_at', run.retryBefore!)
-        .order('game_key')
-        .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1),
-    )
-    if (!rows?.length) break
-    for (const row of rows as { game_key: string }[]) keys.add(row.game_key)
-    if (rows.length < PAGE_SIZE) break
-    page++
-  }
-  return keys
+  const rows = await mustFetchAllPages('load failed backfill games for retry', (from, to) => supabase
+    .from('backfill_game_attempts')
+    .select('game_key')
+    .eq('job_id', run.jobId)
+    .eq('source', run.source)
+    .eq('status', 'failed')
+    .lt('updated_at', run.retryBefore!)
+    .order('game_key')
+    .range(from, to))
+  return new Set(rows.map((row) => row.game_key))
 }
 
 export async function mustSupabase<T>(
@@ -185,6 +174,17 @@ export async function mustSupabase<T>(
   const result = await resultOrPromise
   if (result.error) throw new Error(`${label}: ${result.error.message}`)
   return result.data
+}
+
+export async function mustFetchAllPages<T>(
+  label: string,
+  queryPage: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>,
+): Promise<T[]> {
+  try {
+    return await fetchAllPages(queryPage)
+  } catch (error) {
+    throw new Error(`${label}: ${errorMessage(error)}`)
+  }
 }
 
 export async function createBackfillJob(source: string, seasonYear: number): Promise<string> {
@@ -263,55 +263,31 @@ export async function syncBackfillLedgerProgress(
 export async function loadBackfillTerminalGameKeys(
   jobId: string, source: string, statuses: ('completed' | 'failed' | 'missing')[] = ['completed', 'failed', 'missing'],
 ): Promise<Set<string>> {
-  const keys = new Set<string>()
-  let page = 0
-
-  while (true) {
-    const rows = await mustSupabase(
-      'load backfill game ledger',
-      supabase
-        .from('backfill_game_attempts')
-        .select('game_key')
-        .eq('job_id', jobId)
-        .eq('source', source)
-        .in('status', statuses)
-        .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1),
-    )
-
-    if (!rows?.length) break
-    for (const row of rows as { game_key: string }[]) keys.add(row.game_key)
-    if (rows.length < PAGE_SIZE) break
-    page++
-  }
-
-  return keys
+  const rows = await mustFetchAllPages('load backfill game ledger', (from, to) => supabase
+    .from('backfill_game_attempts')
+    .select('game_key')
+    .eq('job_id', jobId)
+    .eq('source', source)
+    .in('status', statuses)
+    .order('id')
+    .range(from, to))
+  return new Set(rows.map((row) => row.game_key))
 }
 
 async function loadBackfillLedgerProgress(jobId: string, source: string): Promise<BackfillLedgerProgress> {
   const progress = { completed_items: 0, failed_items: 0, missing_items: 0 }
-  let page = 0
-
-  while (true) {
-    const rows = await mustSupabase(
-      'load backfill game ledger progress',
-      supabase
-        .from('backfill_game_attempts')
-        .select('status')
-        .eq('job_id', jobId)
-        .eq('source', source)
-        .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1),
-    )
-
-    if (!rows?.length) break
-    for (const row of rows as { status: string }[]) {
-      if (row.status === 'completed') progress.completed_items++
-      if (row.status === 'failed') progress.failed_items++
-      if (row.status === 'missing') progress.missing_items++
-    }
-    if (rows.length < PAGE_SIZE) break
-    page++
+  const rows = await mustFetchAllPages('load backfill game ledger progress', (from, to) => supabase
+    .from('backfill_game_attempts')
+    .select('status')
+    .eq('job_id', jobId)
+    .eq('source', source)
+    .order('id')
+    .range(from, to))
+  for (const row of rows) {
+    if (row.status === 'completed') progress.completed_items++
+    if (row.status === 'failed') progress.failed_items++
+    if (row.status === 'missing') progress.missing_items++
   }
-
   return progress
 }
 
