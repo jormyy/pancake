@@ -75,22 +75,22 @@ export async function resolveRosterAddIRConflict({
     activatePlayer,
     dropPlayer,
     rosterSize = 20,
-    limitsStillHold,
+    stillValid,
 }: {
     memberId: string
     leagueId: string
     activatePlayer: RosterPlayer
     dropPlayer?: RosterPlayer
     rosterSize?: number
-    limitsStillHold?: () => boolean
+    stillValid?: () => boolean
 }): Promise<
     | { status: 'locked'; message: string }
     | { status: 'stale' }
     | { status: 'resolved'; roster: RosterPlayer[]; remaining: RosterPlayer[] }
 > {
-    if (limitsStillHold && !limitsStillHold()) return { status: 'stale' }
+    if (stillValid && !stillValid()) return { status: 'stale' }
     const lockMessage = await getRosterStatusChangeLockMessage(activatePlayer)
-    if (limitsStillHold && !limitsStillHold()) return { status: 'stale' }
+    if (stillValid && !stillValid()) return { status: 'stale' }
     if (lockMessage) return { status: 'locked', message: lockMessage }
 
     if (dropPlayer) {
@@ -115,23 +115,23 @@ export async function swapHealthyIrWithInjured({
     healthyIrPlayer,
     injuredPlayer,
     rosterSize = 20,
-    limitsStillHold,
+    stillValid,
 }: {
     memberId: string
     leagueId: string
     healthyIrPlayer: RosterPlayer
     injuredPlayer: RosterPlayer
     rosterSize?: number
-    limitsStillHold?: () => boolean
+    stillValid?: () => boolean
 }): Promise<
     | { status: 'locked'; message: string }
     | { status: 'stale' }
     | { status: 'resolved'; roster: RosterPlayer[]; remaining: RosterPlayer[] }
 > {
-    if (limitsStillHold && !limitsStillHold()) return { status: 'stale' }
+    if (stillValid && !stillValid()) return { status: 'stale' }
     const lockMessage = await getRosterStatusChangeLockMessage(healthyIrPlayer) ??
         await getRosterStatusChangeLockMessage(injuredPlayer)
-    if (limitsStillHold && !limitsStillHold()) return { status: 'stale' }
+    if (stillValid && !stillValid()) return { status: 'stale' }
     if (lockMessage) return { status: 'locked', message: lockMessage }
 
     await activateRosterPlayerWithOverflow(healthyIrPlayer.id, 'ir', injuredPlayer.id, 'ir')

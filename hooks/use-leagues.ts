@@ -4,7 +4,6 @@ import { useOnlineStatus } from '@/hooks/use-online-status'
 import type { LeagueMembership } from '@/types/app'
 import { readPersistentCache, removePersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 import { reportRealtimeCleanup, subscribeToTableChanges, unsubscribeFromTableChanges } from '@/lib/realtime'
-import { rosterLimits } from '@/lib/roster-capacity'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 export type { LeagueMembership }
@@ -13,11 +12,6 @@ const cacheKeyForUser = (userId: string) => `pancake:league-memberships:v1:${use
 const MEMBERSHIP_REFRESH_WINDOW_MS = 250
 const MEMBERSHIP_STALE_MS = 300_000
 const MEMBERSHIP_RETRY_DELAY_MS = 1000
-
-function readCachedMemberships(userId: string): LeagueMembership[] {
-    const rows = readPersistentCache<LeagueMembership[]>(cacheKeyForUser(userId)) ?? []
-    return rows.every((row) => rosterLimits(row?.leagues) != null) ? rows : []
-}
 
 function reuseMemberships(previous: LeagueMembership[], rows: LeagueMembership[]): LeagueMembership[] {
     const byId = new Map(previous.map((row) => [row.id, row]))
@@ -44,7 +38,7 @@ export function useLeagues() {
     onlineRef.current = online
     const wasOnlineRef = useRef(online)
     const cachedMemberships = useMemo(
-        () => userId ? readCachedMemberships(userId) : [],
+        () => userId ? readPersistentCache<LeagueMembership[]>(cacheKeyForUser(userId)) ?? [] : [],
         [userId],
     )
     const [resource, setResource] = useState<LeagueResource>({
@@ -77,7 +71,7 @@ export function useLeagues() {
         }
 
         const cacheKey = cacheKeyForUser(requestedUserId)
-        const cached = readCachedMemberships(requestedUserId)
+        const cached = readPersistentCache<LeagueMembership[]>(cacheKey) ?? []
         const hasVisibleRows = (
             membershipsRef.current.userId === requestedUserId && membershipsRef.current.memberships.length > 0
         ) || cached.length > 0

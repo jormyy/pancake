@@ -59,7 +59,7 @@ it('swaps a healthy IR player with an injured active player through the overflow
     await act(async () => latest.modalProps.onSwapWithInjured(healthyIr, injured))
     expect(state.swap).toHaveBeenCalledExactlyOnceWith({
         memberId: 'member', leagueId: 'league', healthyIrPlayer: healthyIr, injuredPlayer: injured, rosterSize: 1,
-        limitsStillHold: expect.any(Function),
+        stillValid: expect.any(Function),
     })
     expect(state.changed).toHaveBeenCalledOnce()
 })

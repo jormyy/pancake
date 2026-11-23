@@ -26,7 +26,7 @@ beforeEach(() => {
 })
 
 it('does not write when limits are already stale', async () => {
-    const result = await resolveRosterAddIRConflict({ memberId: 'm', leagueId: 'l', activatePlayer: healthyIr, dropPlayer: drop, limitsStillHold: () => false })
+    const result = await resolveRosterAddIRConflict({ memberId: 'm', leagueId: 'l', activatePlayer: healthyIr, dropPlayer: drop, stillValid: () => false })
     expect(result).toEqual({ status: 'stale' })
     expect(state.activate).not.toHaveBeenCalled()
     expect(state.toggleIR).not.toHaveBeenCalled()
@@ -36,7 +36,7 @@ it('does not write when limits change during the lock read', async () => {
     let release!: (value: null) => void
     state.lock.mockReturnValueOnce(new Promise<null>(resolve => { release = resolve }))
     let current = true
-    const pending = resolveRosterAddIRConflict({ memberId: 'm', leagueId: 'l', activatePlayer: healthyIr, dropPlayer: drop, limitsStillHold: () => current })
+    const pending = resolveRosterAddIRConflict({ memberId: 'm', leagueId: 'l', activatePlayer: healthyIr, dropPlayer: drop, stillValid: () => current })
     current = false
     release(null)
     expect(await pending).toEqual({ status: 'stale' })
@@ -44,7 +44,7 @@ it('does not write when limits change during the lock read', async () => {
 })
 
 it('writes once when limits hold through the lock read', async () => {
-    const result = await resolveRosterAddIRConflict({ memberId: 'm', leagueId: 'l', activatePlayer: healthyIr, dropPlayer: drop, limitsStillHold: () => true })
+    const result = await resolveRosterAddIRConflict({ memberId: 'm', leagueId: 'l', activatePlayer: healthyIr, dropPlayer: drop, stillValid: () => true })
     expect(result.status).toBe('resolved')
     expect(state.activate).toHaveBeenCalledExactlyOnceWith('ir', 'ir', 'drop', 'drop')
 })
@@ -53,7 +53,7 @@ it('does not swap when limits change during the lock read', async () => {
     let release!: (value: null) => void
     state.lock.mockReturnValueOnce(new Promise<null>(resolve => { release = resolve }))
     let current = true
-    const pending = swapHealthyIrWithInjured({ memberId: 'm', leagueId: 'l', healthyIrPlayer: healthyIr, injuredPlayer: injured, limitsStillHold: () => current })
+    const pending = swapHealthyIrWithInjured({ memberId: 'm', leagueId: 'l', healthyIrPlayer: healthyIr, injuredPlayer: injured, stillValid: () => current })
     current = false
     release(null)
     expect(await pending).toEqual({ status: 'stale' })
@@ -61,7 +61,7 @@ it('does not swap when limits change during the lock read', async () => {
 })
 
 it('swaps once when limits hold through the lock read', async () => {
-    const result = await swapHealthyIrWithInjured({ memberId: 'm', leagueId: 'l', healthyIrPlayer: healthyIr, injuredPlayer: injured, limitsStillHold: () => true })
+    const result = await swapHealthyIrWithInjured({ memberId: 'm', leagueId: 'l', healthyIrPlayer: healthyIr, injuredPlayer: injured, stillValid: () => true })
     expect(result.status).toBe('resolved')
     expect(state.activate).toHaveBeenCalledExactlyOnceWith('ir', 'ir', 'injured', 'ir')
 })

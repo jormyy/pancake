@@ -13,14 +13,14 @@ import {
 import { activateRosterPlayerWithLineup, toggleIR } from '@/lib/roster'
 import { todayLeague } from '@/lib/timezone'
 import { leagueTimezone } from '@/lib/league-timezones'
-import type { LeagueRosterLimits } from '@/lib/roster-capacity'
+import { rosterLimits, sameRosterLimits, staleRosterLimitsNotice, type LeagueRosterLimits, type RosterLimits } from '@/lib/roster-capacity'
 // RN's Alert.alert is a silent no-op on web; showAlert/confirmAction route
 // through the in-app feedback system on every platform.
 import { showAlert } from '@/lib/alert'
 import { confirmRosterActivation } from '@/lib/roster-activation-confirm'
 import { getErrorMessage } from '@/lib/shared/errors'
 
-type PendingActivation = { rosterPlayerId: string; source: 'ir' | 'taxi'; slotType: string | null }
+type PendingActivation = { rosterPlayerId: string; source: 'ir' | 'taxi'; slotType: string | null; limits: RosterLimits }
 type LineupActionContext = {
     memberId: string
     leagueId: string
@@ -61,6 +61,14 @@ export function useLineupActions({
     const [autoSetModalVisible, setAutoSetModalVisible] = useState(false)
     const [activationOverflowPending, setActivationOverflowPending] = useState<PendingActivation | null>(null)
     const [activationOverflowSaving, setActivationOverflowSaving] = useState(false)
+    const limitsRef = useRef(rosterLimits(league))
+    limitsRef.current = rosterLimits(league)
+    const limitsStillHold = useCallback((expected: RosterLimits | null) => {
+        if (sameRosterLimits(expected, limitsRef.current)) return true
+        const notice = staleRosterLimitsNotice(limitsRef.current)
+        showAlert(notice.title, notice.message)
+        return false
+    }, [])
     const ownerIdentity = actionOwner
         ? `${actionOwner.memberId}:${actionOwner.leagueId}:${actionOwner.seasonId}:${selectedDate}`
         : null
@@ -163,11 +171,13 @@ export function useLineupActions({
                 return
             }
 
+            const plannedLimits = rosterLimits(league)
             if (plan.kind === 'overflow') {
-                setActivationOverflowPending({
+                if (plannedLimits) setActivationOverflowPending({
                     rosterPlayerId: plan.rosterPlayerId,
                     source: plan.source,
                     slotType: plan.slotType,
+                    limits: plannedLimits,
                 })
                 return
             }
@@ -176,6 +186,7 @@ export function useLineupActions({
             const mutationOwner = ownerIdentity
             const execute = async () => {
                 if (!mutationIsCurrent(mutationGeneration, mutationOwner)) return
+                if (plan.kind === 'activate' && !plan.freeRosterPlayerId && !limitsStillHold(plannedLimits)) return
                 setSaving(true)
                 try {
                     if (plan.kind === 'activate') {
@@ -220,10 +231,15 @@ export function useLineupActions({
                 if (reserve) confirmRosterActivation({ source: 'taxi', reserveName: reserve.displayName }, execute)
             } else await execute()
         } finally { releaseUpdate() }
-    }, [selectedDate, selected, actionContext, actionOwner?.leagueId, myLineup, league, startedTeams, reloadLineup, ownerIdentity, saving])
+    }, [selectedDate, selected, actionContext, actionOwner?.leagueId, myLineup, league, startedTeams, reloadLineup, ownerIdentity, saving, limitsStillHold])
 
     async function resolveOverflow(freeAction: 'drop' | 'ir', rosterPlayerId: string) {
         if (!activationOverflowPending || !actionContext) return
+        const expectedLimits = activationOverflowPending.limits
+        if (!limitsStillHold(expectedLimits)) {
+            setActivationOverflowPending(null)
+            return
+        }
         const starterPlayers = myLineup?.starters
             .map((slot) => slot.player)
             .filter((player): player is LineupPlayer => player != null) ?? []
@@ -254,6 +270,10 @@ export function useLineupActions({
             freeing: { name: chosen.displayName, action: freeAction },
         }, async () => {
             if (!mutationIsCurrent(mutationGeneration, mutationOwner)) return
+            if (!limitsStillHold(expectedLimits)) {
+                setActivationOverflowPending(null)
+                return
+            }
             setActivationOverflowSaving(true)
             try {
                 await activateRosterPlayerWithLineup({

@@ -34,8 +34,8 @@ const changed = vi.fn()
 let renderer: ReactTestRenderer | null = null
 let latest: ReturnType<typeof useQuickAdd>
 
-const Probe = ({ limits }: { limits: RosterLimits | null }) => {
-    latest = useQuickAdd({ memberId: 'member', leagueId: 'league', limits, onChanged: changed, onClaimInstead: mocks.claim })
+const Probe = ({ limits, memberId = 'member', leagueId = 'league' }: { limits: RosterLimits | null; memberId?: string; leagueId?: string }) => {
+    latest = useQuickAdd({ memberId, leagueId, limits, onChanged: changed, onClaimInstead: mocks.claim })
     return null
 }
 
@@ -255,4 +255,26 @@ it.each(['activate', 'drop-and-activate', 'swap'] as const)('alerts and closes w
     expect(mocks.swap).not.toHaveBeenCalled()
     expect(mocks.alert).toHaveBeenCalledWith('Roster settings changed', expect.any(String))
     expect(latest.irModal).toBeNull()
+})
+
+it.each([
+    ['activate', 'team', { memberId: 'synthetic-team-b', leagueId: 'league' }],
+    ['drop-and-activate', 'league', { memberId: 'synthetic-team-c', leagueId: 'synthetic-league-2' }],
+    ['swap', 'team', { memberId: 'synthetic-team-b', leagueId: 'league' }],
+] as const)('synthetic roster: the %s guard turns stale after the manager selects another %s', async (action, _kind, team) => {
+    await mount(LIMITS)
+    let injured!: ReturnType<typeof rosterPlayer>
+    await act(async () => { injured = openResolution() })
+    let stillValid: (() => boolean) | undefined
+    const capture = async (args: { stillValid?: () => boolean }) => { stillValid = args.stillValid; return { status: 'stale' } }
+    mocks.resolveIR.mockImplementation(capture)
+    mocks.swap.mockImplementation(capture)
+    if (action === 'activate') await act(async () => latest.handleIRActivate(injured))
+    else if (action === 'drop-and-activate') await act(async () => latest.handleDropAndIRActivate(rosterPlayer({ id: 'drop' }), injured))
+    else await act(async () => latest.handleSwapWithInjured(rosterPlayer({ id: 'ir', is_on_ir: true }), injured))
+    expect(stillValid?.()).toBe(true)
+    await act(async () => renderer!.update(React.createElement(Probe, { limits: { ...LIMITS }, ...team })))
+    mocks.alert.mockClear()
+    expect(stillValid?.()).toBe(false)
+    expect(mocks.alert).not.toHaveBeenCalled()
 })

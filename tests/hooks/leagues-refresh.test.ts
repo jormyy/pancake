@@ -262,3 +262,25 @@ it('does not read memberships for a nomination-only draft update', async () => {
         expect(mocks.fetchUserLeagues).toHaveBeenCalledTimes(1)
     } finally { await act(async () => renderer.unmount()); vi.useRealTimers() }
 })
+
+it('keeps offline cached memberships whose league limits are incomplete and leaves capacity unknown', async () => {
+    vi.stubGlobal('navigator', { onLine: false })
+    const synthetic = [
+        { id: 'synthetic-member-complete', leagues: { id: 'synthetic-league-complete', roster_size: 20, ir_slots: 2, taxi_slots: 1 } },
+        { id: 'synthetic-member-older-cache', leagues: { id: 'synthetic-league-older-cache', roster_size: 20, ir_slots: 2 } },
+    ]
+    mocks.userId = 'user'
+    mocks.online = false
+    mocks.cache.clear()
+    mocks.cache.set('pancake:league-memberships:v1:user', synthetic)
+    mocks.fetchUserLeagues.mockReset().mockResolvedValue([])
+    const { rosterLimits } = await import('@/lib/roster-capacity')
+    let latest!: ReturnType<typeof useLeagues>
+    const Probe = () => { latest = useLeagues(); return null }
+    let renderer!: ReactTestRenderer
+    await act(async () => { renderer = create(React.createElement(Probe)) })
+    expect(latest.memberships.map(row => row.id)).toEqual(['synthetic-member-complete', 'synthetic-member-older-cache'])
+    expect(latest.memberships.map(row => rosterLimits(row.leagues))).toEqual([{ rosterSize: 20, irSlots: 2, taxiSlots: 1 }, null])
+    expect(mocks.fetchUserLeagues).not.toHaveBeenCalled()
+    await act(async () => { renderer.unmount() })
+})

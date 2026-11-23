@@ -297,7 +297,7 @@ export function useQuickAdd({
         try {
             const result = await resolveRosterAddIRConflict({
                 memberId, leagueId, activatePlayer: rp, rosterSize: expected.rosterSize,
-                limitsStillHold: () => limitsStillHold(expected),
+                stillValid: () => isCurrent(generation, identity) && limitsStillHold(expected),
             })
             if (!isCurrent(generation, identity)) return
             if (result.status === 'stale') { setIrModal(null); return }
@@ -320,7 +320,7 @@ export function useQuickAdd({
         try {
             const result = await resolveRosterAddIRConflict({
                 memberId, leagueId, activatePlayer, dropPlayer: toDrop, rosterSize: expected.rosterSize,
-                limitsStillHold: () => limitsStillHold(expected),
+                stillValid: () => isCurrent(generation, identity) && limitsStillHold(expected),
             })
             if (!isCurrent(generation, identity)) return
             if (result.status === 'stale') { setIrModal(null); return }
@@ -343,7 +343,7 @@ export function useQuickAdd({
         try {
             const result = await swapHealthyIrWithInjured({
                 memberId, leagueId, healthyIrPlayer, injuredPlayer, rosterSize: expected.rosterSize,
-                limitsStillHold: () => limitsStillHold(expected),
+                stillValid: () => isCurrent(generation, identity) && limitsStillHold(expected),
             })
             if (!isCurrent(generation, identity)) return
             if (result.status === 'stale') { setIrModal(null); return }

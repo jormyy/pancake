@@ -66,9 +66,9 @@ export function useRosterLegality({ memberId, leagueId, limits, onChanged }: {
         if (!limitsStillHold(expected) || !expected) { setSnapshot(null); return false }
         const result = await resolveRosterAddIRConflict({
             memberId, leagueId, activatePlayer: player, dropPlayer: drop, rosterSize: expected.rosterSize,
-            limitsStillHold: () => limitsStillHold(expected),
+            stillValid: () => current() && limitsStillHold(expected),
         })
-        if (result.status === 'stale') { setSnapshot(null); return false }
+        if (result.status === 'stale') { if (current()) setSnapshot(null); return false }
         if (result.status === 'locked') throw new Error(result.message)
         return true
     }
@@ -78,9 +78,9 @@ export function useRosterLegality({ memberId, leagueId, limits, onChanged }: {
         if (!limitsStillHold(expected) || !expected) { setSnapshot(null); return false }
         const result = await swapHealthyIrWithInjured({
             memberId, leagueId, healthyIrPlayer, injuredPlayer, rosterSize: expected.rosterSize,
-            limitsStillHold: () => limitsStillHold(expected),
+            stillValid: () => current() && limitsStillHold(expected),
         })
-        if (result.status === 'stale') { setSnapshot(null); return false }
+        if (result.status === 'stale') { if (current()) setSnapshot(null); return false }
         if (result.status === 'locked') throw new Error(result.message)
         return true
     }
