@@ -140,4 +140,4 @@ Completed auction sale prices are public. Budget-transfer amounts are excluded.
 `free-agents` includes unrostered players on waivers.
 `waiverEligible` describes public availability, not whether a manager's claim can succeed.
 
-See the [maintainer reference](https://github.com/jormyy/pancake/blob/main/docs/public-cli.md) for the field inventory and operational checks.
+See the [maintainer reference](https://github.com/jormyy/pancake/blob/main/docs/architecture.md#public-api-and-cli) for the privacy boundary and checks.
