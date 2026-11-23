@@ -49,7 +49,7 @@
     "release": "node scripts/release/release.mjs",
     "release:recover-artifact": "node tests/e2e/recover-release-artifact.mjs",
     "lint": "expo lint",
-    "lint:all": "eslint app components constants contexts hooks lib types core/src core/tests scripts tests tools --max-warnings=0",
+    "lint:all": "eslint app components constants contexts hooks lib types core/src core/tests scripts tests tools supabase/functions/api --max-warnings=0",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "typecheck:tests": "tsc -p tsconfig.tests.json --noEmit",
     "typecheck:e2e": "tsc -p tsconfig.e2e.json --noEmit",

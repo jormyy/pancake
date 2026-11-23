@@ -1,4 +1,4 @@
-const message = 'Read the lock from the server: roster_players.locked_until_slate_end (lib/roster-locks) or a view lock field. The DB owns game locks in private.player_game_started.'
+const message = 'Do not decide game locks from nba_games here. Read roster_players.locked_until_slate_end (lib/roster-locks) or a view lock field, or let the RPC reject. private.player_game_started owns the rule.'
 const lockColumns = /\b(status|game_time|started_at)\b|\*/
 const lockFilters = /^(status|game_time|started_at)$/
 const filterMethods = new Set(['eq', 'neq', 'in', 'lt', 'lte', 'gt', 'gte', 'is', 'not', 'filter'])

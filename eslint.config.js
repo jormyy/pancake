@@ -19,7 +19,7 @@ module.exports = defineConfig([
         },
     },
     {
-        files: ['scripts/bench/game-night/edge.mjs'],
+        files: ['scripts/bench/game-night/edge.mjs', 'supabase/functions/api/**/*.ts'],
         languageOptions: { globals: { Deno: 'readonly' } },
         rules: { 'import/no-unresolved': ['error', { ignore: ['^npm:'] }] },
     },
@@ -30,8 +30,8 @@ module.exports = defineConfig([
         },
     },
     {
-        files: ['app/**/*.{ts,tsx}', 'hooks/**/*.{ts,tsx}', 'lib/**/*.{ts,tsx}'],
-        ignores: ['lib/live-score-view.ts', 'hooks/use-public-live-snapshot.ts', 'hooks/use-live-view-recovery.ts'],
+        files: ['app/**/*.{ts,tsx}', 'hooks/**/*.{ts,tsx}', 'lib/**/*.{ts,tsx}', 'supabase/functions/api/**/*.ts'],
+        ignores: ['lib/live-score-view.ts', 'hooks/use-public-live-snapshot.ts', 'hooks/use-live-view-recovery.ts', 'supabase/functions/api/games.ts'],
         plugins: { pancake: { rules: { 'no-client-game-lock': require('./eslint/rules/no-client-game-lock') } } },
         rules: { 'pancake/no-client-game-lock': 'error' },
     },
