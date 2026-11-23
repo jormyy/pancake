@@ -17,14 +17,14 @@ const fail = (message) => {
 }
 
 const migrationDir = path.join(repo, coverage.migrations.dir)
+const migrationNames = readdirSync(migrationDir).filter((name) => name.endsWith('.sql')).sort()
 const migrationSet = (through) => {
   const hash = createHash('sha256')
-  for (const name of readdirSync(migrationDir).filter((name) => name.endsWith('.sql') && name <= through).sort()) {
+  for (const name of migrationNames.filter((name) => name <= through)) {
     hash.update(`${name}\0${createHash('sha256').update(readFileSync(path.join(migrationDir, name))).digest('hex')}\n`)
   }
   return hash.digest('hex')
 }
-const migrationNames = readdirSync(migrationDir).filter((name) => name.endsWith('.sql')).sort()
 
 if (process.argv.includes('--record-migrations')) {
   const through = migrationNames.at(-1)
@@ -115,8 +115,11 @@ try {
     const taken = [...output.matchAll(/^State \d+: <(\w+)/gm)].map((hit) => hit[1]).slice(1)
     const ok = run.expect === 'pass' ? passed : violated === run.expect && (run.path ? taken.join() === run.path.join() : taken.at(-1) === run.through)
     failed ||= !ok
-    const expected = run.path ? `after exactly: ${run.path.map((action) => steps[action]).join(', then ')}` : `at ${steps[run.through]}`
-    console.log(`${ok ? 'ok' : 'FAIL'} ${run.config}: ${passed ? `no violation in ${states} states` : violated ? `${violated} violated` : 'TLC error'} (expected ${run.expect === 'pass' ? 'no violation' : `${run.expect} violated ${expected}`})`)
+    const expected =
+      run.expect === 'pass'
+        ? 'no violation'
+        : `${run.expect} violated ${run.path ? `after exactly: ${run.path.map((action) => steps[action]).join(', then ')}` : `at ${steps[run.through]}`}`
+    console.log(`${ok ? 'ok' : 'FAIL'} ${run.config}: ${passed ? `no violation in ${states} states` : violated ? `${violated} violated` : 'TLC error'} (expected ${expected})`)
     if (violated) console.log(story(output, readFileSync(path.join(here, `${run.config}.cfg`), 'utf8').match(/RosterSize = (\d+)/)[1]))
     if (!passed && !violated) console.log(output)
   }

@@ -127,7 +127,7 @@ These checks use controlled fixtures. They do not establish hosted latency or ph
 `npm run check:formal:trade-roster-holds` model-checks the roster room that trade acceptances hold.
 It needs Java 11 or later and TLC 1.7.4; add `-- --install` once to fetch the pinned TLC jar into `~/.cache/pancake-formal`.
 It passes only when the current rule holds in every state and the pre-#187 rule still fails with its trace.
-Run it on the Mac after any change to the files in `tools/formal/trade-roster-holds/coverage.json` or to any migration; it fails on purpose when the migration set differs from the one recorded there.
+Run it on the Mac after any change to a file listed in `tools/formal/trade-roster-holds/coverage.json` or to any migration; it fails on purpose when the migration set differs from the one recorded there.
 `npm run test:db:trade-hold-model-replay` replays the model's failure paths on a disposable database.
 The [formal-trade-roster-holds](../.claude/skills/formal-trade-roster-holds/SKILL.md) skill explains the model and how to update it.
 
