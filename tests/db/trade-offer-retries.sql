@@ -95,10 +95,21 @@ BEGIN
   BEGIN
     PERFORM public.submit_trade_offer_atomic(v_users[2],gen_random_uuid(),v_members[2],'counter',
       v_terms||jsonb_build_object('tradeId',v_source));
-  EXCEPTION WHEN SQLSTATE '22023' THEN v_rejected := true;
+  EXCEPTION WHEN SQLSTATE '42501' THEN v_rejected := true;
   END;
   IF NOT v_rejected OR (SELECT status::text FROM trades WHERE id=v_source)<>'pending' THEN
     RAISE EXCEPTION 'Accepted multi participant bypassed the restriction through two-team counter';
+  END IF;
+  v_rejected := false;
+  BEGIN
+    PERFORM public.submit_trade_offer_atomic(v_users[3],gen_random_uuid(),v_members[3],'counter',
+      v_terms||jsonb_build_object('tradeId',v_source));
+  EXCEPTION WHEN SQLSTATE '22023' THEN
+    IF SQLERRM <> 'Use the multi-team action for this trade.' THEN RAISE; END IF;
+    v_rejected := true;
+  END;
+  IF NOT v_rejected OR (SELECT status::text FROM trades WHERE id=v_source)<>'pending' THEN
+    RAISE EXCEPTION 'An unaccepted multi participant countered through the two-team route';
   END IF;
   -- A still-unaccepted participant uses the correct multi-team route successfully.
   v_first := public.submit_trade_offer_atomic(v_users[3],gen_random_uuid(),v_members[3],'counter-multi',

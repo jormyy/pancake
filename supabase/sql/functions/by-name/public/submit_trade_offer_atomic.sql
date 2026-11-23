@@ -10,13 +10,36 @@ DECLARE
   __request_context jsonb;
   __request_result uuid;
   v_member_league uuid;
+  v_multi boolean := p_action LIKE '%-multi';
+  v_source uuid;
 BEGIN
+  IF p_request_id IS NULL OR p_action IS NULL
+    OR p_action NOT IN ('propose','propose-multi','edit','edit-multi','counter','counter-multi')
+    OR jsonb_typeof(p_payload) IS DISTINCT FROM 'object' THEN
+    RAISE EXCEPTION 'A request key, supported offer action, and offer payload are required.' USING ERRCODE='22023';
+  END IF;
+  IF p_action NOT LIKE 'propose%' THEN
+    v_source := (p_payload->>'tradeId')::uuid;
+    IF v_source IS NULL THEN
+      RAISE EXCEPTION 'The source trade is required.' USING ERRCODE='22023';
+    END IF;
+  END IF;
+  IF v_source IS NULL THEN
+    v_member_league := private.begin_trade_offer(p_member_id, p_user_id);
+  ELSE
+    v_member_league := (private.begin_trade_action(v_source, p_member_id, p_user_id, split_part(p_action,'-',1),
+      ARRAY[p_member_id, (p_payload->>'recipientMemberId')::uuid] || CASE WHEN v_multi
+        THEN ARRAY(SELECT jsonb_array_elements_text(COALESCE(p_payload->'participantMemberIds','[]'::jsonb)))::uuid[]
+        ELSE '{}' END,
+      CASE WHEN v_multi
+        THEN ARRAY(SELECT (item->>'playerId')::uuid FROM jsonb_array_elements(COALESCE(p_payload->'items','[]'::jsonb)) AS items(item))
+        ELSE ARRAY(SELECT jsonb_array_elements_text(COALESCE(p_payload->'offerPlayerIds','[]'::jsonb)))::uuid[]
+          || ARRAY(SELECT jsonb_array_elements_text(COALESCE(p_payload->'requestPlayerIds','[]'::jsonb)))::uuid[]
+      END)).league_id;
+  END IF;
   BEGIN
     __request_context := private.request_begin('public.submit_trade_offer_atomic', jsonb_build_array(p_user_id, p_request_id, p_member_id, p_action, p_payload - 'estimateId'), p_request_id, NULL, p_user_id);
   EXCEPTION WHEN invalid_parameter_value THEN
-    IF NOT EXISTS (SELECT 1 FROM league_members WHERE id=p_member_id AND user_id=p_user_id) THEN
-      RAISE EXCEPTION 'Not authorized to act for this member.' USING ERRCODE='42501';
-    END IF;
     IF EXISTS (
       SELECT 1 FROM private.request_receipts
       WHERE request_id=p_request_id AND actor IS DISTINCT FROM p_user_id
@@ -28,11 +51,6 @@ BEGIN
     END IF;
     RAISE;
   END;
-  SELECT league_id INTO v_member_league FROM league_members
-    WHERE id=p_member_id AND user_id=p_user_id;
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'Not authorized to act for this member.' USING ERRCODE='42501';
-  END IF;
   IF EXISTS (
     SELECT 1 FROM private.trade_offer_requests
     WHERE user_id=p_user_id AND request_id=p_request_id AND member_id IS DISTINCT FROM p_member_id
@@ -42,11 +60,9 @@ BEGIN
   IF (__request_context->>'replay')::boolean THEN RETURN (__request_context->>'result')::uuid; END IF;
   <<request_write>>
 DECLARE
-  v_multi boolean;
   v_league uuid;
   v_season uuid;
   v_recipient uuid;
-  v_source uuid;
   v_notes text;
   v_expiration timestamptz;
   v_offer_players uuid[];
@@ -63,12 +79,6 @@ DECLARE
   v_result uuid;
   v_plans jsonb; v_check_items jsonb; v_check_teams jsonb; v_check_error text; v_plan_entry record;
 BEGIN
-  IF p_request_id IS NULL OR p_action IS NULL
-    OR p_action NOT IN ('propose','propose-multi','edit','edit-multi','counter','counter-multi')
-    OR jsonb_typeof(p_payload) IS DISTINCT FROM 'object' THEN
-    RAISE EXCEPTION 'A request key, supported offer action, and offer payload are required.' USING ERRCODE='22023';
-  END IF;
-  v_multi := p_action LIKE '%-multi';
   v_notes := NULLIF(btrim(p_payload->>'notes'),'');
   v_expiration := (p_payload->>'expiresAt')::timestamptz;
   v_envelope := jsonb_build_object('version',1,'action',p_action,'memberId',p_member_id,
@@ -87,10 +97,6 @@ BEGIN
       v_envelope := v_envelope||jsonb_build_object('recipientMemberId',v_recipient);
     END IF;
   ELSE
-    v_source := (p_payload->>'tradeId')::uuid;
-    IF v_source IS NULL THEN
-      RAISE EXCEPTION 'The source trade is required.' USING ERRCODE='22023';
-    END IF;
     v_envelope := v_envelope||jsonb_build_object('tradeId',v_source);
     IF NOT v_multi AND p_payload ? 'recipientMemberId' THEN
       v_recipient := (p_payload->>'recipientMemberId')::uuid;
@@ -150,7 +156,6 @@ BEGIN
   INSERT INTO private.trade_offer_requests(user_id,request_id,member_id,request_payload)
     VALUES(p_user_id,p_request_id,p_member_id,v_envelope) ON CONFLICT(user_id,request_id) DO NOTHING;
   GET DIAGNOSTICS v_inserted=ROW_COUNT;
-  -- The separate statement sees a concurrent claim after its transaction commits.
   SELECT * INTO STRICT v_receipt FROM private.trade_offer_requests
     WHERE user_id=p_user_id AND request_id=p_request_id FOR UPDATE;
   IF v_receipt.member_id IS DISTINCT FROM p_member_id THEN

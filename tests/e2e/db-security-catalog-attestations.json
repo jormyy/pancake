@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261215170000",
+  "candidateVersion": "20261215180000",
   "common": {
     "functions": [
       {
@@ -2769,6 +2769,10 @@
     {
       "filename": "20261215170000_roster_lock_scope.sql",
       "sha256": "cc3e4c32fbeb0320375f9f788c8e7781140d45b115b7b0e02183b552ba2c8602"
+    },
+    {
+      "filename": "20261215180000_begin_trade_action.sql",
+      "sha256": "ad29e7d9181535ecf284a126b3cc9e1995b4e78558fe6bcb37736d0e2119394a"
     }
   ],
   "preMigration": {
