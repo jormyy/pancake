@@ -41,6 +41,7 @@ const cases = [
   }),
   queue({
     name: 'overlapping dispatch_work while another dispatcher holds its lock',
+    before: (f) => `SELECT private.work_enqueue('sync-players',${quote(`${f.prefix}-due-`)}||n,clock_timestamp()-interval '1 day',jsonb_build_object('test',${quote(f.prefix)},'slot',n)) FROM generate_series(1,3) n`,
     holds: () => ["SELECT pg_advisory_xact_lock(hashtextextended('public.dispatch_work',0))"],
     run: () => 'SELECT public.dispatch_work()',
     expect: '0',
