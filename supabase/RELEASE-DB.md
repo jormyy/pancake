@@ -31,8 +31,8 @@ Do not unschedule a retired per-job cron. Cron calls `public.dispatch_work()` fo
 ## Release order for this release
 
 The supplied production head is `20261214011300` (`trade_roster_holds`), with 791 migrations.
-This release adds seven migrations, for 798 migrations:
-`20261214011400_league_roster_policies.sql`, `20261214011500_weekly_roster_floor.sql`, `20261214011600_league_auto_ir_schedule.sql`, `20261214011700_enable_official_league_roster_policy.sql`, `20261214011800_tipoff_mode_aware_completion.sql`, `20261214011900_total_add_week.sql`, and `20261215080000_immutable_lineup_history.sql`.
+This release adds eight migrations, for 799 migrations:
+`20261214011400_league_roster_policies.sql`, `20261214011500_weekly_roster_floor.sql`, `20261214011600_league_auto_ir_schedule.sql`, `20261214011700_enable_official_league_roster_policy.sql`, `20261214011800_tipoff_mode_aware_completion.sql`, `20261214011900_total_add_week.sql`, `20261215080000_immutable_lineup_history.sql`, and `20261215140000_dynasty_rank_owner.sql`.
 Database, then Edge, then merge the frontend.
 The frontend needs no release.
 
@@ -377,3 +377,13 @@ A row whose game date is past or whose game started now raises SQLSTATE `55000` 
 Deleting a league still removes its rows, and `private.correct_lineup_history()` allows a deliberate correction inside one transaction.
 `private.history_restore_lineups()` is dropped.
 Run `npm run test:db:lineup-history-immutable` and `npm run test:db:season-lineup-full-roster` on a private stack.
+
+## Dynasty rank owner guard
+
+`20261215140000_dynasty_rank_owner.sql` adds the `players_dynasty_rank_owner` trigger, for 799 migrations.
+It needs no Edge or frontend release and can apply in any order after `20261215080000`.
+Each write of `players.dynasty_rank` must carry source `hashtagbasketball.com`, or clear the rank and source together.
+Any other write fails with `players.dynasty_rank is owned by the Hashtag five-year points sync; write trade values to dynasty_rankings with source onenumberhoops.com`.
+The trigger checks only written rows, so existing rows need no backfill.
+Read-only check before applying: `SELECT count(*) FROM public.players WHERE dynasty_rank_source IS DISTINCT FROM 'hashtagbasketball.com' AND (dynasty_rank IS NOT NULL OR dynasty_rank_source IS NOT NULL);` should return 0.
+Rollback: `DROP TRIGGER players_dynasty_rank_owner ON public.players;`.

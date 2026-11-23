@@ -110,6 +110,7 @@
     "private.flush_player_stats_hints()": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.generate_playoff_round(uuid,uuid,integer)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.guard_accepted_trade_capacity()": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
+    "private.guard_dynasty_rank_source()": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.guard_lineup_history()": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.guard_nba_game_identity()": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.guard_partition_identity()": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},

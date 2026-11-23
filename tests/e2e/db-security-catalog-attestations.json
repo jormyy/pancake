@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261215080000",
+  "candidateVersion": "20261215140000",
   "common": {
     "functions": [
       {
@@ -2753,6 +2753,10 @@
     {
       "filename": "20261215080000_immutable_lineup_history.sql",
       "sha256": "126f03726e19626196f40b5d1290321dde37a543f892df2bd4674ca364c72551"
+    },
+    {
+      "filename": "20261215140000_dynasty_rank_owner.sql",
+      "sha256": "be1e0e386c8e2a224b0d7bfe3192d877ff1e59fb082c2d9ee8c6d160949d5719"
     }
   ],
   "preMigration": {
