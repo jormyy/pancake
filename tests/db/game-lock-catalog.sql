@@ -5,7 +5,7 @@ BEGIN
   SELECT array_agg(format('%I.%I', namespace.nspname, procedure.proname) ORDER BY procedure.proname) INTO writers
   FROM pg_proc procedure JOIN pg_namespace namespace ON namespace.oid = procedure.pronamespace
   WHERE procedure.prosecdef AND namespace.nspname IN ('public', 'private')
-    AND procedure.prosrc ~* 'UPDATE\s+(public\.)?roster_players\s+SET[^;]*is_on_(ir|taxi)\s*=';
+    AND procedure.prosrc ~* 'UPDATE\s+(public\.)?roster_players(\s+(AS\s+)?\w+)?\s+SET[^;]*is_on_(ir|taxi)\s*=';
   SELECT EXISTS (
     SELECT 1 FROM pg_trigger trigger JOIN pg_proc procedure ON procedure.oid = trigger.tgfoid
     WHERE trigger.tgrelid = 'public.roster_players'::regclass AND NOT trigger.tgisinternal
@@ -14,9 +14,9 @@ BEGIN
   ) INTO guarded;
   IF NOT guarded THEN
     RAISE EXCEPTION '% SECURITY DEFINER functions write roster_players IR/taxi columns with no game-lock trigger (%). Add a BEFORE UPDATE trigger on roster_players that calls private.roster_status_game_started; the DB owns game locks.',
-      cardinality(writers), array_to_string(writers, ', ');
+      coalesce(cardinality(writers), 0), coalesce(array_to_string(writers, ', '), 'none found');
   END IF;
-  RAISE NOTICE 'game-lock trigger guards % IR/taxi writers', cardinality(writers);
+  RAISE NOTICE 'game-lock trigger guards % IR/taxi writers', coalesce(cardinality(writers), 0);
 END;
 $$;
 
@@ -25,11 +25,11 @@ VALUES ('00000000-0000-0000-0000-00005a091001','authenticated','authenticated','
        ('00000000-0000-0000-0000-00005a091002','authenticated','authenticated','s09b@example.test','x',now(),'{}','{}',now(),now());
 INSERT INTO profiles(id,username) VALUES ('00000000-0000-0000-0000-00005a091001','s09_owner'),('00000000-0000-0000-0000-00005a091002','s09_rival')
 ON CONFLICT(id) DO NOTHING;
-INSERT INTO leagues(id,name,slug,commissioner_id,status,roster_size,ir_slots,taxi_slots)
-VALUES ('00000000-0000-0000-0000-00005a091101','S09 Locks','s09-locks','00000000-0000-0000-0000-00005a091001','active',10,3,2);
+INSERT INTO leagues(id,name,slug,commissioner_id,status,roster_size,ir_slots,taxi_slots,allow_inactive_trades)
+VALUES ('00000000-0000-0000-0000-00005a091101','S09 Locks','s09-locks','00000000-0000-0000-0000-00005a091001','active',10,3,2,true);
 INSERT INTO league_members(id,league_id,user_id,role,team_name) VALUES
 ('00000000-0000-0000-0000-00005a091201','00000000-0000-0000-0000-00005a091101','00000000-0000-0000-0000-00005a091001','commissioner','S09 Owner'),
-('00000000-0000-0000-0000-00005a091202','00000000-0000-0000-0000-00005a091101','00000000-0000-0000-0000-00005a091002','member','S09 Rival');
+('00000000-0000-0000-0000-00005a091202','00000000-0000-0000-0000-00005a091101','00000000-0000-0000-0000-00005a091002','manager','S09 Rival');
 INSERT INTO league_seasons(id,league_id,season_year,is_current)
 VALUES ('00000000-0000-0000-0000-00005a091301','00000000-0000-0000-0000-00005a091101',2105,true);
 INSERT INTO players(id,first_name,last_name,nba_team,position,eligible_positions,injury_status,years_exp) VALUES

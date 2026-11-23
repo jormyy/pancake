@@ -577,7 +577,7 @@ CREATE TRIGGER b_game_lock_roster_status BEFORE UPDATE OF is_on_ir, is_on_taxi O
 FOR EACH ROW WHEN (OLD.member_id = NEW.member_id AND (OLD.is_on_ir, OLD.is_on_taxi) IS DISTINCT FROM (NEW.is_on_ir, NEW.is_on_taxi))
 EXECUTE FUNCTION private.prevent_started_game_roster_status_change();
 
-CREATE OR REPLACE FUNCTION public.locked_until_slate_end(p_roster public.roster_players)
+CREATE OR REPLACE FUNCTION public.locked_until_slate_end(p_roster roster_players)
 RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
   SELECT private.roster_status_game_started(p_roster.player_id)
 $$;

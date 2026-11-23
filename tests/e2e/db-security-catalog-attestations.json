@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261214011800",
+  "candidateVersion": "20261214040000",
   "common": {
     "functions": [
       {
@@ -638,7 +638,7 @@
           "strict": false,
           "language": "sql",
           "arguments": "p_player_id uuid, p_game_date date",
-          "bodySha256": "8445197f660de33185531c2ccdce3bd1d1ce175b6065c4609b3df3b5126d6ee3",
+          "bodySha256": "b884df1ed2c022b526e7ca6deabef4c75c20c93156101ad3809b1bec3ab84295",
           "volatility": "s",
           "anonExecute": true,
           "publicExecute": true,
@@ -1001,6 +1001,13 @@
           "enabled": "O",
           "definition": "CREATE TRIGGER attach_submitted_trade_estimate AFTER INSERT ON public.trade_estimate_quotes FOR EACH ROW EXECUTE FUNCTION private.attach_submitted_trade_estimate()",
           "functionName": "attach_submitted_trade_estimate",
+          "functionSchema": "private"
+        },
+        {
+          "name": "b_game_lock_roster_status",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER b_game_lock_roster_status BEFORE UPDATE OF is_on_ir, is_on_taxi ON public.roster_players FOR EACH ROW WHEN (((old.member_id = new.member_id) AND ((old.is_on_ir IS DISTINCT FROM new.is_on_ir) OR (old.is_on_taxi IS DISTINCT FROM new.is_on_taxi)))) EXECUTE FUNCTION private.prevent_started_game_roster_status_change()",
+          "functionName": "prevent_started_game_roster_status_change",
           "functionSchema": "private"
         },
         {
@@ -2745,6 +2752,10 @@
     {
       "filename": "20261214011800_tipoff_mode_aware_completion.sql",
       "sha256": "d4dc37396f8f1e8d65105ef1e104c7feb8605d91abd04134e175dbae4171abcb"
+    },
+    {
+      "filename": "20261214040000_one_player_game_lock.sql",
+      "sha256": "2cf35e475bb02f6c308c4d13e1e6644ff37b281321896c80c53c1deee43435fd"
     }
   ],
   "preMigration": {
