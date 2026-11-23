@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
     nextMember: null as string | null,
     overflow: null as { newPlayerName: string } | null,
     trimOverflow: null as { excess: number; dropList: never[] } | null,
+    trimAwaitingLimits: false,
     isCommissioner: false, seasonYear: undefined as number | undefined, isMock: false,
 }))
 vi.mock('react-native', () => ({ Image: 'Image',
@@ -37,7 +38,7 @@ vi.mock('@/hooks/useRookieDraftRoomController', () => ({ useRookieDraftRoomContr
     query: '', setQuery: vi.fn(), prospects: [], prospectsLoading: false, picking: false,
     draftToTaxi: false, setDraftToTaxi: vi.fn(), activeTab: 'prospects', setActiveTab: vi.fn(), secondsLeft: 0,
     pickError: null, completionError: null, rosterOverflow: mocks.overflow, rosterForDrop: [],
-    resolvingOverflow: false, trimOverflow: mocks.trimOverflow, trimmingId: null, memberId: 'member',
+    resolvingOverflow: false, trimOverflow: mocks.trimOverflow, trimAwaitingLimits: mocks.trimAwaitingLimits, trimmingId: null, memberId: 'member',
     refresh: mocks.refresh, handleTrimDrop: mocks.trim, resolveByDrop: mocks.drop, handlePick: vi.fn(), handleCommissionerPick: vi.fn(),
 }) }))
 vi.mock('@/lib/draft', () => ({ pauseDraft: vi.fn(), resetDraft: vi.fn(), resumeDraft: vi.fn(), stopDraft: vi.fn() }))
@@ -63,7 +64,7 @@ vi.mock('@/lib/format', () => ({ countLabel: (count: number, word: string) => `$
 
 let screen: ReactTestRenderer
 beforeEach(() => {
-    vi.clearAllMocks(); mocks.overflow = null; mocks.trimOverflow = null; mocks.nextMember = null
+    vi.clearAllMocks(); mocks.overflow = null; mocks.trimOverflow = null; mocks.trimAwaitingLimits = false; mocks.nextMember = null
     mocks.hasState = true; mocks.loading = false; mocks.loadError = null; mocks.prospectsLoadError = null
     mocks.isCommissioner = false; mocks.seasonYear = undefined; mocks.isMock = false
 })
@@ -186,4 +187,14 @@ it.each([false, true])("titles a rookie room with the draft calendar year, mock 
     mocks.isMock = isMock
     await act(async () => { screen = create(React.createElement(RookieDraftRoomScreen)) })
     expect(screen.root.findByType('DraftScreenHeader' as React.ElementType).props.title).toBe(isMock ? '2027 Mock Rookie Draft' : '2027 Rookie Draft')
+})
+
+it('keeps the trim dialog open with a loading notice and no drop choices while roster settings load', async () => {
+    mocks.trimAwaitingLimits = true
+    await act(async () => { screen = create(React.createElement(RookieDraftRoomScreen)) })
+    const dialog = screen.root.findAllByType('Modal' as React.ElementType).find((node) => node.props.visible)
+    expect(dialog).toBeDefined()
+    expect(dialog!.findAll((node) => node.props.children === 'Roster settings are loading. Drop choices return once the league limit is known.')).toHaveLength(1)
+    expect(dialog!.findAll((node) => node.props.children === 'Select a player to drop:')).toHaveLength(0)
+    expect(dialog!.findAllByType('MotionPressable' as React.ElementType).map((node) => node.props.accessibilityLabel)).toEqual(['Back to League'])
 })

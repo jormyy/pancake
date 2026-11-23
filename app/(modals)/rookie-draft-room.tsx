@@ -67,6 +67,7 @@ export default function RookieDraftRoomScreen() {
         resolvingOverflow,
         trimOverflow,
         trimmingId,
+        trimAwaitingLimits,
         memberId,
         refresh,
         handleTrimDrop,
@@ -184,22 +185,28 @@ export default function RookieDraftRoomScreen() {
                 </View>
             </Modal>
 
-            <Modal visible={!!trimOverflow} transparent animationType="slide"
+            <Modal visible={!!trimOverflow || trimAwaitingLimits} transparent animationType="slide"
                 onRequestClose={() => { if (!trimmingId) navigateBackToDraftList() }}>
                 <View style={styles.overflowOverlay}>
                     <View style={styles.overflowCard}>
                         <Text style={styles.overflowTitle}>Trim Your Roster</Text>
-                        <Text style={styles.overflowBody}>
-                            Your active roster is{' '}
-                            <Text style={{ fontWeight: fontWeight.bold }}>{trimOverflow?.excess ?? 0} over</Text>
-                            {' '}the limit. Drop {countLabel(trimOverflow?.excess ?? 0, 'player')} before setting lineups or adding players.
-                        </Text>
+                        {trimOverflow ? (
+                            <Text style={styles.overflowBody}>
+                                Your active roster is{' '}
+                                <Text style={{ fontWeight: fontWeight.bold }}>{trimOverflow.excess} over</Text>
+                                {' '}the limit. Drop {countLabel(trimOverflow.excess, 'player')} before setting lineups or adding players.
+                            </Text>
+                        ) : (
+                            <Text style={styles.overflowBody} accessibilityLiveRegion="polite">
+                                Roster settings are loading. Drop choices return once the league limit is known.
+                            </Text>
+                        )}
                         <MotionPressable style={styles.overflowBtn} accessibilityRole="button"
                             accessibilityLabel="Back to League" disabled={!!trimmingId}
                             onPress={() => navigateBackToDraftList()}>
                             <Text style={styles.overflowExitText}>Back to League</Text>
                         </MotionPressable>
-                        <Text style={styles.overflowDropLabel}>Select a player to drop:</Text>
+                        {trimOverflow ? <Text style={styles.overflowDropLabel}>Select a player to drop:</Text> : null}
                         <ScrollView style={styles.overflowDropList} showsVerticalScrollIndicator>
                             {trimOverflow?.dropList.map((rp) => (
                                 <MotionPressable
