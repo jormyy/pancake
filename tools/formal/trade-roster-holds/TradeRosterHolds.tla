@@ -34,6 +34,7 @@ AcceptanceFits(t) ==
 
 FinalYesFits(t) ==
   /\ Fits(0, Unanimous \cup {t})
+  /\ OtherHoldsFit(t, Unanimous \cup {t})
 
 ClaimEntryFits == Rule = "every-acceptance" => RosterGuard(1)
 
