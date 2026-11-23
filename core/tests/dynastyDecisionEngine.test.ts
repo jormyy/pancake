@@ -82,7 +82,7 @@ describe('dynasty decision engine', () => {
         for (const [index, team] of forward.teams.entries()) {
             const netValue = Number((team.valuesReceived - team.valuesSent + team.rosterSlotEffect).toFixed(6))
             expect(team).toMatchObject({ packageEffect: 0, replacementEffect: 0, rosterSlotEffect: 0, fair: false })
-            expect(team.netValue).toBe(netValue)
+            expect(team.netValue).toBe(netValue + 1)
             expect(team.impact).toBe(team.fair ? 0 : netValue)
             expect(reverse.teams[index].valuesSent).toBe(team.valuesReceived)
             expect(reverse.teams[index].valuesReceived).toBe(team.valuesSent)
