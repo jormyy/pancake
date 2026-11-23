@@ -37,7 +37,6 @@ export function MatchupLineupView({
     compact,
     dense,
     daySelector,
-    autoSetControl,
     footer,
     hideSlotCounts = false,
 }: {
@@ -57,7 +56,6 @@ export function MatchupLineupView({
     compact: boolean
     dense: boolean
     daySelector?: ReactNode
-    autoSetControl?: ReactNode
     hideSlotCounts?: boolean
     footer?: ReactNode
 }) {
@@ -144,9 +142,9 @@ export function MatchupLineupView({
                     <View key={section.key} style={styles.lineupSection}>
                         {/* Slot counts describe your own lineup; another team's matchup is view-only, so they are hidden. */}
                         <SectionBand label={section.label}
-                            variant={section.key === 'starters' && autoSetControl ? 'action' : 'matchup'}
+                            variant="matchup"
                             labelStyle={{ color: section.color }}
-                            detail={section.key === 'starters' && autoSetControl ? autoSetControl : section.used !== null && !hideSlotCounts ? <Text style={styles.lineupSectionCount}>{section.used}</Text> : undefined}
+                            detail={section.used !== null && !hideSlotCounts ? <Text style={styles.lineupSectionCount}>{section.used}</Text> : undefined}
                         />
                         {section.key === 'starters' && noStarters ? (
                             <Text style={styles.noStarters} accessibilityLabel="No lineups set this day">No lineups set this day</Text>

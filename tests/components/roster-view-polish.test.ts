@@ -48,8 +48,9 @@ vi.mock('@/lib/realtime', () => ({ reportRealtimeCleanup: vi.fn(), subscribeToTa
 vi.mock('@/lib/lineup', () => ({ getRosterSlotPlan: async () => ({ slots: [], assignments: {} }) }))
 vi.mock('@/lib/shared/season', () => ({ getActiveSeasonId: async () => 'season' }))
 vi.mock('@/lib/league', () => ({ isTradingClosed: () => false, getMemberTransactionState: async () => memberTransactionState({ faabBalance: 100, weeklyAddLimit: 2, weeklyAddCount: 0 }) }))
-vi.mock('@/lib/format', () => ({ countLabel: String, formatPoints: String, formatStat: String, playerHeadshotUrl: () => null }))
+vi.mock('@/lib/format', () => ({ countLabel: String, formatAvgPoints: String, formatPoints: String, formatStat: String, playerHeadshotUrl: () => null }))
 vi.mock('@/components/ui', async () => ({ Page: 'Page', PageHeader: 'PageHeader', Button: (await import('@/components/ui/Button')).Button, Card: (await import('@/components/ui/Card')).Card, usePageMetrics: () => ({ padX: 16, usableWidth: mocks.width }) }))
+vi.mock('@/components/roster/AutoSetToggle', () => ({ AutoSetToggle: 'AutoSetToggle' }))
 vi.mock('@/components/EmptyState', () => ({ EmptyState: 'EmptyState' }))
 vi.mock('@/components/NoLeagueState', () => ({ NoLeagueState: 'NoLeagueState' }))
 vi.mock('@/components/roster/RosterItems', async importOriginal => {
@@ -66,7 +67,6 @@ vi.mock('@/components/Motion', () => ({
 }))
 vi.mock('@/components/roster/RosterPlayerSheet', () => ({ RosterPlayerSheet: 'RosterPlayerSheet' }))
 vi.mock('@/components/roster/RosterTrimBanner', () => ({ RosterTrimBanner: 'RosterTrimBanner' }))
-vi.mock('@/components/AutoSetModal', () => ({ AutoSetModal: 'AutoSetModal' }))
 vi.mock('@/components/ActivationOverflowModal', () => ({ ActivationOverflowModal: 'ActivationOverflowModal' }))
 vi.mock('@/components/Avatar', () => ({ Avatar: 'Avatar' }))
 vi.mock('@/components/Badge', () => ({ Badge: 'Badge', InjuryBadge: 'InjuryBadge' }))

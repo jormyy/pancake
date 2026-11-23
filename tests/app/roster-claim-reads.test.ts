@@ -58,7 +58,6 @@ vi.mock('@/components/roster/RosterItems', () => ({
 }))
 vi.mock('@/components/roster/RosterPlayerSheet', () => ({ RosterPlayerSheet: 'RosterPlayerSheet' }))
 vi.mock('@/components/roster/RosterTrimBanner', () => ({ RosterTrimBanner: 'RosterTrimBanner' }))
-vi.mock('@/components/AutoSetModal', () => ({ AutoSetModal: 'AutoSetModal' }))
 vi.mock('@/components/ActivationOverflowModal', () => ({ ActivationOverflowModal: 'ActivationOverflowModal' }))
 vi.mock('@/components/Avatar', () => ({ Avatar: 'Avatar' }))
 vi.mock('@/components/Badge', () => ({ Badge: 'Badge' }))

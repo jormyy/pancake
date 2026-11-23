@@ -64,9 +64,9 @@ Read that run’s logs after a failure; never borrow another run’s stack.
 ```sh
 tools/verify/browser.sh "$EVIDENCE" set viewport 390 844
 tools/verify/browser.sh "$EVIDENCE" snapshot -i
-tools/verify/browser.sh "$EVIDENCE" click '[aria-label="Open auto-set lineup options"]'
+tools/verify/browser.sh "$EVIDENCE" click '[aria-label="Open E2E Player001"]'
 tools/verify/browser.sh "$EVIDENCE" screenshot "$EVIDENCE/action.png"
-tools/verify/browser.sh "$EVIDENCE" find role button click --name 'Edit lineup manually' --exact
+tools/verify/browser.sh "$EVIDENCE" find role button click --name 'Move E2E Player001 in lineup' --exact
 tools/verify/browser.sh "$EVIDENCE" snapshot -i
 ```
 

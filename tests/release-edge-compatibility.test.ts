@@ -170,7 +170,7 @@ it.skipIf(!available)('keeps deployed client subscriptions in the Realtime publi
         .filter(file => /\.tsx?$/.test(file))
     const subscribed = subscribedTables(git('show', ...files.map(file => `origin/main:${file}`)))
     expect(droppedSubscribedTables(releaseMigrations(), subscribed)).toEqual([])
-})
+}, 20_000) // Reads every deployed client file through git; CI runners take 5-8s, past the 5s default.
 
 it('detects publication drops used by the deployed client', () => {
     const subscribed = subscribedTables(`channel.on('postgres_changes', { event: '*', schema: 'public', table: 'weekly_lineups' }, refresh)`)

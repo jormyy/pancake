@@ -8,6 +8,7 @@ import { setLeagueChangesConnected } from '@/lib/league-changes'
 import { activateRosterPlayerWithOverflow, toggleIR, toggleTaxi } from '@/lib/roster'
 import { getRosterStatusChangeLockMessage } from '@/lib/roster-locks'
 import { confirmAction, showAlert } from '@/lib/alert'
+import { getLineupOptimizerEnabled, setLineupOptimizerEnabled } from '@/lib/lineup/optimizerSettings'
 
 type ListProps = {
     data: unknown[]
@@ -85,7 +86,7 @@ vi.mock('@/lib/shared/dates', () => ({ todayET: () => '2026-10-17' }))
 vi.mock('@/lib/league', () => ({ isTradingClosed: () => false }))
 vi.mock('@/lib/format', () => ({
     countLabel: (count: number, noun: string) => `${count} ${noun}`,
-    formatPoints: String, formatStat: String,
+    formatAvgPoints: String, formatPoints: String, formatStat: String,
     playerHeadshotUrl: () => null,
 }))
 vi.mock('@/components/EmptyState', () => ({ EmptyState: 'EmptyState' }))
@@ -101,10 +102,11 @@ vi.mock('@/components/roster/RosterItems', () => ({
 }))
 vi.mock('@/components/roster/RosterPlayerSheet', () => ({ RosterPlayerSheet: 'RosterPlayerSheet' }))
 vi.mock('@/components/roster/RosterTrimBanner', () => ({ RosterTrimBanner: 'RosterTrimBanner' }))
-vi.mock('@/components/AutoSetModal', () => ({ AutoSetModal: 'AutoSetModal' }))
 vi.mock('@/components/ActivationOverflowModal', () => ({ ActivationOverflowModal: 'ActivationOverflowModal' }))
 vi.mock('@/components/Avatar', () => ({ Avatar: 'Avatar' }))
 
+vi.mock('@/lib/lineup/optimizerSettings', () => ({ getLineupOptimizerEnabled: vi.fn(), setLineupOptimizerEnabled: vi.fn() }))
+vi.mock('@/components/roster/AutoSetToggle', () => ({ AutoSetToggle: 'AutoSetToggle' }))
 vi.mock('@/components/IRResolutionModal', () => ({ IRResolutionModal: 'IRResolutionModal' }))
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -138,6 +140,8 @@ describe('roster empty slots', () => {
         mocks.memberId = 'member-a'
         vi.mocked(getRosterStatusChangeLockMessage).mockResolvedValue(null)
         vi.mocked(activateRosterPlayerWithOverflow).mockResolvedValue(undefined)
+        vi.mocked(getLineupOptimizerEnabled).mockResolvedValue(true)
+        vi.mocked(setLineupOptimizerEnabled).mockResolvedValue(undefined)
         vi.mocked(subscribeToTableChanges).mockClear()
         mocks.focusData.refresh.mockReset()
         mocks.league = { id: 'league-a', roster_size: 20, ir_slots: 2, taxi_slots: 2, status: 'active', waiver_mode: 'rolling' }
@@ -187,16 +191,64 @@ describe('roster empty slots', () => {
         await act(async () => pillScreen.unmount())
     })
 
-    it('names the auto-set options consistently with Home', async () => {
-        mocks.focusData.data = rosterData([{ id: 'roster', is_on_ir: false, is_on_taxi: false, players: { id: 'player', display_name: 'Player', position: 'PG', eligible_positions: ['PG'], years_exp: 1 } } as RosterPlayer])
+    const ownRoster = () => ({
+        ...rosterData([{ id: 'roster', is_on_ir: false, is_on_taxi: false, players: { id: 'player', display_name: 'Player', position: 'PG', eligible_positions: ['PG'], years_exp: 1 } } as RosterPlayer]),
+        context: { seasonId: 'season-a' },
+    })
+    type ToggleProps = { enabled: boolean; disabled: boolean; onChange: (enabled: boolean) => void }
+    const autoSetToggle = () => screen.root.findByType('AutoSetToggle' as React.ElementType) as unknown as { props: ToggleProps }
+
+    it('shows auto-set as a switch that is on by default', async () => {
+        vi.mocked(getLineupOptimizerEnabled).mockReturnValue(new Promise(() => {}))
+        mocks.focusData.data = ownRoster()
         await act(async () => { screen = create(React.createElement(RosterScreen)) })
-        const actions = screen.root.findByType('PageHeader' as React.ElementType).props.actions
-        const button = React.Children.toArray(actions.props.children).find(child => React.isValidElement<{ accessibilityLabel?: string }>(child)
-            && child.props.accessibilityLabel === 'Open auto-set lineup options') as React.ReactElement<{ accessibilityLabel: string; title: string; onPress: () => void }>
-        expect(button.props.accessibilityLabel).toBe('Open auto-set lineup options')
-        expect(button.props.title).toBe('Auto-set')
-        await act(async () => button.props.onPress())
-        expect(screen.root.findByType('AutoSetModal' as React.ElementType).props.visible).toBe(true)
+        expect(autoSetToggle().props.enabled).toBe(true)
+        expect(autoSetToggle().props.disabled).toBe(false)
+        expect(getLineupOptimizerEnabled).toHaveBeenCalledWith('member-a', 'season-a')
+    })
+
+    it('reflects a saved off setting and saves changes', async () => {
+        vi.mocked(getLineupOptimizerEnabled).mockResolvedValue(false)
+        mocks.focusData.data = ownRoster()
+        await act(async () => { screen = create(React.createElement(RosterScreen)) })
+        expect(autoSetToggle().props.enabled).toBe(false)
+        await act(async () => autoSetToggle().props.onChange(true))
+        expect(setLineupOptimizerEnabled).toHaveBeenCalledWith('member-a', 'league-a', 'season-a', true)
+        expect(autoSetToggle().props.enabled).toBe(true)
+    })
+
+    it('reverts the switch and explains when saving fails', async () => {
+        vi.mocked(setLineupOptimizerEnabled).mockRejectedValue(new Error('connection failed'))
+        mocks.focusData.data = ownRoster()
+        await act(async () => { screen = create(React.createElement(RosterScreen)) })
+        await act(async () => autoSetToggle().props.onChange(false))
+        expect(autoSetToggle().props.enabled).toBe(true)
+        expect(showAlert).toHaveBeenCalledWith('Auto-set failed', expect.any(String))
+    })
+
+    it('opens the lineup editor, where pins are set, from the lineup row', async () => {
+        mocks.focusData.data = ownRoster()
+        await act(async () => { screen = create(React.createElement(RosterScreen)) })
+        const edit = screen.root.findByProps({ accessibilityLabel: 'Edit lineup and pins' })
+        expect(edit.props.title).toBe('Edit lineup')
+        await act(async () => edit.props.onPress())
+        expect(mocks.push).toHaveBeenCalledWith('/(modals)/lineup')
+    })
+
+    it('keeps the lineup controls out of the header so the roster counts have room', async () => {
+        mocks.focusData.data = ownRoster()
+        await act(async () => { screen = create(React.createElement(RosterScreen)) })
+        const header = screen.root.findByType('PageHeader' as React.ElementType)
+        const actions = React.Children.toArray(header.props.actions.props.children)
+        expect(actions.some(child => React.isValidElement(child) && child.type === 'AutoSetToggle')).toBe(false)
+        expect(JSON.stringify(actions.map(child => React.isValidElement<{ accessibilityLabel?: string }>(child) ? child.props.accessibilityLabel : null))).not.toContain('Edit lineup')
+    })
+
+    it('disables the switch while offline', async () => {
+        mocks.online = false
+        mocks.focusData.data = ownRoster()
+        await act(async () => { screen = create(React.createElement(RosterScreen)) })
+        expect(autoSetToggle().props.disabled).toBe(true)
     })
 
     it('keeps every active, IR and taxi slot visible when the roster is completely empty', () => {

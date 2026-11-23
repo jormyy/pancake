@@ -8,7 +8,7 @@ import { PlayerSearchItem } from '@/components/PlayerSearchItem'
 import { PlayerHeader } from '@/components/player/PlayerHeader'
 import { Badge } from '@/components/ui/Badge'
 import { normalizeTradeTab, TRADE_TABS } from '@/lib/trade-ui-model'
-import { playerAge } from '@/lib/player-context'
+import { playerAge, playerAgeDecimal } from '@/lib/player-context'
 import { headerPlayer, playerRow, trade } from './helpers/fixtures'
 vi.mock('@/hooks/use-league-timezone', () => ({ useLeagueTimezone: () => 'America/Los_Angeles' }))
 
@@ -46,24 +46,31 @@ it('keeps all four Trades sections in order and supports a direct link to each',
     }
 })
 
-it('puts age directly before experience in player rows', async () => {
+it('leaves age and experience off player rows', async () => {
     const tree = await render(React.createElement(PlayerRow, { name: 'Player', age: 30, yearsExp: 8 }))
-    const badges = tree.root.findByProps({ testID: 'player-meta-line' }).findAllByType(Badge)
-    expect(badges.slice(-2).map(badge => badge.props.label)).toEqual(['30', 'Yr 9'])
-    expect(badges.at(-2)?.props.accessibilityLabel).toBe('Age 30')
+    expect(tree.root.findByProps({ testID: 'player-meta-line' }).findAllByType(Badge)).toHaveLength(0)
 })
 
-it('puts age directly before experience in the profile', async () => {
+it('puts decimal age before experience in the profile', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-10-27T12:00:00Z'))
     try {
         const tree = await render(React.createElement(PlayerHeader, {
             player: headerPlayer({ birthdate: '1996-10-28', years_exp: 8 }), rosterStatus: null, leagueActive: false,
         }))
-        expect(tree.root.findByProps({ testID: 'player-summary-line' }).findAllByType('Badge' as React.ElementType).map(badge => badge.props.label)).toEqual(['29', 'Yr 9'])
+        expect(tree.root.findByProps({ testID: 'player-summary-line' }).findAllByType('Text' as React.ElementType)[0].props.children).toBe('Age: 29.9 · Yr 9')
     } finally {
         vi.useRealTimers()
     }
+})
+
+it('shows age to one decimal, rounded down so it never turns early', () => {
+    expect(playerAgeDecimal('1996-10-28', new Date('2026-10-28T12:00:00Z'))).toBe(30)
+    expect(playerAgeDecimal('1996-10-28', new Date('2026-10-27T12:00:00Z'))).toBe(29.9)
+    expect(playerAgeDecimal('1996-10-28', new Date('2027-04-28T12:00:00Z'))).toBe(30.4)
+    expect(playerAgeDecimal('2000-02-29', new Date('2026-03-01T12:00:00Z'))).toBe(26)
+    expect(playerAgeDecimal(null)).toBeNull()
+    expect(playerAgeDecimal('invalid')).toBeNull()
 })
 
 it('calculates age at the birthday and omits unknown birthdates', () => {
@@ -74,10 +81,10 @@ it('calculates age at the birthday and omits unknown birthdates', () => {
     expect(playerAge('invalid')).toBeNull()
 })
 
-it('passes age and experience from the Players list into the shared row', async () => {
+it('leaves age and experience off Players list rows', async () => {
     const tree = await render(React.createElement(PlayerSearchItem, {
         item: playerRow({ age: 30, years_exp: 8 }), currentMemberId: 'member-a', ownedMap: new Map(),
         waiverIds: new Set<string>(), isAdding: false, onAdd: () => {}, onPress: () => {},
     }))
-    expect(tree.root.findByProps({ testID: 'player-meta-line' }).findAllByType(Badge).slice(-2).map(badge => badge.props.label)).toEqual(['30', 'Yr 9'])
+    expect(tree.root.findByProps({ testID: 'player-meta-line' }).findAllByType(Badge)).toHaveLength(0)
 })

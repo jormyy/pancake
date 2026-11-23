@@ -4,14 +4,11 @@ import { LockedAssetNotice } from '@/components/roster/LockedAssetNotice'
 import type { AssetLock } from '@/lib/locked-assets'
 import type { ReactNode } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
-import { colors, componentTokens, textStyles } from '@/constants/tokens'
+import { colors, componentTokens, spacing, textStyles } from '@/constants/tokens'
 import { PlayerAvatar } from '@/components/player/PlayerAvatar'
-import { PlayerEligibilityTags } from '@/components/player/PlayerEligibilityTags'
-import { Badge } from '@/components/ui/Badge'
-import { usePlayerAge } from '@/hooks/use-player-age'
+import { useJerseyNumber } from '@/hooks/use-jersey-number'
 import { Avatar } from '@/components/Avatar'
-import { PosTag } from '@/components/PosTag'
-import { TeamLogo } from '@/components/TeamLogo'
+import { PlayerDetailsLine } from '@/components/player/PlayerDetailsLine'
 import { InjuryTag } from '@/components/InjuryTag'
 
 export type PlayerRowProps = {
@@ -19,6 +16,8 @@ export type PlayerRowProps = {
     locks?: readonly AssetLock[]
     playerId?: string | null
     name: string
+    /** Shown as #N on the second line; looked up by player when omitted. */
+    jerseyNumber?: string | null
     nbaId?: string | null
     headshotUrl?: string | null
     team?: string | null
@@ -36,23 +35,18 @@ export type PlayerRowProps = {
     variant?: 'compact' | 'standard'
 }
 
-export function PlayerRow({ lineupPin, locks = [], playerId, name, nbaId, headshotUrl, team, positions = [], age, birthdate, yearsExp, careerGames, injuryStatus, onTaxi, stats, metadata, live = false, compact = false, variant }: PlayerRowProps) {
+// Age, experience, and eligibility props are still accepted from callers but no longer shown.
+export function PlayerRow({ lineupPin, locks = [], playerId, name, jerseyNumber, nbaId, headshotUrl, team, positions = [], injuryStatus, stats, metadata, live = false, compact = false, variant }: PlayerRowProps) {
     compact = variant ? variant === 'compact' : compact
-    const displayAge = usePlayerAge(playerId, birthdate, age, nbaId)
+    const jersey = useJerseyNumber(playerId, nbaId, jerseyNumber)
     const avatarSize = componentTokens.playerRow[compact ? 'compact' : 'standard'].avatarSize
     return <View style={[styles.row, compact && styles.compactRow]} testID="player-row-content">
         <View testID="player-row-avatar">{headshotUrl ? <Avatar name={name} uri={headshotUrl} size={avatarSize} /> : <PlayerAvatar name={name} nbaId={nbaId} size={avatarSize} />}<InjuryTag status={injuryStatus} avatarSize={avatarSize} /></View>
         <View style={[styles.copy, compact && styles.compactCopy]}>
             <Text style={styles.name} testID="player-name-line">{name}</Text>
             <View style={[styles.metadata, compact && styles.compactMetadata]} testID="player-meta-line">
-                {team ? <TeamLogo key={team} team={team} size={styles.team.lineHeight} textStyle={styles.team} /> : null}
-                {positions.map(position => <PosTag key={position} position={position} />)}
-                <PlayerEligibilityTags yearsExp={yearsExp} careerGames={careerGames} injuryStatus={injuryStatus} onTaxi={onTaxi} />
-                {displayAge != null ? <Badge inline label={`${displayAge}`} accessibilityLabel={`Age ${displayAge}`} color={colors.textMuted} /> : null}
-                {yearsExp != null || locks.length > 0 ? <View style={styles.badgeEnd}>
-                    {yearsExp != null ? <Badge inline label={`Yr ${yearsExp + 1}`} color={colors.textMuted} /> : null}
-                    <LockedAssetNotice locks={locks} />
-                </View> : null}
+                <PlayerDetailsLine team={team} positions={positions} jersey={jersey} />
+                {locks.length > 0 ? <LockedAssetNotice locks={locks} /> : null}
                 <LineupPinTag pin={lineupPin} />
                 {metadata}
             </View>
@@ -70,9 +64,9 @@ const styles = StyleSheet.create({
     compactCopy: { gap: componentTokens.playerRow.compact.copyGap },
     compactMetadata: { flexWrap: 'wrap' },
     name: { ...componentTokens.playerRow.name, minWidth: 0 },
-    metadata: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: componentTokens.playerRow.metadataGap, minHeight: componentTokens.badge.inline.minHeight, minWidth: 0 },
-    badgeEnd: { flexDirection: 'row', alignItems: 'center', gap: componentTokens.playerRow.metadataGap },
-    team: { ...componentTokens.playerRow.metadata, flexShrink: 1 },
+    // The team logo inks its full line height, so it needs a little extra room below the name to
+    // look as far from it as the third line looks from this one.
+    metadata: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: componentTokens.playerRow.metadataGap, minHeight: componentTokens.badge.inline.minHeight, minWidth: 0, marginTop: spacing.xxs },
     stats: { minHeight: textStyles.meta.lineHeight, minWidth: 0 },
     statText: { ...componentTokens.playerRow.metadata, color: colors.primaryDark, fontVariant: ['tabular-nums'] },
     live: { color: colors.success },
