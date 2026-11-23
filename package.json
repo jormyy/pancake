@@ -68,6 +68,7 @@
     "test:db:statistics-catalog": "node tests/db/statistics-catalog-controls.mjs",
     "generate:db-function-catalog": "node scripts/check-db-function-sources.mjs --write-catalog-manifest",
     "check:edge-function-inventory": "node scripts/check-edge-functions.mjs --inventory-only",
+    "check:formal:lock-order": "node tools/formal/lock-order/check.mjs",
     "check:surface-matrix": "node tests/e2e/surface-matrix.mjs",
     "check:source-recovery": "node tests/e2e/source-failure-recovery.mjs",
     "check:edge-functions": "node scripts/check-edge-functions.mjs",
