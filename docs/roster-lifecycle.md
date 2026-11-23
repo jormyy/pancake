@@ -130,7 +130,11 @@ Dropped players also complete their 48-hour hold before an eligible scheduled ru
 The server rejects instant-add RPCs and direct free-agent inserts with SQLSTATE `PA002`.
 Claims do not require a waiver-wire entry when the player is unowned.
 
-The highest valid FAAB bid wins. Equal bids use rolling team priority, then that team's claim order.
+An older due run settles before a newer one.
+Within a run, the highest valid FAAB bid wins. Equal bids use rolling team priority, then that team's claim order.
+The winner is chosen across every pending claim in the league, not one player at a time.
+A busy team or player defers the whole league; a lower claim never passes it.
+`npm run check:formal:waiver-run` model-checks these rules against the latest processor SQL.
 Successful winners move behind other teams. Zero-dollar bids remain valid.
 Only a successful award spends FAAB or consumes an add. Its conditional drop occurs in the same transaction.
 Accepted-trade FAAB reservations reduce the available balance.
