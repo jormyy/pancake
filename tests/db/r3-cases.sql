@@ -228,6 +228,7 @@ $$;
 ROLLBACK;
 
 BEGIN;
+\ir hold-dispatcher.sql
 DO $$
 DECLARE f record; v_result jsonb; v_awards int; v_status text; v_zone text; v_local date;
   v_et date := (now() AT TIME ZONE 'America/New_York')::date; v_work int;

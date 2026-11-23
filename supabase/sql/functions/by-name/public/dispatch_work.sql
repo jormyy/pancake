@@ -26,18 +26,14 @@ BEGIN
       UPDATE private.worker_controls SET scheduler_last_dispatch_at=clock_timestamp()
       WHERE id AND (scheduler_last_dispatch_at IS NULL OR scheduler_last_dispatch_at<=clock_timestamp()-interval '5 minutes');
       IF NOT FOUND THEN RETURN v_count; END IF;
-      v_kinds:=ARRAY['process-waivers','process-trades','live-poll','refresh-live-matchups','roster-floor'];
     ELSE
-      v_kinds:=ARRAY['live-poll','sync-scores','stats-sync','process-waivers','process-trades','edge-invocation-reconcile','refresh-live-matchups','roster-floor'];
       PERFORM private.enqueue_stats_sync_dispatch(now());
-      IF extract(minute FROM now())::int%5=0 AND EXISTS(SELECT 1 FROM public.edge_invocations
-        WHERE reconciled_at IS NULL OR worker_status='running') THEN
-        PERFORM private.work_enqueue('edge-invocation-reconcile',date_trunc('minute',now())::text,now());
-      END IF;
+      PERFORM private.enqueue_edge_invocation_reconcile(now());
     END IF;
+    v_kinds:=ARRAY(SELECT kind FROM private.work_kinds WHERE essential_level='paused' OR v_level='shed' AND essential_level='shed');
     PERFORM private.enqueue_process_trades(now());
-    IF v_level='paused' OR extract(minute FROM now())::int%2=0 THEN PERFORM private.enqueue_live_poll(now()); END IF;
-    IF v_level='paused' OR extract(minute FROM now())::int%15=0 THEN
+    IF v_level='paused' OR private.claim_cron_dispatch('live-poll',interval '2 minutes',now()) THEN PERFORM private.enqueue_live_poll(now()); END IF;
+    IF v_level='paused' OR private.claim_cron_dispatch('degraded-waivers',interval '15 minutes',now()) THEN
       FOR v_waiver IN SELECT DISTINCT coalesce(timezone,'America/Los_Angeles') AS timezone
         FROM public.leagues WHERE status IN ('active','playoffs','offseason') LOOP
         v_day:=(now() AT TIME ZONE v_waiver.timezone)::date;

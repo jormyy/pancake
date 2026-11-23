@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261215200000",
+  "candidateVersion": "20261215210000",
   "common": {
     "functions": [
       {
@@ -568,6 +568,26 @@
           "authenticatedExecute": false
         },
         {
+          "name": "claim_cron_dispatch",
+          "owner": "postgres",
+          "config": [
+            "search_path=\"\""
+          ],
+          "result": "boolean",
+          "schema": "private",
+          "strict": false,
+          "language": "sql",
+          "arguments": "p_job text, p_every interval, p_now timestamp with time zone DEFAULT now()",
+          "bodySha256": "a0bcb1bb9bec9107b3fca61c251977a42b1198a7088163c09adf5d90c5af2564",
+          "volatility": "v",
+          "anonExecute": false,
+          "publicExecute": false,
+          "securityDefiner": true,
+          "identityArguments": "p_job text, p_every interval, p_now timestamp with time zone",
+          "serviceRoleExecute": false,
+          "authenticatedExecute": false
+        },
+        {
           "name": "clear_future_unlocked_lineups",
           "owner": "postgres",
           "config": [
@@ -618,7 +638,7 @@
           "strict": false,
           "language": "plpgsql",
           "arguments": "p_now timestamp with time zone DEFAULT now()",
-          "bodySha256": "310a67be1915e1973da62bb60135896064366a9bfb855d499493129f20d42343",
+          "bodySha256": "8fd37e202344f54da0e568e33571fda79ac925686b913e3b8f9c7632ada704ed",
           "volatility": "v",
           "anonExecute": false,
           "publicExecute": false,
@@ -858,7 +878,7 @@
           "strict": false,
           "language": "plpgsql",
           "arguments": "",
-          "bodySha256": "ca0ea48e746b7dd69bd4d51f452fc90b4378210177b83867b7b9c5955efeaadc",
+          "bodySha256": "b77a4268d1981f175d1e78280c20dcdce15175a54b8c77b660ecff8314c0a561",
           "volatility": "v",
           "anonExecute": false,
           "publicExecute": false,
@@ -2781,6 +2801,10 @@
     {
       "filename": "20261215200000_activity_visibility.sql",
       "sha256": "897db4deb955383afb9cc3aff01d27180db789d48d8bad890fdc6dbffd653bc5"
+    },
+    {
+      "filename": "20261215210000_schedules_as_work_kinds.sql",
+      "sha256": "a537601fe0a2f8c141b86b2a09796073feee7dd22b295e1c5879661dd0394f71"
     }
   ],
   "preMigration": {
