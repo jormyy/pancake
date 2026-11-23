@@ -5,6 +5,7 @@ import type { LeagueMembership } from '@/types/app'
 import { readPersistentCache, removePersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 import { reportRealtimeCleanup, subscribeToTableChanges, unsubscribeFromTableChanges } from '@/lib/realtime'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useScope } from '@/hooks/use-scope'
 
 export type { LeagueMembership }
 
@@ -48,7 +49,7 @@ export function useLeagues() {
         error: null,
         validated: false,
     })
-    const requestIdRef = useRef(0)
+    const scope = useScope(userId)
     const validatedAtRef = useRef<{ userId: string; at: number } | null>(null)
     const activeUserIdRef = useRef(userId)
     activeUserIdRef.current = userId
@@ -62,7 +63,7 @@ export function useLeagues() {
 
     const read = useCallback(async (options: { force?: boolean; retry?: boolean } = {}) => {
         const requestedUserId = user?.id ?? null
-        const requestId = ++requestIdRef.current
+        const ticket = scope.latest()
 
         if (!requestedUserId) {
             validatedAtRef.current = null
@@ -87,29 +88,29 @@ export function useLeagues() {
 
         try {
             const fetchedRows = await fetchUserLeagues(requestedUserId) as LeagueMembership[]
-            if (requestIdRef.current !== requestId || activeUserIdRef.current !== requestedUserId) return
-            const previousRows = membershipsRef.current.userId === requestedUserId ? membershipsRef.current.memberships : []
-            const rows = reuseMemberships(previousRows, fetchedRows)
-            setResource((current) => current.userId === requestedUserId && current.memberships === rows
-                && !current.loading && !current.error && current.validated
-                ? current : { userId: requestedUserId, memberships: rows, loading: false, error: null, validated: true })
-            membershipsRef.current = { userId: requestedUserId, memberships: rows }
-            validatedAtRef.current = { userId: requestedUserId, at: Date.now() }
-            if (rows.length > 0) writePersistentCache(cacheKey, rows)
-            else removePersistentCache(cacheKey)
-            return true
+            return ticket.commit(() => {
+                const previousRows = membershipsRef.current.userId === requestedUserId ? membershipsRef.current.memberships : []
+                const rows = reuseMemberships(previousRows, fetchedRows)
+                setResource((current) => current.userId === requestedUserId && current.memberships === rows
+                    && !current.loading && !current.error && current.validated
+                    ? current : { userId: requestedUserId, memberships: rows, loading: false, error: null, validated: true })
+                membershipsRef.current = { userId: requestedUserId, memberships: rows }
+                validatedAtRef.current = { userId: requestedUserId, at: Date.now() }
+                if (rows.length > 0) writePersistentCache(cacheKey, rows)
+                else removePersistentCache(cacheKey)
+            }) || undefined
         } catch (e) {
-            if (requestIdRef.current !== requestId || activeUserIdRef.current !== requestedUserId) return
             const nextError = e instanceof Error ? e : new Error(String(e))
             const retrying = !options.retry && !hasVisibleRows
-            validatedAtRef.current = null
-            setResource((current) => current.userId === requestedUserId
-                ? { ...current, loading: retrying, error: retrying ? null : nextError }
-                : current)
-            console.error(nextError)
-            return false
+            return ticket.commit(() => {
+                validatedAtRef.current = null
+                setResource((current) => current.userId === requestedUserId
+                    ? { ...current, loading: retrying, error: retrying ? null : nextError }
+                    : current)
+                console.error(nextError)
+            }) ? false : undefined
         }
-    }, [user?.id])
+    }, [user?.id, scope])
 
     const refreshQueue = useMemo(() => {
         let disposed = false
@@ -128,7 +129,7 @@ export function useLeagues() {
             pending = true
             if (userId && !canRefresh()) return Promise.resolve()
             if (inFlight) {
-                requestIdRef.current += 1
+                scope.supersede()
                 return inFlight
             }
             if (timer) clearTimeout(timer)
@@ -160,7 +161,7 @@ export function useLeagues() {
             pending = true
             if (inFlight) {
                 // A changed row makes the pending read stale, but needs only one follow-up.
-                requestIdRef.current += 1
+                scope.supersede()
                 return
             }
             if (!canRefresh() || timer) return
@@ -185,10 +186,10 @@ export function useLeagues() {
                 pending = false
                 if (timer) clearTimeout(timer)
                 if (retryTimer) clearTimeout(retryTimer)
-                requestIdRef.current += 1
+                scope.supersede()
             },
         }
-    }, [read, userId])
+    }, [read, scope, userId])
 
     useEffect(() => {
         refreshQueue.activate()

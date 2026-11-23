@@ -3,6 +3,7 @@ const path = require('node:path')
 const { defineConfig } = require('eslint/config')
 const expoConfig = require('eslint-config-expo/flat')
 const noSourceTextTests = require('./eslint/rules/no-source-text-tests')
+const scopedResource = require('./eslint/rules/scoped-resource')
 
 const sourceTextContracts = [
     'tests/rls-grants.test.ts',
@@ -34,6 +35,7 @@ const pancake = {
                 [selector, node => context.report({ node, message })])),
         }])),
         'no-source-text-tests': noSourceTextTests,
+        'scoped-resource': scopedResource,
     },
 }
 
@@ -73,4 +75,9 @@ module.exports = defineConfig([
         plugins: { pancake },
         rules: { [`pancake/${name}`]: 'error' },
     })),
+    {
+        files: ['app/**/*.{ts,tsx}', 'components/**/*.{ts,tsx}', 'hooks/**/*.{ts,tsx}', 'contexts/**/*.{ts,tsx}'],
+        plugins: { pancake },
+        rules: { 'pancake/scoped-resource': 'error' },
+    },
 ])
