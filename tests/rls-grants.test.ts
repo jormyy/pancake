@@ -232,15 +232,14 @@ describe('trade privacy policies', () => {
         expect(privileges).toContain('REVOKE SELECT ON public.trade_participants FROM anon')
     })
 
-    it('keeps pending trade rows visible only to the proposing or receiving managers', () => {
+    it('keeps pending trade rows visible only to trade participants', () => {
         const tradePolicy = latestPolicyDefinition('trades_select_parties_or_accepted', 'trades')
         const visibilityHelper = latestFunctionDefinition('can_read_trade', 'private')
 
         expect(tradePolicy).toContain('private.can_read_trade(id)')
         expect(visibilityHelper).toContain("trade.status IN ('accepted'::public.trade_status, 'completed'::public.trade_status)")
-        expect(visibilityHelper).toContain('OR trade.proposer_member_id IN (SELECT private.my_member_ids())')
-        expect(visibilityHelper).toContain('OR trade.recipient_member_id IN (SELECT private.my_member_ids())')
         expect(visibilityHelper).toContain('FROM public.trade_participants AS participant')
+        expect(visibilityHelper).not.toContain('recipient_member_id')
         expect(tradePolicy).not.toContain('USING (league_id IN (SELECT private.my_league_ids()))')
     })
 
@@ -250,7 +249,6 @@ describe('trade privacy policies', () => {
 
         expect(itemPolicy).toContain('private.can_read_trade(trade_id)')
         expect(visibilityHelper).toContain("trade.status IN ('accepted'::public.trade_status, 'completed'::public.trade_status)")
-        expect(visibilityHelper).toContain('OR trade.proposer_member_id IN (SELECT private.my_member_ids())')
-        expect(visibilityHelper).toContain('OR trade.recipient_member_id IN (SELECT private.my_member_ids())')
+        expect(visibilityHelper).toContain('FROM public.trade_participants AS participant')
     })
 })

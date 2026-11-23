@@ -185,5 +185,25 @@ export async function syncNBAIds(now = new Date(), prepared?: NbaIndex): Promise
     }
   }
 
+  // Jersey numbers for active players. A number changes when a player moves, so stored values follow the index.
+  const jerseyIndex = headers.indexOf('JERSEY_NUMBER')
+  const jerseys = new Map<string, string>()
+  if (jerseyIndex >= 0) {
+    for (const row of rows) {
+      const jersey = String(row[jerseyIndex] ?? '').trim()
+      if (row[statusIdx] === 1 && /^\d{1,2}$/.test(jersey)) jerseys.set(String(row[pidIdx]), jersey)
+    }
+  }
+  if (jerseys.size > 0) {
+    const current = await fetchAllPlayers<{ id: string; nba_id: string | null; jersey_number: string | null }>(supabase, 'id, nba_id, jersey_number')
+    for (const player of current) {
+      const jersey = player.nba_id ? jerseys.get(player.nba_id) : undefined
+      if (!jersey || player.jersey_number === jersey) continue
+      const { error } = await supabase.from('players').update({ jersey_number: jersey })
+        .eq('id', player.id).eq('nba_id', player.nba_id!)
+      if (error) failures.push(`NBA jersey ${player.id}: ${error.message}`)
+    }
+  }
+
   return { mapped, merged: mergedBeforeUpdate, failures, roster: rosterRecords.map(({ provider_id, nba_team }) => ({ provider_id, nba_team })), rosterGaps }
 }

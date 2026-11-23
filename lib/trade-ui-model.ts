@@ -3,6 +3,13 @@ import type { TradePickItem } from '@/lib/trades'
 
 export type TradeTabKey = 'offers' | 'block' | 'history' | 'analyzer'
 
+export const TRADE_TABS: readonly { label: string; value: TradeTabKey }[] = [
+    { label: 'Offers', value: 'offers' },
+    { label: 'Block', value: 'block' },
+    { label: 'History', value: 'history' },
+    { label: 'Analyzer', value: 'analyzer' },
+]
+
 export function normalizeTradeTab(value: unknown): TradeTabKey {
     const tab = Array.isArray(value) ? value[0] : value
     if (tab === 'analyzer') return 'analyzer'

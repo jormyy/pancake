@@ -4,6 +4,8 @@ export { overlayLiveScores, liveLineStats } from './live/overlay'
 export { createLivePoller, fetchLiveSnapshot, readLiveSnapshot, LIVE_PHONE_POLL_MS } from './live/poll'
 export type { LiveResponse } from './live/poll'
 export { nextLiveRecovery } from './live/recovery'
+export { gameAvailable, gamePhase } from './live/phase'
+export type { GamePhase, PhaseGame } from './live/phase'
 export { homeHintAffects, homeVersionAffects, homeForecastOnly, mergeHomeForecast, homeScoresOnly, mergeHomeScores } from './live/changes'
 export { decodeSavedLiveView } from './live/saved'
 export type { HomeSelection } from './live/changes'
@@ -28,6 +30,8 @@ export type {
     ScheduleSyncPlan,
     SeasonWeekRow,
 } from './season/schedule'
+
+export { fetchAllPages } from './db/fetchAllPages'
 
 export { endOfETDayUTC, toETDate, todayET } from './dates'
 

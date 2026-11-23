@@ -1,5 +1,6 @@
 import type { LeagueVersionChange } from '@/lib/league-version'
 import { onSessionCachesCleared } from '@/lib/session-cache-registry'
+import { onLifecycle, readsAllowed } from '@/lib/lifecycle'
 
 type Topic = 'lineup' | 'roster' | 'score' | 'game' | 'stat' | 'player_stats' | 'inventory' | 'resources' | 'version'
 type Scope = { season_id: string; member_id?: string; date?: string | null; week?: number }
@@ -196,8 +197,7 @@ export function deferLeagueRefresh(read: () => unknown | Promise<unknown>, delay
     let attempts = 0
     let queuedAt: number | null = null
     let timer: ReturnType<typeof setTimeout> | null = null
-    const active = () => !disposed && (typeof document === 'undefined' || document.visibilityState !== 'hidden')
-        && (typeof navigator === 'undefined' || navigator.onLine !== false)
+    const active = () => !disposed && readsAllowed()
     const schedule = (delay: number) => {
         if (!pending || running || !active() || attempts >= 3) return
         if (timer) clearTimeout(timer)
@@ -215,15 +215,13 @@ export function deferLeagueRefresh(read: () => unknown | Promise<unknown>, delay
         finally { running = false; schedule(attempts ? attempts * 2_000 : delayMs) }
     }
     const resume = () => { if (active() && pending) { attempts = 0; schedule(delayMs) } }
-    if (typeof window !== 'undefined') window.addEventListener('online', resume)
-    if (typeof document !== 'undefined') document.addEventListener('visibilitychange', resume)
+    const stop = onLifecycle(['online', 'visible'], resume)
     return {
         trigger: () => { if (disposed) return; queuedAt ??= Date.now(); pending = true; attempts = 0; schedule(delayMs) },
         cancel: () => {
             disposed = true
             if (timer) clearTimeout(timer)
-            if (typeof window !== 'undefined') window.removeEventListener('online', resume)
-            if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', resume)
+            stop()
         },
     }
 }

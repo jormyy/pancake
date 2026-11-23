@@ -14,8 +14,7 @@ Lineup lets a manager choose starters, pin player roles, and enable daily automa
 
 ## How to get to it (user POV)
 
-- Home → Auto-set → Edit lineup manually.
-- Roster → Auto-set → Edit lineup manually.
+- Roster → `Edit lineup`.
 - Roster → player actions → `Move <name> in lineup`, which opens Lineup with that player selected.
 - Open a saved `/lineup` link while signed in.
 
@@ -26,7 +25,7 @@ Preconditions:
 - Require an active league, an unlocked bench player, and unstarted games on the selected date.
 - Read `benchPlayerName` from `fixture.json`. The baseline player is `E2E Player008`.
 
-- **Open.** Use each sheet entry point. Run `BROWSER find role button click --name 'Edit lineup manually' --exact`. Require starters, Bench, IR, taxi, and date controls.
+- **Open.** From Roster, click `[aria-label="Edit lineup and pins"]`, or open a player and run `BROWSER find role button click --name 'Move <name> in lineup' --exact`. Require starters, Bench, IR, taxi, and date controls.
 - **Before.** Save a screenshot and database observation. Confirm Player008 is absent from today’s `weekly_lineups` starters.
 - **Start.** Run `BROWSER scrollintoview '[aria-label="Pin E2E Player008 to start"]'`, then `BROWSER click '[aria-label="Pin E2E Player008 to start"]'`. Require Start to appear selected and the player to move among starters. Also inspect `aria-checked` and report it separately.
 - **Stored result.** Save the screenshot and a new database observation. Require `pin=start` for that player and a non-BE slot in `weekly_lineups` on that date.

@@ -40,6 +40,7 @@ function rosterFloorResult(data: Json | null): RosterFloorResult {
 
 async function processWaiverClaims(body: Record<string, unknown>): Promise<number> {
   const startedAt = new Date().toISOString()
+  // eslint-disable-next-line pancake/eastern-day -- process_date is league-local; UTC tomorrow covers every league zone
   const throughDate = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10)
   const timezone = typeof body.timezone === 'string' ? body.timezone : null
   const date = typeof body.date === 'string' ? body.date : null

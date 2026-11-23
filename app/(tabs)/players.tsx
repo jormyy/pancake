@@ -34,7 +34,15 @@ import { NBA_TEAM_OPTIONS } from '@/constants/nba'
 import { usePlayerSearch, useVisiblePlayerRows, SORT_OPTIONS } from '@/hooks/use-player-search'
 import { useAuth } from '@/hooks/use-auth'
 import { STAT_COLUMN_SORT, type PlayerSearchSortMode } from '@/lib/player-search-sort'
-import { playerSeasonFilterOptions, playerAverageLabel } from '@/lib/player-search-state'
+import {
+    PLAYER_AVAILABILITY_FILTERS,
+    PLAYER_CLASS_FILTERS,
+    PLAYER_HEALTH_FILTERS,
+    PLAYER_PLAYING_FILTERS,
+    PLAYER_POSITION_FILTERS,
+    playerAverageLabel,
+    playerSeasonFilterOptions,
+} from '@/lib/player-search-state'
 
 import { currentSeasonYear } from '@/lib/shared/season'
 import { useQuickAdd, type PickupClaimSelection } from '@/hooks/use-quick-add'
@@ -43,46 +51,13 @@ import { useRosterHoldCheck } from '@/hooks/use-roster-hold-check'
 import { addLimitSummary } from '@/lib/pickup'
 import { PlayerRow } from '@/lib/players'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { browserReadsAllowed } from '@/hooks/use-browser-read-activity'
+import { readsAllowed } from '@/lib/lifecycle'
 
 
 
 
 
 
-const POSITIONS = [
-    { key: 'ALL', label: 'All' },
-    { key: 'PG', label: 'PG' },
-    { key: 'SG', label: 'SG' },
-    { key: 'SF', label: 'SF' },
-    { key: 'PF', label: 'PF' },
-    { key: 'C', label: 'C' },
-    { key: 'G', label: 'G' },
-    { key: 'F', label: 'F' },
-] as const
-const AVAILABILITY_FILTERS = [
-    { key: 'all', label: 'All players' },
-    { key: 'free_agents', label: 'Free agents' },
-    { key: 'waivers', label: 'On waivers' },
-    { key: 'rostered', label: 'Rostered' },
-    { key: 'mine', label: 'My team' },
-] as const
-const HEALTH_FILTERS = [
-    { key: 'all', label: 'All' },
-    { key: 'healthy', label: 'Healthy' },
-    { key: 'gtd', label: 'Game-time' },
-    { key: 'out', label: 'Out' },
-    { key: 'ir', label: 'IR' },
-] as const
-const PLAYING_FILTERS = [
-    { key: 'all', label: 'All' },
-    { key: 'today', label: 'Playing today' },
-    { key: 'not_today', label: 'Not playing' },
-] as const
-const CLASS_FILTERS = [
-    { key: 'all', label: 'All' },
-    { key: 'rookies', label: 'Rookies only' },
-] as const
 const SEASON_YEAR = currentSeasonYear()
 const SEASON_FILTERS = playerSeasonFilterOptions(SEASON_YEAR)
 const TABLE_COLUMNS = ['FP', 'MIN', 'PTS', 'REB', 'AST', 'STL', 'BLK', '3PM', 'TO', 'GP']
@@ -154,8 +129,6 @@ function PlayerSearchSection() {
     const searchEnabled = membershipValidated && !!user && !!current?.id && !!leagueId
     const { compact: compactToolbar, padX } = usePageMetrics()
     const showStatTable = width >= 1180
-    // Phones keep search on screen and move the filters into a sheet; wider
-    // screens show every filter as a chip in one toolbar row.
     const [filtersOpen, setFiltersOpen] = useState(false)
 
     const search = usePlayerSearch(leagueId, EMPTY_OWNED_MAP, EMPTY_WAIVER_IDS, current?.id, { enabled: searchEnabled, online, focused, ownerId: user?.id, initialLiveStats: true, scoringSettings: currentLeague?.scoring_settings })
@@ -225,7 +198,7 @@ function PlayerSearchSection() {
         push(playerDetailRoute(player, !ownedMap.has(player.id)))
     }, [push, ownedMap])
     const handlePreparePlayer = useCallback(() => {
-        if (browserReadsAllowed()) void import('@/app/player/[id]').catch(() => undefined)
+        if (readsAllowed()) void import('@/app/player/[id]').catch(() => undefined)
     }, [])
     const renderPlayerItem = useCallback(({ item }: { item: PlayerRow }) => (
         <PlayerSearchItem
@@ -278,14 +251,14 @@ function PlayerSearchSection() {
                 variant={variant}
                 label="Availability"
                 value={search.availabilityFilter.value}
-                options={AVAILABILITY_FILTERS}
+                options={PLAYER_AVAILABILITY_FILTERS}
                 onChange={search.availabilityFilter.setValue}
             />
             <FilterSelect
                 variant={variant}
                 label="Position"
                 value={search.position.value}
-                options={POSITIONS}
+                options={PLAYER_POSITION_FILTERS}
                 onChange={search.position.setValue}
             />
             <MultiSelect
@@ -301,21 +274,21 @@ function PlayerSearchSection() {
                 variant={variant}
                 label="Health"
                 value={search.health.value}
-                options={HEALTH_FILTERS}
+                options={PLAYER_HEALTH_FILTERS}
                 onChange={search.health.setValue}
             />
             <FilterSelect
                 variant={variant}
                 label="Game today"
                 value={search.playing.value}
-                options={PLAYING_FILTERS}
+                options={PLAYER_PLAYING_FILTERS}
                 onChange={search.playing.setValue}
             />
             <FilterSelect
                 variant={variant}
                 label="Experience"
                 value={search.toggles.rookiesOnly ? 'rookies' : 'all'}
-                options={CLASS_FILTERS}
+                options={PLAYER_CLASS_FILTERS}
                 onChange={(value) => search.toggles.setRookiesOnly(value === 'rookies')}
             />
             <FilterSelect
@@ -348,8 +321,6 @@ function PlayerSearchSection() {
     const listIsInitialLoading = !listError && (playerSupportLoading || availabilityUpdating || !playerSupportReady
         || search.results.loading || search.results.refreshing || search.results.isSnapshot)
 
-    // No placeholder shell while auth/league context loads — the screen stays
-    // blank and the real UI appears fully formed, with no reflow.
     if (showInitialShell) {
         return <View style={styles.container} />
     }
@@ -533,11 +504,6 @@ function initialSection(value: string | string[] | undefined): PlayersSection {
     return SECTIONS.find((section) => section === value) ?? 'players'
 }
 
-/**
- * Everything about players in one place: the searchable pool, dynasty
- * rankings, and news. A section mounts the first time it is opened and stays
- * mounted, so switching back keeps its search, filters, and scroll.
- */
 function PlayersScreen() {
     const focused = useIsFocused()
     const params = useLocalSearchParams<{ section?: string }>()
@@ -645,7 +611,6 @@ const localStyles = StyleSheet.create({
     clearButtonText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.dangerDark },
     summary: { ...textStyles.meta },
     summaryWide: { marginLeft: 'auto', flexShrink: 0 },
-    // Two fields per row; each field sets its own basis so the grid wraps evenly.
     sheetFields: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.lg },
     sheetActions: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.xl },
     sortDirInSheet: { flexGrow: 1, flexBasis: 140, minHeight: controlSize.minTouch },

@@ -265,9 +265,9 @@ export async function resolveBoxScorePlayers(
   boxScore: BoxScorePlayers,
   providerGameId: string,
   recordedPlayerIds?: string[],
-): Promise<Array<{ player: CdnGamePlayer; playerId: string }>> {
+): Promise<{ player: CdnGamePlayer; playerId: string }[]> {
   const allPlayers = validateBoxScorePlayers(boxScore, providerGameId)
-  const resolved: Array<{ player: CdnGamePlayer; playerId: string }> = []
+  const resolved: { player: CdnGamePlayer; playerId: string }[] = []
   const playerIds = recordedPlayerIds ?? await resolveCdnPlayers(allPlayers.map(player => ({
     personId: String(player.personId), displayName: player.name ?? '',
   })), providerGameId)

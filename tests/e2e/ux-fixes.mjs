@@ -7,6 +7,7 @@ import { openWebTarget, WEB_TARGETS, waitForWebTargetReads, pressWebControl } fr
 import { prepareSweepFixtures } from './layout-stability-fixtures.mjs'
 import { runWithScenarioResourceOwner } from './scenario-resource-owner.mjs'
 import { stackEnvironment, resolveSweepPorts, requireSweepStack } from './layout-stability-ports.mjs'
+import { toETDate } from '@pancake/core'
 
 const args = Object.fromEntries(process.argv.slice(2).map(arg => arg.replace(/^--/, '').split(/=(.*)/s).slice(0, 2)))
 const env = await stackEnvironment(args.env)
@@ -37,7 +38,7 @@ await runWithScenarioResourceOwner('UX fixes', async resourceOwner => {
             teams: [fixture.me.id, fixture.other.id].map((memberId, index) => ({ memberId, currentPoints: index ? 117 : 123, projectedFinal: index ? 1769 : 1816, winProbability: index ? 0.38 : 0.62, remainingGames: 12, coveredGames: 12, variance: 10000 })) },
     }))
     const pending = await checked(admin.from('waiver_claims').select('id').eq('member_id', fixture.me.id).eq('status', 'pending'))
-    if (!pending.length) await checked(admin.from('waiver_claims').insert({ league_id: fixture.state.leagueId, league_season_id: fixture.season.id, member_id: fixture.me.id, player_id: fixture.player, priority_at_submission: 1, process_date: new Date(Date.now() + 86400000).toISOString().slice(0, 10), bid_amount: 0, claim_order: 1 }))
+    if (!pending.length) await checked(admin.from('waiver_claims').insert({ league_id: fixture.state.leagueId, league_season_id: fixture.season.id, member_id: fixture.me.id, player_id: fixture.player, priority_at_submission: 1, process_date: toETDate(new Date(Date.now() + 86400000)), bid_amount: 0, claim_order: 1 }))
     const browserStorage = [
         { name: `sb-${new URL(env.E2E_SUPABASE_URL).hostname.split('.')[0]}-auth-token`, value: JSON.stringify(session) },
         { name: `pancake:selected-league:v1:${fixture.me.user_id}`, value: JSON.stringify({ version: 1, savedAt: Date.now(), value: fixture.me.id }) },

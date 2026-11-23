@@ -136,12 +136,14 @@ async function syncScores() {
     '../lib/supabase': './supabase.ts',
     '../lib/scoring': './scoring.ts',
     '../lib/nba': './nba.ts',
+    '../lib/gamePhase': './gamePhase.ts',
     '../lib/runBounded': './runBounded.ts',
     '../lib/utils/date': './date.ts',
     '../types/database': './database.ts',
     './stats': './syncStats.ts',
     './scoreLineups': './scoreLineups.ts',
     './scoreShared': './scoreShared.ts',
+    '../lib/fetchAllPages': './fetchAllPages.ts',
   })
   return `${HEADER}${source}`
 }
@@ -151,6 +153,7 @@ async function scoreLineups() {
     '../lib/scoring': './scoring.ts',
     '../lib/nba': './nba.ts',
     '../lib/supabase': './supabase.ts',
+    '../lib/fetchAllPages': './fetchAllPages.ts',
     './scoreShared': './scoreShared.ts',
   })
   return `${HEADER}${source}`
@@ -159,6 +162,7 @@ async function scoreLineups() {
 async function scoreShared() {
   const source = rewriteImportDeclarations(await read('supabase/shared-src/sync/scoreShared.ts'), 'scoreShared', {
     '../lib/supabase': './supabase.ts',
+    '../lib/fetchAllPages': './fetchAllPages.ts',
   })
   return `${HEADER}${source}`
 }
@@ -219,8 +223,10 @@ const outputs = [
   ['supabase/functions/_shared/matchupForecast.ts', await matchupForecast()],
   ['supabase/functions/_shared/lineupAssignments.ts', await lineupAssignments()],
   ['supabase/functions/_shared/lineupSlots.ts', `${HEADER}${await read('core/src/positions/lineupSlots.ts')}`],
+  ['supabase/functions/_shared/fetchAllPages.ts', `${HEADER}${await read('core/src/db/fetchAllPages.ts')}`],
   ['supabase/functions/_shared/date.ts', `${HEADER}${await read('core/src/dates/index.ts')}`],
   ['supabase/functions/_shared/gameId.ts', `${HEADER}${await read('core/src/season/gameId.ts')}`],
+  ['supabase/functions/_shared/gamePhase.ts', `${HEADER}${await read('core/src/live/phase.ts')}`],
   ['supabase/functions/_shared/livePoll.ts', await livePollCore()],
   ['supabase/functions/_shared/liveSnapshot.ts', await liveSnapshotCore()],
   ['supabase/functions/_shared/schedule.ts', await scheduleCore()],

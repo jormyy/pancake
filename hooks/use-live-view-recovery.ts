@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { browserReadsAllowed } from '@/hooks/use-browser-read-activity'
+import { onLifecycle, readsAllowed } from '@/lib/lifecycle'
 import { invalidateScreenView, revalidateScreenVersion, screenCacheKey, type ScreenScope, type ViewContext } from '@/lib/cache/screen-cache'
 import { listenForLeagueChanges } from '@/lib/league-changes'
 import { sessionGeneration } from '@/lib/session-cache-registry'
@@ -17,8 +17,7 @@ export function useLiveViewRecovery(scope: ScreenScope | null, value: unknown, e
     const verificationFailed = useRef(false)
     const slateReady = slate?.key === dayKey
     const games = (source?.liveGames?.length ? source.liveGames : external ? slateReady ? slate!.games : [] : source?.todaysGames ?? [])
-        .map(game => game.status === 'Final' && game.stats_synced_at === null ? { ...game, status: 'InProgress' } : game)
-    const signature = JSON.stringify(games.map(game => [game.id ?? game.nba_game_id, game.status, game.game_time, game.game_status_text]))
+    const signature = JSON.stringify(games.map(game => [game.id ?? game.nba_game_id, game.status, game.stats_synced_at, game.game_time, game.game_status_text]))
     const latest = useRef({ scope, games, source, dayKey, slateReady })
     latest.current = { scope, games, source, dayKey, slateReady }
     useEffect(() => {
@@ -27,7 +26,7 @@ export function useLiveViewRecovery(scope: ScreenScope | null, value: unknown, e
         let checking = false
         let loading = false
         let timer: ReturnType<typeof setTimeout> | undefined
-        const allowed = () => !disposed && generation === sessionGeneration() && browserReadsAllowed()
+        const allowed = () => !disposed && generation === sessionGeneration() && readsAllowed()
         const loadSlate = async () => {
             if (!allowed() || !latest.current.dayKey || loading) return
             loading = true
@@ -66,24 +65,14 @@ export function useLiveViewRecovery(scope: ScreenScope | null, value: unknown, e
         const stop = dayKey ? listenForLeagueChanges(latest.current.scope!.leagueId!, change => {
             if (change.topic === 'game' && allowed()) void loadSlate().catch(error => { if (allowed()) console.error('Could not check current games.', error) })
         }) : () => {}
-        if (typeof window !== 'undefined') {
-            window.addEventListener('focus', resume)
-            window.addEventListener('pageshow', resume)
-            window.addEventListener('online', resume)
-        }
-        if (typeof document !== 'undefined') document.addEventListener('visibilitychange', resume)
+        const stopLifecycle = onLifecycle(['focus', 'online', 'visible', 'hidden'], resume)
         if (dayKey && !slateReady) void loadSlate().then(schedule).catch(error => { if (allowed()) console.error('Could not check current games.', error) })
         schedule()
         return () => {
             disposed = true
             clearTimeout(timer)
             stop()
-            if (typeof window !== 'undefined') {
-                window.removeEventListener('focus', resume)
-                window.removeEventListener('pageshow', resume)
-                window.removeEventListener('online', resume)
-            }
-            if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', resume)
+            stopLifecycle()
         }
     }, [key, enabled, generation, signature, dayKey, slateReady, publicLive])
     return verificationFailed

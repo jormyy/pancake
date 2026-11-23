@@ -38,6 +38,7 @@ BEGIN
       p_league_id,
       p_league_season_id,
       p_event_type,
+      'league',
       COALESCE(p_title, 'Waiver claim failed'),
       p_failure_reason,
       NULL,

@@ -1,4 +1,5 @@
 import { supabase } from '../_shared/supabase.ts'
+import { fetchAllPages } from '../_shared/fetchAllPages.ts'
 import { fetchWithRetry } from '../_shared/retry.ts'
 import { recordSyncRun } from '../_shared/syncRuns.ts'
 import { serveInternal } from '../_shared/serve.ts'
@@ -48,22 +49,11 @@ async function requestedRankingView(req: Request): Promise<RankingViewDefinition
 }
 
 async function fetchPlayersForRanking(): Promise<PlayerForRanking[]> {
-  const players: PlayerForRanking[] = []
-  const PAGE = 1000
-  let from = 0
-  while (true) {
-    const { data, error } = await supabase
-      .from('players')
-      .select('id, display_name, sportsdata_id, sleeper_id, nba_id, nba_team, status')
-      .order('id', { ascending: true })
-      .range(from, from + PAGE - 1)
-    if (error) throw error
-    if (!data || data.length === 0) break
-    players.push(...data)
-    if (data.length < PAGE) break
-    from += PAGE
-  }
-  return players
+  return await fetchAllPages((from, to) => supabase
+    .from('players')
+    .select('id, display_name, sportsdata_id, sleeper_id, nba_id, nba_team, status')
+    .order('id', { ascending: true })
+    .range(from, to))
 }
 
 async function fetchRankingForm(): Promise<URLSearchParams> {

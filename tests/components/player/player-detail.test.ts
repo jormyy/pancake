@@ -46,6 +46,8 @@ const game = (overrides: Partial<GameLogEntry> = {}): GameLogEntry => ({
     ftMade: 5, ftAttempted: 6, plusMinus: 8, doubleDouble: false, tripleDouble: false, ...overrides,
 })
 
+const positionLine = () => screen.root.findByProps({ testID: 'player-position-line' }).findAllByType('Text' as React.ElementType).map(node => node.props.children).join('')
+
 describe('season dropdown', () => {
     it.each([{ seasons: [] }, { seasons: [2027] }])('hides the control when there is no choice: %j', async ({ seasons }) => {
         await render(React.createElement(WebSeasonSelector, { seasons, selectedSeason: 2027, onSelect: vi.fn() }))
@@ -82,16 +84,12 @@ describe('season dropdown', () => {
 
 describe('player decision summary', () => {
     beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-24T18:00:00Z')) })
-    it.each([[10, 12], [3.9, 4.1], [0, 0]])('renders concise forecasts %s and %s with full accessibility labels', async (fiveYear, threeYear) => {
-        const player = { ...headerPlayer({ dynasty_rank: 21 }), five_year_points: fiveYear, three_year_points: threeYear, trade_value: 999.9 }
+    it('shows rank, decimal age, and season as one line without forecasts or trade value', async () => {
+        const player = { ...headerPlayer({ dynasty_rank: 21, birthdate: '2001-06-24', years_exp: 3 }), five_year_points: 10, three_year_points: 12, trade_value: 999.9 }
         await render(React.createElement(PlayerHeader, { player, rosterStatus: null, leagueActive: false }))
-        const labels = screen.root.findByProps({ testID: 'player-summary-line' }).findAllByType(Badge).map(node => node.props.label)
-        expect(labels).toContain('Dynasty #21')
-        expect(labels).toContain(`5yr: ${fiveYear}`)
-        expect(screen.root.findByProps({ accessibilityLabel: `5-year points ${fiveYear}` }).props.label).toBe(`5yr: ${fiveYear}`)
-        expect(labels).toContain(`3yr: ${threeYear}`)
-        expect(screen.root.findByProps({ accessibilityLabel: `3-year points ${threeYear}` }).props.label).toBe(`3yr: ${threeYear}`)
-        expect(labels).not.toContain('Value 999.9')
+        const line = screen.root.findByProps({ testID: 'player-summary-line' })
+        expect(line.findAllByType(type('Text')).map(node => node.props.children)).toEqual(['Dynasty #21 · Age: 25.3 · Yr 4'])
+        expect(line.findAllByType(Badge)).toHaveLength(0)
     })
 
     it.each([
@@ -109,8 +107,8 @@ describe('player decision summary', () => {
         expect(text()).toContain('Player A')
         expect(text()).toContain('LAL')
         expect(text()).toContain(status)
-        expect(screen.root.findAllByType(Badge).map(node => node.props.label)).toContain('IR')
-        expect(screen.root.findByType(type('PosTag')).props.position).toBe('PG')
+        expect(screen.root.findByProps({ testID: 'injury-tag' }).props.children).toBe('IR')
+        expect(positionLine()).toBe('LAL · PG · #1')
         expect(screen.root.findAllByType(type('Pressable')).map(node => node.props.accessibilityLabel)).toEqual(labels)
     })
 
@@ -119,7 +117,9 @@ describe('player decision summary', () => {
             player: headerPlayer({ dynasty_rank: 8, years_exp: 6, injury_status: 'IR' }),
             rosterStatus: { status: 'free_agent' }, leagueActive: true, compact: true,
         }))
-        expect(screen.root.findAllByType(Badge).map(node => node.props.label)).toEqual(['IR', 'Dynasty #8', 'Yr 7'])
+        expect(screen.root.findAllByType(Badge)).toHaveLength(0)
+        expect(screen.root.findByProps({ testID: 'player-summary-line' }).findAllByType(type('Text'))[0].props.children).toMatch(/^Dynasty #8 · (Age: \d+\.\d · )?Yr 7$/)
+        expect(screen.root.findByProps({ testID: 'injury-tag' }).props.accessibilityLabel).toBe('Injured reserve')
         expect(screen.root.findAllByType(type('View')).filter(node => typeof node.props.onLayout === 'function')).toHaveLength(0)
         expect(screen.root.findByProps({ accessibilityLabel: 'Player A' }).props.numberOfLines).toBeUndefined()
     })
@@ -173,17 +173,18 @@ describe('player decision summary', () => {
         }
     })
 
-    it('puts injury after positions and keeps the summary on its own line', async () => {
+    it('formats the position line like roster rows and keeps the summary on its own line', async () => {
         await render(React.createElement(PlayerHeader, {
-            player: headerPlayer({ nba_team: 'LAC', eligible_positions: ['PG', 'SG', 'SF'], dynasty_rank: 100, injury_status: 'IR' }),
+            player: headerPlayer({ nba_team: 'LAC', eligible_positions: ['PG', 'SG', 'SF'], jersey_number: '30', dynasty_rank: 100, injury_status: 'IR' }),
             rosterStatus: { status: 'free_agent' }, leagueActive: true, compact: true,
         }))
-        const injury = screen.root.findAllByType(Badge).find(node => node.props.label === 'IR')!
         const core = screen.root.findByProps({ testID: 'player-position-line' })
-        expect(core.findAllByType(Badge)).toContain(injury)
-        expect(core.findAllByType(type('PosTag'))).toHaveLength(3)
-        expect(core.findAllByType(Badge).map(node => node.props.label)).not.toContain('Dynasty #100')
-        expect(screen.root.findByProps({ testID: 'player-summary-line' }).findAllByType(Badge).map(node => node.props.label)).toContain('Dynasty #100')
+        expect(positionLine()).toBe('LAC · PG, SG, SF · #30')
+        expect(core.findAllByProps({ testID: 'team-logo' })).toHaveLength(1)
+        expect(core.findAllByType(Badge)).toHaveLength(0)
+        expect(core.findAllByType(type('PosTag'))).toHaveLength(0)
+        expect(screen.root.findByProps({ testID: 'injury-tag' }).props.children).toBe('IR')
+        expect(screen.root.findByProps({ testID: 'player-summary-line' }).findAllByType(type('Text'))[0].props.children).toContain('Dynasty #100')
     })
 
     it('never calls a started game next and shows live points from the log', async () => {
@@ -192,7 +193,7 @@ describe('player decision summary', () => {
         await render(React.createElement(NextProjectionCard, { projection,
             liveGame: { ...game(), live: true, nbaGameId: 'game' }, liveFantasyPoints: 12.4 }))
         expect(text()).toContain('Live vs BOS · 12 FP so far')
-        expect(text()).not.toContain('43 proj')
+        expect(text()).not.toContain('42.8 proj')
         await act(async () => screen.update(React.createElement(NextProjectionCard, {
             projection: { ...projection, next_game_date: '2026-10-25', next_game_time: '2026-10-25T23:00:00Z', next_game_opponent: '@ DEN' },
             liveGame: { ...game(), live: true, nbaGameId: 'game' }, liveFantasyPoints: 12.4,
@@ -205,7 +206,7 @@ describe('player decision summary', () => {
         const projection = { next_game_date: '2026-10-24', next_game_time: '2026-10-24T18:00:01Z',
             next_game_opponent: 'vs BOS', projection_fantasy_points: 42.8 } as LeagueProjectionRow
         await render(React.createElement(NextProjectionCard, { projection }))
-        expect(text()).toContain('43 proj')
+        expect(text()).toContain('42.8 proj')
         await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
         expect(screen.toJSON()).toBeNull()
     })
@@ -217,7 +218,7 @@ describe('player decision summary', () => {
         }))
         const cells = screen.root.findAll(node => node.props.accessible === true)
         expect(cells).toHaveLength(10)
-        expect(cells[0].props.accessibilityLabel).toBe('42 fantasy points per game')
+        expect(cells[0].props.accessibilityLabel).toBe('42.3 fantasy points per game')
         for (const value of ['FP/G', 'GP', 'MIN', 'PTS', 'REB', 'AST', 'STL', 'BLK', '3PM', 'TO']) expect(text()).toContain(value)
         expect(text()).not.toContain('FG%')
         expect(text()).not.toContain('double-double')
@@ -243,10 +244,10 @@ describe('player decision summary', () => {
             projection_source_label: 'FantasyPros', projection_is_fresh: false,
         } as LeagueProjectionRow
         await render(React.createElement(NextProjectionCard, { projection }))
-        expect(text()).toMatch(/^vs BOS Sat .+ · 43 proj/)
+        expect(text()).toMatch(/^vs BOS Sat .+ · 42.8 proj/)
         expect(screen.root.findAllByType(type('Text'))[0].props.numberOfLines).toBe(1)
         expect(text()).not.toContain('FantasyPros')
-        expect(text()).toContain('43 proj')
+        expect(text()).toContain('42.8 proj')
         expect(text()).toContain('proj')
     })
 })
@@ -290,7 +291,7 @@ it('keeps the projection space when the late card arrives or disappears', async 
     const projection = { next_game_date: '2099-10-24', next_game_time: '2099-10-24T23:00:00Z', next_game_opponent: 'vs BOS', projection_fantasy_points: 42.8 } as LeagueProjectionRow
     await act(async () => screen.update(React.createElement(NextProjectionCard, { projection, reserveSpace: true })))
     expect(screen.root.findByProps({ testID: 'player-projection-slot' }).props.style).toBe(initialStyle)
-    expect(text()).toContain('43 proj')
+    expect(text()).toContain('42.8 proj')
     await act(async () => screen.update(React.createElement(NextProjectionCard, { projection: null, reserveSpace: true })))
     expect(screen.root.findByProps({ testID: 'player-projection-slot' }).props.style).toBe(initialStyle)
 })
@@ -313,3 +314,9 @@ it('keeps failed recent games recoverable and distinguishes empty and completed 
 })
 
 vi.mock('@/lib/alert', () => ({ showAlert: vi.fn() }))
+
+it.each([[0, 'Rookie'], [1, 'Yr 2'], [null, null]] as const)('labels experience %s as %s in the player summary', async (yearsExp, label) => {
+    await render(React.createElement(PlayerHeader, { player: headerPlayer({ years_exp: yearsExp, birthdate: null, dynasty_rank: null }), rosterStatus: null, leagueActive: false }))
+    const text = screen.root.findByProps({ testID: 'player-summary-line' }).findAllByType(type('Text')).map(node => node.props.children).join('')
+    expect(text).toBe(label ?? '')
+})

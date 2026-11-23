@@ -31,7 +31,6 @@ DECLARE
   v_priority int;
   v_waiver_log waiver_wire_log%ROWTYPE;
   v_claim_id uuid;
-  v_lock_player_id uuid;
   v_drop_failure text;
   v_bid_amount int := COALESCE(p_bid_amount, 0);
   v_claim_order int;
@@ -86,16 +85,7 @@ BEGIN
       USING ERRCODE = 'P0001';
   END IF;
 
-  PERFORM pg_advisory_xact_lock(hashtext(p_league_id::text), hashtext(p_member_id::text));
-
-  FOR v_lock_player_id IN
-    SELECT DISTINCT pid
-      FROM unnest(ARRAY[p_player_id, p_drop_player_id]::uuid[]) AS t(pid)
-     WHERE pid IS NOT NULL
-     ORDER BY pid ASC
-  LOOP
-    PERFORM pg_advisory_xact_lock(hashtext(p_league_id::text), hashtext(v_lock_player_id::text));
-  END LOOP;
+  PERFORM private.lock_roster_scope(p_league_id, ARRAY[p_member_id], ARRAY[p_player_id, p_drop_player_id]);
 
   SELECT *
     INTO v_league

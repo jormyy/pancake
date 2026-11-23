@@ -8,6 +8,7 @@ import { API_URL } from '@/lib/shared/api'
 import { createRequestId } from '@/lib/api-client'
 import { beaconScreen, createPerfBeacon, observeUsefulContent } from '@/lib/perf-beacon'
 import { readScreenSection } from '@/lib/screen-section'
+import { onLifecycle } from '@/lib/lifecycle'
 
 export function PerfBeacon() {
     usePerfBeacon()
@@ -58,15 +59,12 @@ function usePerfBeacon() {
             },
         })
         collector.current = client
-        const hidden = () => { if (document.visibilityState === 'hidden') client.flushNow() }
-        window.addEventListener('offline', client.drop)
+        const stopLifecycle = onLifecycle(['offline', 'hidden'], event => { if (event === 'offline') client.drop(); else client.flushNow() })
         window.addEventListener('pagehide', client.flushNow)
-        document.addEventListener('visibilitychange', hidden)
         return () => {
             client.stop(); collector.current = null; lastOpen.current = ''
-            window.removeEventListener('offline', client.drop)
+            stopLifecycle()
             window.removeEventListener('pagehide', client.flushNow)
-            document.removeEventListener('visibilitychange', hidden)
         }
     }, [userId, memberId])
 

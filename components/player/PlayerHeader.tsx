@@ -1,17 +1,15 @@
 import { LockedAssetNotice, LockedActionExplanation } from '@/components/roster/LockedAssetNotice'
 import type { AssetLock } from '@/lib/locked-assets'
 import { Button } from '@/components/ui/Button'
-import { PlayerEligibilityTags } from './PlayerEligibilityTags'
+import { PlayerDetailsLine } from './PlayerDetailsLine'
 import { InjuryTag } from '@/components/InjuryTag'
 import { View, Text, StyleSheet } from 'react-native'
 import type { ReactNode } from 'react'
 import type { PlayerRosterStatus } from '@/lib/roster'
 import { blockedActionProps } from '@/lib/a11y'
 import { colors, componentTokens, controlSize, fontSize, radii, spacing, textStyles } from '@/constants/tokens'
-import { playerAge } from '@/lib/player-context'
+import { playerAgeDecimal } from '@/lib/player-context'
 import { PlayerAvatar } from './PlayerAvatar'
-import { Badge } from '@/components/Badge'
-import { PosTag } from '@/components/PosTag'
 import { getEligiblePositions } from '@/lib/players'
 
 type PlayerHeaderPlayer = {
@@ -22,8 +20,6 @@ type PlayerHeaderPlayer = {
     jersey_number: string | null
     injury_status: string | null
     dynasty_rank: number | null
-    five_year_points?: number | null
-    three_year_points?: number | null
     headshot_url: string | null
     nba_id: string | null
     career_regular_season_games?: number | null
@@ -58,7 +54,12 @@ export function PlayerHeader({ locks = [], player, rosterStatus, ownTeamName, ac
     leagueActive, actionsReady = true, dropDisabled = false, onDrop, compact = false }: Props) {
     const headshotSize = compact ? controlSize.avatar.md : controlSize.avatar.lg
     const eligiblePositions = getEligiblePositions(player)
-    const age = playerAge(player.birthdate)
+    const age = playerAgeDecimal(player.birthdate)
+    const summary = [
+        player.dynasty_rank != null ? `Dynasty #${player.dynasty_rank}` : null,
+        age != null ? `Age: ${age.toFixed(1)}` : null,
+        player.years_exp === 0 ? 'Rookie' : player.years_exp != null ? `Yr ${player.years_exp + 1}` : null,
+    ].filter(Boolean).join(' · ')
     const statusLabel = rosterStatus?.status === 'free_agent' ? 'Free agent'
         : rosterStatus?.status === 'on_waivers' ? 'On waivers'
         : rosterStatus?.status === 'mine' ? ownTeamName ?? 'On your roster'
@@ -92,16 +93,10 @@ export function PlayerHeader({ locks = [], player, rosterStatus, ownTeamName, ac
                 </View>
             </View>
             <View style={styles.metaRow} testID="player-position-line">
-                {player.nba_team ? <Text style={styles.meta}>{player.nba_team}</Text> : null}
-                {eligiblePositions.map(pos => <PosTag key={pos} position={pos} />)}
-                <PlayerEligibilityTags yearsExp={player.years_exp} careerGames={player.career_regular_season_games} injuryStatus={player.injury_status} onTaxi={rosterStatus?.status === 'mine' || rosterStatus?.status === 'taken' ? rosterStatus.isOnTaxi : false} />
+                <PlayerDetailsLine team={player.nba_team} positions={eligiblePositions} jersey={player.jersey_number} />
             </View>
             <View style={styles.summaryRow} testID="player-summary-line">
-                {player.dynasty_rank != null ? <Badge inline label={`Dynasty #${player.dynasty_rank}`} color={colors.textSecondary} textColor={colors.textSecondary} variant="soft" /> : null}
-                {player.five_year_points != null ? <Badge inline label={`5yr: ${player.five_year_points}`} accessibilityLabel={`5-year points ${player.five_year_points}`} color={colors.textSecondary} textColor={colors.textSecondary} variant="soft" /> : null}
-                {player.three_year_points != null ? <Badge inline label={`3yr: ${player.three_year_points}`} accessibilityLabel={`3-year points ${player.three_year_points}`} color={colors.textSecondary} textColor={colors.textSecondary} variant="soft" /> : null}
-                {age != null ? <Badge inline label={`${age}`} accessibilityLabel={`Age ${age}`} color={colors.textMuted} /> : null}
-                {player.years_exp != null ? <Badge inline label={`Yr ${player.years_exp + 1}`} color={colors.textMuted} /> : null}
+                {summary ? <Text style={styles.summary} numberOfLines={1}>{summary}</Text> : null}
                 <LockedAssetNotice locks={locks} />
                 {leagueActive ? <Text style={styles.rosterStatus} numberOfLines={1}>{statusLabel}</Text> : null}
             </View>
@@ -116,8 +111,8 @@ const styles = StyleSheet.create({
     name: { ...textStyles.pageTitle, flex: 1, minWidth: 0 },
     nameCompact: { ...textStyles.rowTitle, fontSize: componentTokens.pageHeader.compact.title.fontSize },
     metaRow: { flexDirection: 'row', flexWrap: 'nowrap', alignItems: 'center', gap: spacing.xs, minHeight: textStyles.body.lineHeight },
+    summary: { ...componentTokens.playerRow.metadata, color: colors.textSecondary, flexShrink: 1, minWidth: 0 },
     summaryRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.xs, minHeight: textStyles.body.lineHeight },
-    meta: { ...textStyles.meta, fontSize: fontSize.sm },
     rosterStatus: { ...textStyles.meta, fontSize: fontSize.xs, maxWidth: spacing['6xl'] * 2 + spacing.xl, flexShrink: 1, backgroundColor: colors.bgMuted, borderRadius: radii.sm, paddingHorizontal: spacing.xs },
     actionWrap: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, width: controlSize.minTouch * 2 + spacing['3xl'], minWidth: controlSize.minTouch * 2 + spacing['3xl'], minHeight: controlSize.minTouch, flexShrink: 0, justifyContent: 'flex-end' },
     placeholder: { height: controlSize.button.inline.height, width: controlSize.minTouch, backgroundColor: colors.bgMuted, borderRadius: radii.md },

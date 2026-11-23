@@ -13,11 +13,14 @@ export function teamLogoUrl(team: string | null | undefined): string | null {
     return code ? `https://a.espncdn.com/combiner/i?img=/i/teamlogos/nba/500/${code}.png&w=64&h=64` : null
 }
 
-/** A team's logo at text size; falls back to the abbreviation when the team is unknown or the image fails. */
-export function TeamLogo({ team, size, textStyle }: { team: string; size: number; textStyle?: StyleProp<TextStyle> }) {
+/**
+ * A team's logo at text size; falls back to the abbreviation when the team is unknown or the image fails.
+ * Pass `fallback={false}` when the abbreviation is already shown beside it.
+ */
+export function TeamLogo({ team, size, textStyle, fallback = true }: { team: string; size: number; textStyle?: StyleProp<TextStyle>; fallback?: boolean }) {
     const uri = teamLogoUrl(team)
     const [failed, setFailed] = useState(false)
-    if (!uri || failed) return <Text style={textStyle} numberOfLines={1}>{team}</Text>
+    if (!uri || failed) return fallback ? <Text style={textStyle} numberOfLines={1}>{team}</Text> : null
     return <Image source={{ uri }} style={{ width: size, height: size, flexShrink: 0 }} resizeMode="contain"
         accessibilityRole="image" accessibilityLabel={team} testID="team-logo" onError={() => setFailed(true)} />
 }

@@ -13,7 +13,7 @@ vi.mock('expo-router', () => ({ useRouter: () => ({ push: vi.fn() }) }))
 vi.mock('@/components/trades/PendingTradeRosterPlan', () => ({ PendingTradeRosterPlan: () => null }))
 vi.mock('@/components/trades/TradeCard', () => ({ TradeCard: 'TradeCard' }))
 vi.mock('@/components/trades/TradeBlockNoteEditor', () => ({ TradeBlockNoteEditor: 'TradeBlockNoteEditor' }))
-vi.mock('@/hooks/use-player-age', () => ({ usePlayerAge: () => null }))
+vi.mock('@/hooks/use-jersey-number', () => ({ useJerseyNumber: () => null }))
 
 const listing: TradeBlockItem = {
     id: 'listing', memberId: 'other-member', teamName: 'Other team', updatedAt: '', note: null,
@@ -40,7 +40,7 @@ it.each([
     try {
         await act(async () => { renderer = create(React.createElement(Probe)) })
         const stats = renderer.root.findAllByType('Text' as React.ElementType).map(node => node.props.children)
-        expect(stats).toContain('37 FP · 24.7 mins')
+        expect(stats).toContain('37.3 FP · 24.7 mins')
     } finally {
         await act(async () => renderer?.unmount())
     }
@@ -48,8 +48,8 @@ it.each([
 
 it('rejects erased averages in the browser check', async () => {
     const { assertListingAverages } = await import('./e2e/trade-block-averages.mjs')
-    const expected = '37 FP · 24.7 mins'
-    expect(() => assertListingAverages([{ player: 'Ja Morant', expected, actual: '0 FP · 0.0 mins' }])).toThrow()
+    const expected = '37.3 FP · 24.7 mins'
+    expect(() => assertListingAverages([{ player: 'Ja Morant', expected, actual: '0.0 FP · 0.0 mins' }])).toThrow()
     expect(() => assertListingAverages([])).toThrow()
     expect(() => assertListingAverages([{ player: 'Ja Morant', expected, actual: expected }])).not.toThrow()
 })

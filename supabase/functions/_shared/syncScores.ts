@@ -4,12 +4,13 @@ import { supabase } from './supabase.ts'
 import { runBounded } from './runBounded.ts'
 import { getWeekNumberForDate, roundFantasyPoints } from './scoring.ts'
 import { isRegularSeasonGameId } from './nba.ts'
+import { gamePhase } from './gamePhase.ts'
 import { syncStatsForDates } from './syncStats.ts'
 import { toETDate } from './date.ts'
 import type { Json } from './database.ts'
 import { calcWeekMaxPossiblePointsByMember, calcWeekPointsByMember } from './scoreLineups.ts'
+import { fetchAllPages } from './fetchAllPages.ts'
 import {
-    fetchAllPages,
     loadLeagueMemberIds,
     loadSeasonWeekBounds,
     weekNumberForGameDate,
@@ -844,7 +845,7 @@ async function syncStatsForCompletedWeeks(
                     if (game.game_date < today) {
                         // Age limits correction polling only after a successful stats sync.
                         // Missing initial box scores still need recovery in longer rounds.
-                        return game.status !== 'Final' || game.stats_synced_at == null || game.game_date >= settledBefore
+                        return gamePhase(game) !== 'settled' || game.game_date >= settledBefore
                     }
                     return game.status !== 'Scheduled' && game.status !== 'InProgress'
                 })

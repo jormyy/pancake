@@ -1,9 +1,11 @@
-type RecoveryGame = { status: string; game_time?: string | null; game_status_text?: string | null }
+import { gamePhase, type PhaseGame } from './phase'
+
+type RecoveryGame = PhaseGame & { game_time?: string | null }
 
 export function nextLiveRecovery(games: readonly RecoveryGame[], now: number, publicLive: boolean): number | null {
     const interval = publicLive ? 600000 : 20000
-    const scheduled = games.filter(game => game.status === 'Scheduled' && !/postpon|cancel|suspend/i.test(game.game_status_text ?? ''))
-    if (games.some(game => game.status === 'InProgress') || scheduled.some(game => {
+    const scheduled = games.filter(game => gamePhase(game) === 'upcoming')
+    if (games.some(game => ['live', 'finalPending'].includes(gamePhase(game))) || scheduled.some(game => {
         const time = Date.parse(game.game_time ?? '')
         return Number.isFinite(time) && time <= now && now - time < 6 * 60 * 60_000
     })) return interval

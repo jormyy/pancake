@@ -30,10 +30,25 @@ DECLARE
   v_next_bid int;
   v_now timestamptz;
   v_can_outbid_exists boolean := true;
+  v_league_id uuid;
+  v_player_id uuid;
 BEGIN
   IF p_amount IS NULL OR p_amount < 1 THEN
     RAISE EXCEPTION 'Bid amount must be a positive integer';
   END IF;
+
+  SELECT draft.league_id, nomination.player_id
+    INTO v_league_id, v_player_id
+    FROM nominations AS nomination
+    JOIN drafts AS draft ON draft.id = nomination.draft_id
+   WHERE nomination.id = p_nomination_id
+     AND nomination.draft_id = p_draft_id;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Nomination not found';
+  END IF;
+
+  PERFORM private.lock_roster_scope(v_league_id, ARRAY[p_member_id], ARRAY[v_player_id]);
 
   SELECT *
     INTO v_nom
@@ -44,6 +59,10 @@ BEGIN
 
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Nomination not found';
+  END IF;
+
+  IF v_nom.player_id <> v_player_id THEN
+    RAISE EXCEPTION 'Nomination changed; retry the bid.' USING ERRCODE = '40001';
   END IF;
 
   SELECT *
@@ -66,16 +85,6 @@ BEGIN
     RAISE EXCEPTION 'Not authorized to act for this member'
       USING ERRCODE = '42501';
   END IF;
-
-  PERFORM pg_advisory_xact_lock(
-    hashtext(v_draft.league_id::text),
-    hashtext(p_member_id::text)
-  );
-
-  PERFORM pg_advisory_xact_lock(
-    hashtext(v_draft.league_id::text),
-    hashtext(v_nom.player_id::text)
-  );
 
   IF v_draft.status <> 'in_progress'::draft_status THEN
     RAISE EXCEPTION 'Draft is not in progress';
@@ -165,9 +174,6 @@ BEGIN
   INSERT INTO bids (nomination_id, member_id, amount, to_taxi)
   VALUES (p_nomination_id, p_member_id, p_amount, COALESCE(p_to_taxi,false));
 
-  -- A manager may spend the whole remaining budget and fill open slots later
-  -- through waivers or free agency, so the only bar to outbidding is the next
-  -- dollar and room for this player in the active roster or taxi squad.
   IF NOT v_draft.is_mock THEN
     v_next_bid := p_amount + 1;
     SELECT EXISTS (

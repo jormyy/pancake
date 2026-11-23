@@ -1,364 +1,120 @@
 # Verification
 
-Use these recipes to verify changes on isolated local fixtures and prepare release evidence. Each check states its setup and acceptance limits.
+Verify every change on an isolated local stack.
+Use [verify-pancake](../.claude/skills/verify-pancake/SKILL.md) for browser journeys and evidence.
+Start it with `npm run verify:launch`.
 
-Use [verify-pancake](../.claude/skills/verify-pancake/SKILL.md) for local PWA journeys and evidence.
-Start with `npm run verify:launch`; pass its evidence directory to `npm run verify:doctor --` and `npm run verify:cleanup --`.
-Use `npm run perf:app` for the [app performance harness](../tools/perf/README.md).
+## Rules
+
+- Use an isolated checkout, Supabase project ID, and port block for database or browser fixtures.
+- Never reset the shared Pancake stack.
+- Never use another lane's stack.
+- Never reuse the user's browser; use a separate automation browser.
+- Do not copy private environment files between checkouts.
+- Do not apply local dispatch wiring to a hosted project.
+- A skipped check or a missing metric is not a pass.
+- Negative controls must fail the same assertions used for acceptance.
+- The full suite must report zero failures.
+- Keep generated reports and screenshots outside tracked source.
+- A report from another source version does not certify the candidate.
 
 ## Local stack
 
-Use an isolated checkout, project ID, and port block for database or browser fixtures.
-Do not copy private environment files between checkouts.
-Use Node 22, installed dependencies, Docker, the Supabase CLI, and the browsers required by the selected check.
+Use Node 22, Docker, the Supabase CLI, and PostgreSQL client 15 or newer.
 
 1. Set the isolated project ID and all ports in `supabase/config.toml`.
-2. Start that stack with `supabase start`.
-3. Read its own public URL and local keys with `supabase status -o env`.
-4. Populate `.env` from `.env.example` using those local values.
-5. Serve functions with `supabase functions serve --env-file .env`.
-6. Run `npm run e2e:seed` before checks that need the shared browser fixture.
-7. Run `npm run build:web:release` and serve the generated dist directory.
+2. Run `supabase start`.
+3. Run `supabase status -o env` and copy the local values into `.env` from `.env.example`.
+4. Run `supabase functions serve --env-file .env`.
+5. Run `npm run e2e:seed` if the check needs the shared browser fixture.
+6. Run `npm run build:web:release`.
+7. Run `node tests/e2e/static-web-server.mjs --root=dist --port=8082` and set `E2E_FRONTEND_URL` to it.
 
-```sh
-node tests/e2e/static-web-server.mjs --root=dist --port=8082
-```
+The seed deletes the previous seed's league and users, so use only disposable data.
+Internal jobs need `PANCAKE_EDGE_INTERNAL_TOKEN` to match the database dispatch token.
+The dispatcher reads `app.edge_internal_token` and `app.supabase_url`, or their Vault fallbacks.
 
-Set `E2E_FRONTEND_URL` to that server before browser checks.
-The seed removes the previous seed's league and users. Use only disposable local data.
-Internal jobs require `PANCAKE_EDGE_INTERNAL_TOKEN` to match the database dispatch token.
-The database dispatcher reads `app.edge_internal_token` or the Vault fallback.
-Its Supabase origin comes from `app.supabase_url` or the corresponding Vault fallback.
-Do not apply that wiring to a hosted project.
+For `npm run test:db`, set `PANCAKE_TEST_DB_PORT`, `PANCAKE_TEST_API_PORT`, and `PANCAKE_TEST_PROJECT_ID` to this checkout's values.
+Keep them aligned with `supabase/config.toml` for the whole run.
+Stop the stack and remove `supabase/.temp/start-secrets` before you run the quality gate.
 
-For `npm run test:db`, set `PANCAKE_TEST_DB_PORT` and `PANCAKE_TEST_API_PORT` to this checkout's private ports.
-Set `PANCAKE_TEST_PROJECT_ID` to its private project ID.
-Keep those values aligned with `supabase/config.toml` throughout the run.
-The player-data Deno recipes check the config ports directly.
-Use PostgreSQL client 15 or newer; recipe guards use `psql`'s `\getenv` command.
-Run ordinary Edge checks without the database test environment, which enables separate integration cases.
-Stop the private stack before removing its generated `supabase/.temp/start-secrets` files and running the quality gate.
+## Merge gate
 
-The [layout setup](../tests/e2e/layout-stability-README.md) generates local-only environment and seed files outside the checkout.
-The [simulator](../scripts/season-sim/README.md) and [profiler](../scripts/bench/README.md) require their own fixed targets.
+`npm run check:gate` is the one list of merge checks.
+CI runs it on every pull request head and on main; the release preflight requires its green log.
+It runs the quality checks, the app and core tests, the attestation check, and every `tools/formal/*/check.mjs`.
+A red gate blocks the merge, even when main fails the same way.
+Fix the failure or delete the test in the same pull request.
 
 ## Checks
 
-| Check | Command | Prerequisite |
-| --- | --- | --- |
-| Quality | `npm run check:quality` | Installed dependencies |
-| Dependency advisories | `npm run security:audit` | Registry access |
-| Edge runtime | `npm run check:edge-functions` | Deno and its imports |
-| Database type parity | `npm run check:database-types` | Local migrated database |
-| Database function catalog | `npm run check:db-function-catalog` | Local migrated database |
-| Focused app tests | `npx vitest run <test-file>` | Select tests for the changed behavior |
-| Database behavior | `npm run test:db` | Isolated stack and local database environment |
-| Browser clients | `npm run e2e:web-targets` | Seeded release server and functions |
-| Layout | `npm run e2e:layout-stability -- --help` | [Layout setup](../tests/e2e/layout-stability-README.md) |
-| Budgets | `npm run perf:budget` | Saved measurement reports for report enforcement |
-| Autonomous seasons | `npm run e2e:perpetual` | Local stack; see [browser guide](../tests/e2e/README.md) |
-| Release runner contracts | `npx vitest run tests/release-script.test.ts` | No network; source and command fixtures |
-| Release rehearsal | `npm run release -- --dry-run --candidate <full-sha>` | Private 594xx mini stack, clean candidate, replay and full-check receipts; see [runner guide](../scripts/release/README.md) |
-| Release soak | `npm run e2e:soak:release` | Isolated local stack and migration baseline |
+| Check | Command |
+| --- | --- |
+| Merge gate (quality, tests, attestations, formal models) | `npm run check:gate` |
+| Lint, types, dead code, and generated-source parity | `npm run check:quality` |
+| Unit and contract tests | `npx vitest run` |
+| Database recipes | `npm run test:db` |
+| One database area | `npm run test:db:<area>`; list them with `npm run` |
+| Edge runtime | `npm run check:edge-functions` |
+| Database types and function catalog | `npm run check:database-types`, `npm run check:db-function-catalog` |
+| Dependency advisories | `npm run security:audit` |
+| Browser clients | `npm run e2e:web-targets` |
+| Layout stability | `npm run e2e:layout-stability -- --help` |
+| Performance budgets | `npm run perf:budget` |
+| Season soak | `npm run e2e:soak:release` |
 
-Run focused tests while iterating. Reserve full suites and heavy replay for the release checks.
-A skipped check or missing metric is not a pass.
-Use negative controls to prove that a gate detects the protected failure.
+Run focused tests while you work.
+Run the full suites before a release.
+`npm run test:db:bugs` reproduces known product bugs from `tests/db/known-bugs.json`; it fails when a bug no longer reproduces.
 
 ## Documentation checks
 
-Run these checks without a database connection:
+These tests read docs and need no database:
 
 ```sh
-npx vitest run tests/release-edge-compatibility.test.ts tests/e2e-release-contracts.test.ts tests/release-script.test.ts tests/e2e-surface-matrix.test.ts tests/e2e-attestation-head.test.ts tests/release-history-attestations.test.ts
+npx vitest run tests/release-edge-compatibility.test.ts tests/e2e-release-contracts.test.ts tests/release-script.test.ts
 npm run check:surface-matrix
-node scripts/regenerate-release-history-attestations.mjs --check
-npx vitest run
+npm run check:attestations
+npm test
 ```
 
-Use Node 22 and installed dependencies.
-The release-note guard requires the exact release-order heading and database-first sequence.
-It rejects a missing baseline or latest migration.
-The RELEASE-DB guard also checks deferred notification SQL against current function sources.
-Surface checks reject missing routes, scenarios, and coverage references.
-Attestation checks reject changed migration bytes or an outdated head.
-The full suite must report zero failures.
-Conditional skips remain unexecuted coverage.
+The release-order test reads `supabase/RELEASE-DB.md`.
+It fails when the release order, production head, or newest migration is missing.
 
-Do not run the release command, remote recovery, or hosted checks during a documentation-only review.
-Keep `VERCEL_ENV` non-production and `PANCAKE_FETCH_PREDECESSOR` unset for any local build.
-Use a verified local export through `PANCAKE_PREVIOUS_RELEASE_ROOT` for update checks.
-This avoids contacting the live production release.
+## Local builds
 
-## Rule coverage
+Keep `VERCEL_ENV` non-production and `PANCAKE_FETCH_PREDECESSOR` unset for local builds.
+For update checks, point `PANCAKE_PREVIOUS_RELEASE_ROOT` at a verified local export.
+This keeps local builds from contacting the live release.
 
-| Behavior | Focused database commands |
-| --- | --- |
-| Taxi eligibility and tenure | `npm run test:db:dynasty-rules`, `npm run test:db:server-taxi-rule` |
-| Taxi adds and claims | `npm run test:db:server-taxi-acquisitions`, `npm run test:db:straight-to-taxi-api` |
-| Legal roster guard | `npm run test:db:server-roster-legality`, `npm run test:db:server-roster-dispatch-repairs` |
-| Trade window | `npm run test:db:server-trade-window` |
-| Public activity feed | `npm run test:db:server-activity-feed-review`, `npm run test:db:compact-trade-activity` |
-| Injury dispatch | `npm run test:db:server-injury-schedule`, `npm run test:db:server-roster-dispatch-repairs` |
-| Atomic trade plans | `npm run test:db:trade-roster-plans`, `npm run test:db:trade-plan-concurrency` |
-| Multi-team trade acceptance | `npm run test:db:trade-acceptance-multi-team`, `npm run test:db:trade-acceptance-concurrency` |
-| Trade roster holds | `npm run test:db:trade-roster-holds`, `npm run test:db:trade-roster-holds-concurrency` |
-| Retained trade moves and reserved capacity | `npm run test:db:trade-plan-moves-capacity`, `npm run test:db:trade-waiver-concurrency` |
-| Continuous FAAB claims | `npm run test:db:continuous-faab`, `npm run test:db:continuous-faab-schedule` |
-| Historical trade revaluation | `npm run test:db:trade-historical-revaluation` |
-| Flexible playoff trees | `npm run test:db:general-brackets` |
-| Roster cleanup | `npm run test:db:roster-lifecycle`, `npm run test:db:roster-oracle` |
-| Daily automation | `npm run test:db:pre-tipoff`, `npm run test:db:optimizer-default` |
-| Tipoff/live ingestion overlap | `npm run test:db:pre-tipoff-live-concurrency` |
-| Optimizer ownership | `npm run test:db:optimizer-context` |
-| History retention | `npm run test:db:retention`, `npm run test:db:retention-scoring` |
-| Live snapshot order | `npm run test:db:live-snapshot-order` |
-| Final scores from final box scores | `npm run test:db:live-snapshot-order` for the refused later sample; `npm run check:edge-functions` for the box-score write |
-| Certified scoring | `npm run test:db:skipped-week-certificates` |
-| Fantasy calendar publication | `npm run test:db:calendar-publish`, `npm run test:db:calendar-seasons` |
-| Draft timers | `npm run test:db:draft-timer-range`, `npm run test:db:draft-timer-pause` |
-| Notification preferences and producers | `npm run test:db:notif-overhaul`, `npm run test:db:notif-producers-enabled`, `npm run test:db:notif-round3` |
-| Auction turn notices, computed at commit from the settled draft | `npm run test:db:notif-t10-auction` |
+## Formal checks
 
-These checks use controlled fixtures. They do not establish hosted latency or physical-device behavior.
-
-## Release feature checks
-
-Run the lightweight release contracts on the Mac:
-
-```sh
-npx vitest run tests/release-edge-compatibility.test.ts tests/e2e-release-contracts.test.ts
-npm run lint:all
-```
-
-Compatibility checks compare deployed consumers with the candidate database and require the current release order.
-Their negative controls remove the release section, baseline, and newest migration.
-Release contract checks reject missing measurements, incomplete browser evidence, and unsafe fixture handling.
-Lint checks the source tree for errors and warnings.
-
-Run these focused database checks on the isolated mini stack:
-
-```sh
-psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/inactive-trade-block.sql
-psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/trade-estimate-snapshots.sql
-psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/matchup-forecast-cache.sql
-node supabase/tests/db/matchup-forecast-concurrency.mjs
-```
-
-Set `PANCAKE_TEST_DB_PORT` to the stack's own database port for forecast concurrency.
-Inactive-trade checks cover IR and taxi listings across roster moves.
-Estimate checks cover frozen inputs, expiry, mismatched terms, retries, and authorized reads.
-Forecast checks cover invalidation, claims, stale publication, membership, and scoring overlap.
-The concurrency check includes a deliberately corrupted cache revision.
-See [trade estimates](trade-estimates.md), [matchup forecasts](matchup-forecasts.md), and [roster lifecycle](roster-lifecycle.md) for their contracts.
-Use the [simulator guide](verification.md#historical-replay-acceptance) for late-start historical acceptance and its unmeasured windows.
-
-## Forecast history budgets
-
-Run `npm run test:db:matchup-forecast-history` on the private stack.
-This checks scoring parity, the thirty-game bound, and calendar corrections.
-Restore production-shaped rosters and game histories before the timing check.
-Set `SUPABASE_DB_URL` and `PANCAKE_TEST_DB_PORT` to the private database.
-Run `npm run test:db:matchup-forecast-budget -- --matchup-id <id>` for each populated matchup.
-The check requires forty roster players, remaining games, and twenty player histories.
-It prepares player histories and missing projection dates before measuring three reads with generic plans.
-Each read must finish within 300 milliseconds, including planning, and meet the buffer budget.
-The buffer budget detects repeated game probes even on fast hardware.
-Run `psql "$SUPABASE_DB_URL" -X -v matchup_id=<id> -f tests/db/matchup-forecast-cache-parity.sql` for each restored matchup.
-This compares complete original and cached results inside one rolled-back transaction.
-It checks corrections, cache reuse, expiry, and private access.
-The worker prepares missing dates separately to keep each statement within its scheduled budget.
-Existing season totals update league projection values during stat ingestion.
-
-## Capacity profile and paired scoring
-
-Follow the [benchmark recipe](../scripts/bench/README.md#screen-and-job-capacity-profile).
-Use identical fixtures, provider responses, runtime versions, and arguments for both versions.
-Interleave observations and keep cold repair outside warm results.
-Confirm equal scores, standings, and notification content before comparing speed.
-Record failures, source hashes, sample counts, machine load, and measurement limits.
-Keep reports and screenshots outside tracked documentation.
-
-## Release gates
-
-Use [verify-pancake](../.claude/skills/verify-pancake/SKILL.md) for local release verification.
-Run `npm run check:quality` and the change-relevant tests before a release.
-Run `npm run e2e:soak:release` on an isolated stack when season replay evidence is required.
-The local release runner also supports `npm run release -- --dry-run --candidate <full-sha>`.
-Vercel deploys the frontend from main using `vercel.json`.
-Production builds discover and verify the live predecessor through its release marker.
-`PANCAKE_PREDECESSOR_URL` overrides the default `https://pancakedynasty.vercel.app` address.
-Local and preview builds need `PANCAKE_FETCH_PREDECESSOR=1` for remote recovery.
-`PANCAKE_PREVIOUS_RELEASE_ROOT` takes priority without network access.
-After deployment, confirm that live provenance reports the merged commit SHA.
-Database and Edge releases follow the manual steps below.
-
-The [migration history](production-migration-history.md), [catalog contract](release-build-provenance.md#migration-attestations), and [artifact contract](release-build-provenance.md) own those checks.
-A source check or catalog pass alone does not authorize a release.
-The attestation files define the historical anchor, recorded production phase, and approved candidate range.
-Read the candidate head and count from the attestation files before deployment.
-The [migration history](production-migration-history.md#current-candidate) explains these boundaries.
-The ordered [database release steps](../supabase/RELEASE-DB.md) name the unpublished migrations and rollback checks.
-Release approval does not bypass an attestation failure.
-
-The matchup client first requests SQL-owned schedule generation.
-The deployed schema can require a complete legacy payload; that exact SQL error triggers one compatible retry.
-Other errors propagate, and SQL still checks saved settings and started schedules.
-Non-force generation returns HTTP 200 with `ok: true, skipped: true` when a schedule already exists.
-Generate reports that the existing schedule stays unchanged.
-Reset & Regenerate rebuilds the schedule only before the first non-skipped week starts in Eastern Time.
-After that boundary, the server rejects a reset and the client hides the action.
-Release shards omit the single matchup used by browser latency fixtures.
-The soak generates its complete schedule through the guarded API after loading the calendar.
-Repeat-generation checks compare schedule rows, including IDs and scores, rather than counts alone.
-Ordinary browser seeds retain their latency matchup.
-
-## Sleeper projections and weekly cleanup
-
-Use an isolated local Supabase project and ports. Restore the normal config before handoff.
-Never reset the shared Pancake stack.
-The focused commands are:
-
-```sh
-deno test --allow-env --allow-net --allow-read supabase/functions/sync-sleeper-projections supabase/functions/sync-projections supabase/functions/_shared/retry.test.ts
-npm run test:db:sleeper-fixture
-npm run test:db:sleeper-projections
-npm run test:db:projection-schedule
-npm run test:db:retention-indexes
-npm run test:db:retention-concurrency
-npm run test:db:retention
-npm run test:db:retention-scoring
-npm run test:db:pre-tipoff
-npm run test:db:fantasypros-projections
-```
-
-Database commands require the isolated local database URL.
-The fixture command also requires its local API URL and service-role key.
-The scoring check requires its local backend secret key.
-Read these settings only from that local project's CLI status.
-The database Deno tests require the explicit `--local-db` argument, supplied by their npm commands.
-Ordinary Edge checks ignore those database tests.
-
-The fixture test pulls four recorded rows twice and verifies stable IDs, updated values, reader precedence, projected sits, and failure recovery.
-The SQL checks cover mixed weekly fallback, makes and attempts, next-game data, fingerprint stability, permissions, and deletion hints.
-Schedule checks cover Pacific midnight, both daylight saving transitions, late checks, claims, and injury refresh windows.
-Sleeper worker checks also cover multiweek scoring periods, Pacific dates, and successful skips when no scoring week contains today.
-Retention checks protect all league and NBA tables with write-rejecting triggers.
-Index checks run actual log and snapshot deletion statements against populated fixtures and inspect their execution plans.
-They also inspect indexed cron, Sleeper, FantasyPros, and run-selection plans.
-All fixture writes use the isolated local project. SQL checks roll back.
-
-The fixture checks also cover rejected and unmatched source rows, absent-game removal, and historical games after team changes.
-Coverage checks verify updates without deletion below 70%, retained projected sits, failed-run diagnostics, and recovery.
-SQL cases check the 70% boundary, an empty upcoming store, and exclusion of past games and other weeks.
-Freshness cases cover the 36-hour boundary, source precedence, and returned timestamps.
-Concurrency checks hold row locks while cleanup and new writes run together.
-Keep generated results with the release evidence; rerun checks for the candidate under review.
-
-## Player detail
-
-```sh
-npx vitest run tests/components/player/player-detail.test.ts tests/app/player-browser-seasons.test.ts tests/hooks/player-screen-projection-lifetime.test.ts
-```
-
-These checks cover roster controls, season selection, compact statistics, projection labels, recent games, and collapsed league history.
-Use the [browser setup](../tests/e2e/README.md#supported-web-clients) for supported-client layout and interaction checks.
-[PWA behavior](architecture.md#loading-and-offline-actions) owns the screen contract.
-
-## Dependency security
-
-The lockfile records the reviewed dependency versions.
-Use `npm ci` to install that tree.
-`npm run security:audit` rejects unaccepted high or critical advisories and stale accepted exceptions.
-`scripts/check-dependency-audit.mjs` owns exception reasons and removal conditions.
-A passing audit does not mean the tree contains no advisories.
-
-## Tipoff and live stats lock regression
-
-Run `npm run test:db:pre-tipoff-live-concurrency` against the isolated migrated database.
-The recipe uses two service-role writers and one observer connection.
-A fixture-scoped trigger pauses real stats ingestion before its league reference check.
-The observer waits for the optimizer’s player lock, then releases ingestion.
-Both writes must commit, preserve the assigned slot, and produce the expected fantasy score.
-League edits must remain blocked while foreign-key checks can proceed.
-The recipe also checks invisible uncommitted changes, stable retries, stale snapshots, and rollback after either writer fails.
-It removes its synthetic fixture and barrier trigger on exit.
-The pre-fix control fails with a PostgreSQL deadlock; the fixed functions must pass without retrying the conflicting transactions.
-
-## Scheduler test tools
-
-Current-schema tools use `private.enqueue_*`, work-item leases, and `dispatch_work`.
-The season replay keeps every dispatcher minute, half-minute hint drain, and worker wakeup.
-It derives installed cron expectations from repository migrations.
-It no longer skips separate scheduler ticks when source queues appear empty.
-Those separate ticks no longer exist in the current schema.
-
-The pre-tipoff benchmark remains a historical migration comparison.
-Its driver loads the reviewed 20260814 and 20261014 scheduler fixtures.
-Its report tool reads saved counters from those runs.
-Their old function names do not describe current-schema dependencies.
-The compatibility check verifies this boundary and continues checking current capacity profiling.
-
-
-## Database recipe triage
-
-The [triage report](../tests/db/TRIAGE.md) lists all 47 inherited failures, their first errors, and their actions.
-It also lists additional failures, all 14 deletions, and three minimal product bug reproductions.
-The trade-proposal parent is stale because its version publishes through deferred work.
-Its corrected parent runs all five fragments and proves 126 committed writes.
-
-`npm run test:db` discovers every retained top-level SQL recipe.
-Its parents run all 11 included SQL fragments.
-The runner includes three calendar modes, two notification modes, and the existing held-lock harness.
-The standard command also runs its existing pick fixture harness.
-The full command needs 87.148 seconds on the private mini with Node 22.
-No nightly split is needed.
-The stack applies all 628 migrations through `20261130000100`.
-
-| Check | Command | Final evidence |
-| --- | --- | --- |
-| Retained SQL | `npm run test:db` | 280 cases pass; zero failures |
-| Included version writes | Same command | 126 committed write proofs; all five fragments execute |
-| Invalid target settings | Same command | 29 recipes reject invalid configuration |
-| Runner failure controls | `npm run test:db:runner` | Three checks pass, including injected assertion failures and wrong bug errors |
-| Existing pick fixture | Included in `npm run test:db` | One API fixture check passes |
-| Product bug reproductions | `npm run test:db:bugs` | Three exact failures reproduce; no product fixes |
-| Runner compatibility | `npx vitest run tests/db-recipes.test.ts` | 13 checks pass |
-| Quality | `npm run check:quality` | All checks pass with Node 22 |
-
-Known bug checks require each documented SQL error and fail when that defect no longer reproduces.
-An unrelated error also fails the command.
-See `tests/db/known-bugs.json` for each extracted assertion and its source recipe.
-Run a reproduction directly with `psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f <repro-path>`.
-Each currently exits 3.
-
-The former broader API and ingestion chain remains available as `npm run test:db:integration`.
-This triage does not run that full integration chain.
-The private stack stops after verification.
+`npm run check:formal` runs every `tools/formal/*/check.mjs`; `npm run check:gate` includes it, so CI runs it on each pull request and push to `main`.
+It needs Java 11 or later; add `-- --install` once to fetch the pinned TLC jar into `~/.cache/pancake-formal`.
+The trade-roster-holds check fails when a covered file or the migration set differs from `tools/formal/trade-roster-holds/coverage.json`.
+`npm run test:db:trade-hold-model-replay` replays the model's failure paths on a disposable database.
+See the [formal-trade-roster-holds](../.claude/skills/formal-trade-roster-holds/SKILL.md) skill.
 
 ## Installed iPhone checks
 
-Use `scripts/ios-sim/run.mjs` and its scenario catalog for repeatable simulator captures.
-Run `node scripts/ios-sim/run.mjs --help` for current options.
-Use an isolated local stack and a separate browser or simulator.
-Verify Home Screen launch, keyboard placement, status bars, scroll restoration, and background return on a real iPhone before release.
-Browser emulation alone does not establish those behaviors.
+Use `node scripts/ios-sim/run.mjs --help` for repeatable simulator captures.
+Before a release, check these on a real iPhone: Home Screen launch, keyboard placement, status bars, scroll restoration, and background return.
+Browser emulation does not prove them.
 
 ## Historical replay acceptance
 
-Use [the season simulator](../scripts/season-sim/README.md) for collection, replay, and cleanup.
+Use the [season simulator](../scripts/season-sim/README.md) to collect, replay, and clean up.
 A resumed replay proves only its measured dates and actions.
-A fresh late start records earlier windows as unmeasured and keeps `fullAcceptance` false.
-Preserve source receipts, original failures, recovery evidence, and first and last measured dates outside Git.
-Verify scores against an independent oracle, ownership and pick history, rollover, and the declared cutoff.
+A late start records earlier windows as unmeasured and keeps `fullAcceptance` false.
+Check scores against an independent oracle, plus ownership, pick history, rollover, and the cutoff.
 Keep missing source data separate from arithmetic failures.
 Outbox rows do not prove push delivery or device display.
-Negative controls must fail the same assertions used for acceptance.
 
-## Performance evidence
+## Tool guides
 
-Use [the game-night replay](../scripts/bench/game-night/README.md) for database memory pressure.
-Use `npm run perf:lab` for browser traffic and screen timings.
-Keep generated reports outside tracked docs and tests.
-Record source, fixture, runtime settings, elapsed time, and the exact measured interval.
-A report from another source version does not certify the candidate.
+- [Browser checks](../tests/e2e/README.md) and [layout stability](../tests/e2e/layout-stability-README.md)
+- [App performance](../tools/perf/README.md) and [verify tools](../tools/verify/README.md)
+- [Capacity benchmarks](../scripts/bench/README.md) and [game-night replay](../scripts/bench/game-night/README.md)
+- [Season simulator](../scripts/season-sim/README.md)
+- [Mutation tests](../scripts/mutation/live/README.md) and [post-game mutation tests](../scripts/mutation/post/README.md)
+- [Load tests](../scripts/load/README.md)

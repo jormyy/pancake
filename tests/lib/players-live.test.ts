@@ -22,9 +22,9 @@ describe('visible player display', () => {
         expect(applyVisiblePlayerTotals(playerRow(), row(), null).avg_fantasy_points).toBeNull()
         expect(applyVisiblePlayerTotals(playerRow(), row({ totals: {} }), { points: 1 }).avg_points).toBeNull()
     })
-    it('starts the live label at tipoff and removes it when the game ends or is postponed', () => {
+    it('starts the live label at tipoff and removes it when the game ends or no game is available', () => {
         expect(applyVisiblePlayerTotals(playerRow(), row(), {}, Date.parse('2026-10-24T19:59:59Z')).playing_now).toBe(false)
         expect(applyVisiblePlayerTotals(playerRow(), row(), {}, Date.parse('2026-10-24T20:00:00Z')).playing_now).toBe(true)
-        for (const status of ['Final', 'Postponed']) expect(applyVisiblePlayerTotals(playerRow(), row({ game_status: status }), {}, Date.parse('2026-10-24T22:00:00Z')).playing_now).toBe(false)
+        for (const status of ['Final', null]) expect(applyVisiblePlayerTotals(playerRow(), row({ game_status: status }), {}, Date.parse('2026-10-24T22:00:00Z')).playing_now).toBe(false)
     })
 })

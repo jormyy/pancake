@@ -1,3 +1,4 @@
+import { fetchAllPages } from '@pancake/core'
 import { supabase } from '@/lib/supabase'
 import { getCurrentSeasonId } from '@/lib/shared/season'
 
@@ -37,7 +38,7 @@ export async function getPlayoffBracket(leagueId: string): Promise<PlayoffBracke
 
     if (!seasonId) return { quarterfinals: [], semifinals: [], final: null, champion: null }
 
-    const fetchPage = (from: number) => supabase
+    const rows = await fetchAllPages((from, to) => supabase
         .from('matchups')
         .select(
             `
@@ -53,18 +54,8 @@ export async function getPlayoffBracket(leagueId: string): Promise<PlayoffBracke
         .order('week_number', { ascending: true })
         .order('playoff_position', { ascending: true })
         .order('id')
-        .range(from, from + 999)
-    const first = await fetchPage(0)
-    if (first.error) throw first.error
-    const rows = first.data ?? []
-    let pageLength = rows.length
-    while (pageLength === 1000) {
-        const page = await fetchPage(rows.length)
-        if (page.error) throw page.error
-        pageLength = page.data?.length ?? 0
-        rows.push(...page.data ?? [])
-    }
-    if (!rows || rows.length === 0)
+        .range(from, to))
+    if (rows.length === 0)
         return { quarterfinals: [], semifinals: [], final: null, champion: null }
 
     type MemberRef = { id: string; team_name: string } | null
