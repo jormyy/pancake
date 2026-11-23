@@ -1,7 +1,6 @@
 import { View, StyleSheet } from 'react-native'
 import { colors } from '@/constants/tokens'
 
-/** Standard 1px list separator, unbroken edge-to-edge */
 export function ItemSeparator() {
     return (
         <View

@@ -72,7 +72,6 @@ export async function prepareEspnIdentities(records: Parameters<typeof corrobora
   return { data, linked }
 }
 
-// Fetch the NBA CDN player index and populate nba_id for any players missing it.
 // The index includes all active NBA players with their PERSON_ID, first name, and last name
 // (last name includes suffix, e.g. "Jackson Jr.", "Payton II").
 export async function syncNBAIds(now = new Date(), prepared?: NbaIndex): Promise<{ mapped: number; merged: number; failures: string[]; roster: { provider_id: string; nba_team: string }[]; rosterGaps: string[] }> {
@@ -102,7 +101,7 @@ export async function syncNBAIds(now = new Date(), prepared?: NbaIndex): Promise
   const byExactName = new Map<string, string>()
   const byNormName = new Map<string, string>()
   for (const row of rows) {
-    if (row[statusIdx] !== 1) continue // skip inactive
+    if (row[statusIdx] !== 1) continue
     const fullName = `${row[firstIdx]} ${row[lastIdx]}`
     const exact = fullName.toLowerCase()
     const norm = normalizeName(fullName)
@@ -162,7 +161,6 @@ export async function syncNBAIds(now = new Date(), prepared?: NbaIndex): Promise
   }
   console.log(`[sync-players] Updated nba_id for ${mapped} players; merged ${mergedBeforeUpdate} duplicate rows before update.`)
 
-  // Merge any players that ended up with the same nba_id (same real person, two DB rows)
   const { error: mergeErr } = await supabase.rpc('merge_duplicate_players')
   if (mergeErr) failures.push(`merge_duplicate_players: ${mergeErr.message}`)
   else console.log('[sync-players] Dedup complete.')

@@ -1,7 +1,6 @@
 import { StyleSheet } from 'react-native'
 import { controlSize, colors, fontSize, fontWeight, layout, radii, spacing, textStyles } from '@/constants/tokens'
 
-// Buttons, cards, and scroll containers shared across the league draft panels.
 export const panelStyles = StyleSheet.create({
     draftButton: {
         backgroundColor: colors.primary,

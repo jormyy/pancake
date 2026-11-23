@@ -11,9 +11,6 @@ import { THEME_BOOT_SCRIPT } from '@/lib/theme-preference'
 import { AUTH_SCAFFOLD_CSS } from '@/components/auth/authScaffoldCss'
 import { AuthDocumentForm } from '@/components/auth/AuthDocumentForm'
 
-// Root HTML document for the web build. Adds the PWA manifest, theme color,
-// Apple install metadata, and registers the offline-shell service worker.
-// Native is unaffected (this file is web-only).
 
 // Dev is excluded: Metro serves unhashed bundles, so the service worker's
 // stale-while-revalidate would replay outdated module graphs after every edit

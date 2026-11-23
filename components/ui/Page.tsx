@@ -12,7 +12,6 @@ const MAX_WIDTH: Record<PageWidth, number | undefined> = {
     full: undefined,
 }
 
-/** Shared page metrics so every screen pads and splits at the same widths. */
 export function usePageMetrics() {
     const { width } = useWindowDimensions()
     const compact = width < breakpoints.compact
@@ -21,7 +20,6 @@ export function usePageMetrics() {
     return {
         compact,
         padX,
-        /** Width left for page content after the web sidebar and page padding. */
         usableWidth: width - shellInset - 2 * padX,
     }
 }

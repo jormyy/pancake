@@ -178,7 +178,6 @@ function StatCells({ columns, stats, isLive }: { columns: StatColumn[]; stats?: 
     )
 }
 
-/** Column labels that line up with the stat cells of the rows below. */
 export function MatchupColumnHeader({ columns }: { columns: StatColumn[] }) {
     const labels = (
         <View style={styles.statCells}>

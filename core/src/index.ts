@@ -1,4 +1,3 @@
-// Scoring
 export { calculateFantasyPoints, roundFantasyPoints, snakeToStatLine } from './scoring/formula'
 export type { StatLine, ScoringSettings } from './scoring/types'
 export { overlayLiveScores, liveLineStats } from './live/overlay'
@@ -12,7 +11,6 @@ export { decodeSavedLiveView } from './live/saved'
 export type { HomeSelection } from './live/changes'
 export type { LiveSnapshot, LiveLine, PublicLiveGame, SavedLiveMatchup, SavedLivePlayer, PublicLiveStats } from './live/overlay'
 
-// Season
 export { currentSeasonYear } from './season/year'
 export { isRegularSeasonGameId } from './season/gameId'
 export { resolveSeasonWeekNumber } from './season/weekPolicy'
@@ -33,13 +31,10 @@ export type {
     SeasonWeekRow,
 } from './season/schedule'
 
-// Database reads
 export { fetchAllPages } from './db/fetchAllPages'
 
-// Dates
 export { endOfETDayUTC, toETDate, todayET } from './dates'
 
-// Sync policy
 export {
     LIVE_POLL_LEASE_TTL_SECONDS,
     LIVE_POLL_LOCK_KEY,
@@ -48,10 +43,8 @@ export {
     livePollCandidateDates,
 } from './sync/livePoll'
 
-// Roster
 export { isIREligible, isDTD, isTaxiEligible } from './roster/eligibility'
 
-// Positions
 export {
     canPlayLineupSlot,
     LINEUP_SLOT_ALLOWED_POSITIONS,
@@ -60,7 +53,6 @@ export {
 } from './positions'
 export type { LineupSlotType, SlotType } from './positions'
 
-// Trades
 export {
     MAX_TRADE_EXPIRATION_DAYS,
     MAX_TRADE_FAAB_AMOUNT,
@@ -70,7 +62,6 @@ export {
     utf8ByteLength,
 } from './trades/limits'
 
-// Dynasty decision tools
 export {
     analyzeDynastyTrade,
     DYNASTY_TRADE_MODEL_VERSION,
@@ -95,7 +86,6 @@ export type {
     DynastyValueRange,
 } from './dynasty/decisionEngine'
 
-// Types
 export {
     LEAGUE_STATUSES,
     DRAFT_STATUSES,

@@ -5,7 +5,6 @@ import { resolveSeasonWeekNumber, type SeasonWeekRange } from '@pancake/core'
 
 const seasonWeeksCache = new Map<string, Promise<SeasonWeekRange[]>>()
 
-/** Drops memoized week lookups (tests / commissioner schedule edits). */
 export function invalidateWeekNumberCache() {
     seasonWeeksCache.clear()
 }

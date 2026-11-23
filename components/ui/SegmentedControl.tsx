@@ -48,7 +48,6 @@ function focusSegment(idBase: string | undefined, value: string, shouldFocus: ()
     return scheduleWebFocusRecovery(focus)
 }
 
-/** The single tab-switcher / segmented-control primitive (Standings/Activity/…). */
 export function SegmentedControl<T extends string>({
     options,
     value,

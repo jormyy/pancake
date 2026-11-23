@@ -45,7 +45,6 @@ function variantColors(variant: ButtonVariant) {
     }
 }
 
-/** The single button primitive — every CTA/action in the app composes from this. */
 export function Button({
     title,
     children,

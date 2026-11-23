@@ -503,8 +503,7 @@ const styles = StyleSheet.create({
         borderRadius: radii.md,
         borderCurve: 'continuous' as const,
         paddingHorizontal: spacing.lg,
-        // 16px keeps iOS Safari from zooming the page when the field is focused.
-        fontSize: fontSize.lg,
+        fontSize: controlSize.field.fontSize,
         color: colors.textPrimary,
         backgroundColor: colors.bgScreen,
     },

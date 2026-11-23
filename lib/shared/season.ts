@@ -29,7 +29,6 @@ function cached<T>(
     return promise
 }
 
-/** Drops cached season lookups (e.g. after commissioner season actions). */
 export function invalidateSeasonCache(leagueId?: string) {
     if (leagueId) {
         currentSeasonCache.delete(leagueId)
@@ -42,9 +41,6 @@ export function invalidateSeasonCache(leagueId?: string) {
 
 onSessionCachesCleared(() => invalidateSeasonCache())
 
-/**
- * Fetches the current league season (id + season_year).
- */
 export function getCurrentSeason(leagueId: string): Promise<SeasonInfo> {
     return cached(currentSeasonCache, leagueId, async () => {
         const { data, error } = await supabase
@@ -58,9 +54,6 @@ export function getCurrentSeason(leagueId: string): Promise<SeasonInfo> {
     })
 }
 
-/**
- * Convenience wrapper — returns just the season id or null.
- */
 export async function getCurrentSeasonId(leagueId: string): Promise<string | null> {
     const season = await getCurrentSeason(leagueId)
     return season?.id ?? null

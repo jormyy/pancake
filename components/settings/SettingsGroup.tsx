@@ -100,7 +100,6 @@ export function SettingsRow({
     )
 }
 
-/** On/off control drawn inside a SettingsRow with role="switch". */
 export function SettingsToggle({ on }: { on: boolean }) {
     return (
         <View style={[styles.toggle, on && styles.toggleOn]} aria-hidden>

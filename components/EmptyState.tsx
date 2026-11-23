@@ -8,23 +8,16 @@ import { PromptFrame } from '@/components/ui/PromptFrame'
 type IconName = ComponentProps<typeof MaterialIcons>['name']
 
 type Props = {
-    /** Primary line (legacy callers pass this as the only prop). */
     message: string
-    /** Optional secondary line that teaches what belongs here / how to fill it. */
     description?: string
-    /** Optional illustrative icon shown above the message. */
     icon?: IconName
-    /** Optional CTA. */
     actionLabel?: string
     onAction?: () => void
-    /** Wrap in SafeAreaView for full-screen usage (default: true) */
     fullScreen?: boolean
-    /** Render the content inside a deliberate card even when not full-screen. */
     framed?: boolean
     reserveCopy?: { message: string; description: string }
 }
 
-/** Centered empty state for empty lists / missing-data guards. Teaches + offers a CTA. */
 export function EmptyState({ message, description, icon, actionLabel, onAction, fullScreen = true, framed, reserveCopy }: Props) {
     if (!fullScreen) {
         return (

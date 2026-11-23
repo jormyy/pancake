@@ -18,7 +18,6 @@ type Props = {
     actions?: ReactNode
 }
 
-/** Season averages as one stat strip, fantasy points first. */
 export function StatsOverview({ averages, seasonYear, avgFantasyPoints = null, columns, seasonControl, loading = false, includesLive = false, actions, showFantasy = avgFantasyPoints != null }: Props) {
     const cells = [
         showFantasy ? { label: 'FP/G', value: formatAvgPoints(avgFantasyPoints ?? 0), lead: true } : null,
