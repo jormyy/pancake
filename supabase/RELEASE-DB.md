@@ -883,8 +883,8 @@ The existing cron command keeps its five-second statement limit and 250 ms lock 
 Unclaimed items remain pending; no lease starts before an item can run.
 A blocked item records its error before the transaction commits.
 The dispatcher advisory lock skips overlapping runs.
-Run `npm run test:db:dispatcher-contention` on an idle private stack.
-The recipe holds worker rows and the HTTP queue while it checks bounded dispatch and overlap.
+Run `npm run test:db:worker-contention` on an idle private stack.
+The matrix holds worker rows and the HTTP queue while it checks bounded dispatch and overlap.
 A queued HTTP backlog alone does not prove insertion contention.
 Startup timeouts occur before SQL execution; retain full error context when investigating a failed statement.
 
