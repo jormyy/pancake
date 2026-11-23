@@ -10,6 +10,11 @@ const checks = readdirSync(here, { withFileTypes: true })
   .map((entry) => entry.name)
   .sort()
 
+if (!checks.length) {
+  console.error(`No tools/formal/*/check.mjs found in ${here}.`)
+  process.exit(1)
+}
+
 const failed = checks.filter((name) => {
   console.log(`== ${name}`)
   return spawnSync(process.execPath, [path.join(here, name, 'check.mjs'), ...process.argv.slice(2)], { stdio: 'inherit' }).status !== 0
