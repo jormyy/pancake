@@ -62,7 +62,7 @@ BEGIN
   INSERT INTO replay_steps(path, step, outcome) VALUES ('claim then offer', 'the team enters a waiver claim with no drop, roster 1 of 2', 'done');
   v_trade := public.propose_trade_atomic(r.league_id, r.season_id, r.member_ids[1], r.member_ids[2],
     '{}'::uuid[], ARRAY[r.players[2]], '{}'::uuid[], '{}'::uuid[], NULL, NULL, 5, 0);
-  INSERT INTO replay_steps(path, step, outcome) VALUES ('claim then offer', 'the team offers a trade that brings in one player', 'done');
+  INSERT INTO replay_steps(path, step, outcome) VALUES ('claim then offer', 'the team sends an offer that brings in one player, which records its yes', 'done');
   PERFORM pg_temp.replay_step('claim then offer', 'waivers run',
     format('SELECT public.process_next_waiver_claim_atomic(%L::date)', (now() AT TIME ZONE 'America/Los_Angeles')::date));
   PERFORM pg_temp.replay_step('claim then offer', 'the partner says yes',
@@ -101,18 +101,32 @@ END $$;
 \pset footer off
 SELECT path, step, outcome FROM replay_steps ORDER BY seq;
 
+CREATE TEMP TABLE replay_checks (seq serial PRIMARY KEY, path text, expectation text, passed boolean);
+INSERT INTO replay_checks(path, expectation, passed)
+SELECT path, expectation, COALESCE(passed, false) FROM (VALUES
+  ('claim then offer', 'waivers run refuses the claim entered before the offer, and the team''s roster stays 1 of 2',
+    (SELECT outcome LIKE 'roster 1 of 2, claim failed_roster, %' FROM replay_steps WHERE path = 'claim then offer' AND step = 'result')),
+  ('claim then offer', 'the partner''s yes makes the offer unanimous (status accepted, not yet completed)',
+    (SELECT outcome LIKE '%, offer accepted' FROM replay_steps WHERE path = 'claim then offer' AND step = 'result')),
+  ('two offers', 'the first partner''s yes is refused while it would leave no room for the other offer the team made',
+    (SELECT outcome LIKE 'refused: %needs the roster spot this trade would use%' FROM replay_steps WHERE path = 'two offers' AND step = 'the first partner says yes')),
+  ('two offers', 'the second partner''s yes is refused for the same reason',
+    (SELECT outcome LIKE 'refused: %needs the roster spot this trade would use%' FROM replay_steps WHERE path = 'two offers' AND step = 'the second partner says yes')),
+  ('two offers', 'neither offer becomes unanimous; both stay pending',
+    (SELECT outcome = 'first offer pending, second offer pending' FROM replay_steps WHERE path = 'two offers' AND step = 'result'))
+) AS expected(path, expectation, passed);
+
+SELECT path, expectation, CASE WHEN passed THEN 'pass' ELSE 'FAIL' END AS result FROM replay_checks ORDER BY seq;
+
 DO $$
+DECLARE
+  v_failed text;
 BEGIN
-  PERFORM pg_temp.check_rules(
-    (SELECT outcome = 'roster 1 of 2, claim failed_roster, offer accepted' FROM replay_steps WHERE path = 'claim then offer' AND step = 'result'),
-    'a claim entered before the offer fails when waivers run, and the partner''s yes completes the offer');
-  PERFORM pg_temp.check_rules(
-    (SELECT bool_and(outcome LIKE 'refused: %needs the roster spot this trade would use%') FROM replay_steps WHERE path = 'two offers' AND step LIKE '% partner says yes'),
-    'neither offer becomes unanimous while it would leave no room for the other offer the team made');
-  PERFORM pg_temp.check_rules(
-    (SELECT outcome = 'first offer pending, second offer pending' FROM replay_steps WHERE path = 'two offers' AND step = 'result'),
-    'both offers stay pending');
+  SELECT string_agg(path || ': ' || expectation, E'\n' ORDER BY seq) INTO v_failed FROM replay_checks WHERE NOT passed;
+  IF v_failed IS NOT NULL THEN
+    RAISE EXCEPTION E'FAIL:\n%', v_failed;
+  END IF;
 END $$;
 
-SELECT count(*) AS passed_checks FROM rules_checks;
+SELECT count(*) AS passed_checks FROM replay_checks;
 ROLLBACK;

@@ -19,6 +19,24 @@
       "config": "unanimous-only-one-offer",
       "expect": "AcceptedOffersKeepRoom",
       "through": "WaiversRun"
+    },
+    {
+      "config": "unanimous-only-archived-waiver-order",
+      "expect": "AcceptedOffersKeepRoom",
+      "path": [
+        "TeamEntersClaim",
+        "TeamProposes",
+        "WaiversRun"
+      ]
+    },
+    {
+      "config": "every-acceptance-archived-waiver-order",
+      "expect": "NoWaiverClaimRefused",
+      "path": [
+        "TeamEntersClaim",
+        "TeamProposes",
+        "WaiversRun"
+      ]
     }
   ],
   "files": [
@@ -40,7 +58,11 @@
     "supabase/sql/functions/by-name/private/trade_hold_conflict.sql",
     "supabase/sql/functions/by-name/private/pending_trades_withdrawn_by.sql",
     "supabase/sql/functions/by-name/private/validate_trade_rosters.sql",
-    "supabase/sql/functions/by-name/public/edit_waiver_claim_atomic.sql",
-    "supabase/migrations/20261029000300_trade_plan_moves_and_capacity.sql"
-  ]
+    "supabase/sql/functions/by-name/public/edit_waiver_claim_atomic.sql"
+  ],
+  "migrations": {
+    "dir": "supabase/migrations",
+    "through": "20261214011800_tipoff_mode_aware_completion.sql",
+    "sha256": "60d9cc4defe8002f233cae6e9612e476a296265ab7575da0ebe4573e6e02bd95"
+  }
 }

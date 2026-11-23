@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { execFileSync, spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -14,6 +14,41 @@ const jar = process.env.TLA2TOOLS ?? path.join(homedir(), '.cache/pancake-formal
 const fail = (message) => {
   console.error(message)
   process.exit(1)
+}
+
+const migrationDir = path.join(repo, coverage.migrations.dir)
+const migrationSet = (through) => {
+  const hash = createHash('sha256')
+  for (const name of readdirSync(migrationDir).filter((name) => name.endsWith('.sql') && name <= through).sort()) {
+    hash.update(`${name}\0${createHash('sha256').update(readFileSync(path.join(migrationDir, name))).digest('hex')}\n`)
+  }
+  return hash.digest('hex')
+}
+const migrationNames = readdirSync(migrationDir).filter((name) => name.endsWith('.sql')).sort()
+
+if (process.argv.includes('--record-migrations')) {
+  const through = migrationNames.at(-1)
+  writeFileSync(path.join(here, 'coverage.json'), `${JSON.stringify({ ...coverage, migrations: { ...coverage.migrations, through, sha256: migrationSet(through) } }, null, 2)}\n`)
+  console.log(`Recorded ${migrationNames.length} migrations through ${through}.`)
+  process.exit(0)
+}
+
+const newer = migrationNames.filter((name) => name > coverage.migrations.through)
+const reviewedChanged = migrationSet(coverage.migrations.through) !== coverage.migrations.sha256
+if (newer.length || reviewedChanged) {
+  fail(
+    [
+      `Migration SQL in ${coverage.migrations.dir} differs from the set reviewed for this model, which ends at ${coverage.migrations.through}.`,
+      ...newer.map((name) => `  new: ${name}`),
+      ...(reviewedChanged ? [`  a migration at or before ${coverage.migrations.through} was edited, removed or added out of order; see git status and git diff ${coverage.syncCommit} -- ${coverage.migrations.dir}`] : []),
+      'A migration can change trade holds, waiver claims or roster capacity without touching the by-name sources. Review each listed file against the Model table in .claude/skills/formal-trade-roster-holds/SKILL.md.',
+      'If it changes what the model describes, update the model and the replay in the same change. Either way, rerun with --record-migrations, then run this check again.',
+    ].join('\n'),
+  )
+}
+
+if (spawnSync('git', ['cat-file', '-e', `${coverage.syncCommit}^{commit}`], { cwd: repo }).status !== 0) {
+  fail(`This clone lacks syncCommit ${coverage.syncCommit}, so covered files cannot be compared. Fetch it with git fetch origin ${coverage.syncCommit} or git fetch --unshallow.`)
 }
 
 if (process.argv.includes('--install') && !existsSync(jar)) {
@@ -77,10 +112,11 @@ try {
     const violated = output.match(/Invariant (\w+) is violated/)?.[1] ?? null
     const passed = result.status === 0 && output.includes('No error has been found')
     const states = output.match(/(\d+) distinct states found/)?.[1]
-    const last = [...output.matchAll(/^State \d+: <(\w+)/gm)].at(-1)?.[1]
-    const ok = run.expect === 'pass' ? passed : violated === run.expect && last === run.through
+    const taken = [...output.matchAll(/^State \d+: <(\w+)/gm)].map((hit) => hit[1]).slice(1)
+    const ok = run.expect === 'pass' ? passed : violated === run.expect && (run.path ? taken.join() === run.path.join() : taken.at(-1) === run.through)
     failed ||= !ok
-    console.log(`${ok ? 'ok' : 'FAIL'} ${run.config}: ${passed ? `no violation in ${states} states` : violated ? `${violated} violated` : 'TLC error'} (expected ${run.expect === 'pass' ? 'no violation' : `${run.expect} violated at ${steps[run.through]}`})`)
+    const expected = run.path ? `after exactly: ${run.path.map((action) => steps[action]).join(', then ')}` : `at ${steps[run.through]}`
+    console.log(`${ok ? 'ok' : 'FAIL'} ${run.config}: ${passed ? `no violation in ${states} states` : violated ? `${violated} violated` : 'TLC error'} (expected ${run.expect === 'pass' ? 'no violation' : `${run.expect} violated ${expected}`})`)
     if (violated) console.log(story(output, readFileSync(path.join(here, `${run.config}.cfg`), 'utf8').match(/RosterSize = (\d+)/)[1]))
     if (!passed && !violated) console.log(output)
   }

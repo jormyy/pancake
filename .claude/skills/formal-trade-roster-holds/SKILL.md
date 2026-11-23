@@ -20,14 +20,30 @@ npm run check:formal:trade-roster-holds
 
 Add `-- --install` once to fetch TLC 1.7.4 into `~/.cache/pancake-formal`; the script checks its sha256.
 It needs Java 11 or later on `PATH`, in `JAVA`, or from Homebrew `openjdk@21`. Set `TLA2TOOLS` to use another copy of the jar.
-It takes a few seconds and exits 0 only when all three runs match `coverage.json`:
+It takes a few seconds and exits 0 only when all five runs match `coverage.json`:
 
 - `every-acceptance`: the current rule, two offers, roster limit 2. No invariant may fail.
 - `unanimous-only`: the pre-#187 rule. `AcceptedOffersKeepRoom` must fail, and the last step must be a partner's final yes on one of two overlapping offers.
 - `unanimous-only-one-offer`: the pre-#187 rule with one offer. `AcceptedOffersKeepRoom` must fail, and the last step must be waivers running on the team's claim.
+- `unanimous-only-archived-waiver-order`: the pre-#187 rule in the database replay's order. `AcceptedOffersKeepRoom` must fail after exactly these steps: the team enters a claim while it still has room, sends an offer, and waivers run.
+- `every-acceptance-archived-waiver-order`: the current rule in the same order. `NoWaiverClaimRefused` must fail after the same three steps, which shows the hold check in waiver processing refuses the claim. The current rule refuses a claim entered after a hold, so the shorter historical path never reaches that check.
 
-The two expected failures keep the model able to fail. If either historical run stops failing, the model no longer describes the bug it guards.
-The script also fails when a covered file changed since `syncCommit`. Recheck the model, then move `syncCommit`.
+The two archived-order runs use the action constraint `ArchivedWaiverOrder`: a hold starts only by sending an offer while the claim waits, and waivers run only after a hold exists.
+The expected failures keep the model able to fail. If a historical run stops failing, the model no longer describes the bug it guards; if the current-rule witness stops failing, waiver processing no longer reaches its hold check.
+
+## Drift guards
+
+The script fails before running TLC when the code the model describes may have moved:
+
+- **Migration SQL.** `coverage.json` records the migration set the model was reviewed against: the last file name in `supabase/migrations` and a sha256 of every `*.sql` name and its bytes up to it. The check reads the files on disk, so a new or edited migration fails whether it is committed, staged, untracked or ignored by Git. Review each listed file against the Model table, update the model and replay if it changes what they describe, then run `node tools/formal/trade-roster-holds/check.mjs --record-migrations` and rerun the check.
+- **Named sources.** `git diff syncCommit` over the by-name function files in `files`. Recheck the model, then move `syncCommit`.
+
+The migration guard is deliberately broad. These fail it on purpose, and each needs a review and a re-record even when nothing in the model changes: any migration unrelated to trades, a whitespace or comment edit, a deleted or renamed migration, a stray `.sql` scratch file left in `supabase/migrations`, and line-ending changes from a checkout setting. It does not parse SQL, and it does not cover `supabase/seed.sql`, which only seeds local stacks.
+
+## What a run needs
+
+- **Clone depth.** The named-source guard diffs against `syncCommit`, so the clone must contain that commit. A shallow clone fails with an instruction to run `git fetch origin <syncCommit>` or `git fetch --unshallow`. The migration guard and TLC need no history.
+- **Database baseline.** The replay needs a disposable local stack whose schema is every migration in the checked-out `supabase/migrations`, applied in order by `supabase start` or `supabase db reset` from that checkout, with no hosted data. Replaying against a stack migrated from another commit tests that commit, not this one.
 
 The database replay of the same failure paths runs on a disposable stack:
 
@@ -35,7 +51,9 @@ The database replay of the same failure paths runs on a disposable stack:
 SUPABASE_DB_URL=postgresql://postgres:postgres@127.0.0.1:<private db port>/postgres npm run test:db:trade-hold-model-replay
 ```
 
-On the current schema it prints each step and passes 3 checks. On `a3b4d277` the claim wins, the partner's yes is refused, and one of two offers is stranded.
+It prints each step, then a pass or FAIL line for each of 5 expectations, and exits nonzero if any failed, so each path keeps its own evidence.
+On the current schema all 5 pass: waivers run refuses the claim, the partner's yes makes the offer unanimous (status `accepted`; it has not completed), and both overlapping offers stay pending.
+On `a3b4d277` all 5 fail: the claim wins, the partner's yes is refused, the first of two overlapping offers becomes unanimous, and the second is stranded.
 Start the stack the way [verify-pancake](../verify-pancake/SKILL.md) or `docs/verification.md` describes. Never point it at a hosted database.
 
 ## The model
@@ -81,5 +99,5 @@ Update `tests/db/trade-hold-model-replay.sql` when a failure path changes.
 
 ## Coverage record
 
-`tools/formal/trade-roster-holds/coverage.json` lists the covered files, the TLC version and checksum, and the expected result of each run.
+`tools/formal/trade-roster-holds/coverage.json` lists the covered files, the reviewed migration set, the TLC version and checksum, and the expected result of each run.
 `syncCommit` is the last commit at which the model was confirmed against those files. Move it only after you have rechecked the model at the new commit.

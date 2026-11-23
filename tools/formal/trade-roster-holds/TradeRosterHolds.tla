@@ -145,4 +145,10 @@ AcceptedOffersKeepRoom ==
 UnanimousTradesKeepRoom == Fits(0, Unanimous)
 
 RosterWithinLimit == active <= RosterSize
+
+NoWaiverClaimRefused == claim # "failed"
+
+ArchivedWaiverOrder ==
+  /\ \A t \in Offers : held'[t] /\ ~held[t] => claim = "waiting" /\ status[t] = "unsent"
+  /\ claim = "waiting" /\ claim' # "waiting" => \E t \in Offers : held[t]
 =============================================================================
