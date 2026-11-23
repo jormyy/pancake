@@ -64,9 +64,9 @@ Read that run’s logs after a failure; never borrow another run’s stack.
 ```sh
 tools/verify/browser.sh "$EVIDENCE" set viewport 390 844
 tools/verify/browser.sh "$EVIDENCE" snapshot -i
-tools/verify/browser.sh "$EVIDENCE" click '[aria-label="Open auto-set lineup options"]'
+tools/verify/browser.sh "$EVIDENCE" click '[aria-label="Open E2E Player001"]'
 tools/verify/browser.sh "$EVIDENCE" screenshot "$EVIDENCE/action.png"
-tools/verify/browser.sh "$EVIDENCE" find role button click --name 'Edit lineup manually' --exact
+tools/verify/browser.sh "$EVIDENCE" find role button click --name 'Move E2E Player001 in lineup' --exact
 tools/verify/browser.sh "$EVIDENCE" snapshot -i
 ```
 
@@ -219,6 +219,7 @@ The seeder prints the trade, claim, and player ids as JSON; read them from that 
 
 Run the database recipes first: `npm run test:db:trade-roster-holds` and `npm run test:db:trade-roster-holds-concurrency`.
 The recipe proves the hold starts at acceptance, the proposer is held on send, overlapping pending offers do not add, every blocked write path names its conflict, and every terminal state releases the hold.
+When the change touches acceptance, holds, the roster capacity trigger, or waiver claims, also run `npm run check:formal:trade-roster-holds` and `npm run test:db:trade-hold-model-replay`, as [formal-trade-roster-holds](../formal-trade-roster-holds/SKILL.md) describes.
 The concurrency recipe races final acceptance against retraction in both orders and accepts only a unanimous accepted trade or a pending trade without a cleared unanimous acceptance.
 
 For `three-team`, the near-full team has accepted and the middle team has accepted; the full team still has to accept.

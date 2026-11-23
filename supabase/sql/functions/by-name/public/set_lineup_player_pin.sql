@@ -29,7 +29,7 @@ BEGIN
   IF p_date < v_today THEN
     RAISE EXCEPTION 'Past lineups cannot be changed.' USING ERRCODE = 'P0001';
   END IF;
-  PERFORM pg_advisory_xact_lock(hashtext(p_league_id::text), hashtext(v_member_id::text));
+  PERFORM private.lock_roster_scope(p_league_id, ARRAY[v_member_id], '{}');
   PERFORM pg_advisory_xact_lock(hashtext(v_member_id::text), hashtext(p_date::text));
   PERFORM public.assert_current_league_season_for_lineup(p_league_id, v_season_id);
   SELECT * INTO v_roster FROM public.roster_players

@@ -3,10 +3,10 @@ import { Platform } from 'react-native'
 import { useRouter, type Href } from 'expo-router'
 import { useAuth } from '@/hooks/use-auth'
 import { syncWebPushSubscription } from '@/lib/web-push'
+import { onLifecycle, readsAllowed } from '@/lib/lifecycle'
 
 const NOTIFICATION_CLICK = 'PANCAKE_NOTIFICATION_CLICK'
 
-/** Keeps this device's Web Push subscription attached to the signed-in user. */
 export function useWebPushNotifications() {
     const { user } = useAuth()
     const userId = user?.id
@@ -19,7 +19,7 @@ export function useWebPushNotifications() {
         let queued = false
         let lastSuccess = 0
         const reconcile = (force = false) => {
-            if (stopped || navigator.onLine === false || document.visibilityState === 'hidden') return
+            if (stopped || !readsAllowed()) return
             if (running) { queued ||= force; return }
             if (!force && Date.now() - lastSuccess < 300000) return
             running = true
@@ -30,22 +30,17 @@ export function useWebPushNotifications() {
                     if (queued) { queued = false; reconcile(true) }
                 })
         }
-        const foreground = () => reconcile()
         const reconnect = () => reconcile(true)
         const onMessage = (event: MessageEvent) => {
             if (event.data?.type === 'PANCAKE_PUSH_SUBSCRIPTION_CHANGED') reconcile(true)
         }
-        window.addEventListener('focus', foreground)
-        window.addEventListener('online', reconnect)
-        document.addEventListener('visibilitychange', foreground)
+        const stopLifecycle = onLifecycle(['focus', 'visible', 'online'], event => reconcile(event === 'online'))
         navigator.serviceWorker?.addEventListener('message', onMessage)
         navigator.serviceWorker?.addEventListener('controllerchange', reconnect)
         reconcile(true)
         return () => {
             stopped = true
-            window.removeEventListener('focus', foreground)
-            window.removeEventListener('online', reconnect)
-            document.removeEventListener('visibilitychange', foreground)
+            stopLifecycle()
             navigator.serviceWorker?.removeEventListener('message', onMessage)
             navigator.serviceWorker?.removeEventListener('controllerchange', reconnect)
         }

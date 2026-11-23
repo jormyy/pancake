@@ -15,7 +15,6 @@ DECLARE
   v_target roster_players%ROWTYPE;
   v_free roster_players%ROWTYPE;
   v_current roster_players%ROWTYPE;
-  v_player_id uuid;
   v_rookie_draft_id uuid;
 BEGIN
   IF p_activate_source IS NULL OR p_activate_source NOT IN ('ir', 'taxi') THEN
@@ -46,18 +45,11 @@ BEGIN
    WHERE draft.league_id = v_target.league_id
      AND draft.draft_type = 'snake' AND NOT draft.is_mock AND draft.status IN ('completed','cancelled')
    ORDER BY draft.created_at DESC LIMIT 1;
+  PERFORM private.lock_roster_scope(v_target.league_id, ARRAY[v_target.member_id],
+    ARRAY[v_target.player_id, v_free.player_id], v_rookie_draft_id);
   IF v_rookie_draft_id IS NOT NULL THEN
-    PERFORM pg_advisory_xact_lock(hashtext(v_rookie_draft_id::text), 0);
     PERFORM 1 FROM drafts WHERE id = v_rookie_draft_id FOR UPDATE;
   END IF;
-
-  PERFORM pg_advisory_xact_lock(hashtext(v_target.league_id::text), hashtext(v_target.member_id::text));
-  FOR v_player_id IN
-    SELECT DISTINCT id FROM unnest(ARRAY[v_target.player_id, v_free.player_id]) AS id
-     WHERE id IS NOT NULL ORDER BY id
-  LOOP
-    PERFORM pg_advisory_xact_lock(hashtext(v_target.league_id::text), hashtext(v_player_id::text));
-  END LOOP;
   PERFORM 1 FROM roster_players WHERE id IN (p_activate_roster_player_id, p_free_roster_player_id)
    ORDER BY id FOR UPDATE;
 

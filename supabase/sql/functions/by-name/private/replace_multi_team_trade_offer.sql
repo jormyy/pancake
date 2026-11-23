@@ -26,44 +26,15 @@ DECLARE
   v_countered_from_trade_id uuid := NULL;
   v_edited_from_trade_id uuid := NULL;
   v_pending_error text;
-  v_actor_error text;
 BEGIN
   IF p_action NOT IN ('counter', 'edit') THEN
     RAISE EXCEPTION 'Unsupported trade replacement action.'
       USING ERRCODE = '22023';
   END IF;
 
-  SELECT * INTO v_trade FROM trades WHERE id = p_trade_id;
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'Trade not found.' USING ERRCODE = 'P0002';
-  END IF;
-
-  -- Include the source assets even when the replacement removes them. A drop
-  -- expires that source while holding the same team and player locks.
-  PERFORM private.lock_trade_offer_assets(
-    v_trade.league_id,
-    ARRAY(SELECT member_id FROM trade_participants WHERE trade_id = p_trade_id) || ARRAY(SELECT member_id FROM private.multi_team_trade_participants(p_member_id, p_participant_member_ids)),
-    ARRAY(SELECT player_id FROM trade_items WHERE trade_id = p_trade_id AND player_id IS NOT NULL) ||
-      ARRAY(SELECT player_id FROM private.parse_multi_team_trade_items(p_items) WHERE player_id IS NOT NULL)
-  );
-
-  -- Accepted completion owns its trade row before team locks. A stale pending
-  -- action must not wait on that row while holding its team locks.
-  SELECT *
-    INTO v_trade
-    FROM trades
-   WHERE id = p_trade_id
-     AND status = 'pending'::trade_status
-   FOR UPDATE;
-
-  IF NOT FOUND THEN
-    SELECT * INTO v_trade FROM trades WHERE id = p_trade_id;
-  END IF;
-
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'Trade not found.'
-      USING ERRCODE = 'P0002';
-  END IF;
+  v_trade := private.begin_trade_action(p_trade_id, p_member_id, p_user_id, p_action,
+    ARRAY(SELECT member_id FROM private.multi_team_trade_participants(p_member_id, p_participant_member_ids)),
+    ARRAY(SELECT player_id FROM private.parse_multi_team_trade_items(p_items) WHERE player_id IS NOT NULL));
 
   IF COALESCE(v_trade.is_multi_team, false) = false THEN
     RAISE EXCEPTION 'This action only supports multi-team trades.'
@@ -75,41 +46,11 @@ BEGIN
     v_replaced_status := 'countered'::trade_status;
     v_countered_from_trade_id := p_trade_id;
     v_pending_error := 'Only pending offers can be countered.';
-    v_actor_error := 'Only a non-proposer trade participant can counter this offer.';
   ELSE
     v_new_proposer_member_id := p_member_id;
     v_replaced_status := 'edited'::trade_status;
     v_edited_from_trade_id := p_trade_id;
     v_pending_error := 'Only pending offers can be edited.';
-    v_actor_error := 'Only the proposer can edit this offer.';
-  END IF;
-
-
-  IF p_action = 'counter' THEN
-    IF v_trade.proposer_member_id = p_member_id OR NOT EXISTS (
-      SELECT 1
-        FROM trade_participants AS participant
-       WHERE participant.trade_id = p_trade_id
-         AND participant.member_id = p_member_id
-         AND participant.accepted_at IS NULL
-    ) THEN
-      RAISE EXCEPTION '%', v_actor_error
-        USING ERRCODE = '42501';
-    END IF;
-  ELSIF v_trade.proposer_member_id <> p_member_id THEN
-    RAISE EXCEPTION '%', v_actor_error
-      USING ERRCODE = '42501';
-  END IF;
-
-  PERFORM 1
-    FROM league_members
-   WHERE id = p_member_id
-     AND user_id = p_user_id
-     AND league_id = v_trade.league_id;
-
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'Not authorized to act for this member.'
-      USING ERRCODE = '42501';
   END IF;
 
   IF v_trade.status <> 'pending'::trade_status THEN
@@ -151,6 +92,7 @@ BEGIN
       WHEN v_countered_from_trade_id IS NOT NULL THEN 'trade_countered'
       ELSE 'trade_edited'
     END,
+    'parties',
     CASE
       WHEN v_countered_from_trade_id IS NOT NULL THEN 'Multi-team counteroffer sent'
       ELSE 'Multi-team trade offer edited'

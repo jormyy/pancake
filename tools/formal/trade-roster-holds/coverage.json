@@ -1,0 +1,68 @@
+{
+  "syncCommit": "5f146adc9773fce411c7155512af8476a721167d",
+  "tlc": {
+    "version": "1.7.4",
+    "url": "https://github.com/tlaplus/tlaplus/releases/download/v1.7.4/tla2tools.jar",
+    "sha256": "936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88"
+  },
+  "runs": [
+    {
+      "config": "every-acceptance",
+      "expect": "pass"
+    },
+    {
+      "config": "unanimous-only",
+      "expect": "AcceptedOffersKeepRoom",
+      "through": "PartnerFinalYes"
+    },
+    {
+      "config": "unanimous-only-one-offer",
+      "expect": "AcceptedOffersKeepRoom",
+      "through": "WaiversRun"
+    },
+    {
+      "config": "unanimous-only-archived-waiver-order",
+      "expect": "AcceptedOffersKeepRoom",
+      "path": [
+        "TeamEntersClaim",
+        "TeamProposes",
+        "WaiversRun"
+      ]
+    },
+    {
+      "config": "every-acceptance-archived-waiver-order",
+      "expect": "NoWaiverClaimRefused",
+      "path": [
+        "TeamEntersClaim",
+        "TeamProposes",
+        "WaiversRun"
+      ]
+    }
+  ],
+  "files": [
+    "supabase/sql/functions/by-name/private/trade_hold_counts.sql",
+    "supabase/sql/functions/by-name/private/trade_hold_conflicts.sql",
+    "supabase/sql/functions/by-name/private/trade_hold_roster.sql",
+    "supabase/sql/functions/by-name/private/assert_trade_roster_holds.sql",
+    "supabase/sql/functions/by-name/private/assert_trade_acceptance_holds.sql",
+    "supabase/sql/functions/by-name/private/assert_trade_assets_acceptance_ready.sql",
+    "supabase/sql/functions/by-name/private/accept_trade_participant_atomic.sql",
+    "supabase/sql/functions/by-name/private/assert_accepted_trade_capacity.sql",
+    "supabase/sql/functions/by-name/private/guard_accepted_trade_capacity.sql",
+    "supabase/sql/functions/by-name/public/retract_trade_acceptance_atomic.sql",
+    "supabase/sql/functions/by-name/public/create_waiver_claim_atomic.sql",
+    "supabase/sql/functions/by-name/public/process_next_waiver_claim_atomic.sql",
+    "supabase/sql/functions/by-name/public/complete_accepted_trade_atomic.sql",
+    "supabase/sql/functions/by-name/private/create_trade_offer.sql",
+    "supabase/sql/functions/by-name/public/accept_trade_atomic.sql",
+    "supabase/sql/functions/by-name/private/trade_hold_conflict.sql",
+    "supabase/sql/functions/by-name/private/pending_trades_withdrawn_by.sql",
+    "supabase/sql/functions/by-name/private/validate_trade_rosters.sql",
+    "supabase/sql/functions/by-name/public/edit_waiver_claim_atomic.sql"
+  ],
+  "migrations": {
+    "dir": "supabase/migrations",
+    "through": "20261215210000_schedules_as_work_kinds.sql",
+    "sha256": "68e8db7783f76a70cf629d0745641214589673a5e952770f3cf53433759e4df9"
+  }
+}

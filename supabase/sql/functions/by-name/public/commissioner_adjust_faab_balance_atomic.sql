@@ -83,6 +83,7 @@ BEGIN
     p_league_id,
     v_season_id,
     'commissioner_faab_adjusted',
+    'league',
     'FAAB balance adjusted',
     NULL,
     NULL,

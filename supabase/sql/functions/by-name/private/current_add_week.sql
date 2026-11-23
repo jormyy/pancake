@@ -4,7 +4,8 @@
 
 CREATE OR REPLACE FUNCTION private.current_add_week(
   p_league_id uuid,
-  p_league_season_id uuid
+  p_league_season_id uuid,
+  p_at timestamptz DEFAULT now()
 )
 RETURNS TABLE (
   week_number int,
@@ -16,13 +17,16 @@ SET search_path = public
 AS $$
 DECLARE
   v_zone text := private.add_week_timezone();
-  v_today date := (now() AT TIME ZONE v_zone)::date;
+  v_today date := (p_at AT TIME ZONE v_zone)::date;
   v_season_year int;
   v_week int;
   v_week_end date;
-  v_last_week int;
-  v_last_end date;
-  v_elapsed_weeks int;
+  v_previous_week int;
+  v_previous_end date;
+  v_next_start date;
+  v_block int;
+  v_bucket_start date;
+  v_key int;
 BEGIN
   SELECT season_year
     INTO v_season_year
@@ -30,13 +34,6 @@ BEGIN
    WHERE id = p_league_season_id
      AND league_id = p_league_id;
 
-  IF v_season_year IS NULL THEN
-    RETURN QUERY SELECT 1, NULL::timestamptz;
-    RETURN;
-  END IF;
-
-  -- Inside a scheduled week, or before the next scheduled week starts, the
-  -- count belongs to that week and resets at midnight the day after it ends.
   SELECT weeks.week_number, weeks.week_end
     INTO v_week, v_week_end
     FROM season_weeks AS weeks
@@ -46,55 +43,48 @@ BEGIN
    ORDER BY weeks.week_number
    LIMIT 1;
 
-  IF v_week IS NULL THEN
-    SELECT weeks.week_number, weeks.week_end
-      INTO v_week, v_week_end
-      FROM season_weeks AS weeks
-     WHERE weeks.season_year = v_season_year
-       AND weeks.week_end >= v_today
-     ORDER BY weeks.week_start
-     LIMIT 1;
-  END IF;
-
-  IF v_week IS NOT NULL THEN
+  IF FOUND THEN
     RETURN QUERY SELECT v_week, (v_week_end + 1)::timestamp AT TIME ZONE v_zone;
     RETURN;
   END IF;
 
-  -- Every scheduled week has ended: the number keeps advancing every 7 days
-  -- from the day after the last one, so limits still reset in the playoffs and
-  -- the offseason. A new season with no schedule yet (rollover happens months
-  -- before the NBA publishes one) anchors on the prior season instead; the
-  -- 1000 offset keeps those numbers clear of the real ones that arrive in October.
-  SELECT max(weeks.week_number), max(weeks.week_end)
-    INTO v_last_week, v_last_end
+  SELECT weeks.week_number, weeks.week_end
+    INTO v_previous_week, v_previous_end
     FROM season_weeks AS weeks
-   WHERE weeks.season_year = v_season_year;
+   WHERE weeks.season_year = v_season_year
+     AND weeks.week_end < v_today
+   ORDER BY weeks.week_end DESC
+   LIMIT 1;
 
-  IF v_last_week IS NOT NULL THEN
-    v_elapsed_weeks := (v_today - v_last_end - 1) / 7;
-    RETURN QUERY SELECT v_last_week + 1 + v_elapsed_weeks,
-      (v_last_end + 1 + (v_elapsed_weeks + 1) * 7)::timestamp AT TIME ZONE v_zone;
-    RETURN;
+  IF NOT FOUND THEN
+    v_previous_week := 0;
+    SELECT max(weeks.week_end)
+      INTO v_previous_end
+      FROM season_weeks AS weeks
+     WHERE weeks.week_end < v_today
+       AND weeks.season_year = (
+         SELECT max(prior.season_year)
+           FROM league_seasons AS prior
+          WHERE prior.league_id = p_league_id
+            AND prior.season_year < v_season_year
+       );
   END IF;
 
-  SELECT max(weeks.week_end)
-    INTO v_last_end
-    FROM season_weeks AS weeks
-   WHERE weeks.season_year = (
-     SELECT max(prior.season_year)
-       FROM league_seasons AS prior
-      WHERE prior.league_id = p_league_id
-        AND prior.season_year < v_season_year
-   );
-
-  IF v_last_end IS NOT NULL AND v_today > v_last_end THEN
-    v_elapsed_weeks := (v_today - v_last_end - 1) / 7;
-    RETURN QUERY SELECT 1000 + v_elapsed_weeks,
-      (v_last_end + 1 + (v_elapsed_weeks + 1) * 7)::timestamp AT TIME ZONE v_zone;
-    RETURN;
+  IF v_previous_end IS NULL THEN
+    v_bucket_start := date_trunc('week', v_today)::date;
+    v_key := to_char(v_bucket_start, 'J')::int;
+  ELSE
+    v_block := (v_today - v_previous_end - 1) / 7;
+    v_bucket_start := v_previous_end + 1 + 7 * v_block;
+    v_key := 1000 * (v_previous_week + 1) + v_block;
   END IF;
 
-  RETURN QUERY SELECT 1, NULL::timestamptz;
+  SELECT min(weeks.week_start)
+    INTO v_next_start
+    FROM season_weeks AS weeks
+   WHERE weeks.season_year = v_season_year
+     AND weeks.week_start > v_today;
+
+  RETURN QUERY SELECT v_key, least(v_bucket_start + 7, v_next_start)::timestamp AT TIME ZONE v_zone;
 END;
 $$;

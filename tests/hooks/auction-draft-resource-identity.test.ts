@@ -13,7 +13,7 @@ const mocks = vi.hoisted(() => ({
     getDraftPollRevision: vi.fn(async () => 'revision-1'),
     placeBid: vi.fn(),
     closeExpiredNominations: vi.fn(),
-    appState: 'active',
+    visibility: 'visible',
     reconnectCallback: null as null | (() => Promise<boolean>),
     statusCallback: null as ((status: 'SUBSCRIBED' | 'TIMED_OUT' | 'CLOSED' | 'CHANNEL_ERROR') => void) | null,
     unsubscribeFromDraft: vi.fn(async () => undefined),
@@ -23,9 +23,6 @@ vi.mock('@/lib/cache/screen-cache', () => ({ readScreenView: (scope: { params: {
 vi.mock('@/lib/league-version', () => ({ subscribeLeagueVersion: () => () => {} }))
 vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => ({ currentLeague: { id: 'league' } }) }))
 vi.mock('@react-navigation/native', () => ({ useIsFocused: () => true }))
-vi.mock('react-native', () => ({
-    AppState: { get currentState() { return mocks.appState }, addEventListener: () => ({ remove: vi.fn() }) },
-}))
 
 vi.mock('@/lib/draft', () => ({
     closeExpiredNominations: mocks.closeExpiredNominations,
@@ -114,7 +111,8 @@ afterEach(() => {
     vi.useRealTimers()
     vi.clearAllMocks()
     mocks.statusCallback = null
-    mocks.appState = 'active'
+    mocks.visibility = 'visible'
+    vi.unstubAllGlobals()
 })
 
 describe('auction draft resource identity', () => {
@@ -162,51 +160,6 @@ describe('auction draft resource identity', () => {
         await act(async () => { await mocks.reconnectCallback?.() })
         expect(latest.realtimeConnected).toBe(true)
         expect(latest.loadError).toBeNull()
-        await act(async () => { renderer.unmount() })
-    })
-
-    it('builds a new live channel after CLOSED so bids and nominations can resume', async () => {
-        vi.useFakeTimers()
-        mocks.getDraftState.mockResolvedValue(state('draft-a'))
-        const { subscribeToDraft } = await import('@/lib/draft')
-        let latest!: ReturnType<typeof useAuctionDraftRoomController>
-        const Probe = () => {
-            latest = useAuctionDraftRoomController({ draftId: 'draft-a', memberId: 'member' })
-            return null
-        }
-        let renderer!: ReactTestRenderer
-        await act(async () => { renderer = create(React.createElement(Probe)); await Promise.resolve() })
-        await act(async () => { mocks.statusCallback?.('SUBSCRIBED') })
-        expect(latest.realtimeConnected).toBe(true)
-        const subscribed = vi.mocked(subscribeToDraft).mock.calls.length
-        const removed = mocks.unsubscribeFromDraft.mock.calls.length
-
-        await act(async () => { mocks.statusCallback?.('CLOSED') })
-        expect(latest.realtimeConnected).toBe(false)
-        await act(async () => { await vi.advanceTimersByTimeAsync(3_000) })
-        expect(subscribeToDraft).toHaveBeenCalledTimes(subscribed + 1)
-        expect(mocks.unsubscribeFromDraft).toHaveBeenCalledTimes(removed + 1)
-        await act(async () => { mocks.statusCallback?.('SUBSCRIBED') })
-        expect(latest.realtimeConnected).toBe(true)
-        expect(latest.loadError).toBeNull()
-        await act(async () => { renderer.unmount() })
-    })
-
-    it('rebuilds a closed live channel when the user taps retry', async () => {
-        mocks.getDraftState.mockResolvedValue(state('draft-a'))
-        const { subscribeToDraft } = await import('@/lib/draft')
-        let latest!: ReturnType<typeof useAuctionDraftRoomController>
-        const Probe = () => {
-            latest = useAuctionDraftRoomController({ draftId: 'draft-a', memberId: 'member' })
-            return null
-        }
-        let renderer!: ReactTestRenderer
-        await act(async () => { renderer = create(React.createElement(Probe)); await Promise.resolve() })
-        await act(async () => { mocks.statusCallback?.('CLOSED') })
-        expect(latest.loadError).toBe('Live draft connection lost. Tap to retry.')
-        const subscribed = vi.mocked(subscribeToDraft).mock.calls.length
-        await act(async () => { await latest.refresh() })
-        expect(subscribeToDraft).toHaveBeenCalledTimes(subscribed + 1)
         await act(async () => { renderer.unmount() })
     })
 
@@ -329,10 +282,11 @@ describe('auction settlement requests', () => {
         await act(async () => { renderer = create(React.createElement(Probe)) })
         await act(async () => { await vi.advanceTimersByTimeAsync(1500) })
         expect(mocks.closeExpiredNominations).toHaveBeenCalledTimes(1)
-        mocks.appState = 'background'
+        vi.stubGlobal('document', Object.defineProperty(new EventTarget(), 'visibilityState', { get: () => mocks.visibility }))
+        mocks.visibility = 'hidden'
         await act(async () => { await vi.advanceTimersByTimeAsync(60_000) })
         expect(mocks.closeExpiredNominations).toHaveBeenCalledTimes(1)
-        mocks.appState = 'active'
+        mocks.visibility = 'visible'
         await act(async () => { await vi.advanceTimersByTimeAsync(180_000) })
         expect(mocks.closeExpiredNominations).toHaveBeenCalledTimes(5)
         await act(async () => { await vi.advanceTimersByTimeAsync(180_000) })

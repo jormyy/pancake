@@ -1,13 +1,13 @@
 import { execFileSync } from 'node:child_process'
 import { mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import { fileURLToPath, pathToFileURL } from 'node:url'
+import { pathToFileURL } from 'node:url'
 
 const ROOT = process.cwd()
 const MIGRATIONS_DIR = path.join(ROOT, 'supabase/migrations')
 const FUNCTION_SOURCES_DIR = path.join(ROOT, 'supabase/sql/functions/by-name')
 const FUNCTION_CATALOG_MANIFEST = path.join(ROOT, 'supabase/sql/function-catalog.json')
-const SOURCE_RULES_DIR = fileURLToPath(new URL('./db-source-rules', import.meta.url))
+const DB_SOURCE_RULES_DIR = path.join(ROOT, 'scripts/db-source-rules')
 
 /** @param {string} source */
 export const dollarQuotedStatement = (source) => {
@@ -448,6 +448,19 @@ const sqlFilesUnder = async (dir) => {
   return nested.flat()
 }
 
+/** @param {Map<string, string>} definitions @param {string} directory @returns {Promise<string[]>} */
+export const dbSourceRuleFailures = async (definitions, directory = DB_SOURCE_RULES_DIR) => {
+  const files = await readdir(directory).catch((error) => {
+    if (error?.code === 'ENOENT') return []
+    throw error
+  })
+  const failures = await Promise.all(files.filter((file) => file.endsWith('.mjs')).sort().map(async (file) => {
+    const { default: rule } = await import(pathToFileURL(path.join(directory, file)).href)
+    return (await rule({ definitions })).map((failure) => `${file}: ${failure}`)
+  }))
+  return failures.flat()
+}
+
 export const checkFunctionSources = async () => {
   const latestDefinitions = await latestFunctionDefinitions()
   const checks = await Promise.all([...latestDefinitions.entries()].map(([key, definition]) =>
@@ -465,14 +478,7 @@ export const checkFunctionSources = async () => {
     }
   }
 
-  return [...failures, ...await sourceRuleFailures(latestDefinitions)]
-}
-
-/** @param {Map<string, string>} definitions */
-const sourceRuleFailures = async (definitions) => {
-  const files = (await readdir(SOURCE_RULES_DIR).catch(() => [])).filter((file) => file.endsWith('.mjs')).sort()
-  const rules = await Promise.all(files.map((file) => import(pathToFileURL(path.join(SOURCE_RULES_DIR, file)).href)))
-  return rules.flatMap((rule) => rule.default(definitions))
+  return [...failures, ...await dbSourceRuleFailures(latestDefinitions)]
 }
 
 const sqlLiteral = (value) => `'${value.replaceAll("'", "''")}'`

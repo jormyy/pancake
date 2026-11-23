@@ -32,7 +32,7 @@ DECLARE
   v_repair_slots text[];
   v_index int;
 BEGIN
-  PERFORM pg_advisory_xact_lock(hashtext(p_league_id::text), hashtext(p_member_id::text));
+  PERFORM private.lock_roster_scope(p_league_id, ARRAY[p_member_id], '{}');
   PERFORM pg_advisory_xact_lock(
     hashtext(p_member_id::text),
     hashtext(p_game_date::text)

@@ -11,6 +11,7 @@ DECLARE
   __request_context jsonb;
   __request_result jsonb;
 BEGIN
+  PERFORM private.begin_trade_action(p_trade_id, p_member_id, p_user_id, 'accept');
   __request_context := private.request_begin('public.accept_trade_with_plan_atomic', jsonb_build_array(p_trade_id, p_member_id, p_user_id, p_taxi_player_ids, p_ir_player_ids, p_drop_player_ids, p_roster_moves), NULL, NULL);
   IF (__request_context->>'replay')::boolean THEN RETURN __request_context->'result'; END IF;
   <<request_write>>

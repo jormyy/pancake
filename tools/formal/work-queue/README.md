@@ -15,7 +15,7 @@ Run it with `npm run check:formal:work-queue`. Add `--install` to download TLC, 
 
 ## Replays
 
-Each historical run reads the claim rules at a past revision and must fail the invariant that its fix restored. `unfenced-finish` removes the lease-token fence and must fail `NoItemRunsTwice`. A run that stops failing means the model no longer sees that mistake.
+Each historical run reads the claim rules at a past revision and must fail the invariant that its fix restored. Every `rev` must be reachable from `main`, because CI clones only branches and tags. When the exact pre-fix commit is not on `main`, a replay reads the nearest `main` revision and sets `mutate` to the rules that commit had. `unfenced-finish` removes the lease-token fence and must fail `NoItemRunsTwice`. A run that stops failing means the model no longer sees that mistake.
 
 ## Environment
 

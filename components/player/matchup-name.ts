@@ -1,1 +1,1 @@
-export { compactPlayerName as matchupName } from '@/lib/compact-player-name'
+export { compactPlayerName as matchupName, LOGO_CHARS } from '@/lib/compact-player-name'

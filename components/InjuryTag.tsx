@@ -1,23 +1,31 @@
 import { StyleSheet, Text, View } from 'react-native'
 import { colors, fontSize, fontWeight, lineHeight, palette, radii, spacing, tracking } from '@/constants/tokens'
 
-/** Out and day-to-day show as a tag on the headshot rather than a badge beside the name. */
-export function injuryTagKind(status: string | null | undefined): 'out' | 'dtd' | null {
+/** Out, injured reserve, and day-to-day show as a tag on the headshot rather than a badge beside the name. */
+export function injuryTagKind(status: string | null | undefined): 'out' | 'ir' | 'dtd' | null {
     const value = status?.trim().toLowerCase()
     if (value === 'out') return 'out'
+    if (value === 'ir') return 'ir'
     if (value === 'day-to-day' || value === 'gtd' || value === 'dtd') return 'dtd'
     return null
 }
 
-/** "OUT" or "DTD" centred on the headshot's bottom edge; nothing when healthy or another status. */
+const TAGS = {
+    out: { text: 'OUT', label: 'Out', color: palette.red600 },
+    ir: { text: 'IR', label: 'Injured reserve', color: palette.red600 },
+    dtd: { text: 'DTD', label: 'Day-To-Day', color: palette.amber600 },
+} as const
+
+/** "OUT", "IR", or "DTD" centred on the headshot's bottom edge; nothing when healthy or another status. */
 export function InjuryTag({ status, avatarSize }: { status: string | null | undefined; avatarSize: number }) {
     const kind = injuryTagKind(status)
     if (!kind) return null
+    const tag = TAGS[kind]
     return (
         <View style={styles.anchor} pointerEvents="none">
-            <Text testID="injury-tag" accessibilityLabel={kind === 'out' ? 'Out' : 'Day-To-Day'}
-                style={[styles.tag, avatarSize >= LARGE_AVATAR && styles.tagLarge, { backgroundColor: kind === 'out' ? palette.red600 : palette.amber600 }]}>
-                {kind === 'out' ? 'OUT' : 'DTD'}
+            <Text testID="injury-tag" accessibilityLabel={tag.label}
+                style={[styles.tag, avatarSize >= LARGE_AVATAR && styles.tagLarge, { backgroundColor: tag.color }]}>
+                {tag.text}
             </Text>
         </View>
     )

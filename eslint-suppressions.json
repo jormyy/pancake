@@ -1,0 +1,292 @@
+{
+  "app/(auth)/sign-in.tsx": {
+    "pancake/scoped-resource": {
+      "count": 4
+    }
+  },
+  "app/(auth)/sign-up.tsx": {
+    "pancake/scoped-resource": {
+      "count": 6
+    }
+  },
+  "app/(modals)/change-password.tsx": {
+    "pancake/scoped-resource": {
+      "count": 5
+    }
+  },
+  "app/(modals)/claim-player.tsx": {
+    "pancake/scoped-resource": {
+      "count": 19
+    }
+  },
+  "app/(modals)/create-league.tsx": {
+    "pancake/scoped-resource": {
+      "count": 3
+    }
+  },
+  "app/(modals)/join-league.tsx": {
+    "pancake/scoped-resource": {
+      "count": 2
+    }
+  },
+  "app/(modals)/lineup.tsx": {
+    "pancake/scoped-resource": {
+      "count": 1
+    }
+  },
+  "app/(modals)/propose-trade.tsx": {
+    "pancake/scoped-resource": {
+      "count": 23
+    }
+  },
+  "app/(modals)/team-roster.tsx": {
+    "pancake/scoped-resource": {
+      "count": 4
+    }
+  },
+  "app/(tabs)/profile.tsx": {
+    "pancake/scoped-resource": {
+      "count": 3
+    }
+  },
+  "app/(tabs)/roster.tsx": {
+    "pancake/scoped-resource": {
+      "count": 9
+    }
+  },
+  "app/player/[id].tsx": {
+    "pancake/scoped-resource": {
+      "count": 6
+    }
+  },
+  "components/IRResolutionModal.tsx": {
+    "pancake/scoped-resource": {
+      "count": 1
+    }
+  },
+  "components/Motion.tsx": {
+    "pancake/scoped-resource": {
+      "count": 1
+    }
+  },
+  "components/WebPushSettings.tsx": {
+    "pancake/scoped-resource": {
+      "count": 8
+    }
+  },
+  "components/commissioner/FuturePickYearsSetting.tsx": {
+    "pancake/scoped-resource": {
+      "count": 9
+    }
+  },
+  "components/league/DraftChips.tsx": {
+    "pancake/scoped-resource": {
+      "count": 1
+    }
+  },
+  "components/league/LeaguePlayoffs.tsx": {
+    "pancake/scoped-resource": {
+      "count": 5
+    }
+  },
+  "components/league/MockRoomsPanel.tsx": {
+    "pancake/scoped-resource": {
+      "count": 1
+    }
+  },
+  "components/league/SettingsPanel.tsx": {
+    "pancake/scoped-resource": {
+      "count": 1
+    }
+  },
+  "components/league/draft-room/useDraftActivity.ts": {
+    "pancake/scoped-resource": {
+      "count": 1
+    }
+  },
+  "components/league/draft-room/useDraftAdminControls.ts": {
+    "pancake/scoped-resource": {
+      "count": 2
+    }
+  },
+  "components/player/TransactionHistory.tsx": {
+    "pancake/scoped-resource": {
+      "count": 3
+    }
+  },
+  "components/roster/RosterItems.tsx": {
+    "pancake/scoped-resource": {
+      "count": 1
+    }
+  },
+  "components/settings/NotificationAnnouncementComposer.tsx": {
+    "pancake/scoped-resource": {
+      "count": 2
+    }
+  },
+  "components/trades/PendingTradeRosterPlan.tsx": {
+    "pancake/scoped-resource": {
+      "count": 10
+    }
+  },
+  "components/trades/TradeAnalyzer.tsx": {
+    "pancake/scoped-resource": {
+      "count": 5
+    }
+  },
+  "components/trades/TradeBlockNoteEditor.tsx": {
+    "pancake/scoped-resource": {
+      "count": 2
+    }
+  },
+  "components/trades/TradeReviewCancellation.tsx": {
+    "pancake/scoped-resource": {
+      "count": 3
+    }
+  },
+  "components/ui/SegmentedControl.tsx": {
+    "pancake/scoped-resource": {
+      "count": 1
+    }
+  },
+  "components/ui/feedback.tsx": {
+    "pancake/scoped-resource": {
+      "count": 1
+    }
+  },
+  "components/waivers/WaiversSection.tsx": {
+    "pancake/scoped-resource": {
+      "count": 1
+    }
+  },
+  "hooks/use-auto-ir-notices.ts": {
+    "pancake/scoped-resource": {
+      "count": 3
+    }
+  },
+  "hooks/use-commissioner-admin-actions.ts": {
+    "pancake/scoped-resource": {
+      "count": 1
+    }
+  },
+  "hooks/use-commissioner-overrides.ts": {
+    "pancake/scoped-resource": {
+      "count": 2
+    }
+  },
+  "hooks/use-commissioner-settings-resource.ts": {
+    "pancake/scoped-resource": {
+      "count": 15
+    }
+  },
+  "hooks/use-draft-room-launcher.ts": {
+    "pancake/scoped-resource": {
+      "count": 4
+    }
+  },
+  "hooks/use-dynasty-rankings.ts": {
+    "pancake/scoped-resource": {
+      "count": 16
+    }
+  },
+  "hooks/use-dynasty-trade-analysis.ts": {
+    "pancake/scoped-resource": {
+      "count": 3
+    }
+  },
+  "hooks/use-focus-async-data.ts": {
+    "pancake/scoped-resource": {
+      "count": 7
+    }
+  },
+  "hooks/use-league-draft-controller.ts": {
+    "pancake/scoped-resource": {
+      "count": 18
+    }
+  },
+  "hooks/use-league-screen-state.ts": {
+    "pancake/scoped-resource": {
+      "count": 1
+    }
+  },
+  "hooks/use-league-tab-resources.ts": {
+    "pancake/scoped-resource": {
+      "count": 5
+    }
+  },
+  "hooks/use-lineup-actions.ts": {
+    "pancake/scoped-resource": {
+      "count": 4
+    }
+  },
+  "hooks/use-live-view-recovery.ts": {
+    "pancake/scoped-resource": {
+      "count": 1
+    }
+  },
+  "hooks/use-mock-rooms-controller.ts": {
+    "pancake/scoped-resource": {
+      "count": 3
+    }
+  },
+  "hooks/use-multi-team-trade-composer.ts": {
+    "pancake/scoped-resource": {
+      "count": 11
+    }
+  },
+  "hooks/use-player-age.ts": {
+    "pancake/scoped-resource": {
+      "count": 1
+    }
+  },
+  "hooks/use-player-screen-data.ts": {
+    "pancake/scoped-resource": {
+      "count": 1
+    }
+  },
+  "hooks/use-player-search.ts": {
+    "pancake/scoped-resource": {
+      "count": 4
+    }
+  },
+  "hooks/use-quick-add.ts": {
+    "pancake/scoped-resource": {
+      "count": 25
+    }
+  },
+  "hooks/use-roster-hold-check.ts": {
+    "pancake/scoped-resource": {
+      "count": 6
+    }
+  },
+  "hooks/use-roster-hold-ready.ts": {
+    "pancake/scoped-resource": {
+      "count": 1
+    }
+  },
+  "hooks/use-roster-legality.ts": {
+    "pancake/scoped-resource": {
+      "count": 4
+    }
+  },
+  "hooks/use-screen-view.ts": {
+    "pancake/scoped-resource": {
+      "count": 3
+    }
+  },
+  "hooks/use-trade-block.ts": {
+    "pancake/scoped-resource": {
+      "count": 3
+    }
+  },
+  "hooks/useAuctionDraftRoomController.ts": {
+    "pancake/scoped-resource": {
+      "count": 24
+    }
+  },
+  "hooks/useRookieDraftRoomController.ts": {
+    "pancake/scoped-resource": {
+      "count": 43
+    }
+  }
+}

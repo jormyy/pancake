@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261215110000",
+  "candidateVersion": "20261215210000",
   "common": {
     "functions": [
       {
@@ -598,7 +598,7 @@
           "strict": false,
           "language": "sql",
           "arguments": "p_league_id uuid, p_league_season_id uuid, p_player_id uuid, p_member_id uuid DEFAULT NULL::uuid",
-          "bodySha256": "29ce477c9ddc19dcc86698f44d8a11fecb01b755ac0d331bc0c3f19fe511b6be",
+          "bodySha256": "c3ea5ff5f7ab1e73fe31fc4676eba59bf89895352d22443806d6c0a6b05e20ab",
           "volatility": "v",
           "anonExecute": true,
           "publicExecute": true,
@@ -898,7 +898,7 @@
           "strict": false,
           "language": "plpgsql",
           "arguments": "p_roster_player_id uuid, p_expected_league_season_id uuid, p_rookie_draft_id uuid",
-          "bodySha256": "4067c5e52fd0df8b67922d6e2d908d8f0b074fcfc186581d807f87a3fb8d6300",
+          "bodySha256": "b307e623444641558e5fc67f0b451defe3df088258709eeb0d4f1002d1f3cd9e",
           "volatility": "v",
           "anonExecute": false,
           "publicExecute": false,
@@ -918,7 +918,7 @@
           "strict": false,
           "language": "plpgsql",
           "arguments": "p_claim_id uuid, p_member_id uuid, p_user_id uuid, p_drop_player_id uuid DEFAULT NULL::uuid, p_bid_amount integer DEFAULT 0, p_claim_order integer DEFAULT NULL::integer, p_to_ir boolean DEFAULT NULL::boolean, p_to_taxi boolean DEFAULT NULL::boolean",
-          "bodySha256": "c7b61cbf515708f4f8091919afef6f67a351107124c228fc7a927e99eafe05e6",
+          "bodySha256": "db07efaf18c39ef6a84e88d5a655d76854a94f9a2abc0db236f5ab4ecbd663bb",
           "volatility": "v",
           "anonExecute": false,
           "publicExecute": false,
@@ -2767,7 +2767,43 @@
       "sha256": "d4dc37396f8f1e8d65105ef1e104c7feb8605d91abd04134e175dbae4171abcb"
     },
     {
-      "filename": "20261215110000_schedules_as_work_kinds.sql",
+      "filename": "20261214011900_total_add_week.sql",
+      "sha256": "8ab3428350ed1a189cda20fb1ff35df09e7d2acb120136d7b24f9067db9b44c6"
+    },
+    {
+      "filename": "20261215080000_immutable_lineup_history.sql",
+      "sha256": "126f03726e19626196f40b5d1290321dde37a543f892df2bd4674ca364c72551"
+    },
+    {
+      "filename": "20261215140000_dynasty_rank_owner.sql",
+      "sha256": "be1e0e386c8e2a224b0d7bfe3192d877ff1e59fb082c2d9ee8c6d160949d5719"
+    },
+    {
+      "filename": "20261215150000_roster_action_policy.sql",
+      "sha256": "d1e70c433238859048e76cfd05c9a0c0e5898b55d2cd93e3e9f3666b34148a4d"
+    },
+    {
+      "filename": "20261215160000_forecast_new_week_immediately.sql",
+      "sha256": "3816e7ecd08c9c0466e9406667a257381526dfcb06c1da03822af7be11338aa9"
+    },
+    {
+      "filename": "20261215170000_roster_lock_scope.sql",
+      "sha256": "cc3e4c32fbeb0320375f9f788c8e7781140d45b115b7b0e02183b552ba2c8602"
+    },
+    {
+      "filename": "20261215180000_begin_trade_action.sql",
+      "sha256": "ad29e7d9181535ecf284a126b3cc9e1995b4e78558fe6bcb37736d0e2119394a"
+    },
+    {
+      "filename": "20261215190000_trades_read_participants.sql",
+      "sha256": "51cd9e591aee1d77f81dd218243e81148d188d8e8415ca29637fc298a30601fe"
+    },
+    {
+      "filename": "20261215200000_activity_visibility.sql",
+      "sha256": "897db4deb955383afb9cc3aff01d27180db789d48d8bad890fdc6dbffd653bc5"
+    },
+    {
+      "filename": "20261215210000_schedules_as_work_kinds.sql",
       "sha256": "a537601fe0a2f8c141b86b2a09796073feee7dd22b295e1c5879661dd0394f71"
     }
   ],

@@ -119,18 +119,19 @@ BEGIN
   ON CONFLICT(season_year,week_number) DO UPDATE SET week_start=EXCLUDED.week_start,week_end=EXCLUDED.week_end;
   RETURN shift_days;
 END $$;
-CREATE FUNCTION pg_temp.expect_week(f pg_temp.all_star_fixture,y int,checkpoint date,w int,reset_day date) RETURNS void LANGUAGE plpgsql AS $$
+CREATE FUNCTION pg_temp.expect_week(f pg_temp.all_star_fixture,y int,checkpoint date,w int,reset_day date) RETURNS int LANGUAGE plpgsql AS $$
 DECLARE shift_days int; actual record; expected timestamptz; label text;
 BEGIN
   shift_days:=pg_temp.align(y,checkpoint);
   expected:=(reset_day+shift_days)::timestamp AT TIME ZONE 'America/New_York';
   SELECT * INTO actual FROM private.current_add_week(f.l,f.s);
-  PERFORM pg_temp.check_that(actual.week_number=w AND actual.resets_at=expected,
+  PERFORM pg_temp.check_that(COALESCE(actual.week_number=w,actual.week_number NOT IN(SELECT week_number FROM c2_calendar)) AND actual.resets_at=expected,
     format('season %s checkpoint %s: week/reset %s/%s expected %s/%s',y,checkpoint,actual.week_number,actual.resets_at,w,expected));
   label:=to_char(expected AT TIME ZONE 'America/New_York','Dy, Mon FMDD "at" FMHH12:MI AM')||' ET';
   PERFORM pg_temp.check_that(private.weekly_add_limit_reset_label(actual.resets_at)=label,'reset label follows add-week zone');
-  PERFORM pg_temp.check_that(private.current_add_week_number(f.l,f.s)=w,'number consumer matches range');
-  RAISE NOTICE '%',jsonb_build_object('provenance','REAL-DERIVED C2 ranges; SYNTHETIC uniform date translation','season',y,'checkpoint',checkpoint,'shift_days',shift_days,'week',w,'resets_at',actual.resets_at);
+  PERFORM pg_temp.check_that(private.current_add_week_number(f.l,f.s)=actual.week_number,'number consumer matches range');
+  RAISE NOTICE '%',jsonb_build_object('provenance','REAL-DERIVED C2 ranges; SYNTHETIC uniform date translation','season',y,'checkpoint',checkpoint,'shift_days',shift_days,'week',actual.week_number,'resets_at',actual.resets_at);
+  RETURN actual.week_number;
 END $$;
 CREATE FUNCTION pg_temp.claim(f pg_temp.all_star_fixture,team int,p uuid,bid int,ready boolean) RETURNS uuid LANGUAGE plpgsql AS $$
 DECLARE claim uuid;
@@ -162,7 +163,7 @@ BEGIN
   PERFORM pg_temp.check_that(state.weekly_add_count=2 AND state.weekly_add_limit=2 AND state.add_limit_resets_at=reset_at AND state.add_limit_message=message,'member state reports same merged limit and reset');
 END $$;
 DO $$
-DECLARE y int; mode text; skipped boolean; f pg_temp.all_star_fixture; merged record; following record; last_week record;
+DECLARE y int; mode text; skipped boolean; f pg_temp.all_star_fixture; merged record; following record; last_week record; first_gap int; second_gap int;
   p uuid; before_claim uuid; loser uuid; limited uuid; after_claim uuid; next_id uuid; start_day date; expected_order uuid[];
 BEGIN
   PERFORM pg_temp.check_that(private.add_week_timezone()='America/New_York','add-week zone');
@@ -228,14 +229,14 @@ BEGIN
         PERFORM pg_temp.expect_limit(f);
         PERFORM pg_temp.expect_week(f,y,last_week.week_end,24,last_week.week_end+1);
         UPDATE leagues SET status='offseason' WHERE id=f.l;
-        PERFORM pg_temp.expect_week(f,y,last_week.week_end+1,25,last_week.week_end+8);
+        first_gap:=pg_temp.expect_week(f,y,last_week.week_end+1,NULL,last_week.week_end+8);
         PERFORM private.assert_weekly_add_available(f.l,f.s,f.m[1]);
         PERFORM private.consume_weekly_add(f.l,f.s,f.m[1]);
-        PERFORM pg_temp.expect_week(f,y,last_week.week_end+7,25,last_week.week_end+8);
-        PERFORM pg_temp.check_that((SELECT add_count=1 FROM weekly_add_counts WHERE league_season_id=f.s AND member_id=f.m[1] AND week_number=25),'post-schedule bucket lasts seven days');
-        PERFORM pg_temp.expect_week(f,y,last_week.week_end+8,26,last_week.week_end+15);
+        PERFORM pg_temp.check_that(pg_temp.expect_week(f,y,last_week.week_end+7,NULL,last_week.week_end+8)=first_gap,'post-schedule bucket keeps one key for seven days');
+        PERFORM pg_temp.check_that((SELECT add_count=1 FROM weekly_add_counts WHERE league_season_id=f.s AND member_id=f.m[1] AND week_number=first_gap),'post-schedule bucket lasts seven days');
+        second_gap:=pg_temp.expect_week(f,y,last_week.week_end+8,NULL,last_week.week_end+15);
         PERFORM commissioner_override_weekly_add_count_atomic(f.l,f.m[1],1);
-        PERFORM pg_temp.check_that((SELECT array_agg(add_count ORDER BY week_number)=ARRAY[1,1] FROM weekly_add_counts WHERE league_season_id=f.s AND member_id=f.m[1] AND week_number IN(25,26)),'shortened-season fallback increments once');
+        PERFORM pg_temp.check_that(second_gap>first_gap AND (SELECT array_agg(add_count ORDER BY week_number)=ARRAY[1,1] FROM weekly_add_counts WHERE league_season_id=f.s AND member_id=f.m[1] AND week_number IN(first_gap,second_gap)),'shortened-season fallback increments once');
         PERFORM expire_waiver_wire_logs();
         UPDATE leagues SET status='playoffs' WHERE id=f.l;
         SELECT new_season_id INTO next_id FROM advance_season_atomic(f.l);
@@ -243,12 +244,12 @@ BEGIN
         PERFORM pg_temp.check_that((SELECT array_agg(member_id ORDER BY priority)=expected_order FROM waiver_priorities WHERE league_season_id=next_id),'season rollover alone rebuilds priority');
         PERFORM pg_temp.check_that((SELECT count(*)=2 AND min(balance)=100 AND max(balance)=100 FROM faab_balances WHERE league_season_id=next_id),'season rollover alone resets FAAB');
         f.s:=next_id;
-        PERFORM pg_temp.expect_week(f,y,last_week.week_end+1,1000,last_week.week_end+8);
+        first_gap:=pg_temp.expect_week(f,y,last_week.week_end+1,NULL,last_week.week_end+8);
         PERFORM commissioner_override_weekly_add_count_atomic(f.l,f.m[1],1);
-        PERFORM pg_temp.expect_week(f,y,last_week.week_end+8,1001,last_week.week_end+15);
+        second_gap:=pg_temp.expect_week(f,y,last_week.week_end+8,NULL,last_week.week_end+15);
         PERFORM private.assert_weekly_add_available(f.l,f.s,f.m[1]);
-        PERFORM pg_temp.check_that((SELECT array_agg(add_count ORDER BY week_number)=ARRAY[1,0] FROM weekly_add_counts WHERE league_season_id=f.s AND member_id=f.m[1] AND week_number IN(1000,1001)),'unscheduled offseason uses prior merged calendar end');
-        RAISE NOTICE 'PASS All-Star season=% mode=% skipped=%: shared 14-day limit, FAAB, rolling priority, weeks 18/21/24/25/26/1000/1001',y,mode,skipped;
+        PERFORM pg_temp.check_that(second_gap>first_gap AND (SELECT array_agg(add_count ORDER BY week_number)=ARRAY[1,0] FROM weekly_add_counts WHERE league_season_id=f.s AND member_id=f.m[1] AND week_number IN(first_gap,second_gap)),'unscheduled offseason resets seven days after the prior calendar end');
+        RAISE NOTICE 'PASS All-Star season=% mode=% skipped=%: shared 14-day limit, FAAB, rolling priority, weeks 18/21/24 and seven-day offseason buckets',y,mode,skipped;
       END LOOP;
     END LOOP;
   END LOOP;

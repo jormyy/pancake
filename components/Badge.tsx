@@ -4,7 +4,7 @@ import { injuryTagKind } from '@/components/InjuryTag'
 
 export { Badge } from '@/components/ui/Badge'
 
-/** A player's injury status (IR, Questionable…) in its status color; nothing when healthy. Out and day-to-day are a headshot tag instead. */
+/** A player's injury status (Questionable…) in its status color; nothing when healthy. Out, IR, and day-to-day are a headshot tag instead. */
 export function InjuryBadge({ status }: { status: string | null | undefined }) {
     if (!status || injuryTagKind(status)) return null
     const value = status.trim().toLowerCase()

@@ -42,7 +42,6 @@ COMMIT;`)
   assert.equal(Number(sql(`SELECT count(*) FROM weekly_lineups WHERE league_id='${league}'`)), days * 10)
 } finally {
   if (setup) sql(`BEGIN;
-DELETE FROM weekly_lineups WHERE league_id='${league}';
 DELETE FROM leagues WHERE id='${league}';
 DELETE FROM players WHERE id IN (SELECT md5('${prefix}'||n)::uuid FROM generate_series(1,20) n);
 DELETE FROM nba_games WHERE nba_game_id LIKE '002-${prefix}-%';

@@ -134,8 +134,8 @@ BEGIN
       CONTINUE;
     END IF;
     IF EXISTS (
-      SELECT 1 FROM private.locked_assets(p_league_id, p_league_season_id, p_member_id) la
-       WHERE la.asset_kind = 'player' AND la.asset_id = v_candidate.player_id
+      SELECT 1 FROM private.roster_action_blocks('to_ir', p_league_id, p_league_season_id, p_member_id) block
+       WHERE block.asset_kind = 'player' AND block.asset_id = v_candidate.player_id
     ) THEN
       v_skipped := v_skipped || jsonb_build_object('playerId', v_candidate.player_id, 'reason', 'reserved');
       CONTINUE;
@@ -168,8 +168,8 @@ BEGIN
       CONTINUE;
     END IF;
     IF EXISTS (
-      SELECT 1 FROM private.locked_assets(p_league_id, p_league_season_id, p_member_id) la
-       WHERE la.asset_kind = 'player' AND la.asset_id = v_occupant.player_id
+      SELECT 1 FROM private.roster_action_blocks('from_ir', p_league_id, p_league_season_id, p_member_id) block
+       WHERE block.asset_kind = 'player' AND block.asset_id = v_occupant.player_id
     ) THEN
       v_skipped := v_skipped || jsonb_build_object('playerId', v_occupant.player_id, 'reason', 'reserved');
       CONTINUE;

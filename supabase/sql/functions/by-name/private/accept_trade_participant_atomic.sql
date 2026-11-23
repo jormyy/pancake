@@ -13,38 +13,17 @@ AS $$
 DECLARE
   v_trade trades%ROWTYPE;
   v_league leagues%ROWTYPE;
-  v_member_lock uuid;
-  v_lock_player_id uuid;
   v_rows int;
   v_all_accepted boolean;
   v_veto_window_hours int;
 BEGIN
   PERFORM set_config('pancake.trade_write','true',true);
   PERFORM set_config('lock_timeout','100ms',true);
-  SELECT *
-    INTO v_trade
-    FROM trades
-   WHERE id = p_trade_id;
-
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'Trade not found'
-      USING ERRCODE = 'P0002';
-  END IF;
+  v_trade := private.begin_trade_action(p_trade_id, p_accepting_member_id, NULL, 'accept');
 
   IF v_trade.status <> 'pending'::trade_status THEN
     RAISE EXCEPTION 'This trade is no longer pending.'
       USING ERRCODE = 'P0001';
-  END IF;
-
-
-  PERFORM 1
-    FROM trade_participants
-   WHERE trade_id = p_trade_id
-     AND member_id = p_accepting_member_id;
-
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'Only a trade participant can accept this trade.'
-      USING ERRCODE = '42501';
   END IF;
 
   IF EXISTS (
@@ -55,54 +34,6 @@ BEGIN
        AND accepted_at IS NOT NULL
   ) THEN
     RAISE EXCEPTION 'This participant has already accepted the trade.'
-      USING ERRCODE = 'P0001';
-  END IF;
-
-  FOR v_member_lock IN
-    SELECT participant.member_id
-      FROM trade_participants AS participant
-     WHERE participant.trade_id = p_trade_id
-     ORDER BY participant.member_id ASC
-  LOOP
-    IF NOT pg_try_advisory_xact_lock(
-      hashtext(v_trade.league_id::text),
-      hashtext(v_member_lock::text)
-    ) THEN
-      RAISE EXCEPTION 'The league is busy. Try this trade again.' USING ERRCODE='PA010';
-    END IF;
-  END LOOP;
-
-  FOR v_lock_player_id IN
-    SELECT DISTINCT player_id FROM (
-      SELECT player_id FROM trade_items WHERE trade_id=p_trade_id AND player_id IS NOT NULL
-      UNION SELECT unnest(drop_player_ids) FROM trade_participants WHERE trade_id=p_trade_id
-    ) touched ORDER BY player_id ASC
-  LOOP
-    IF NOT pg_try_advisory_xact_lock(
-      hashtext(v_trade.league_id::text),
-      hashtext(v_lock_player_id::text)
-    ) THEN
-      RAISE EXCEPTION 'The league is busy. Try this trade again.' USING ERRCODE='PA010';
-    END IF;
-  END LOOP;
-
-  SELECT *
-    INTO v_trade
-    FROM trades
-   WHERE id = p_trade_id
-     AND status = 'pending'::trade_status
-   FOR NO KEY UPDATE NOWAIT;
-
-  IF NOT FOUND THEN
-    SELECT * INTO v_trade FROM trades WHERE id = p_trade_id;
-  END IF;
-
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'Trade not found' USING ERRCODE = 'P0002';
-  END IF;
-
-  IF v_trade.status <> 'pending'::trade_status THEN
-    RAISE EXCEPTION 'This trade is no longer pending.'
       USING ERRCODE = 'P0001';
   END IF;
 
