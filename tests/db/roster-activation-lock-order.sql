@@ -15,7 +15,7 @@ BEGIN
   PERFORM pg_catalog.pg_advisory_xact_lock(p_first,p_second);
 END;
 $$;
-ALTER FUNCTION private.lock_roster_activation(uuid,text,uuid) SET search_path=public,pg_catalog;
+ALTER FUNCTION private.lock_roster_scope(uuid,uuid[],uuid[],uuid) SET search_path=public,pg_catalog;
 DO $$
 DECLARE
   fixture record;
@@ -38,9 +38,11 @@ BEGIN
   PERFORM private.lock_roster_activation(reserve_id,'ir',active_id);
   PERFORM pg_temp.check_rules((SELECT first_key=hashtext(draft_id::text) AND second_key=0
     FROM pg_temp.activation_lock_log ORDER BY sequence LIMIT 1), 'activation locks the rookie draft before the team');
-  PERFORM pg_temp.check_rules((SELECT draft_row_locked FROM pg_temp.activation_lock_log
-    WHERE first_key=hashtext(fixture.league_id::text) AND second_key=hashtext(fixture.member_ids[1]::text)),
-    'activation locks the draft row before the team');
+  PERFORM pg_temp.check_rules((SELECT bool_and(NOT draft_row_locked) FROM pg_temp.activation_lock_log),
+    'activation takes every roster lock before the draft row lock');
+  PERFORM pg_temp.check_rules(EXISTS(SELECT 1 FROM pg_locks WHERE pid=pg_backend_pid()
+    AND relation='public.drafts'::regclass AND mode='RowShareLock' AND granted),
+    'activation locks the rookie draft row');
   PERFORM pg_temp.check_rules((SELECT array_agg(second_key ORDER BY sequence)=ARRAY[
     0,hashtext(fixture.member_ids[1]::text),
     hashtext(LEAST(reserve_player,active_player)::text),hashtext(GREATEST(reserve_player,active_player)::text)]

@@ -8,7 +8,7 @@ import { useDraftRoomLauncher } from '@/hooks/use-draft-room-launcher'
 vi.mock('@/lib/persistent-cache', () => ({ readPersistentCache: () => null, writePersistentCache: vi.fn() }))
 
 const mocks = vi.hoisted(() => ({
-    appState: 'active', focused: true, listeners: new Set<(next: string) => void>(),
+    focused: true,
     auction: vi.fn(), rookie: vi.fn(), pool: vi.fn(async (..._args: unknown[]) => []), search: vi.fn(async (..._args: unknown[]) => []),
     revision: vi.fn(async () => 'revision'), launch: vi.fn(async () => ({id:'draft',draftType:'auction'})), push: vi.fn(),
     bid: vi.fn(), nominate: vi.fn(), pick: vi.fn(), expire: vi.fn(async () => ({closed:0,processed:false})),
@@ -23,8 +23,6 @@ vi.mock('@/lib/cache/screen-cache', () => ({ readScreenView: async (scope: { par
 vi.mock('@/lib/league-version', () => ({ subscribeLeagueVersion: () => () => {} }))
 vi.mock('@react-navigation/native', () => ({ useIsFocused: () => mocks.focused }))
 vi.mock('expo-router', () => ({ useRouter: () => ({push:mocks.push}) }))
-vi.mock('react-native', () => ({ AppState: { get currentState(){return mocks.appState},
-    addEventListener: (_name:string, listener:(next:string)=>void) => {mocks.listeners.add(listener);return {remove:()=>mocks.listeners.delete(listener)}} } }))
 vi.mock('@/lib/draft', () => ({getDraftState:mocks.auction,getDraftPollRevision:mocks.revision,searchPlayers:mocks.search,
     acquireJoinableDraft: () => ({promise:mocks.launch(),release:vi.fn()}),placeBid:mocks.bid,nominatePlayer:mocks.nominate,withdrawNomination:vi.fn(),closeExpiredNominations:mocks.expire,
     subscribeToDraft: (_id:unknown,_league:unknown,change:()=>void,status:(status:string)=>void,resume:()=>Promise<boolean>) => {
@@ -55,18 +53,17 @@ const Probe=({member='member'}:{member?:string})=>{
     return null
 }
 const advance=async(ms:number)=>{await act(async()=>{await vi.advanceTimersByTimeAsync(ms)})}
-const event=async(kind:'hidden'|'visible'|'offline'|'online'|'background'|'active')=>{
+const event=async(kind:'hidden'|'visible'|'offline'|'online')=>{
     await act(async()=>{
         if(kind==='hidden'||kind==='visible'){visible=kind==='visible';page.dispatchEvent(new Event('visibilitychange'))}
-        else if(kind==='offline'||kind==='online'){online=kind==='online';network.dispatchEvent(new Event(kind))}
-        else{mocks.appState=kind;for(const listener of mocks.listeners)listener(kind)}
+        else{online=kind==='online';network.dispatchEvent(new Event(kind))}
     })
 }
 const mount=async()=>{await act(async()=>{renderer=create(React.createElement(Probe))})}
 const readCounts=()=>[mocks.auction.mock.calls.length,mocks.rookie.mock.calls.length,mocks.pool.mock.calls.length,mocks.search.mock.calls.length,mocks.revision.mock.calls.length,mocks.launch.mock.calls.length]
 beforeEach(()=>{
     setSessionOwner('user-a')
-    vi.useFakeTimers();vi.clearAllMocks();mocks.listeners.clear();mocks.focused=true;mocks.appState='active';visible=true;online=true
+    vi.useFakeTimers();vi.clearAllMocks();mocks.focused=true;visible=true;online=true
     page=new EventTarget();network=new EventTarget()
     Object.defineProperty(page,'visibilityState',{get:()=>visible?'visible':'hidden'})
     vi.stubGlobal('document',page);vi.stubGlobal('window',network);vi.stubGlobal('navigator',{get onLine(){return online}})
@@ -75,10 +72,9 @@ beforeEach(()=>{
 })
 afterEach(()=>{act(()=>renderer?.unmount());renderer=undefined;vi.useRealTimers();vi.unstubAllGlobals()})
 describe('draft activity admission',()=>{
-    it.each(['hidden','offline','background'] as const)('defers initial reads, retries, searches and callbacks while %s',async blocked=>{
+    it.each(['hidden','offline'] as const)('defers initial reads, retries, searches and callbacks while %s',async blocked=>{
         if(blocked==='hidden')visible=false
-        else if(blocked==='offline')online=false
-        else mocks.appState='background'
+        else online=false
         await mount()
         await act(async()=>{
             void auction.refresh();void rookie.refresh();void launcher.openDraftRoom()
@@ -87,7 +83,7 @@ describe('draft activity admission',()=>{
         })
         await advance(60000)
         expect(readCounts()).toEqual([0,0,0,0,0,0])
-        await event(blocked==='hidden'?'visible':blocked==='offline'?'online':'active')
+        await event(blocked==='hidden'?'visible':'online')
         await advance(300)
         expect(mocks.auction).toHaveBeenCalledTimes(1)
         expect(mocks.rookie).toHaveBeenCalledTimes(1)

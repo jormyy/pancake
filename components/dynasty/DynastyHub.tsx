@@ -26,7 +26,7 @@ import { useDynastyRankings, type DynastyRankingView } from '@/hooks/use-dynasty
 import { useAuth } from '@/hooks/use-auth'
 import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
 import { getDynastyNews, getMyDynastyNews, type DynastyNewsItem, type DynastyRankPlayer } from '@/lib/dynasty'
-import { formatPoints, playerHeadshotUrl } from '@/lib/format'
+import { formatAvgPoints, playerHeadshotUrl } from '@/lib/format'
 import { getEligiblePositions } from '@/lib/players'
 import { API_URL } from '@/lib/shared/api'
 import { getLeagueMembers } from '@/lib/league'
@@ -90,7 +90,7 @@ function RankingRowImpl({
         ? `${player.valueRange.low}–${player.valueRange.high}`
         : String(player.selectedValue ?? '—')
     const support = player.isDraftPick ? 'Future rookie pick' : [
-        player.projectionPoints == null ? null : `${formatPoints(player.projectionPoints)} projected FP/G`,
+        player.projectionPoints == null ? null : `${formatAvgPoints(player.projectionPoints)} projected FP/G`,
         player.confidence == null ? null : `${Math.round(player.confidence * 100)}% confidence`,
     ].filter(Boolean).join(' · ')
 

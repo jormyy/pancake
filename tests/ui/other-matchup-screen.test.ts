@@ -24,6 +24,7 @@ vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => ({ current
 vi.mock('@/hooks/use-auth', () => ({ useAuth: () => ({ user: { id: 'account' } }) }))
 vi.mock('@/hooks/use-matchup-data', () => ({ useMatchupData: () => payload() }))
 vi.mock('@/components/ScoreBreakdownSheet', () => ({ ScoreBreakdownSheet: () => null }))
+vi.mock('@/components/player/MatchupPlayerSheet', () => ({ MatchupPlayerSheet: () => null }))
 
 const player = (id: string) => ({ rosterPlayerId: id, playerId: id, displayName: id, position: 'PG', eligiblePositions: ['PG'], nbaTeam: 'BOS', injuryStatus: null, nbaId: null })
 const lineup = (id: string) => ({ starters: [{ slotType: 'PG', player: player(id) }], bench: [player(`${id} Bench`)], benchSlots: 1, ir: [], taxi: [] })

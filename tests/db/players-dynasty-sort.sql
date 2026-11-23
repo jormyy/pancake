@@ -5,10 +5,10 @@ DO $$
 DECLARE f record; ids uuid[] := ARRAY[gen_random_uuid(),gen_random_uuid(),gen_random_uuid(),gen_random_uuid(),gen_random_uuid(),gen_random_uuid()]; actual uuid[]; payload jsonb;
 BEGIN
   SELECT * INTO f FROM pg_temp.rules_fixture(2, public.current_season_year_et());
-  INSERT INTO public.players(id,first_name,last_name,position,eligible_positions,dynasty_rank)
-    VALUES (ids[1],'Z','Rank one','PG',ARRAY['PG'],1),(ids[2],'A','Rank two','PG',ARRAY['PG'],2),
-      (ids[3],'A','Unranked low','PG',ARRAY['PG'],NULL),(ids[4],'B','Unranked high','PG',ARRAY['PG'],NULL),
-      (ids[5],'C','Unranked tie','PG',ARRAY['PG'],NULL),(ids[6],'D','No average','PG',ARRAY['PG'],NULL);
+  INSERT INTO public.players(id,first_name,last_name,position,eligible_positions,dynasty_rank,dynasty_rank_source)
+    VALUES (ids[1],'Z','Rank one','PG',ARRAY['PG'],1,'hashtagbasketball.com'),(ids[2],'A','Rank two','PG',ARRAY['PG'],2,'hashtagbasketball.com'),
+      (ids[3],'A','Unranked low','PG',ARRAY['PG'],NULL,NULL),(ids[4],'B','Unranked high','PG',ARRAY['PG'],NULL,NULL),
+      (ids[5],'C','Unranked tie','PG',ARRAY['PG'],NULL,NULL),(ids[6],'D','No average','PG',ARRAY['PG'],NULL,NULL);
   INSERT INTO public.player_season_averages(league_id,league_season_id,player_id,season_year,averages,avg_fantasy_points,version)
     SELECT f.league_id, f.season_id, ids[n], public.current_season_year_et(), '{"games_played":1}', fp, 1
     FROM (VALUES (1,0),(2,100),(3,-2),(4,40),(5,40)) row(n,fp);

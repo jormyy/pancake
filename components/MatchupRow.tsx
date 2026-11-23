@@ -4,18 +4,18 @@ import { View, Text, StyleSheet, Platform } from 'react-native'
 import { LineupPlayer } from '@/lib/lineup'
 import { LiveStatLine } from '@/lib/games'
 import { computeLiveFantasyPoints } from '@/lib/scoring'
-import { POSITION_COLORS } from '@/constants/positions'
+import { slotColor } from '@/constants/positions'
 import { alpha, borderWidth, colors, componentTokens, controlSize, fontSize, fontWeight, radii, spacing, textStyles, uiColors, tracking } from '@/constants/tokens'
 import { PosTag } from '@/components/PosTag'
 import { TeamLogo } from '@/components/TeamLogo'
 import { InjuryTag } from '@/components/InjuryTag'
 import { InjuryBadge } from '@/components/Badge'
-import { formatPoints, playerHeadshotUrl } from '@/lib/format'
+import { formatAvgPoints, formatPoints, playerHeadshotUrl } from '@/lib/format'
 import type { StatColumn } from '@/lib/score-breakdown'
 import { LivePulse, MotionPressable, MotionView } from '@/components/Motion'
 import { Avatar } from '@/components/Avatar'
 import { formatLeagueClock } from '@/lib/timezone'
-import { matchupName } from '@/components/player/matchup-name'
+import { LOGO_CHARS, matchupName } from '@/components/player/matchup-name'
 
 const SLOT_W = componentTokens.matchupRow.slotWidth
 const FPTS_W = componentTokens.matchupRow.pointsWidth
@@ -114,6 +114,7 @@ function LiveTag({ dotOnly = false }: { dotOnly?: boolean }) {
 
 function FantasyScore({
     value,
+    projection,
     isLive,
     isFinal,
     side,
@@ -121,13 +122,16 @@ function FantasyScore({
     dense = false,
 }: {
     value: number | null
+    /** Before the game starts, a faint projection replaces the dash. */
+    projection?: number
     isLive: boolean
     isFinal: boolean
     side: 'left' | 'right'
     compact?: boolean
     dense?: boolean
 }) {
-    const displayValue = value == null ? '-' : formatPoints(value)
+    const projected = value == null && projection != null
+    const displayValue = value != null ? formatPoints(value) : projected ? formatAvgPoints(projection) : '-'
     return (
         <Text
             style={[
@@ -138,6 +142,7 @@ function FantasyScore({
                 side === 'left' && compact && styles.fptsLeftCompact,
                 side === 'right' && compact && styles.fptsRightCompact,
                 value == null && styles.fptsPlaceholder,
+                projected && styles.fptsProjected,
                 value != null && isLive && styles.fptsLive,
                 value != null && isFinal && styles.fptsFinal,
             ]}
@@ -220,6 +225,7 @@ function PlayerSide({
     statColumns,
     onOpenPlayer,
     onOpenDetails,
+    projection,
 }: {
     side: 'left' | 'right'
     player: LineupPlayer | null
@@ -237,8 +243,12 @@ function PlayerSide({
     statColumns: StatColumn[] | null
     onOpenPlayer?: () => void
     onOpenDetails?: () => void
+    /** Shown faintly in place of the dash until the game starts. */
+    projection?: number
 }) {
-    const nameRef = useFittedText(player ? matchupName(player.displayName) : '')
+    // The team logo shares the name's line, so it takes part of the name's character budget.
+    const displayName = player ? matchupName(player.displayName, player.nbaTeam ? LOGO_CHARS : 0) : ''
+    const nameRef = useFittedText(displayName)
     const gameParts = player ? matchupParts(player.nbaTeam, matchup, timezone) : null
     const detail = matchupLine(gameParts)
     const detailRef = useFittedText(gameParts?.suffix ?? '', true, 1)
@@ -275,7 +285,7 @@ function PlayerSide({
                 numberOfLines={1}
                 ellipsizeMode="clip"
             >
-                {matchupName(player.displayName)}
+                {displayName}
             </Text>
         )
         const logo = player.nbaTeam ? <TeamLogo key={`logo-${player.nbaTeam}`} team={player.nbaTeam} size={GAME_LOGO_SIZE} textStyle={styles.sideMeta} /> : null
@@ -320,7 +330,8 @@ function PlayerSide({
     const score = (
         <MotionPressable key="score" style={[styles.scoreTarget, compact && styles.scoreTargetCompact]} onPress={onOpenDetails} disabled={!player || !onOpenDetails}
             accessibilityRole="button" accessibilityLabel={player ? `Score breakdown for ${player.displayName}` : 'Empty score'}>
-            <FantasyScore value={player && gameStarted ? fpts ?? 0 : null} isLive={isLive} isFinal={isFinal} side={side} compact={compact} dense={dense} />
+            <FantasyScore value={player && gameStarted ? fpts ?? 0 : null} projection={player && hasGame && !gameStarted ? projection : undefined}
+                isLive={isLive} isFinal={isFinal} side={side} compact={compact} dense={dense} />
         </MotionPressable>
     )
     const body = (
@@ -352,6 +363,7 @@ type MatchupRowProps = {
     statColumns?: StatColumn[] | null
     onOpenPlayer?: (player: LineupPlayer) => void
     onOpenDetails?: (row: { myPlayer: LineupPlayer | null; oppPlayer: LineupPlayer | null; slotType: string }) => void
+    projections?: Map<string, number>
 }
 
 function MatchupRowImpl({
@@ -372,12 +384,9 @@ function MatchupRowImpl({
     statColumns = null,
     onOpenDetails,
     onOpenPlayer,
+    projections,
 }: MatchupRowProps) {
-    const slotColor = slotType === 'IR'
-        ? uiColors.accentDanger
-        : slotType === 'TX'
-            ? uiColors.neutralTint
-            : (POSITION_COLORS[slotType] ?? uiColors.neutralTint)
+    const chipColor = slotColor(slotType)
     // Starter and IR labels are heavier than bench and taxi so starters read first.
     const strongSlot = slotType !== 'BE' && slotType !== 'TX'
     const myStats = myPlayer ? liveStats.get(myPlayer.playerId) : undefined
@@ -421,6 +430,7 @@ function MatchupRowImpl({
                     statColumns={statColumns}
                     onOpenDetails={openDetails}
                     onOpenPlayer={myPlayer && onOpenPlayer ? () => onOpenPlayer(myPlayer) : undefined}
+                    projection={!reserveSlot && myPlayer ? projections?.get(myPlayer.playerId) : undefined}
                 />
             </View>
 
@@ -428,13 +438,13 @@ function MatchupRowImpl({
                 style={[
                     styles.slotChipCenter,
                     compact && styles.slotChipCenterCompact,
-                    { backgroundColor: alpha(slotColor, 0.13) },
+                    { backgroundColor: alpha(chipColor, 0.13) },
                 ]}
                 accessibilityLabel={isExtraOppRow ? undefined : myPlayer
                     ? `${slotType} slot, ${myPlayer.displayName}`
                     : `Empty ${slotType} slot ${slotIndex + 1}`}
             >
-                <Text style={[styles.slotChipText, strongSlot && styles.slotChipTextStrong, { color: slotColor }]}>
+                <Text style={[styles.slotChipText, strongSlot && styles.slotChipTextStrong, { color: chipColor }]}>
                     {isExtraOppRow ? '—' : slotType}
                 </Text>
             </View>
@@ -457,6 +467,7 @@ function MatchupRowImpl({
                     statColumns={statColumns}
                     onOpenDetails={openDetails}
                     onOpenPlayer={oppPlayer && onOpenPlayer ? () => onOpenPlayer(oppPlayer) : undefined}
+                    projection={!reserveSlot && oppPlayer ? projections?.get(oppPlayer.playerId) : undefined}
                 />
             </View>
             </View>
@@ -518,6 +529,7 @@ const styles = StyleSheet.create({
     fptsLeftCompact: { marginRight: spacing.none },
     fptsRightCompact: { marginLeft: spacing.none },
     fptsPlaceholder: { color: colors.textPlaceholder },
+    fptsProjected: { fontWeight: fontWeight.medium },
     // Only finished games are bold; live and upcoming scores stay light.
     fptsFinal: { color: colors.textPrimary, fontWeight: fontWeight.extrabold },
     fptsLive: { color: colors.primaryDark },

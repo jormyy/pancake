@@ -4,7 +4,7 @@
 
 CREATE OR REPLACE FUNCTION private.guard_trade_plan_reservations()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
-DECLARE v_trade trades%ROWTYPE; v_player uuid; v_ids uuid[]; v_member uuid; lock_reason text;
+DECLARE v_trade trades%ROWTYPE; v_player uuid; v_ids uuid[]; v_member uuid; v_exempt uuid[]; v_action private.roster_action;
 BEGIN
   SELECT * INTO v_trade FROM trades WHERE id=NEW.trade_id;
   IF TG_TABLE_NAME='trade_items' THEN
@@ -16,21 +16,20 @@ BEGIN
   END IF;
   PERFORM pg_advisory_xact_lock(hashtext(v_trade.league_id::text),hashtext(v_member::text));
   IF v_trade.status IN ('pending','accepted') THEN
-    SELECT locked.reason INTO lock_reason FROM private.locked_assets(v_trade.league_id,v_trade.league_season_id,v_member) locked
-      WHERE (locked.source_kind<>'trade' OR locked.source_id<>NEW.trade_id)
-        AND NOT (locked.source_kind='trade' AND locked.source_id IN (v_trade.edited_from_trade_id,v_trade.countered_from_trade_id)
-          AND EXISTS (SELECT 1 FROM trades source WHERE source.id=locked.source_id AND source.status='pending'
-            AND source.league_id=v_trade.league_id AND source.league_season_id=v_trade.league_season_id
-            AND ((source.id=v_trade.edited_from_trade_id AND source.proposer_member_id=v_trade.proposer_member_id
-                AND source.recipient_member_id=v_trade.recipient_member_id)
-              OR (source.id=v_trade.countered_from_trade_id AND source.recipient_member_id=v_trade.proposer_member_id
-                AND source.proposer_member_id=v_trade.recipient_member_id))))
-        AND (TG_TABLE_NAME<>'trade_items' OR locked.source_kind<>'trade'
-          OR EXISTS (SELECT 1 FROM trades reservation WHERE reservation.id=locked.source_id AND reservation.status='accepted'))
-        AND ((locked.asset_kind='player' AND locked.asset_id=ANY(v_ids))
-          OR (TG_TABLE_NAME='trade_items' AND locked.asset_kind='pick' AND locked.asset_id=(to_jsonb(NEW)->>'pick_id')::uuid))
-      ORDER BY locked.source_kind,locked.source_id LIMIT 1;
-    IF lock_reason IS NOT NULL THEN RAISE EXCEPTION '%', lock_reason USING ERRCODE='PA004'; END IF;
+    v_exempt := ARRAY[NEW.trade_id] || ARRAY(SELECT source.id FROM trades source WHERE source.status='pending'
+      AND source.league_id=v_trade.league_id AND source.league_season_id=v_trade.league_season_id
+      AND source.id IN (v_trade.edited_from_trade_id,v_trade.countered_from_trade_id)
+      AND (source.proposer_member_id=v_trade.proposer_member_id) = (source.id IS NOT DISTINCT FROM v_trade.edited_from_trade_id)
+      AND EXISTS (SELECT 1 FROM trade_participants party WHERE party.trade_id=source.id AND party.member_id=v_trade.proposer_member_id)
+      AND EXISTS (SELECT 1 FROM trade_participants party WHERE party.trade_id=source.id AND party.member_id=v_member));
+    v_action := CASE WHEN TG_TABLE_NAME='trade_items' THEN 'trade_offer' ELSE 'trade_plan' END;
+    FOR v_player IN SELECT DISTINCT id FROM unnest(v_ids) id WHERE id IS NOT NULL ORDER BY id LOOP
+      PERFORM private.assert_roster_action_allowed(v_action, v_trade.league_id, v_trade.league_season_id, v_member, v_player, NULL, v_exempt);
+    END LOOP;
+    IF TG_TABLE_NAME='trade_items' AND (to_jsonb(NEW)->>'pick_id') IS NOT NULL THEN
+      PERFORM private.assert_roster_action_allowed(v_action, v_trade.league_id, v_trade.league_season_id, v_member, NULL,
+        (to_jsonb(NEW)->>'pick_id')::uuid, v_exempt);
+    END IF;
   END IF;
   FOR v_player IN SELECT DISTINCT id FROM unnest(v_ids) id WHERE id IS NOT NULL ORDER BY id LOOP
     PERFORM pg_advisory_xact_lock(hashtext(v_trade.league_id::text),hashtext(v_player::text));

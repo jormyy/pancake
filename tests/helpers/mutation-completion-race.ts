@@ -67,7 +67,7 @@ return { queue: load('@/lib/cache/mutation-queue'), context };
 `
 
 export async function runCompletionRace(records: QueuedMutation[]) {
-    const sources = Object.fromEntries(['api-client', 'session-cache-registry', 'cache/mutation-queue'].map(name => [
+    const sources = Object.fromEntries(['api-client', 'session-cache-registry', 'lifecycle', 'cache/mutation-queue'].map(name => [
         `@/lib/${name}`, transpileModule(readFileSync(`lib/${name}.ts`, 'utf8'), {
             compilerOptions: { module: ModuleKind.CommonJS, target: ScriptTarget.ES2022 },
         }).outputText,

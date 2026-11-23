@@ -98,9 +98,9 @@ class NotificationBatchDeliveryError extends Error {
 export type NotifyMembers = (messages: NotificationMessage[]) => Promise<NotificationBatchResult[]>
 
 type ExpoNotificationBatchDependencies = {
-  members: (memberIds: string[]) => Promise<LookupResult<Array<{ id: string; user_id: string }>>>
-  preferences: (userIds: string[]) => Promise<LookupResult<Array<NotificationPreferences & { user_id: string }>>>
-  profiles: (userIds: string[]) => Promise<LookupResult<Array<{ id: string; push_token: string | null }>>>
+  members: (memberIds: string[]) => Promise<LookupResult<{ id: string; user_id: string }[]>>
+  preferences: (userIds: string[]) => Promise<LookupResult<(NotificationPreferences & { user_id: string })[]>>
+  profiles: (userIds: string[]) => Promise<LookupResult<{ id: string; push_token: string | null }[]>>
   persistExpoTicket: (message: NotificationMessage, ticketId: string, pushToken: string) => Promise<void>
   admitDelivery?: (message: NotificationMessage) => Promise<boolean>
   beginWebDelivery?: (message: NotificationMessage, userId: string) => Promise<'send' | 'delivered' | 'attempted' | 'no_device'>

@@ -497,6 +497,7 @@ BEGIN
         v_claim.league_id,
         v_claim.league_season_id,
         CASE WHEN v_league.waiver_mode = 'faab' THEN 'faab_bid_won' ELSE 'waiver_claim_succeeded' END,
+        'league',
         CASE WHEN v_league.waiver_mode = 'faab' THEN 'FAAB bid won' ELSE 'Waiver claim succeeded' END,
         COALESCE(v_player_name, 'Player') || CASE
           WHEN v_league.waiver_mode = 'faab' THEN format(' won for $%s.', v_claim.bid_amount)
@@ -537,6 +538,7 @@ BEGIN
           related_player_id,
           related_claim_id,
           event_type,
+          visibility,
           title,
           body,
           metadata
@@ -548,6 +550,7 @@ BEGIN
           failed.player_id,
           failed.id,
           CASE WHEN v_league.waiver_mode = 'faab' THEN 'faab_bid_lost' ELSE 'waiver_claim_failed_priority' END,
+          'league',
           CASE WHEN v_league.waiver_mode = 'faab' THEN 'FAAB bid lost' ELSE 'Waiver claim failed' END,
           failed.failure_reason,
           jsonb_build_object('bid_amount', failed.bid_amount, 'winning_bid_amount', v_claim.bid_amount)

@@ -29,7 +29,6 @@ DECLARE
   v_bid_amount int := COALESCE(p_bid_amount, 0);
   v_balance int;
   v_drop_failure text;
-  v_lock_player_id uuid;
   v_problem_kind text;
   v_problem_message text;
 BEGIN
@@ -63,15 +62,8 @@ BEGIN
 
   PERFORM pg_advisory_xact_lock(hashtext(v_claim.league_id::text), hashtext(v_claim.league_season_id::text));
 
-  PERFORM pg_advisory_xact_lock(hashtext(v_claim.league_id::text), hashtext(p_member_id::text));
-  FOR v_lock_player_id IN
-    SELECT DISTINCT player_id
-      FROM unnest(ARRAY[v_claim.player_id, v_claim.drop_player_id, p_drop_player_id]) AS players(player_id)
-     WHERE player_id IS NOT NULL
-     ORDER BY player_id
-  LOOP
-    PERFORM pg_advisory_xact_lock(hashtext(v_claim.league_id::text), hashtext(v_lock_player_id::text));
-  END LOOP;
+  PERFORM private.lock_roster_scope(v_claim.league_id, ARRAY[p_member_id],
+    ARRAY[v_claim.player_id, v_claim.drop_player_id, p_drop_player_id]);
 
   SELECT *
     INTO v_claim

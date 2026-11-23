@@ -21,7 +21,7 @@ vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => ({ current
 vi.mock('@/components/Motion', () => ({ MotionPressable: 'MotionPressable' }))
 vi.mock('@/components/ui/Badge', () => ({ Badge: 'Badge' }))
 vi.mock('@/lib/bracket', () => ({ getPlayoffBracket: state.getBracket }))
-vi.mock('@/lib/format', () => ({ formatPoints: String }))
+vi.mock('@/lib/format', () => ({ formatAvgPoints: String, formatPoints: String }))
 vi.mock('@/components/EmptyState', () => ({ EmptyState: 'EmptyState' }))
 vi.mock('@/components/ui/ModalScreen', () => ({ ModalScreen: 'ModalScreen' }))
 vi.mock('@/components/ui', () => ({ ErrorBanner: 'ErrorBanner', LoadingState: 'LoadingState', usePageMetrics: () => ({ padX: 16, usableWidth: 1200 }) }))

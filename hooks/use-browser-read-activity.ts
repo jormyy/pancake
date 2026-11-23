@@ -1,34 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-
-export function browserReadsAllowed(): boolean {
-    return (typeof document === 'undefined' || document.visibilityState !== 'hidden')
-        && (typeof navigator === 'undefined' || navigator.onLine !== false)
-}
+import { onLifecycle, readsAllowed } from '@/lib/lifecycle'
 
 export function useBrowserReadActivity() {
-    const [activity, setActivity] = useState(() => ({ active: browserReadsAllowed(), revision: 0 }))
+    const [activity, setActivity] = useState(() => ({ active: readsAllowed(), revision: 0 }))
     const current = useRef(activity)
     useEffect(() => {
         const update = () => {
-            const active = browserReadsAllowed()
+            const active = readsAllowed()
             if (current.current.active === active) return
             current.current = { active, revision: current.current.revision + 1 }
             setActivity(current.current)
         }
         update()
-        if (typeof document !== 'undefined') document.addEventListener('visibilitychange', update)
-        if (typeof window !== 'undefined') {
-            window.addEventListener('online', update)
-            window.addEventListener('offline', update)
-        }
-        return () => {
-            if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', update)
-            if (typeof window !== 'undefined') {
-                window.removeEventListener('online', update)
-                window.removeEventListener('offline', update)
-            }
-        }
+        return onLifecycle(['visible', 'hidden', 'online', 'offline'], update)
     }, [])
-    const isCurrent = useCallback((revision: number) => current.current.revision === revision && browserReadsAllowed(), [])
+    const isCurrent = useCallback((revision: number) => current.current.revision === revision && readsAllowed(), [])
     return { ...activity, isCurrent }
 }

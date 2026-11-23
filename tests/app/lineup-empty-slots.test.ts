@@ -51,7 +51,6 @@ vi.mock('@/lib/shared/season', () => ({ invalidateSeasonCache: vi.fn() }))
 vi.mock('@/lib/shared/week', () => ({ invalidateWeekNumberCache: vi.fn() }))
 vi.mock('@/lib/alert', () => ({ showAlert: mocks.showAlert }))
 vi.mock('@/lib/format', () => ({ playerHeadshotUrl: () => '' }))
-vi.mock('@/components/AutoSetModal', () => ({ AutoSetModal: 'AutoSetModal' }))
 vi.mock('@/components/Avatar', () => ({ Avatar: 'Avatar' }))
 vi.mock('@/components/DaySelector', () => ({ DaySelector: 'DaySelector' }))
 vi.mock('@/components/PosTag', () => ({ PosTag: 'PosTag' }))
@@ -522,6 +521,21 @@ it('releases a held initial read on suspension and ignores its late result', asy
     await act(async () => { release({ starters: [], bench: [], benchSlots: 2 }) })
     expect(emptyRows()).toHaveLength(6)
     expect(mocks.readView).toHaveBeenCalledTimes(2)
+})
+
+it('starts a fresh read after reconnecting instead of joining the read that going offline replaced', async () => {
+    let release!: (value: typeof mocks.lineup) => void
+    mocks.readView.mockReturnValueOnce(new Promise(resolve => { release = resolve }))
+    await mount()
+    mocks.context.online = false
+    await act(async () => screen.update(React.createElement(Component)))
+    mocks.lineup = { starters: [], bench: [], benchSlots: 6 }
+    mocks.context.online = true
+    await act(async () => screen.update(React.createElement(Component)))
+    expect(mocks.readView).toHaveBeenCalledTimes(2)
+    expect(emptyRows()).toHaveLength(6)
+    await act(async () => { release({ starters: [], bench: [], benchSlots: 2 }) })
+    expect(emptyRows()).toHaveLength(6)
 })
 
 

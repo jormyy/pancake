@@ -40,8 +40,8 @@ BEGIN
     RETURN;
   END IF;
 
-  SELECT locked.reason INTO lock_reason FROM private.locked_assets(p_league_id, p_league_season_id, p_member_id) locked
-    WHERE locked.source_kind='trade' AND locked.asset_id=p_drop_player_id ORDER BY locked.source_id LIMIT 1;
+  SELECT block.reason INTO lock_reason FROM private.roster_action_blocks('claim_drop', p_league_id, p_league_season_id, p_member_id) block
+    WHERE block.asset_kind='player' AND block.asset_id=p_drop_player_id LIMIT 1;
   IF lock_reason IS NOT NULL THEN
     RETURN QUERY SELECT v_roster_player_id, lock_reason;
     RETURN;

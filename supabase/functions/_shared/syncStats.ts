@@ -26,7 +26,6 @@ const FINAL_NUMERIC_STATS = [
 ] as const satisfies readonly (keyof NBABoxScorePlayer['statistics'])[]
 type PlayerGameStatsInsert = Database['public']['Tables']['player_game_stats']['Insert']
 
-// Returns YYYY-MM-DD for the given Date in America/New_York (ET).
 // nba_games.game_date is ET-keyed; using UTC here misses prime-time games
 // between 0:00 and 5:00 UTC (= 19:00–00:00 ET) where UTC is one day ahead.
 function toETDate(date: Date): string {
@@ -266,9 +265,9 @@ export async function resolveBoxScorePlayers(
   boxScore: BoxScorePlayers,
   providerGameId: string,
   recordedPlayerIds?: string[],
-): Promise<Array<{ player: CdnGamePlayer; playerId: string }>> {
+): Promise<{ player: CdnGamePlayer; playerId: string }[]> {
   const allPlayers = validateBoxScorePlayers(boxScore, providerGameId)
-  const resolved: Array<{ player: CdnGamePlayer; playerId: string }> = []
+  const resolved: { player: CdnGamePlayer; playerId: string }[] = []
   const playerIds = recordedPlayerIds ?? await resolveCdnPlayers(allPlayers.map(player => ({
     personId: String(player.personId), displayName: player.name ?? '',
   })), providerGameId)

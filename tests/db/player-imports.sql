@@ -149,7 +149,7 @@ BEGIN
  INSERT INTO leagues(id,name,slug,commissioner_id) VALUES(v_league,'Synthetic Merge Links',v_league::text,v_user);
  INSERT INTO players(id,first_name,last_name,nba_id,espn_id) VALUES(v_winner,'Canonical',v_winner::text,v_winner::text,NULL),(v_loser,'Canonical',v_loser::text,NULL,v_loser::text);
  INSERT INTO dynasty_news(id,title,summary,source,player_id) VALUES(v_news,'Synthetic article','Synthetic summary','Synthetic source',v_loser);
- INSERT INTO league_activity(id,league_id,event_type,title,related_player_id) VALUES(v_activity,v_league,'player_added','Synthetic original activity',v_loser);
+ INSERT INTO league_activity(id,league_id,event_type,visibility,title,related_player_id) VALUES(v_activity,v_league,'player_added','league','Synthetic original activity',v_loser);
  PERFORM assign_player_nba_id_atomic(v_loser,v_winner::text);
  RAISE NOTICE 'Actual optional refs: news %, activity %', (SELECT player_id FROM dynasty_news WHERE id=v_news), (SELECT related_player_id FROM league_activity WHERE id=v_activity);
  IF (SELECT player_id FROM dynasty_news WHERE id=v_news) IS DISTINCT FROM v_winner

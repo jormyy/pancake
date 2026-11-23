@@ -9,20 +9,11 @@ CREATE OR REPLACE FUNCTION public.set_trade_roster_plan_atomic(
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
   __request_context jsonb;
+  v_trade trades%ROWTYPE;
+  v_all uuid[];
 BEGIN
   PERFORM set_config('pancake.trade_write','true',true);
   PERFORM set_config('lock_timeout','100ms',true);
-  __request_context := private.request_begin('public.set_trade_roster_plan_atomic', jsonb_build_array(p_trade_id, p_member_id, p_user_id, p_taxi_player_ids, p_ir_player_ids, p_drop_player_ids, p_roster_moves), NULL, NULL);
-  IF (__request_context->>'replay')::boolean THEN RETURN; END IF;
-  <<request_write>>
-DECLARE v_trade trades%ROWTYPE; v_member uuid; v_player uuid; v_all uuid[]; v_preview jsonb;
-BEGIN
-  SELECT * INTO v_trade FROM trades WHERE id = p_trade_id;
-  IF NOT FOUND THEN RAISE EXCEPTION 'Trade not found.'; END IF;
-  IF NOT EXISTS (SELECT 1 FROM trade_participants participant JOIN league_members member ON member.id = participant.member_id
-    WHERE participant.trade_id = p_trade_id AND member.id = p_member_id AND member.user_id = p_user_id) THEN
-    RAISE EXCEPTION 'Only the receiving manager can choose placements and drops.' USING ERRCODE = '42501';
-  END IF;
   IF jsonb_typeof(p_roster_moves) IS DISTINCT FROM 'array' OR jsonb_array_length(p_roster_moves)>100 THEN
     RAISE EXCEPTION 'Roster moves must be an array of at most 100 players.' USING ERRCODE='22023';
   END IF;
@@ -36,20 +27,14 @@ BEGIN
     OR cardinality(v_all) > 100 OR EXISTS (SELECT 1 FROM unnest(v_all) id GROUP BY id HAVING id IS NULL OR count(*) > 1) THEN
     RAISE EXCEPTION 'Placements and drops must be unique players.' USING ERRCODE = '22023';
   END IF;
-  FOR v_member IN SELECT member_id FROM trade_participants WHERE trade_id = p_trade_id ORDER BY member_id LOOP
-    IF NOT pg_try_advisory_xact_lock(hashtext(v_trade.league_id::text), hashtext(v_member::text)) THEN
-      RAISE EXCEPTION 'The league is busy. Try this trade again.' USING ERRCODE='PA010';
-    END IF;
-  END LOOP;
-  FOR v_player IN SELECT DISTINCT id FROM (
-    SELECT unnest(v_all) id UNION SELECT player_id FROM trade_items WHERE trade_id = p_trade_id
-  ) ids WHERE id IS NOT NULL ORDER BY id LOOP
-    IF NOT pg_try_advisory_xact_lock(hashtext(v_trade.league_id::text), hashtext(v_player::text)) THEN
-      RAISE EXCEPTION 'The league is busy. Try this trade again.' USING ERRCODE='PA010';
-    END IF;
-  END LOOP;
-  SELECT * INTO v_trade FROM trades WHERE id = p_trade_id AND (status='pending' OR status='accepted' AND jsonb_array_length(legality_issues)>0) FOR NO KEY UPDATE NOWAIT;
-  IF NOT FOUND OR v_trade.status NOT IN ('pending','accepted') OR v_trade.status='pending' AND v_trade.expires_at <= now() THEN
+  v_trade := private.begin_trade_action(p_trade_id, p_member_id, p_user_id, 'plan', '{}', v_all);
+  __request_context := private.request_begin('public.set_trade_roster_plan_atomic', jsonb_build_array(p_trade_id, p_member_id, p_user_id, p_taxi_player_ids, p_ir_player_ids, p_drop_player_ids, p_roster_moves), NULL, NULL);
+  IF (__request_context->>'replay')::boolean THEN RETURN; END IF;
+  <<request_write>>
+DECLARE v_preview jsonb;
+BEGIN
+  IF v_trade.status NOT IN ('pending','accepted') OR v_trade.status='accepted' AND jsonb_array_length(v_trade.legality_issues)=0
+    OR v_trade.status='pending' AND v_trade.expires_at <= now() THEN
     RAISE EXCEPTION 'Choose placements and drops while the trade is pending.';
   END IF;
   IF EXISTS (SELECT 1 FROM jsonb_array_elements(p_roster_moves) move WHERE move->>'destination'='taxi') THEN

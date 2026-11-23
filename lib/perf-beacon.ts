@@ -1,3 +1,4 @@
+import { onLifecycle } from '@/lib/lifecycle'
 export type PerfBeacon = {
     screen: string
     useful_ms: number
@@ -169,13 +170,13 @@ export function observeUsefulContent(screen: string, start: number, painted: () 
         cancelAnimationFrame(frame)
         clearTimeout(timeout)
         observer.disconnect()
-        document.removeEventListener('visibilitychange', resume)
+        stopLifecycle()
         cancelled()
     }
     const resume = () => { if (!stopped && !frame) frame = requestAnimationFrame(check) }
     const timeout = setTimeout(finish, Math.max(0, 120_000 - (performance.now() - start)))
     observer.observe(document.body, { childList: true, subtree: true, attributes: true, characterData: true })
-    document.addEventListener('visibilitychange', resume)
+    const stopLifecycle = onLifecycle(['visible', 'hidden'], resume)
     frame = requestAnimationFrame(check)
     return finish
 }

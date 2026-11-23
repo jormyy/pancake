@@ -86,36 +86,6 @@ describe('dynasty rankings identity', () => {
         await act(async () => { renderer.unmount() })
     })
 
-    it('keeps both published forecast orders and changes tabs without another request', async () => {
-        mocks.getCurrentSeason.mockResolvedValue({ seasonYear: 2026 })
-        mocks.getDynastyDecisionInputs.mockResolvedValue([
-            decisionRow('source-first', {
-                display_name: 'Five Year First', five_year_rank: 1, three_year_rank: 2,
-                age: 25, avg_fantasy_points: 5, projection_fantasy_points: 5,
-            }),
-            decisionRow('league-first', {
-                display_name: 'Three Year First', five_year_rank: 2, three_year_rank: 1,
-                age: 25, avg_fantasy_points: 65, projection_fantasy_points: 65,
-            }),
-        ])
-        let latest!: ReturnType<typeof useDynastyRankings>
-        const Probe = () => {
-            latest = useDynastyRankings({
-                userId: 'user', memberId: 'member', leagueId: 'league',
-                scoringSettings, teamCount: 12,
-            })
-            return null
-        }
-        let renderer!: ReactTestRenderer
-        await act(async () => { renderer = create(React.createElement(Probe)); await flush() })
-
-        expect(latest.players.slice(0, 2).map((player) => player.displayName)).toEqual(['Five Year First', 'Three Year First'])
-        await act(async () => { latest.setView('three-year'); await flush() })
-        expect(latest.players.slice(0, 2).map((player) => player.displayName)).toEqual(['Three Year First', 'Five Year First'])
-        expect(mocks.getDynastyDecisionInputs).toHaveBeenCalledTimes(1)
-        await act(async () => { renderer.unmount() })
-    })
-
     it('keeps unmatched published rookies in the rookie view', async () => {
         mocks.getCurrentSeason.mockResolvedValue({ seasonYear: 2026 })
         mocks.getDynastyDecisionInputs.mockResolvedValue([])

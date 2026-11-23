@@ -139,6 +139,8 @@ export function useLineupActions({
         }
 
         if (!selected) {
+            // A player whose game has started can't move anywhere, so explain
+            // now instead of selecting him and disabling every other slot.
             const player = myLineup ? selectionPlayer(myLineup, newSel) : null
             if (player?.nbaTeam && startedTeams.has(player.nbaTeam)) {
                 showAlert('Lineup locked', `${player.displayName}'s game has already started. No lineup changes are allowed once a game begins.`, 'info')

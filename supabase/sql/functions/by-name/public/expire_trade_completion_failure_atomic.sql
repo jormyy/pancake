@@ -77,6 +77,7 @@ BEGIN
     target_member_id,
     related_trade_id,
     event_type,
+    visibility,
     title,
     body,
     metadata
@@ -88,6 +89,7 @@ BEGIN
     v_trade.recipient_member_id,
     v_trade.id,
     'trade_completion_failed',
+    'league',
     'Accepted trade expired',
     v_reason,
     jsonb_build_object('reason', v_reason, 'terminal', true)
@@ -114,10 +116,6 @@ BEGIN
     SELECT participant.member_id
       FROM trade_participants AS participant
      WHERE participant.trade_id = v_trade.id
-    UNION
-    SELECT v_trade.proposer_member_id
-    UNION
-    SELECT v_trade.recipient_member_id
   ) AS recipient
   ON CONFLICT (dedupe_key) DO NOTHING;
 END;
