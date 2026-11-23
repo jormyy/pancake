@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { PlayerPreviewSheet } from '@/components/player/PlayerPreviewSheet'
+import { useScope } from '@/hooks/use-scope'
 import type { LineupPlayer } from '@/lib/lineup'
 import { getRosterStatsMaps, type RosterStatsMaps } from '@/lib/roster-stats'
 
@@ -12,15 +13,15 @@ export function MatchupPlayerSheet({ player, leagueId, onOpenPage, onClose }: {
 }) {
     const playerId = player?.playerId ?? null
     const [loaded, setLoaded] = useState<{ playerId: string; maps: RosterStatsMaps } | null>(null)
+    const scope = useScope(playerId, leagueId)
 
     useEffect(() => {
         if (!playerId || !leagueId) return
-        let cancelled = false
+        const ticket = scope.latest()
         getRosterStatsMaps([playerId], leagueId)
-            .then(maps => { if (!cancelled) setLoaded({ playerId, maps }) })
+            .then(maps => { ticket.commit(() => setLoaded({ playerId, maps })) })
             .catch(() => {})
-        return () => { cancelled = true }
-    }, [playerId, leagueId])
+    }, [playerId, leagueId, scope])
 
     // Never show a previous player's averages while the next player's load.
     const maps = loaded && loaded.playerId === playerId ? loaded.maps : null

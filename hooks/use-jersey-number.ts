@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useScope } from '@/hooks/use-scope'
 import { onSessionCachesCleared, sessionGeneration, sessionOwner } from '@/lib/session-cache-registry'
 
 // List screens don't carry jersey numbers, so rows batch one read per tick and share the cache.
@@ -52,14 +53,12 @@ export function useJerseyNumber(playerId?: string | null, nbaId?: string | null,
     const key = playerId ? `id:${playerId}` : nbaId ? `nba_id:${nbaId}` : null
     const generation = sessionGeneration()
     const [loaded, setLoaded] = useState<{ key: string; generation: number; jersey: string | null } | null>(null)
+    const scope = useScope(key, jerseyNumber)
     useEffect(() => {
         if (!key || jerseyNumber !== undefined || !sessionOwner()) return
-        let active = true
-        void readJersey(key).then(value => {
-            if (active && generation === sessionGeneration()) setLoaded({ key, generation, jersey: value })
-        })
-        return () => { active = false }
-    }, [key, jerseyNumber, generation])
+        const ticket = scope.latest()
+        void readJersey(key).then(value => { ticket.commit(() => setLoaded({ key, generation, jersey: value })) })
+    }, [key, jerseyNumber, generation, scope])
     if (jerseyNumber !== undefined) return jerseyNumber
     return loaded && loaded.key === key && loaded.generation === generation ? loaded.jersey : null
 }

@@ -2,13 +2,12 @@ import './helpers/native-component-mocks'
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, expect, it, vi } from 'vitest'
-import { readFileSync } from 'node:fs'
 import { SavedTradeEstimate } from '@/components/trades/SavedTradeEstimate'
 import { PlayerRow } from '@/components/ui/PlayerRow'
 import { PlayerSearchItem } from '@/components/PlayerSearchItem'
 import { PlayerHeader } from '@/components/player/PlayerHeader'
 import { Badge } from '@/components/ui/Badge'
-import { normalizeTradeTab } from '@/lib/trade-ui-model'
+import { normalizeTradeTab, TRADE_TABS } from '@/lib/trade-ui-model'
 import { playerAge, playerAgeDecimal } from '@/lib/player-context'
 import { headerPlayer, playerRow, trade } from './helpers/fixtures'
 vi.mock('@/hooks/use-league-timezone', () => ({ useLeagueTimezone: () => 'America/Los_Angeles' }))
@@ -38,12 +37,13 @@ it('omits a missing estimate', async () => {
     expect(tree.toJSON()).toBeNull()
 })
 
-it('keeps all four Trades sections in order and supports direct Analyzer links', () => {
-    const source = readFileSync('app/(tabs)/trades.tsx', 'utf8')
-    expect([...source.matchAll(/label: '(Offers|Block|History|Analyzer)', value: '(\w+)'/g)].map(match => [match[1], match[2]]))
+it('keeps all four Trades sections in order and supports a direct link to each', () => {
+    expect(TRADE_TABS.map(option => [option.label, option.value]))
         .toEqual([['Offers', 'offers'], ['Block', 'block'], ['History', 'history'], ['Analyzer', 'analyzer']])
-    expect(normalizeTradeTab('analyzer')).toBe('analyzer')
-    expect(normalizeTradeTab(['analyzer'])).toBe('analyzer')
+    for (const option of TRADE_TABS) {
+        expect(normalizeTradeTab(option.value)).toBe(option.value)
+        expect(normalizeTradeTab([option.value])).toBe(option.value)
+    }
 })
 
 it('leaves age and experience off player rows', async () => {

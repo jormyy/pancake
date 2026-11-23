@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 
 const eslint = new ESLint({ cwd: path.resolve(__dirname, '../..') })
 const lint = (code: string) => eslint.lintText(code, { filePath: 'app/(modals)/claim-player.tsx' })
-const restricted = (messages: { ruleId: string | null; message: string }[]) => messages.filter(message => message.ruleId === 'no-restricted-syntax')
+const restricted = (messages: { ruleId: string | null; message: string }[]) => messages.filter(message => message.ruleId === 'pancake/roster-capacity')
 
 describe('roster capacity lint rule', () => {
     it('rejects the historical inline active-roster filter and names the module', async () => {

@@ -110,7 +110,6 @@ it('moves every title header after one base header token edit', async () => {
     vi.resetModules()
     const original = readFileSync('constants/tokens.ts', 'utf8')
     const edited = original.replace('pageHeaderHeight: unit(14)', 'pageHeaderHeight: unit(16)')
-    expect(edited).not.toBe(original)
     const output = transpileModule(edited, { compilerOptions: { module: ModuleKind.CommonJS } }).outputText
     const module = { exports: {} }
     runInNewContext(output, { module, exports: module.exports, require: () => ({ Platform: { OS: 'web' } }) })

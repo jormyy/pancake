@@ -5,7 +5,7 @@ import LineupScreen, { LineupEditor } from '@/app/(modals)/lineup'
 
 const mocks = vi.hoisted(() => ({
     context: { current: { id: 'member-a' }, currentLeague: { id: 'league-a' }, online: true },
-    savePreference: vi.fn(), enabled: false, setEnabled: vi.fn(), showAlert: vi.fn(),
+    savePreference: vi.fn(), enabled: false, setEnabled: vi.fn(), showAlert: vi.fn(), authUser: 'user',
 }))
 vi.mock('react-native', () => ({ useWindowDimensions: () => ({ width: 390, height: 844 }), Platform: { OS: 'ios' }, Pressable: 'Pressable', View: 'View', Text: 'Text', ScrollView: 'ScrollView', Switch: 'Switch', StyleSheet: { create: (v: unknown) => v, flatten: (v: unknown) => Object.assign({}, ...[v].flat(Infinity).filter(Boolean)) } }))
 vi.mock('expo-router', () => ({ useLocalSearchParams: () => ({}), useRouter: () => ({ push: vi.fn() }) }))
@@ -32,7 +32,7 @@ vi.mock('@/lib/lineup', () => ({
 }))
 vi.mock('@/lib/lineup/optimizerSettings', () => ({ getLineupOptimizerEnabled: async () => mocks.enabled, setLineupOptimizerEnabled: mocks.setEnabled }))
 vi.mock('@/lib/lineup/snapshot', () => ({ readLineupSnapshot: () => null, saveLineupSnapshot: vi.fn(), discardLineupSnapshot: vi.fn(), updateLineupOptimizerSnapshot: mocks.savePreference }))
-vi.mock('@/lib/supabase', () => ({ readStoredAuthState: () => ({ session: { user: { id: 'user' } } }) }))
+vi.mock('@/lib/supabase', () => ({ readStoredAuthState: () => ({ session: { user: { id: mocks.authUser } } }) }))
 vi.mock('@/lib/session-cache-registry', () => ({ sessionOwner: () => null, sessionGeneration: () => 1, onSessionCachesCleared: vi.fn() }))
 vi.mock('@/lib/shared/dates', () => ({ todayET: () => '2026-10-11', endOfETDayUTC: () => '2026-10-12T04:00:00Z' }))
 vi.mock('@/lib/shared/season', () => ({ invalidateSeasonCache: vi.fn() }))
@@ -58,7 +58,7 @@ beforeEach(() => {
     vi.stubGlobal('window', new EventTarget())
     vi.stubGlobal('document', Object.assign(new EventTarget(), { visibilityState: 'visible' }))
     mocks.context.online = true
-    mocks.context.current = { id: 'member-a' }; mocks.context.currentLeague = { id: 'league-a' }; mocks.enabled = false
+    mocks.context.current = { id: 'member-a' }; mocks.context.currentLeague = { id: 'league-a' }; mocks.enabled = false; mocks.authUser = 'user'
 })
 afterEach(async () => { await act(async () => screen?.unmount()); vi.useRealTimers(); vi.unstubAllGlobals() })
 const mount = async () => { await act(async () => { screen = create(React.createElement(Component)) }) }
@@ -89,6 +89,17 @@ it.each(['switch', 'unmount'] as const)('does not show a late settings failure a
     } else await act(async () => screen.unmount())
     await act(async () => { fail(new Error('old settings failed')); await pending })
     expect(mocks.showAlert).not.toHaveBeenCalled()
+})
+
+it('does not save a late setting reply after another account signed in', async () => {
+    let finish!: () => void
+    mocks.setEnabled.mockImplementationOnce(() => new Promise<void>((resolve) => { finish = resolve }))
+    await mount()
+    let pending!: Promise<void>
+    await act(async () => { pending = toggle().props.onValueChange(true) })
+    mocks.authUser = 'other-user'
+    await act(async () => { finish(); await pending })
+    expect(mocks.savePreference).not.toHaveBeenCalled()
 })
 
 it('updates the current setting without changing manual lineups', async () => {

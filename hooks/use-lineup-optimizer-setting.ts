@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { useScope } from '@/hooks/use-scope'
 import { showAlert } from '@/lib/alert'
 import { getLineupOptimizerEnabled, setLineupOptimizerEnabled } from '@/lib/lineup/optimizerSettings'
 import { getErrorMessage } from '@/lib/shared/errors'
@@ -10,37 +11,37 @@ export function useLineupOptimizerSetting(scope: Scope | null) {
     const key = scope ? `${scope.memberId}:${scope.leagueId}:${scope.seasonId}` : null
     const [enabled, setEnabled] = useState(true)
     const [saving, setSaving] = useState(false)
-    const keyRef = useRef(key)
-    keyRef.current = key
+    const owner = useScope(key)
 
     useEffect(() => {
         setEnabled(true)
         setSaving(false)
         if (!scope) return
-        let cancelled = false
+        const ticket = owner.latest()
         getLineupOptimizerEnabled(scope.memberId, scope.seasonId)
-            .then(value => { if (!cancelled) setEnabled(value) })
+            .then(value => { ticket.commit(() => setEnabled(value)) })
             .catch(() => {})
-        return () => { cancelled = true }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [key])
+    }, [key, owner])
 
     const setAutomatic = useCallback(async (next: boolean) => {
         if (!scope) return
-        const requestKey = key
+        // A newer toggle supersedes this one, so only the last save settles the switch.
+        const ticket = owner.latest()
         setEnabled(next)
         setSaving(true)
         try {
             await setLineupOptimizerEnabled(scope.memberId, scope.leagueId, scope.seasonId, next)
+            ticket.commit(() => setSaving(false))
         } catch (e) {
-            if (keyRef.current !== requestKey) return
-            setEnabled(!next)
-            showAlert('Auto-set failed', getErrorMessage(e))
-        } finally {
-            if (keyRef.current === requestKey) setSaving(false)
+            ticket.commit(() => {
+                setEnabled(!next)
+                setSaving(false)
+                showAlert('Auto-set failed', getErrorMessage(e))
+            })
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [key])
+    }, [key, owner])
 
     return { enabled, saving, setAutomatic }
 }

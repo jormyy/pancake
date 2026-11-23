@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { AppState } from 'react-native'
 import { useIsFocused } from '@react-navigation/native'
 import { usePanelActivity } from '@/contexts/panel-activity'
 import { sessionGeneration, sessionOwner } from '@/lib/session-cache-registry'
+import { onLifecycle, readsAllowed } from '@/lib/lifecycle'
 
 export function useDraftActivity(ownerKey: string | null) {
     const routeFocused = useIsFocused()
@@ -18,13 +18,10 @@ export function useDraftActivity(ownerKey: string | null) {
     const ownerRef = useRef(identity)
     const focusRef = useRef(focused)
     const mountedRef = useRef(true)
-    const appStateRef = useRef(AppState.currentState)
     const epochRef = useRef(0)
     const readyRef = useRef<number | null>(null)
     const [, render] = useState(0)
-    const environmentAllowsReads = useCallback(() => appStateRef.current === 'active' && AppState.currentState === 'active'
-        && (typeof document === 'undefined' || document.visibilityState !== 'hidden')
-        && (typeof navigator === 'undefined' || navigator.onLine !== false), [])
+    const environmentAllowsReads = readsAllowed
     const availableRef = useRef(focused && environmentAllowsReads())
     if (ownerRef.current !== identity || focusRef.current !== focused) {
         ownerRef.current = identity
@@ -59,7 +56,6 @@ export function useDraftActivity(ownerKey: string | null) {
     useEffect(() => {
         mountedRef.current = true
         let active = true
-        appStateRef.current = AppState.currentState
         const update = () => {
             if (!active) return
             const next = focusRef.current && environmentAllowsReads()
@@ -67,26 +63,12 @@ export function useDraftActivity(ownerKey: string | null) {
             availableRef.current = next
             invalidate()
         }
-        const subscription = AppState.addEventListener('change', next => {
-            if (!active) return
-            appStateRef.current = next
-            update()
-        })
-        if (typeof document !== 'undefined') document.addEventListener('visibilitychange', update)
-        if (typeof window !== 'undefined') {
-            window.addEventListener('online', update)
-            window.addEventListener('offline', update)
-        }
+        const stop = onLifecycle(['visible', 'hidden', 'online', 'offline'], update)
         return () => {
             active = false
             mountedRef.current = false
             readyRef.current = null
-            subscription.remove()
-            if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', update)
-            if (typeof window !== 'undefined') {
-                window.removeEventListener('online', update)
-                window.removeEventListener('offline', update)
-            }
+            stop()
         }
     }, [identity, invalidate, environmentAllowsReads])
     return { identity, capture, epoch: epochRef.current, canRead, isCurrent, canAct, canQueue, markReady, blockActions, ready: canAct() }
