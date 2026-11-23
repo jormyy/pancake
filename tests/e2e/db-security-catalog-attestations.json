@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261214011800",
+  "candidateVersion": "20261214140000",
   "common": {
     "functions": [
       {
@@ -2745,6 +2745,10 @@
     {
       "filename": "20261214011800_tipoff_mode_aware_completion.sql",
       "sha256": "d4dc37396f8f1e8d65105ef1e104c7feb8605d91abd04134e175dbae4171abcb"
+    },
+    {
+      "filename": "20261214140000_dynasty_rank_owner.sql",
+      "sha256": "be1e0e386c8e2a224b0d7bfe3192d877ff1e59fb082c2d9ee8c6d160949d5719"
     }
   ],
   "preMigration": {

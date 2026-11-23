@@ -290,6 +290,16 @@ Floor readback: `SELECT league_id, league_season_id, week_number, week_end, stat
 Pre-tipoff-policy readback: `SELECT id, status, attempts, due_at, last_error, payload->>'tipoffAt' AS tipoff_at, payload->>'leagueId' AS league_id FROM private.work_items WHERE kind = 'pre-tipoff-policy' ORDER BY id DESC;`.
 Activation readback: `SELECT private.league_auto_ir_all_members('faab8d8f-6a60-4bbc-8f5d-44050b652cdd');` must return true only after step 4.
 
+### Dynasty rank owner guard
+
+`20261214140000_dynasty_rank_owner.sql` adds the `players_dynasty_rank_owner` trigger, for 797 migrations.
+It needs no Edge or frontend release and can apply in any order after `20261214011800`.
+Each write of `players.dynasty_rank` must carry source `hashtagbasketball.com`, or clear the rank and source together.
+Any other write fails with `players.dynasty_rank is owned by the Hashtag five-year points sync; write trade values to dynasty_rankings with source onenumberhoops.com`.
+The trigger checks only written rows, so existing rows need no backfill.
+Read-only check before applying: `SELECT count(*) FROM public.players WHERE dynasty_rank_source IS DISTINCT FROM 'hashtagbasketball.com' AND (dynasty_rank IS NOT NULL OR dynasty_rank_source IS NOT NULL);` should return 0.
+Rollback: `DROP TRIGGER players_dynasty_rank_owner ON public.players;`.
+
 ## Release order for the earlier Auto Lineup IR release
 
 This section describes the earlier Auto Lineup IR release, which is already live. It does not apply to the roster policy release above.
