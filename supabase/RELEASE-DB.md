@@ -360,3 +360,12 @@ ALTER TABLE public.notification_outbox
   DROP COLUMN ticketed_at,
   DROP COLUMN receipt_attempt_count;
 ```
+
+## Weekly add week for every instant
+
+`20261214011900_total_add_week.sql` replaces `private.current_add_week(uuid, uuid)` with `private.current_add_week(uuid, uuid, timestamptz DEFAULT now())`; every two-argument caller keeps working.
+Days inside a scheduled week keep that week's number and reset.
+Every other day falls in a bucket of at most 7 days that starts after the previous scheduled week, or the prior season's last week, or on Monday when neither exists, and ends early when the next scheduled week starts.
+A league with no schedule and no earlier season now resets every Monday instead of never, and the days before week 1 no longer count toward week 1.
+Counts already stored for unscheduled days move to new keys once, so those members get a fresh limit at deploy.
+Run `npm run test:db:add-week-property`, `npm run test:db:weekly-add-limit`, and `npm run test:db:limits-all-star-week` on a private stack.
