@@ -2,6 +2,7 @@ import { leagueSnapshotRevision } from '@/lib/league-changes'
 import { onSessionCachesCleared, sessionGeneration } from '@/lib/session-cache-registry'
 import { todayLeague } from '@/lib/timezone'
 import { leagueTimezone } from '@/lib/league-timezones'
+import { onLifecycle } from '@/lib/lifecycle'
 
 type Entry = { leagueId: string; promise: Promise<unknown>; savedAt: number; settled: boolean }
 const entries = new Map<string, Entry>()
@@ -12,10 +13,7 @@ function releaseLeagueDailyPending(leagueId?: string) {
     for (const [key, entry] of entries) if (!entry.settled && (!leagueId || entry.leagueId === leagueId)) entries.delete(key)
 }
 
-if (typeof document !== 'undefined') document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden') releaseLeagueDailyPending()
-})
-if (typeof window !== 'undefined') window.addEventListener('offline', () => releaseLeagueDailyPending())
+onLifecycle(['hidden', 'offline'], () => releaseLeagueDailyPending())
 onSessionCachesCleared(() => entries.clear())
 
 export function readLeagueDaily<Value>(leagueId: string, resourceKey: string, read: () => Promise<Value>): Promise<Value> {

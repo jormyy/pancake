@@ -23,6 +23,7 @@ import type { DynastyRankPlayer } from '@/lib/dynasty'
 import type { Json } from '@/types/database'
 import type { DynastyAssetResult } from '@/core/src/dynasty/decisionEngine'
 import { valueDynastyRankingAsset } from '@/lib/dynasty-ranking-values'
+import { onLifecycle, readsAllowed } from '@/lib/lifecycle'
 
 const STALE_MS = 5 * 60_000
 const MAX_RANKINGS = 600
@@ -496,9 +497,8 @@ export function useDynastyRankings({
     }, [load, leagueId]))
 
     useEffect(() => {
-        if (typeof window === 'undefined' || typeof document === 'undefined') return
         const resume = () => {
-            if (!focusedRef.current || document.visibilityState === 'hidden' || navigator.onLine === false) return
+            if (!focusedRef.current || !readsAllowed()) return
             const force = resumeNeededRef.current || failedRef.current
             resumeNeededRef.current = false
             if (force || (lastDayRef.current !== todayLeague(leagueTimezone(leagueId)) || Date.now() - lastLoadedAtRef.current >= STALE_MS)) void load(force)
@@ -517,23 +517,18 @@ export function useDynastyRankings({
             inFlightRef.current = null
             resumeNeededRef.current = true
         }
-        const visibility = () => {
-            if (document.visibilityState === 'hidden' && inFlightRef.current) {
-                resumeNeededRef.current = true
-                requestSeqRef.current += 1
-                inFlightRef.current = null
-            } else resume()
+        const hidden = () => {
+            if (!inFlightRef.current) return
+            resumeNeededRef.current = true
+            requestSeqRef.current += 1
+            inFlightRef.current = null
         }
-        window.addEventListener('online', online)
-        window.addEventListener('offline', offline)
-        window.addEventListener('focus', resume)
-        document.addEventListener('visibilitychange', visibility)
-        return () => {
-            window.removeEventListener('online', online)
-            window.removeEventListener('offline', offline)
-            window.removeEventListener('focus', resume)
-            document.removeEventListener('visibilitychange', visibility)
-        }
+        return onLifecycle(['online', 'offline', 'focus', 'visible', 'hidden'], event => {
+            if (event === 'online') online()
+            else if (event === 'offline') offline()
+            else if (event === 'hidden') hidden()
+            else resume()
+        })
     }, [load, leagueId])
 
     useEffect(() => {

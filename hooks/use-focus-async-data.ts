@@ -1,19 +1,12 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useFocusEffect } from '@react-navigation/native'
 import { usePanelActivity } from '@/contexts/panel-activity'
+import { onLifecycle, readsAllowed } from '@/lib/lifecycle'
 
 function dependenciesEqual(previous: React.DependencyList, next: React.DependencyList) {
     return previous.length === next.length && previous.every((value, index) => Object.is(value, next[index]))
 }
 
-/**
- * Refreshes stale data when the screen gains focus.
- * Existing data stays visible while refreshes run.
- *
- * When `deps` change (e.g. consumer switches league), the freshness gate and
- * cached data are reset so the next focus triggers a fresh fetch instead of
- * short-circuiting on stale state from the previous deps.
- */
 export function useFocusAsyncData<T>(
     fetcher: () => Promise<T>,
     deps: React.DependencyList = [],
@@ -80,8 +73,6 @@ export function useFocusAsyncData<T>(
     const generation = genRef.current
     const ownsState = stateGenerationRef.current === generation
 
-    // Reset freshness gate when deps change so the next focus fetches fresh
-    // data for the new identity (e.g. after a league switch).
     useEffect(() => {
         const hasNextInitialData = options.initialData !== undefined
         hasDataRef.current = hasNextInitialData
@@ -112,8 +103,7 @@ export function useFocusAsyncData<T>(
     const load = useCallback(async (loadOptions: { force?: boolean } = {}): Promise<boolean> => {
         if (!mountedRef.current) return false
         const force = loadOptions.force || resumeNeededRef.current
-        if (!activeRef.current || (typeof document !== 'undefined' && document.visibilityState === 'hidden')
-            || (typeof navigator !== 'undefined' && navigator.onLine === false)) {
+        if (!activeRef.current || !readsAllowed()) {
             if (force) resumeNeededRef.current = true
             setLoading(false)
             setRefreshing(false)
@@ -155,14 +145,12 @@ export function useFocusAsyncData<T>(
             try {
                 if (beforeReadRef.current) {
                     await beforeReadRef.current()
-                    if (gen !== genRef.current || epoch !== requestEpochRef.current || !activeRef.current
-                        || (typeof document !== 'undefined' && document.visibilityState === 'hidden')
-                        || (typeof navigator !== 'undefined' && navigator.onLine === false)) return false
+                    if (gen !== genRef.current || epoch !== requestEpochRef.current || !activeRef.current || !readsAllowed()) return false
                     revision = cacheRevisionRef.current?.()
                     invalidation = invalidationRevision.current
                 }
                 const result = await fetcher()
-                if (gen !== genRef.current || epoch !== requestEpochRef.current) return false // deps changed mid-fetch — drop stale result
+                if (gen !== genRef.current || epoch !== requestEpochRef.current) return false
                 if (revision === undefined) onLoadedRef.current?.(result)
                 else onLoadedRef.current?.(result, revision)
                 setData(result)
@@ -205,27 +193,14 @@ export function useFocusAsyncData<T>(
         }, [load, suspend]),
     )
 
-    // On the web, a PWA returning to the foreground or regaining the network
-    // does not re-run useFocusEffect, so the focused screen kept its
-    // pre-sleep data. A reconnect always refetches; a foreground return
-    // goes through the normal staleness gate. Only the focused screen reacts.
-    useEffect(() => {
-        if (typeof window === 'undefined' || typeof document === 'undefined') return
-        const onOnline = () => { resumeNeededRef.current = true; if (isFocusedRef.current) void load({ force: true }) }
-        const onOffline = () => { suspend() }
-        const onVisible = () => {
-            if (document.visibilityState === 'hidden') suspend()
-            else if (isFocusedRef.current) void load()
+    useEffect(() => onLifecycle(['online', 'rejoin', 'offline', 'visible', 'hidden'], event => {
+        if (event === 'offline' || event === 'hidden') suspend()
+        else if (event === 'visible') { if (isFocusedRef.current) void load() }
+        else {
+            resumeNeededRef.current = true
+            if (isFocusedRef.current) void load({ force: true })
         }
-        window.addEventListener('online', onOnline)
-        window.addEventListener('offline', onOffline)
-        document.addEventListener('visibilitychange', onVisible)
-        return () => {
-            window.removeEventListener('online', onOnline)
-            window.removeEventListener('offline', onOffline)
-            document.removeEventListener('visibilitychange', onVisible)
-        }
-    }, [load, suspend])
+    }), [load, suspend])
 
     const markStale = useCallback(() => {
         if (!mountedRef.current) return

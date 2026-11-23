@@ -4,6 +4,7 @@ const { defineConfig } = require('eslint/config')
 const expoConfig = require('eslint-config-expo/flat')
 const noSourceTextTests = require('./eslint/rules/no-source-text-tests')
 const scopedResource = require('./eslint/rules/scoped-resource')
+const lifecycleOwner = require('./eslint/rules/lifecycle-owner')
 
 const sourceTextContracts = [
     'tests/rls-grants.test.ts',
@@ -36,6 +37,7 @@ const pancake = {
         }])),
         'no-source-text-tests': noSourceTextTests,
         'scoped-resource': scopedResource,
+        'lifecycle-owner': lifecycleOwner,
     },
 }
 
@@ -79,5 +81,11 @@ module.exports = defineConfig([
         files: ['app/**/*.{ts,tsx}', 'components/**/*.{ts,tsx}', 'hooks/**/*.{ts,tsx}', 'contexts/**/*.{ts,tsx}'],
         plugins: { pancake },
         rules: { 'pancake/scoped-resource': 'error' },
+    },
+    {
+        files: ['app/**/*.{ts,tsx}', 'components/**/*.{ts,tsx}', 'hooks/**/*.{ts,tsx}', 'contexts/**/*.{ts,tsx}', 'lib/**/*.{ts,tsx}'],
+        ignores: ['lib/lifecycle.ts', 'lib/realtime.ts'],
+        plugins: { pancake },
+        rules: { 'pancake/lifecycle-owner': 'error' },
     },
 ])

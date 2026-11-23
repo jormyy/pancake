@@ -20,7 +20,7 @@ import { DaySelector } from '@/components/DaySelector'
 
 import { colors, componentTokens, controlSize, fontSize, fontWeight, layout, radii, spacing, textStyles, uiColors, tracking } from '@/constants/tokens'
 import { useLeagueContext } from '@/contexts/league-context'
-import { browserReadsAllowed } from '@/hooks/use-browser-read-activity'
+import { onLifecycle, readsAllowed } from '@/lib/lifecycle'
 import { useAuth } from '@/hooks/use-auth'
 import { getGameDisplayState } from '@/lib/home-surface'
 import { useLineupActions } from '@/hooks/use-lineup-actions'
@@ -270,7 +270,7 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
     const freshness = !online ? 'offline' as const : liveData ? 'fresh' as const : 'refreshing' as const
     const { ready: gamesReady, liveTeams } = useMemo(() => getGameDisplayState(todaysGames, freshness), [todaysGames, freshness])
 
-    const readAllowed = useCallback(() => browserReadsAllowed() && currentDay === todayLeague(timezone) && readStoredAuthState().session?.user.id === userId,
+    const readAllowed = useCallback(() => readsAllowed() && currentDay === todayLeague(timezone) && readStoredAuthState().session?.user.id === userId,
         [userId, currentDay, timezone])
 
     const applySnapshot = useCallback((value: Pick<LineupSnapshot, 'context' | 'date' | 'days' | 'starters' | 'bench' | 'benchSlots' | 'ir' | 'taxi' | 'optimizerEnabled'>, saved: boolean) => {
@@ -397,7 +397,7 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
     }, [load, online, currentDay, leagueId, leagueRevision])
     useEffect(() => {
         const refresh = () => {
-            if (!browserReadsAllowed()) {
+            if (!readsAllowed()) {
                 if (loadPendingRef.current) {
                     loadScope.supersede()
                     loadPendingRef.current = null
@@ -421,16 +421,7 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
                 void load()
             }
         }
-        window.addEventListener('focus', refresh)
-        window.addEventListener('pageshow', refresh)
-        window.addEventListener('offline', refresh)
-        document.addEventListener('visibilitychange', refresh)
-        return () => {
-            window.removeEventListener('focus', refresh)
-            window.removeEventListener('pageshow', refresh)
-            window.removeEventListener('offline', refresh)
-            document.removeEventListener('visibilitychange', refresh)
-        }
+        return onLifecycle(['focus', 'offline', 'visible', 'hidden'], refresh)
     }, [currentDay, load, loadScope, leagueId, ownerKey, leagueRevision, timezone])
 
     const ownsLineup = dataOwnerKey === ownerKey
