@@ -62,7 +62,7 @@
   ],
   "migrations": {
     "dir": "supabase/migrations",
-    "through": "20261215140000_dynasty_rank_owner.sql",
-    "sha256": "2ccd6fb1bf36e42498230433eb212c05cb286ccf135c4ffb9a983d4a5ef69565"
+    "through": "20261215150000_roster_action_policy.sql",
+    "sha256": "b124121d1e9b37d51e54c54a6dbea68267cafd8dc0d8eb31b0db83dacd3ace1f"
   }
 }

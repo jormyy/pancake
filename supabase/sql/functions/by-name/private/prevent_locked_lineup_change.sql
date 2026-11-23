@@ -13,6 +13,7 @@ BEGIN
   END IF;
   IF TG_OP = 'INSERT' THEN row_data := NEW; ELSE row_data := OLD; END IF;
   PERFORM pg_advisory_xact_lock(hashtext(row_data.league_id::text), hashtext(row_data.member_id::text));
+  PERFORM private.assert_roster_action_allowed('lineup_move', row_data.league_id, row_data.league_season_id, row_data.member_id, row_data.player_id);
   IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
   RETURN NEW;
 END;

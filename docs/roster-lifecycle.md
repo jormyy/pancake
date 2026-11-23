@@ -198,6 +198,8 @@ Pending locks must read item players, planned drops, and planned moves.
 A pending claim locks the claimed player and its selected drop.
 A locked asset cannot leave the roster, change IR or taxi placement, or enter another trade.
 Errors and the phone's lock badge name the trade or claim that holds the asset.
+`private.roster_action_policy` decides which roster actions each hold blocks.
+Guards ask `private.assert_roster_action_allowed`, and `tests/db/roster-action-matrix.sql` checks every cell against the real triggers.
 Accepted assets, drops, moves, and capacity stay reserved until settlement or a terminal outcome.
 New awards and acceptances cannot use reserved capacity.
 

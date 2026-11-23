@@ -110,7 +110,8 @@ BEGIN
       USING ERRCODE = 'P0001';
   END IF;
 
-  PERFORM private.assert_asset_unlocked(v_rp.league_id,v_rp.league_season_id,v_rp.member_id,v_rp.player_id);
+  PERFORM private.assert_roster_action_allowed(CASE WHEN p_to_taxi THEN 'to_taxi' ELSE 'from_taxi' END::private.roster_action,
+    v_rp.league_id,v_rp.league_season_id,v_rp.member_id,v_rp.player_id);
 
   IF private.roster_status_game_started(v_rp.player_id) THEN
     RAISE EXCEPTION 'This player''s game has already started. No roster status changes are allowed for that slate.'
