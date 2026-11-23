@@ -86,9 +86,12 @@ Claims award at midnight in `leagues.timezone`, which defaults to `America/Los_A
 A claim submitted at the cutoff waits for the next run.
 A dropped player completes a 48-hour hold before any run can award that player.
 
-The highest valid FAAB bid wins. Zero-dollar bids are valid.
+An older due run settles before a newer one.
+The highest valid FAAB bid wins across every pending claim in the league, not one player at a time. Zero-dollar bids are valid.
 Equal bids use rolling team priority, then that team's claim order. A winner moves to the back.
+A busy team or player defers the whole league; a lower claim never passes it.
 Only a successful award spends FAAB or uses an add. Its conditional drop commits with it.
+`npm run check:formal:waiver-run` model-checks these rules against the latest processor SQL.
 Accepted-trade FAAB reservations reduce the available balance.
 Other managers never see pending bids.
 The cutoff freezes edits, reorders, and cancellations while a worker is late.
