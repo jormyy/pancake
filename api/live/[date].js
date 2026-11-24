@@ -613,7 +613,8 @@ function compactBox(box, board, event, observedAt, ids) {
     return { team: side.teamTricode, score: side.score, players };
   });
   const identities = sides.flatMap((side) => side.players.map((player) => player[0]));
-  const onCourt = box.gameStatus === 3 ? [] : [box.homeTeam, box.awayTeam].flatMap((side) => side.players.filter((player) => String(player.oncourt) === "1").map((player) => ids?.get(player) ?? String(player.personId === 196295686 ? 1641794 : player.personId)));
+  const paused = box.gameStatus === 3 || event?.status.type.state === "post" || /^PT0+M0+(?:\.0+)?S$/.test(box.gameClock ?? "");
+  const onCourt = paused ? [] : [box.homeTeam, box.awayTeam].flatMap((side) => side.players.filter((player) => String(player.oncourt) === "1").map((player) => ids?.get(player) ?? String(player.personId === 196295686 ? 1641794 : player.personId)));
   if (new Set(identities).size !== identities.length)
     throw new Error("Provider player appears on both sides");
   return {
