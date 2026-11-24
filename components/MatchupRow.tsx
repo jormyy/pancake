@@ -12,7 +12,7 @@ import { InjuryTag } from '@/components/InjuryTag'
 import { InjuryBadge } from '@/components/Badge'
 import { formatAvgPoints, formatPoints, playerHeadshotUrl } from '@/lib/format'
 import type { StatColumn } from '@/lib/score-breakdown'
-import { LivePulse, MotionPressable, MotionView } from '@/components/Motion'
+import { MotionPressable, MotionView } from '@/components/Motion'
 import { Avatar } from '@/components/Avatar'
 import { formatLeagueClock } from '@/lib/timezone'
 import { LOGO_CHARS, matchupName } from '@/components/player/matchup-name'
@@ -103,11 +103,10 @@ function specificPositions(positions: string[] | null | undefined): string[] {
     return specific.length > 0 ? specific : list
 }
 
-function LiveTag({ dotOnly = false }: { dotOnly?: boolean }) {
+function LiveTag() {
     return (
         <View style={styles.liveBadgeRow} accessibilityLabel="Live">
-            <LivePulse color={uiColors.successTextLive} size={5} />
-            {dotOnly ? null : <Text style={styles.lockedBadge}>LIVE</Text>}
+            <Text style={styles.lockedBadge}>LIVE</Text>
         </View>
     )
 }
@@ -298,7 +297,7 @@ function PlayerSide({
                 {detail || hasGame || !compact ? (
                     <View style={[styles.detailRow, { justifyContent: align }]}>
                         {mirror([
-                            isLive && !sittingOut ? <LiveTag key="live" dotOnly={compact} /> : null,
+                            isLive && !sittingOut && !compact ? <LiveTag key="live" /> : null,
                             ...(!compact ? specificPositions(player.eligiblePositions).map((pos) => <PosTag key={pos} position={pos} />) : []),
                             // "@ [opponent logo] Final" as a row, so the logo centres on the text like the one by the name.
                             gameParts ? (
