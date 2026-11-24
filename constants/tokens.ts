@@ -489,11 +489,7 @@ export type WebOnlyViewStyle = ViewStyle & {
 }
 
 export const webBackgrounds = {
-    appRoot: webColor('image-app-root', 'radial-gradient(circle at 22% 0%, rgba(166, 83, 23, 0.10), transparent 32%), radial-gradient(circle at 78% 10%, rgba(47, 122, 91, 0.12), transparent 30%), linear-gradient(180deg, #FFFDF7 0%, #F7F1E8 42%, #EFE5D6 100%)'),
-    appContent: webColor('image-app-content', 'radial-gradient(circle at 74% -10%, rgba(47, 122, 91, 0.12), transparent 30%), linear-gradient(180deg, rgba(255, 253, 247, 0.92), rgba(247, 241, 232, 0.98))'),
-    authScreen: webColor('image-auth-screen', 'radial-gradient(circle at 84% 8%, rgba(47, 122, 91, 0.12), transparent 32%), linear-gradient(135deg, #FFFDF7 0%, #F7F1E8 54%, #EDE0CE 100%)'),
     authHero: `radial-gradient(circle at 24% 12%, rgba(166, 83, 23, 0.30), transparent 30%), radial-gradient(circle at 80% 30%, rgba(47, 122, 91, 0.22), transparent 34%), linear-gradient(155deg, ${brand.surface} 0%, ${brand.surfaceDeeper} 100%)`,
-    noLeague: webColor('image-no-league', 'radial-gradient(circle at 78% 8%, rgba(47, 122, 91, 0.12), transparent 34%), linear-gradient(145deg, #FFFDF7, #F7F1E8)'),
     sidebar: `radial-gradient(circle at 18% 0%, rgba(166, 83, 23, 0.26), transparent 34%), linear-gradient(180deg, ${brand.surface} 0%, ${brand.surfaceDeeper} 100%)`,
 } as const
 
@@ -809,9 +805,6 @@ export const positionColors: Record<string, string> = {
 // Web follows the system setting; native stays light.
 export const WEB_THEME_VARS: Record<string, string> = LIGHT_THEME
 
-const darkImage = (glow: string) =>
-    `radial-gradient(circle at 22% 0%, rgba(240, 168, 104, 0.07), transparent 32%), ${glow}linear-gradient(180deg, ${night.bgSubtle} 0%, ${night.bgScreen} 100%)`
-
 export const WEB_THEME_VARS_DARK: Record<string, string> = {
     'text-primary': night.textPrimary,
     'text-secondary': night.textSecondary,
@@ -844,10 +837,6 @@ export const WEB_THEME_VARS_DARK: Record<string, string> = {
     'info': night.purple,
     'info-light': night.purpleTint,
     'accent': night.blue,
-    'image-app-root': darkImage('radial-gradient(circle at 78% 10%, rgba(79, 178, 134, 0.06), transparent 30%), '),
-    'image-app-content': darkImage(''),
-    'image-auth-screen': darkImage('radial-gradient(circle at 84% 8%, rgba(79, 178, 134, 0.06), transparent 32%), '),
-    'image-no-league': darkImage(''),
     'overlay-mobile-topbar': night.bgScreen,
     'overlay-mobile-bottom-nav': 'rgba(18, 22, 20, 0.94)',
     'ui-accent-danger': night.red,

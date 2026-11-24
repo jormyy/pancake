@@ -80,7 +80,7 @@ const NAV: BootNavItem[] = [...PRIMARY_NAV, LEAGUE_NAV]
 export const BOOT_SHELL_CSS = `
 ${themeVariablesCss()}
 #${BOOT_SHELL_ID}{position:fixed;inset:0;z-index:1;display:none;font-family:${SANS};
-  background-color:var(--pancake-bg-screen);background-image:${webBackgrounds.appRoot};}
+  background-color:var(--pancake-bg-screen);}
 #${BOOT_SHELL_ID}[data-visible="1"]{display:block;}
 #${BOOT_SHELL_ID} *{box-sizing:border-box;}
 #${BOOT_SHELL_ID} a{text-decoration:none;-webkit-tap-highlight-color:transparent;}
@@ -119,7 +119,7 @@ ${themeVariablesCss()}
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .pbs-usermeta{color:${brand.onSubtle};font-size:${fontSize.xs}px;}
 .pbs-content{position:absolute;left:${SIDEBAR_WIDTH}px;right:0;top:0;bottom:0;
-  background-image:${webBackgrounds.appContent};}
+  background-color:var(--pancake-bg-screen);}
 .pbs-topbar,.pbs-bottomnav{display:none;}
 @media (max-width:${breakpoints.compact - 1}px){
   .pbs-side{display:none;}

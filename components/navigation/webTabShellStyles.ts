@@ -9,8 +9,7 @@ export const styles = StyleSheet.create({
         flex: 1,
         minHeight: '100%',
         backgroundColor: colors.bgScreen,
-        backgroundImage: webBackgrounds.appRoot,
-    } as WebOnlyViewStyle,
+    },
     rootDesktop: {
         flexDirection: 'row',
     },
@@ -286,8 +285,7 @@ export const styles = StyleSheet.create({
         flex: 1,
         minWidth: 0,
         backgroundColor: colors.bgScreen,
-        backgroundImage: webBackgrounds.appContent,
-    } as WebOnlyViewStyle,
+    },
     // The document opts into viewport-fit=cover, so the fixed bars must pad by
     // the safe-area insets or standalone-PWA launches put the top bar under the
     // notch and the bottom tabs under the home indicator.

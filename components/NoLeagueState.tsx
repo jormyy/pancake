@@ -1,7 +1,7 @@
-import { Platform, View, Text, StyleSheet } from 'react-native'
+import { View, Text, StyleSheet } from 'react-native'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { useRouter } from 'expo-router'
-import { colors, elevation, fontFamily, fontWeight, radii, spacing, textStyles, webBackgrounds, type WebOnlyViewStyle, typeScale } from '@/constants/tokens'
+import { colors, elevation, fontFamily, fontWeight, radii, spacing, textStyles, typeScale } from '@/constants/tokens'
 import { Button, LoadingState } from '@/components/ui'
 import { PromptFrame } from '@/components/ui/PromptFrame'
 import { useLeagueContext } from '@/contexts/league-context'
@@ -31,7 +31,6 @@ export function NoLeagueState() {
     return (
         <PromptFrame
             cardMaxWidth={520}
-            containerStyle={Platform.OS === 'web' ? styles.containerWeb : null}
             cardStyle={styles.card}
         >
             <View style={styles.brandMark}>
@@ -61,9 +60,6 @@ export function NoLeagueState() {
 
 const styles = StyleSheet.create({
     noticeTitle: { ...typeScale.title, fontWeight: fontWeight.semibold, color: colors.textPrimary, textAlign: 'center' },
-    containerWeb: {
-        backgroundImage: webBackgrounds.noLeague,
-    } as WebOnlyViewStyle,
     card: {
         paddingHorizontal: spacing['4xl'],
     },
