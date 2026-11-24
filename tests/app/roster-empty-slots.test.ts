@@ -173,11 +173,15 @@ describe('roster empty slots', () => {
         expect(screen.root.findByType('RosterPlayerSheet' as React.ElementType).props.actions.some((action: { label: string }) => action.label === 'Move to IR')).toBe(false)
     })
 
+    const summaryActions = () => {
+        const summary = React.Children.toArray(screen.root.findByType('PageHeader' as React.ElementType).props.tabs.props.children)
+        return React.Children.toArray((summary[1] as React.ReactElement<{ children: React.ReactNode }>).props.children)
+    }
+
     it('keeps the pending claims jump target at least 44px high', async () => {
         mocks.focusData.data = { ...rosterData([]), claims: [{ id: 'claim', status: 'pending' }] }
         await act(async () => { screen = create(React.createElement(RosterScreen)) })
-        const header = screen.root.findByType('PageHeader' as React.ElementType)
-        const pill = React.Children.toArray(header.props.actions.props.children)[0] as React.ReactElement<{ count: number }>
+        const pill = summaryActions()[0] as React.ReactElement<{ count: number }>
         expect(pill.props.count).toBe(1)
         let pillScreen!: ReactTestRenderer
         await act(async () => { pillScreen = create(pill) })
@@ -193,8 +197,8 @@ describe('roster empty slots', () => {
     it('opens the lineup editor, where pins are set, from the lineup row', async () => {
         mocks.focusData.data = ownRoster()
         await act(async () => { screen = create(React.createElement(RosterScreen)) })
-        const edit = screen.root.findByProps({ accessibilityLabel: 'Edit lineup and pins' })
-        expect(edit.props.title).toBe('Edit lineup')
+        const edit = summaryActions()[0] as React.ReactElement<{ title: string; onPress: () => void }>
+        expect(edit.props).toMatchObject({ title: 'Edit lineup', accessibilityLabel: 'Edit lineup and pins' })
         await act(async () => edit.props.onPress())
         expect(mocks.push).toHaveBeenCalledWith('/(modals)/lineup')
     })
@@ -202,11 +206,8 @@ describe('roster empty slots', () => {
     it('puts Edit lineup just left of Waivers in the summary row', async () => {
         mocks.focusData.data = ownRoster()
         await act(async () => { screen = create(React.createElement(RosterScreen)) })
-        const header = screen.root.findByType('PageHeader' as React.ElementType)
-        expect(header.props.actions).toBeUndefined()
-        const summary = React.Children.toArray(header.props.tabs.props.children)
-        const actions = summary[1] as React.ReactElement<{ children: React.ReactNode }>
-        const labels = React.Children.toArray(actions.props.children).map(child => React.isValidElement<{ accessibilityLabel?: string; count?: number }>(child) ? child.props.accessibilityLabel ?? `pill:${child.props.count}` : null)
+        expect(screen.root.findByType('PageHeader' as React.ElementType).props.actions).toBeUndefined()
+        const labels = summaryActions().map(child => React.isValidElement<{ accessibilityLabel?: string; count?: number }>(child) ? child.props.accessibilityLabel ?? `pill:${child.props.count}` : null)
         expect(labels).toEqual(['Edit lineup and pins', 'pill:0'])
         expect(screen.root.findAll(node => node.props.accessibilityLabel === 'Auto-set lineup')).toHaveLength(0)
     })
