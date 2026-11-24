@@ -20,6 +20,7 @@ type PublicLiveGame = {
     clock?: string
     home: { team: string; score: number; players: LiveLine[] }
     away: { team: string; score: number; players: LiveLine[] }
+    onCourt?: string[]
 }
 
 export type LiveSnapshot = { version: 1; mode: 'public' | 'database'; date: string; capturedAt: number; games: PublicLiveGame[] }
