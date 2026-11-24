@@ -18,7 +18,7 @@ import { DeferredContent } from '@/components/ui/DeferredContent'
 import { DaySelector } from '@/components/DaySelector'
 
 
-import { colors, componentTokens, controlSize, fontWeight, layout, radii, spacing, textStyles, uiColors, typeScale } from '@/constants/tokens'
+import { breakpoints, colors, componentTokens, controlSize, fontWeight, layout, radii, spacing, textStyles, uiColors, typeScale } from '@/constants/tokens'
 import { useLeagueContext } from '@/contexts/league-context'
 import { onLifecycle, readsAllowed } from '@/lib/lifecycle'
 import { useAuth } from '@/hooks/use-auth'
@@ -67,6 +67,7 @@ const StarterRow = memo(function StarterRow({
     locks,
     pinDisabled,
     onPinChange,
+    pinCompact,
 }: {
     slot: LineupSlot
     index: number
@@ -81,24 +82,26 @@ const StarterRow = memo(function StarterRow({
     locks: readonly AssetLock[]
     pinDisabled: boolean
     onPinChange: (player: LineupPlayer, pin: LineupPin) => void
+    pinCompact: boolean
 }) {
     const p = slot.player
     const isLocked = !!(p?.nbaTeam && startedTeams.has(p.nbaTeam))
     const isLive = !!(p?.nbaTeam && liveTeams.has(p.nbaTeam))
+    const status = isLocked ? isLive ? 'LIVE' : 'LOCK' : targetState === 'valid' ? 'MOVE' : ''
     const starterMatchup = p?.nbaTeam ? teamMatchups.get(p.nbaTeam) : undefined
     const starterMatchupLabel = p?.nbaTeam
         ? (starterMatchup ? `${starterMatchup.isHome ? 'vs' : '@'} ${starterMatchup.opponent}` : '· No game')
         : null
 
     return (
-        <View><AssetSelectionRow locks={locks} component={MotionPressable}
-            style={[
-                styles.slotRow,
-                index > 0 && styles.divider,
-                isSelected && styles.selectedRow,
-                targetState === 'valid' && styles.validTargetRow,
-                targetState === 'invalid' && styles.invalidTargetRow,
-            ]}
+        <View style={[
+            styles.rowLine,
+            index > 0 && styles.divider,
+            isSelected && styles.selectedRow,
+            targetState === 'valid' && styles.validTargetRow,
+            targetState === 'invalid' && styles.invalidTargetRow,
+        ]}><AssetSelectionRow locks={locks} component={MotionPressable}
+            style={styles.slotRow}
             onPress={onPress}
             disabled={disabled || isLocked || targetState === 'invalid'}
             disabledOpacity={readOnly ? 1 : undefined}
@@ -112,15 +115,14 @@ const StarterRow = memo(function StarterRow({
                 <>
 <PlayerRowContent locks={locks} name={p.displayName} nbaId={p.nbaId} team={p.nbaTeam} positions={p.eligiblePositions}
                         playerId={p.playerId} yearsExp={p.yearsExp} careerGames={p.careerGames} injuryStatus={p.injuryStatus} stats={starterMatchupLabel ?? undefined} />
-                    <Text style={[styles.rowStatus, isLocked ? styles.lockedBadge : styles.moveBadge]}>
-                        {isLocked ? isLive ? 'LIVE' : 'LOCK' : targetState === 'valid' ? 'MOVE' : ''}
-                    </Text>
+                    {pinCompact ? null : <Text style={[styles.rowStatus, isLocked ? styles.lockedBadge : styles.moveBadge]}>{status}</Text>}
                 </>
             ) : (
                 <Text style={styles.emptySlot}>Empty</Text>
             )}
         </AssetSelectionRow>
-            {p ? <LineupPinControl name={p.displayName} pin={p.lineupPin ?? null} disabled={pinDisabled || isLocked}
+            {p && pinCompact && status ? <Text style={[styles.rowStatus, isLocked ? styles.lockedBadge : styles.moveBadge]}>{status}</Text>
+                : p ? <LineupPinControl compact={pinCompact} name={p.displayName} pin={p.lineupPin ?? null} disabled={pinDisabled || isLocked}
                 onChange={pin => onPinChange(p, pin)} /> : null}
         </View>
     )
@@ -140,6 +142,7 @@ const BenchRow = memo(function BenchRow({
     locks,
     pinDisabled,
     onPinChange,
+    pinCompact,
 }: {
     player: LineupPlayer
     index: number
@@ -154,9 +157,11 @@ const BenchRow = memo(function BenchRow({
     locks: readonly AssetLock[]
     pinDisabled: boolean
     onPinChange: (player: LineupPlayer, pin: LineupPin) => void
+    pinCompact: boolean
 }) {
     const isLocked = !!(player.nbaTeam && startedTeams.has(player.nbaTeam))
     const isLive = !!(player.nbaTeam && liveTeams.has(player.nbaTeam))
+    const status = isLocked ? isLive ? 'LIVE' : 'LOCK' : targetState === 'valid' ? 'MOVE' : ''
     const benchMatchup = player.nbaTeam ? teamMatchups.get(player.nbaTeam) : undefined
     const injuryStatus = player.injuryStatus?.trim().toLowerCase() ?? ''
     const pinNote = injuryStatus === 'out' || injuryStatus.startsWith('ir')
@@ -167,14 +172,13 @@ const BenchRow = memo(function BenchRow({
         : null
 
     return (
-        <View><AssetSelectionRow locks={locks} component={MotionPressable}
-            style={[
-                styles.benchRow,
-                index > 0 && styles.divider,
-                isSelected && styles.selectedRow,
-                targetState === 'valid' && styles.validTargetRow,
-                targetState === 'invalid' && styles.invalidTargetRow,
-            ]}
+        <View style={[
+            index > 0 && styles.divider,
+            isSelected && styles.selectedRow,
+            targetState === 'valid' && styles.validTargetRow,
+            targetState === 'invalid' && styles.invalidTargetRow,
+        ]}><View style={styles.rowLine}><AssetSelectionRow locks={locks} component={MotionPressable}
+            style={styles.benchRow}
             onPress={onPress}
             disabled={disabled || isLocked || targetState === 'invalid'}
             disabledOpacity={readOnly ? 1 : undefined}
@@ -185,13 +189,13 @@ const BenchRow = memo(function BenchRow({
         >
 <PlayerRowContent locks={locks} name={player.displayName} nbaId={player.nbaId} team={player.nbaTeam} positions={player.eligiblePositions}
                         playerId={player.playerId} yearsExp={player.yearsExp} careerGames={player.careerGames} injuryStatus={player.injuryStatus} stats={benchMatchupLabel ?? undefined} />
-                    <Text style={[styles.rowStatus, isLocked ? styles.lockedBadge : styles.moveBadge]}>
-                {isLocked ? isLive ? 'LIVE' : 'LOCK' : targetState === 'valid' ? 'MOVE' : ''}
-            </Text>
+                    {pinCompact ? null : <Text style={[styles.rowStatus, isLocked ? styles.lockedBadge : styles.moveBadge]}>{status}</Text>}
         </AssetSelectionRow>
+            {pinCompact && status ? <Text style={[styles.rowStatus, isLocked ? styles.lockedBadge : styles.moveBadge]}>{status}</Text>
+                : <LineupPinControl compact={pinCompact} name={player.displayName} pin={player.lineupPin ?? null} disabled={pinDisabled || isLocked}
+                onChange={pin => onPinChange(player, pin)} />}
+        </View>
             {player.lineupPin === 'start' && !isLocked ? <Text style={styles.pinNote}>{pinNote}</Text> : null}
-            <LineupPinControl name={player.displayName} pin={player.lineupPin ?? null} disabled={pinDisabled || isLocked}
-                onChange={pin => onPinChange(player, pin)} />
         </View>
     )
 })
@@ -212,6 +216,7 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
     const { padX, usableWidth, compact: compactDays } = usePageMetrics()
     // Wide screens set starters and bench side by side, so a move never needs a scroll.
     const twoColumn = !inline && usableWidth >= TWO_COLUMN_MIN_WIDTH
+    const pinCompact = usableWidth < breakpoints.phone
     const { playerId: playerIdParam } = useLocalSearchParams<{ playerId?: string | string[] }>()
     const requestedPlayerId = Array.isArray(playerIdParam) ? playerIdParam[0] : playerIdParam
     const { user } = useAuth()
@@ -685,6 +690,7 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
                             onPress={() => handleTap({ kind: 'starter', index: i })}
                             disabled={readOnly || saving || pinSaving || lineupRefreshing || lineupLoading}
                             pinDisabled={pinDisabled}
+                            pinCompact={pinCompact}
                             onPinChange={handlePinChange}
                             readOnly={readOnly}
                             targetState={targetState({ kind: 'starter', index: i })}
@@ -711,6 +717,7 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
                             onPress={() => handleTap({ kind: 'bench', index: i })}
                             disabled={readOnly || saving || pinSaving || lineupRefreshing || lineupLoading}
                             pinDisabled={pinDisabled}
+                            pinCompact={pinCompact}
                             onPinChange={handlePinChange}
                             readOnly={readOnly}
                             targetState={targetState({ kind: 'bench', index: i })}
@@ -841,19 +848,24 @@ const styles = StyleSheet.create({
         overflow: 'hidden',
     },
 
+    rowLine: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingRight: spacing.lg },
     slotRow: {
+        flex: 1,
+        minWidth: 0,
         flexDirection: 'row',
         alignItems: 'center',
         paddingVertical: componentTokens.playerRow.standard.paddingVertical,
-        paddingHorizontal: spacing.lg,
+        paddingLeft: spacing.lg,
         gap: componentTokens.playerRow.standard.gap,
         minHeight: componentTokens.playerRow.lineupHeight,
     },
     benchRow: {
+        flex: 1,
+        minWidth: 0,
         flexDirection: 'row',
         alignItems: 'center',
         paddingVertical: componentTokens.playerRow.standard.paddingVertical,
-        paddingHorizontal: spacing.lg,
+        paddingLeft: spacing.lg,
         gap: componentTokens.playerRow.standard.gap,
         minHeight: componentTokens.playerRow.lineupHeight,
     },
