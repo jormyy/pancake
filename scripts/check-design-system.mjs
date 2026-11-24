@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import ts from 'typescript'
@@ -109,15 +109,48 @@ export function scanDesignSystem(source, file = 'app/fixture.tsx') {
     return [...violations.values()].sort((a, b) => a.start - b.start)
 }
 
+const INVENTORY = 'tests/ui/ui-inventory.json'
+const KINDS = new Set(['route', 'tab', 'sheet', 'menu', 'form', 'dialog', 'toast', 'banner', 'shell', 'state', 'redirect'])
+const SURFACE_TRIGGER = /<(?:Sheet|Modal|ModalScreen|PromptFrame|SegmentedControl|FilterSelect|MultiSelect|Input|TextInput|Switch|EmptyState|ErrorBanner|LoadingState|DeferredContent)\b|\b(?:confirmAction|confirmRosterActivation|showAlert|showSuccess)\(/
+
 const listSources = (root, folders) => folders.flatMap(folder => readdirSync(path.join(root, folder), { recursive: true })
     .map(file => `${folder}/${String(file).split(path.sep).join('/')}`)).filter(file => /\.tsx?$/.test(file)).sort()
 
-export const EXCEPTIONS = [
-    { file: 'components/ui/Badge.tsx', property: 'fontSize', value: '9', reason: 'Compact eligibility tags (DTD, O, OUT, IR) sit one step below the 10px game line in Matchup and Roster rows; tests/components/player-eligibility-tags.test.ts pins it.' },
-]
+export const readInventory = (root = process.cwd()) => JSON.parse(readFileSync(path.join(root, INVENTORY), 'utf8'))
 
-export function designSystemViolations(root = process.cwd(), exceptions = EXCEPTIONS) {
-    const allowed = new Map(exceptions.map(item => [`${item.file}|${item.property}|${item.value}`, item]))
+const IMPORT = /(?:import|export)\s+(?:type\s+)?(?:([\w\s{},*]+?)\s+from\s+)?['"]([^'"]+)['"]|import\(\s*['"]([^'"]+)['"]\s*\)/g
+const FEEDBACK_CALL = /\b(?:confirmAction|confirmRosterActivation|showAlert|showSuccess)\(/
+const PRIMITIVE_DEPTH = 3
+
+function resolveImport(root, from, specifier) {
+    const base = specifier.startsWith('@/') ? specifier.slice(2) : specifier.startsWith('.') ? path.posix.join(path.posix.dirname(from), specifier) : null
+    if (!base) return null
+    return ['.web.tsx', '.tsx', '.ts', '/index.ts', '/index.tsx', ''].map(ext => base + ext).find(file => /\.tsx?$/.test(file) && existsSync(path.join(root, file))) ?? null
+}
+
+export function primitivesUsed(root, sources) {
+    const used = new Set()
+    const seen = new Set()
+    const queue = sources.map(file => [file, 0])
+    while (queue.length) {
+        const [file, depth] = queue.pop()
+        if (seen.has(file) || !existsSync(path.join(root, file))) continue
+        seen.add(file)
+        const source = readFileSync(path.join(root, file), 'utf8')
+        if (depth === 0) for (const match of source.matchAll(/export (?:function|const|class) (\w+)/g)) used.add(match[1])
+        if (FEEDBACK_CALL.test(source)) used.add('FeedbackProvider')
+        for (const match of source.matchAll(IMPORT)) {
+            const target = resolveImport(root, file, match[2] ?? match[3])
+            if (!target?.startsWith('components/')) continue
+            for (const name of (match[1] ?? '').matchAll(/\b[A-Z]\w*/g)) used.add(name[0])
+            if (depth < PRIMITIVE_DEPTH) queue.push([target, depth + 1])
+        }
+    }
+    return used
+}
+
+export function designSystemViolations(root = process.cwd(), inventory = readInventory(root)) {
+    const allowed = new Map(inventory.exceptions.map(item => [`${item.file}|${item.property}|${item.value}`, item]))
     const used = new Set()
     const violations = listSources(root, ['app', 'components'])
         .flatMap(file => scanDesignSystem(readFileSync(path.join(root, file), 'utf8'), file))
@@ -127,13 +160,58 @@ export function designSystemViolations(root = process.cwd(), exceptions = EXCEPT
             used.add(key)
             return false
         })
-    for (const [key, item] of allowed) if (!used.has(key)) violations.push({ file: item.file, line: 0, kind: 'exception', property: item.property, value: `${item.value} is a stale exception` })
+    for (const [key, item] of allowed) {
+        if (!item.reason?.trim()) violations.push({ file: item.file, line: 0, kind: 'exception', property: item.property, value: `${item.value} has no reason` })
+        else if (!used.has(key)) violations.push({ file: item.file, line: 0, kind: 'exception', property: item.property, value: `${item.value} is a stale exception` })
+    }
     return violations
 }
 
+export function inventoryViolations(root = process.cwd(), inventory = readInventory(root)) {
+    const problems = []
+    const roles = new Set(inventory.roles)
+    const states = new Set(inventory.states)
+    const exported = new Set(listSources(root, ['components']).flatMap(file => [...readFileSync(path.join(root, file), 'utf8')
+        .matchAll(/export (?:function|const|class) (\w+)|export \{ ([^}]+) \}/g)].flatMap(match => match[1] ? [match[1]] : match[2].split(',').map(name => name.trim().split(/\s+as\s+/).pop()))))
+    const ids = new Set()
+    const covered = new Set()
+    for (const surface of inventory.surfaces) {
+        const where = surface.id ?? '(missing id)'
+        if (!/^[a-z]+(?:\.[a-z0-9-]+)+$/.test(surface.id ?? '')) problems.push(`${where}: id must look like area.name`)
+        if (ids.has(surface.id)) problems.push(`${where}: duplicate id`)
+        ids.add(surface.id)
+        if (!KINDS.has(surface.kind)) problems.push(`${where}: unknown kind ${surface.kind}`)
+        for (const field of ['entry', 'goal', 'primaryAction']) if (!surface[field]?.trim()) problems.push(`${where}: missing ${field}`)
+        if (!surface.roles?.length) problems.push(`${where}: needs at least one role`)
+        for (const role of surface.roles ?? []) if (!roles.has(role)) problems.push(`${where}: unknown role ${role}`)
+        if (!surface.states?.length) problems.push(`${where}: needs at least one state`)
+        for (const state of surface.states ?? []) if (!states.has(state)) problems.push(`${where}: unknown state ${state}`)
+        const unreachable = surface.states?.includes('unreachable')
+        if (unreachable !== Boolean(surface.unreachable?.trim())) problems.push(`${where}: an unreachable surface needs its reason, and only then`)
+        if (!unreachable && !surface.primitives?.length && !surface.nativeControl?.trim()) problems.push(`${where}: name the shared primitives it uses, or the reason it is a native control`)
+        if (surface.nativeControl !== undefined && surface.primitives?.length) problems.push(`${where}: a native control lists no shared primitives`)
+        for (const primitive of surface.primitives ?? []) if (!exported.has(primitive)) problems.push(`${where}: ${primitive} is not a shared component export`)
+        const reached = primitivesUsed(root, surface.sources ?? [])
+        for (const primitive of surface.primitives ?? []) if (exported.has(primitive) && !reached.has(primitive)) problems.push(`${where}: lists ${primitive} but its sources never use it`)
+        if (!surface.sources?.length) problems.push(`${where}: needs at least one source file`)
+        for (const source of surface.sources ?? []) {
+            covered.add(source)
+            if (!existsSync(path.join(root, source))) problems.push(`${where}: ${source} does not exist`)
+        }
+    }
+    const routes = listSources(root, ['app']).filter(file => !/(?:^|\/)_layout(?:\.web)?\.tsx$/.test(file))
+    const triggered = listSources(root, ['app', 'components', 'hooks', 'lib'])
+        .filter(file => !file.startsWith('components/ui/') && SURFACE_TRIGGER.test(readFileSync(path.join(root, file), 'utf8')))
+    for (const file of new Set([...routes, ...triggered])) if (!covered.has(file)) problems.push(`${file}: opens a screen, overlay, form, dialog or toast but no surface in ${INVENTORY} lists it`)
+    return problems
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
-    const violations = designSystemViolations()
+    const inventory = readInventory()
+    const violations = designSystemViolations(process.cwd(), inventory)
+    const coverage = inventoryViolations(process.cwd(), inventory)
     for (const item of violations) console.error(item.kind === 'type' ? `${item.file}:${item.line} ${item.value} is a raw type scale; use typeScale or textStyles` : `${item.file}:${item.line} ${item.property}: ${item.value} requires a shared token`)
-    if (violations.length) process.exitCode = 1
-    else console.log('Design system conformance passes for app/** and components/**')
+    for (const problem of coverage) console.error(problem)
+    if (violations.length || coverage.length) process.exitCode = 1
+    else console.log(`Design system conformance passes for app/** and components/**; ${inventory.surfaces.length} surfaces cover every route and overlay`)
 }
