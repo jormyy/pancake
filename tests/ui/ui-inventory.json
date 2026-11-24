@@ -753,9 +753,9 @@
         "Button"
       ],
       "states": [
-        "default",
-        "saving"
-      ]
+        "unreachable"
+      ],
+      "unreachable": "Opens only once a quick add has a player waiting, but every web add (Players list, player page and roster fixes) first runs the claim check in hooks/use-quick-add.ts and then opens the claim form, which has its own drop list."
     },
     {
       "id": "roster.trim-banner",
@@ -1085,8 +1085,9 @@
         "FeedbackProvider"
       ],
       "states": [
-        "default"
-      ]
+        "unreachable"
+      ],
+      "unreachable": "reportPickupError offers the Claim confirm only when given a claim callback, which only the drop picker add path passes; the claim form reports the same refusal as an alert."
     },
     {
       "id": "player.profile",
