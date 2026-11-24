@@ -20,7 +20,7 @@ const mocks = vi.hoisted(() => ({
     league: { id: 'league', roster_size: 20, ir_slots: 2, taxi_slots: 2 },
     refreshHome: vi.fn(async () => {}), refreshAnnouncements: vi.fn(async () => {}),
     setSelectedDate: vi.fn(), loadLineups: vi.fn(),
-    selectedDate: '2026-10-11', lineupError: false,
+    selectedDate: '2026-10-11', lineupError: false, matchupFailed: false,
     freshness: 'fresh',
     announcementsLoaded: true, announcementRead: vi.fn(),
     announcements: [] as { id: string; body: string; league_id: string; published_at: string; author_member_id: string | null }[],
@@ -43,7 +43,8 @@ vi.mock('@/hooks/use-matchup-data', () => ({ useMatchupData: () => ({
     announcements: { announcements: mocks.announcements, loaded: mocks.announcementsLoaded, refreshing: false, refresh: mocks.refreshAnnouncements },
     forecastState: { forecast: null, pending: false, error: false, stale: false },
     liveSnapshot: { todaysGames: mocks.games, freshness: mocks.freshness, liveStats: new Map(), startedTeams: new Set(), liveTeams: new Set(), teamMatchups: new Map() },
-    matchup: { myMemberId: 'member', seasonId: 'season', seasonYear: 2027, weekNumber: 1 },
+    matchup: mocks.matchupFailed ? null : { myMemberId: 'member', seasonId: 'season', seasonYear: 2027, weekNumber: 1 },
+    error: mocks.matchupFailed ? 'Failed to fetch' : null, matchupLoading: false,
     leagueMatchups: mocks.leagueMatchups, weekDays: [{ date: '2026-10-11' }, { date: '2026-10-12' }], selectedDate: mocks.selectedDate,
     myLineup: mocks.lineupError ? null : mocks.lineup, oppLineup: mocks.lineupError ? null : mocks.lineup, lineupError: mocks.lineupError,
     setSelectedDate: mocks.setSelectedDate, loadLineups: mocks.loadLineups, matchupRef: { current: { id: 'matchup' } },
@@ -75,6 +76,7 @@ beforeEach(() => {
     mocks.announcements = []
     mocks.selectedDate = '2026-10-11'
     mocks.lineupError = false
+    mocks.matchupFailed = false
     clearSessionCaches()
     mocks.freshness = 'fresh'
     mocks.games = []
@@ -345,4 +347,13 @@ it('does not ask Home matchup rows to show lineup pin tags', async () => {
     mocks.lineup.starters[0].player!.lineupPin = 'start'
     await mount()
     expect(rows('PG')[0].props.showLineupPins).toBeUndefined()
+})
+
+it('leaves the retry to the matchup error card when the matchup itself failed', async () => {
+    mocks.lineupError = true
+    mocks.matchupFailed = true
+    await mount(false)
+    expect(screen.root.findAllByType('ErrorBanner' as React.ElementType)).toHaveLength(0)
+    const card = screen.root.findAllByType('EmptyState' as React.ElementType).find(node => node.props.message === "Couldn't load your matchup")
+    expect(card?.props.actionLabel).toBe('Retry')
 })
