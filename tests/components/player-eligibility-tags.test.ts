@@ -13,6 +13,7 @@ import { clearSessionCaches, setSessionOwner } from '@/lib/session-cache-registr
 import { PlayerRowContent } from '@/components/player/PlayerRowContent'
 import type { TradeItem } from '@/lib/trades'
 import { AssetList, tradeFlowItem } from '@/components/trades/TradeCard'
+import { isTaxiEligible } from '@pancake/core'
 import { playerRow, rosterPlayer } from '../helpers/fixtures'
 vi.mock('@/components/trades/PendingTradeRosterPlan', () => ({ PendingTradeRosterPlan: () => null }))
 vi.mock('@/hooks/use-league-timezone', () => ({ useLeagueTimezone: () => 'America/Los_Angeles' }))
@@ -36,25 +37,28 @@ const render = async (child: React.ReactNode, slots = 2) => {
     return screen
 }
 
-it.each([[0, null, 2], [0, 65, 2], [2, 0, 2], [2, 64, 2], [0, 90, 0], [null, null, 2], [1, 65, 2]] as const)('keeps player rows free of status badges for experience %s and games %s with %s slots', async (years, games, slots) => {
+it.each([[0, null, 2], [0, 65, 2], [2, 0, 2], [2, 64, 2], [0, 90, 0], [null, null, 2], [1, 65, 2]] as const)('shows rookie and taxi tags on Players rows for experience %s and games %s with %s slots', async (years, games, slots) => {
     const screen = await render(React.createElement(PlayerSearchItem, {
         item: playerRow({ years_exp: years, career_regular_season_games: games }),
         currentMemberId: 'member', ownedMap: new Map(), waiverIds: new Set<string>(), isAdding: false, onAdd: () => {}, onPress: () => {},
     }), slots)
-    expect(screen.root.findByProps({ testID: 'player-meta-line' }).findAllByType(Badge)).toHaveLength(0)
+    const shown = screen.root.findByProps({ testID: 'player-meta-line' }).findAllByType(Badge).map(node => node.props.label)
+    expect(shown.includes('R')).toBe(years === 0)
+    expect(shown.includes(`T:${games ?? '—'}`)).toBe(slots > 0 && isTaxiEligible(years, games))
     await act(async () => screen.unmount())
 })
 
-it('shows no eligibility badges on the player page header, roster or trade rows', async () => {
+it('shows eligibility badges on roster rows but not on the player page header or trade rows', async () => {
     const source = rosterPlayer().players
-    const child = React.createElement(React.Fragment, null,
+    const quiet = await render(React.createElement(React.Fragment, null,
         React.createElement(PlayerHeader, { player: { ...source, years_exp: 0, career_regular_season_games: null, jersey_number: null, dynasty_rank: null, headshot_url: null }, rosterStatus: null, leagueActive: true }),
-        React.createElement(ReadOnlyRosterPlayerItem, { item: rosterPlayer({ players: { ...source, years_exp: 1, career_regular_season_games: 64 } }), onPress: () => {} }),
         React.createElement(AssetList, { items: [{ kind: 'player', playerId: 'trade', playerName: 'Trade', nbaTeam: 'BOS', position: 'PG', yearsExp: 0 }], label: 'Assets' }),
-    )
-    const screen = await render(child)
-    expect(labels(screen).filter(label => label.startsWith('T:') || label === 'R')).toHaveLength(0)
-    await act(async () => screen.unmount())
+    ))
+    expect(labels(quiet).filter(label => label.startsWith('T:') || label === 'R')).toHaveLength(0)
+    await act(async () => quiet.unmount())
+    const roster = await render(React.createElement(ReadOnlyRosterPlayerItem, { item: rosterPlayer({ players: { ...source, years_exp: 1, career_regular_season_games: 64 } }), onPress: () => {} }))
+    expect(labels(roster)).toContain('T:64')
+    await act(async () => roster.unmount())
 })
 
 it('shows team, roles, and jersey number on the second line, and injuries on the headshot', async () => {
@@ -115,16 +119,17 @@ it('keeps every desktop statistic inside the third player line', async () => {
     await act(async () => screen.unmount())
 })
 
-it.each([64, 65, null])('leaves taxi career counts off roster rows, the preview and the header: %s', async games => {
+it.each([64, 65, null])('shows taxi career counts on taxi roster rows but not the preview or the header: %s', async games => {
     const source = { ...rosterPlayer().players, years_exp: 2, career_regular_season_games: games }
-    const child = React.createElement(React.Fragment, null,
-        React.createElement(ReadOnlyRosterPlayerItem, { item: rosterPlayer({ is_on_taxi: true, players: source }), onPress: () => {} }),
+    const quiet = await render(React.createElement(React.Fragment, null,
         React.createElement(PlayerHeader, { player: { ...source, jersey_number: null, dynasty_rank: null, headshot_url: null }, rosterStatus: { status: 'mine', rosterPlayerId: 'roster', isOnTaxi: true }, leagueActive: true }),
         React.createElement(RosterPlayerSheet, { player: rosterPlayer({ is_on_taxi: true, players: source }), actions: [], onClose: () => {} }),
-    )
-    const screen = await render(child)
-    expect(labels(screen).filter(label => label.startsWith('T:'))).toHaveLength(0)
-    await act(async () => screen.unmount())
+    ))
+    expect(labels(quiet).filter(label => label.startsWith('T:'))).toHaveLength(0)
+    await act(async () => quiet.unmount())
+    const roster = await render(React.createElement(ReadOnlyRosterPlayerItem, { item: rosterPlayer({ is_on_taxi: true, players: source }), onPress: () => {} }))
+    expect(labels(roster).filter(label => label.startsWith('T:'))).toEqual([`T:${games ?? '—'}`])
+    await act(async () => roster.unmount())
 })
 
 it.each(['Day-To-Day', 'day-to-day', 'DTD', 'dtd', 'GTD', ' gtd ', 'Out', 'OUT', 'IR', 'ir'])('renders no badge for %s, which shows as a headshot tag', async status => {

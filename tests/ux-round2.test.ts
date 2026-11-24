@@ -81,10 +81,11 @@ it('calculates age at the birthday and omits unknown birthdates', () => {
     expect(playerAge('invalid')).toBeNull()
 })
 
-it('leaves age and experience off Players list rows', async () => {
+it('shows age and experience on Players list rows', async () => {
     const tree = await render(React.createElement(PlayerSearchItem, {
         item: playerRow({ age: 30, years_exp: 8 }), currentMemberId: 'member-a', ownedMap: new Map(),
         waiverIds: new Set<string>(), isAdding: false, onAdd: () => {}, onPress: () => {},
     }))
-    expect(tree.root.findByProps({ testID: 'player-meta-line' }).findAllByType(Badge)).toHaveLength(0)
+    const shown = tree.root.findByProps({ testID: 'player-meta-line' }).findAllByType(Badge).map(node => node.props.label)
+    expect(shown).toEqual(expect.arrayContaining(['30', 'Yr 9']))
 })
