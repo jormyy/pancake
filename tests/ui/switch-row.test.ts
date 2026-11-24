@@ -11,7 +11,7 @@ it('makes the whole row one labelled switch at least a touch target tall that to
     const { SwitchRow } = await import('@/components/ui/SwitchRow')
     const onValueChange = vi.fn()
     let screen!: ReturnType<typeof create>
-    await act(async () => { screen = create(React.createElement(SwitchRow, { accessibilityLabel: 'Receive this auction player into taxi', value: true, onValueChange }, 'Receive this auction player into taxi')) })
+    await act(async () => { screen = create(React.createElement(SwitchRow as React.ComponentType<Omit<React.ComponentProps<typeof SwitchRow>, 'children'>>, { accessibilityLabel: 'Receive this auction player into taxi', value: true, onValueChange }, 'Receive this auction player into taxi')) })
     const row = screen.root.findByType('MotionPressable' as never)
     expect(row.props).toMatchObject({ accessibilityRole: 'switch', 'aria-checked': true, accessibilityLabel: 'Receive this auction player into taxi' })
     expect(StyleSheet.flatten(row.props.style).minHeight).toBeGreaterThanOrEqual(controlSize.minTouch)
