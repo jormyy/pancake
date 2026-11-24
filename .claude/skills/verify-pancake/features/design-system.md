@@ -41,3 +41,19 @@ Preconditions:
 - Mobile WebKit does not support mouse wheel scrolling; scroll with element scrolling or touch.
 - Lineup pins open a sheet below 560px, so the lineup journey has one more tap on phones than on desktop.
 - **Offline.** With the browser offline, Lineup shows "Offline · showing saved data" and disables its pins, so no write queues. The pending-action note and its Retry button are covered by tests/loading/offline-mutation-notice.test.ts.
+
+## Every inventoried state
+
+Drive each `states` entry in `tests/ui/ui-inventory.json` for every role it lists, in all four modes, with real taps and a database readback when something saves.
+
+- **Roles.** Users 0 and 1 are commissioner and manager. For signed out and no league, sign up fresh `example.test` accounts through the visible form; create a league with one and join it by invite code with the other, then start the draft from the League tab. Their empty screens are the new-league empty states.
+- **Loading and error.** Hold or fail the screen's own request in the browser. Profile data comes from `api/views/profile`. Clear the saved screen caches in localStorage first, or the cached view hides the state. Block service workers in these contexts so requests can be routed.
+- **Saving.** Hold the write until the busy state shows; the shared Button sets `aria-busy` and `aria-disabled` while loading. Release it with a refusal unless the scenario reads the saved value back.
+- **Boot loading.** WebKit screenshots hang while deferred scripts are held, so photograph a scripts-off copy of the page and only check paint and ready state in the held page.
+- **Update notice.** Allow service workers, keep an unsaved edit open, swap the release id in the served files, and fire `online`. Restore the served files afterwards.
+- **Route error.** A malformed view body makes React throw; an aborted route file shows the reload screen. The saved screen cache keeps malformed data across Try again and reload.
+- **Rare data.** Live games, week off, deadline passed, over the limit, healthy player on IR, full roster and illegal trade plans need disposable rows on the run's database. Apply one phase at a time and restore it before the next; compare the fixture fingerprint before and after.
+- **Pickups.** The fixture has no players on waivers. Insert a `waiver_wire_log` row to reach "Still on waivers", and fill the roster to 20 to reach the drop picker. Delete the row afterwards.
+- **Accepting a trade** with a full roster needs a roster plan, and players in a pending trade are locked.
+- **History tab.** The League section strip scrolls sideways at phone width; History is past the edge until the strip is panned.
+- **Inapplicable.** The native season picker is not in the web bundle; `/dynasty` and `/bracket` only redirect, so check where they land.
