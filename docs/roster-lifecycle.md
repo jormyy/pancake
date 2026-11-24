@@ -23,7 +23,10 @@ Past-season removals do not clear current live state.
 Roster moves never change past dates, completed slates, or locked slots.
 Only future slots with unstarted games can clear.
 A saved lineup receipt keeps its row when a player changes NBA teams, so a missing box score cannot unlock it.
-`private.lineup_game_started` owns the lock predicate for every path.
+`private.player_game_started` owns the game-started rule, and `private.player_slate_games` owns which games a player is in.
+`private.lineup_game_started` adds lineup history receipts. `private.roster_status_game_started` adds yesterday's late games.
+The `b_game_lock_roster_status` trigger rejects any same-team IR or taxi change for a started game.
+The client reads `roster_players.locked_until_slate_end`. Lint rejects client code that decides game locks from `nba_games`.
 
 ## Lineups and Auto Lineup
 

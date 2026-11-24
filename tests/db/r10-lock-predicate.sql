@@ -31,7 +31,7 @@ BEGIN
   PERFORM pg_sleep(2.2);
   v_b := private.roster_status_game_started(v_p);
   PERFORM pg_temp.check_rules(NOT v_b, 'A: the dormant-policy predicate stays false after the tipoff');
-  v_b := private.roster_status_game_started_live(v_p);
+  v_b := private.roster_status_game_started(v_p, clock_timestamp());
   PERFORM pg_temp.check_rules(v_b, 'A: the live predicate sees the crossed tipoff');
   PERFORM private.toggle_ir_for_activation(v_roster, true, f.user_ids[1], NULL);
   SELECT is_on_ir INTO v_b FROM public.roster_players WHERE id = v_roster;

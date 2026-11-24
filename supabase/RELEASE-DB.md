@@ -53,8 +53,11 @@ It adds `private.assert_lineup_day_open` and redefines the three lineup RPCs in 
 It routes the injury, projection, forecast, and visible-totals reads through `private.lineup_game_available`, so postponed, cancelled, and suspended games stop counting. It is safe before or after any Edge or frontend release.
 `20261223130000_single_pick_allocator.sql` follows it, for 809 migrations.
 It makes `private.reconcile_future_picks` the only pick writer, adds the year converters, and redefines the pick RPCs in place with the same signatures and year bounds. It needs no Edge or frontend release.
+`20261223140000_one_player_game_lock.sql` follows it, for 810 migrations.
+It moves every game-started check onto `private.player_game_started`, adds the `b_game_lock_roster_status` trigger on `roster_players`, and adds the `roster_players.locked_until_slate_end` field that the IR and taxi pre-checks read.
+A frontend that ships first shows an error on every IR and taxi change, because the field does not exist yet.
+The migration changes no lock result: the trigger rejects only a same-team IR or taxi change that the existing RPC checks already reject.
 Database, then Edge, then merge the frontend.
-The frontend needs no release.
 
 1. **Migrations.** Apply all five through the guarded dry run and push. They change no roster, lineup, dispatch, or notice. `floor_activated_at` and `ir_activated_at` stay NULL, so the floor defers and the league-wide Auto IR admission stays off. The shared `pre-tipoff` fingerprint keeps its old body, so applying the migrations reopens no open window. After activation, the official league and the other leagues never reopen each other's completed windows.
 2. **`lineup-optimizer`.** Deploy the release build (successor of v61) and verify it. With both latches NULL it does nothing new.

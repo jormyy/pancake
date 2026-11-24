@@ -74,6 +74,6 @@ AS $$
             AND draft.status = 'completed'
        )
      )
-     AND NOT private.roster_status_game_started_live(player.id)
+     AND NOT private.roster_status_game_started(player.id, clock_timestamp())
    ORDER BY average.avg_fantasy_points DESC, player.id ASC
 $$;

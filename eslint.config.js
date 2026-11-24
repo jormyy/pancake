@@ -10,6 +10,7 @@ const easternDay = require('./eslint/rules/eastern-day')
 const pagedReads = require('./eslint/rules/paged-reads')
 const pickYears = require('./eslint/rules/pick-years')
 const gamePhase = require('./eslint/rules/game-phase')
+const noClientGameLock = require('./eslint/rules/no-client-game-lock')
 
 const edgeShared = 'supabase/functions/_shared'
 const generatedEdgeShared = fs.readdirSync(path.join(__dirname, edgeShared))
@@ -53,6 +54,7 @@ const pancake = {
         'paged-reads': pagedReads,
         'pick-years': pickYears,
         'game-phase': gamePhase,
+        'no-client-game-lock': noClientGameLock,
     },
 }
 
@@ -115,6 +117,12 @@ module.exports = defineConfig([
         files: ['app/**/*.{ts,tsx}', 'components/**/*.{ts,tsx}', 'hooks/**/*.{ts,tsx}', 'contexts/**/*.{ts,tsx}'],
         plugins: { pancake },
         rules: { 'pancake/scoped-resource': 'error' },
+    },
+    {
+        files: ['app/**/*.{ts,tsx}', 'hooks/**/*.{ts,tsx}', 'lib/**/*.{ts,tsx}', 'supabase/functions/api/**/*.ts'],
+        ignores: ['lib/live-score-view.ts', 'hooks/use-public-live-snapshot.ts', 'hooks/use-live-view-recovery.ts', 'supabase/functions/api/games.ts'],
+        plugins: { pancake },
+        rules: { 'pancake/no-client-game-lock': 'error' },
     },
     {
         files: ['app/**/*.{ts,tsx}', 'components/**/*.{ts,tsx}', 'hooks/**/*.{ts,tsx}', 'contexts/**/*.{ts,tsx}', 'lib/**/*.{ts,tsx}'],
