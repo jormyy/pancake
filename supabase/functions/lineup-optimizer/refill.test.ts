@@ -1,6 +1,6 @@
 Deno.env.set('SUPABASE_URL', 'http://127.0.0.1:9')
 Deno.env.set('PANCAKE_SUPABASE_SECRET_KEY', 'sb_secret_test')
-const { processRosterRefills } = await import('./refill.ts')
+const { processRosterRefill } = await import('./refill.ts')
 type RefillRequest = import('./refill.ts').RefillRequest
 
 const assert = (condition: boolean, message: string) => { if (!condition) throw new Error(message) }
@@ -21,36 +21,36 @@ async function withQueue<T>(queue: RefillRequest[], run: (completed: { p_member_
   try { return await run(completed) } finally { globalThis.fetch = original }
 }
 
-Deno.test('refill re-picks every requested team once and completes each request with its own time', async () => {
+Deno.test('one run refills exactly one waiting team and completes it with its claimed time', async () => {
   const refilled: string[] = []
-  await withQueue([request('a'), request('bb')], async (completed) => {
-    const outcome = await processRosterRefills(async (r) => { refilled.push(r.member_id); return 0 })
-    assert(JSON.stringify(refilled) === '["a","bb"]', 'Each team was not refilled exactly once.')
-    assert(JSON.stringify(completed) === JSON.stringify([
-      { p_member_id: 'a', p_requested_at: request('a').requested_at },
-      { p_member_id: 'bb', p_requested_at: request('bb').requested_at },
-    ]), 'Requests were not completed with the time they were claimed at.')
-    assert(outcome.refilled === 2 && outcome.failed === 0, 'The outcome miscounts refills.')
+  const queue = [request('a'), request('bb')]
+  await withQueue(queue, async (completed) => {
+    const outcome = await processRosterRefill(async (r) => { refilled.push(r.member_id); return 0 })
+    assert(JSON.stringify(refilled) === '["a"]', 'A run refilled more or fewer than one team.')
+    assert(JSON.stringify(completed) === JSON.stringify([{ p_member_id: 'a', p_requested_at: request('a').requested_at }]),
+      'The team was not completed with the time it was claimed at.')
+    assert(queue.length === 1, 'The run claimed a second team.')
+    assert(outcome.refilled === 1 && outcome.failed === 0, 'The outcome miscounts refills.')
   })
 })
 
-Deno.test('a failed refill is reported and does not block the next team', async () => {
-  await withQueue([request('a'), request('bb'), request('ccc')], async (completed) => {
-    const outcome = await processRosterRefills(async (r) => {
-      if (r.member_id === 'a') throw new Error('league is not active')
-      return r.member_id === 'bb' ? 2 : 0
+Deno.test('a failed refill is reported and still completed so the queue moves on', async () => {
+  for (const [refill, reason] of [
+    [async () => { throw new Error('league is not active') }, 'league is not active'],
+    [async () => 2, '2 date(s)'],
+  ] as const) {
+    await withQueue([request('a')], async (completed) => {
+      const outcome = await processRosterRefill(refill)
+      assert(completed.length === 1, 'A failed team stayed claimed.')
+      assert(outcome.failed === 1 && outcome.refilled === 0, 'The failure was not counted.')
+      assert(outcome.errors.some(e => e.includes(reason)), 'The failure reason was lost.')
     })
-    assert(completed.length === 3, 'A failed team stayed queued or stopped the run.')
-    assert(outcome.refilled === 1 && outcome.failed === 2, 'Failures were not counted.')
-    assert(outcome.errors.some(e => e.includes('league is not active')) && outcome.errors.some(e => e.includes('2 date(s)')),
-      'Failure reasons were lost.')
-  })
+  }
 })
 
-Deno.test('refill stops claiming once its time budget is spent', async () => {
-  let clock = 0
-  await withQueue([request('a'), request('bb')], async (completed) => {
-    const outcome = await processRosterRefills(async () => { clock += 120_000; return 0 }, () => clock)
-    assert(completed.length === 1 && outcome.refilled === 1, 'The run claimed work after its budget ran out.')
+Deno.test('an empty queue does nothing', async () => {
+  await withQueue([], async (completed) => {
+    const outcome = await processRosterRefill(async () => { throw new Error('should not run') })
+    assert(completed.length === 0 && outcome.refilled === 0 && outcome.failed === 0, 'An empty queue did work.')
   })
 })

@@ -1,6 +1,6 @@
 import { processDaily } from './daily.ts'
 import { processPreTipoff } from './preTipoff.ts'
-import { processRosterRefills } from './refill.ts'
+import { processRosterRefill } from './refill.ts'
 import { serveInternal } from '../_shared/serve.ts'
 import { recordSyncRun } from '../_shared/syncRuns.ts'
 import { parseManualDateFilter } from './manual.ts'
@@ -24,7 +24,7 @@ serveInternal('lineup-optimizer', async (req) => {
   }
   if (body.mode === 'roster_refill') {
     const result = await recordSyncRun('lineup-optimizer', async () => {
-      const outcome = await processRosterRefills()
+      const outcome = await processRosterRefill()
       return { result: outcome, rowsAffected: outcome.refilled, failure: outcome.failed ? outcome.errors.join('\n') : null }
     }, req)
     return Response.json({ ok: result.failed === 0, ...result })
