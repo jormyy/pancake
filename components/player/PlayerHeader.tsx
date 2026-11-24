@@ -7,7 +7,7 @@ import { View, Text, StyleSheet } from 'react-native'
 import type { ReactNode } from 'react'
 import type { PlayerRosterStatus } from '@/lib/roster'
 import { blockedActionProps } from '@/lib/a11y'
-import { colors, componentTokens, controlSize, radii, spacing, textStyles, typeScale } from '@/constants/tokens'
+import { borderWidth, colors, componentTokens, controlSize, fontWeight, radii, spacing, textStyles, typeScale } from '@/constants/tokens'
 import { playerAgeDecimal } from '@/lib/player-context'
 import { PlayerAvatar } from './PlayerAvatar'
 import { getEligiblePositions } from '@/lib/players'
@@ -48,10 +48,11 @@ type Props = {
     dropDisabled?: boolean
     onDrop?: () => void
     compact?: boolean
+    detail?: ReactNode
 }
 
 export function PlayerHeader({ locks = [], player, rosterStatus, ownTeamName, action, backControl,
-    leagueActive, actionsReady = true, dropDisabled = false, onDrop, compact = false }: Props) {
+    leagueActive, actionsReady = true, dropDisabled = false, onDrop, compact = false, detail }: Props) {
     const headshotSize = compact ? controlSize.avatar.md : controlSize.avatar.lg
     const eligiblePositions = getEligiblePositions(player)
     const age = playerAgeDecimal(player.birthdate)
@@ -64,6 +65,9 @@ export function PlayerHeader({ locks = [], player, rosterStatus, ownTeamName, ac
         : rosterStatus?.status === 'on_waivers' ? 'On waivers'
         : rosterStatus?.status === 'mine' ? ownTeamName ?? 'On your roster'
         : rosterStatus?.status === 'taken' ? rosterStatus.ownerTeamName : ' '
+    const statusTone = rosterStatus?.status === 'free_agent' ? colors.success
+        : rosterStatus?.status === 'on_waivers' ? colors.warningDark
+        : rosterStatus?.status === 'mine' ? colors.primaryDark : colors.textSecondary
     const showDrop = rosterStatus?.status === 'mine' && onDrop != null
     const busy = action?.busy || (!rosterStatus && leagueActive) || !actionsReady
     return (
@@ -75,9 +79,23 @@ export function PlayerHeader({ locks = [], player, rosterStatus, ownTeamName, ac
                     <InjuryTag status={player.injury_status} avatarSize={headshotSize} />
                 </View>
                 <Text style={[styles.name, compact && styles.nameCompact]} accessibilityLabel={player.display_name}>{player.display_name}</Text>
+            </View>
+            <View style={styles.metaRow} testID="player-position-line">
+                <PlayerDetailsLine team={player.nba_team} positions={eligiblePositions} jersey={player.jersey_number} />
+            </View>
+            <View style={styles.summaryRow} testID="player-summary-line">
+                {summary ? <Text style={styles.summary} numberOfLines={1}>{summary}</Text> : null}
+                <LockedAssetNotice locks={locks} />
+            </View>
+            {leagueActive ? (
+                <View style={styles.decision} testID="player-decision-bar">
+                    <View style={styles.decisionCopy}>
+                        <Text style={[styles.availability, { color: statusTone }]} numberOfLines={1} testID="player-availability">{statusLabel}</Text>
+                        {detail}
+                    </View>
                 <View style={styles.actionWrap} aria-busy={busy} accessibilityState={{ busy }} testID="player-action-slot">
                     {action ? (
-                        <Button size="inline" title={action.label}
+                        <Button size="sm" title={action.label}
                             variant={action.blockedReason ? 'secondary' : 'primary'}
                             labelStyle={action.blockedReason ? { color: colors.textPlaceholder } : undefined}
                             onPress={action.onPress} disabled={action.disabled || action.busy}
@@ -86,20 +104,13 @@ export function PlayerHeader({ locks = [], player, rosterStatus, ownTeamName, ac
                     ) : <View style={styles.placeholder} accessibilityLabel={busy ? 'Loading player action' : 'No player action'} />}
                     {showDrop ? (
                         <LockedActionExplanation locks={locks} label={`Drop ${player.display_name}`} busy={Boolean(action?.busy || dropDisabled || !actionsReady)}>
-                        <Button size="inline" title="Drop" variant="outline" onPress={onDrop}
+                        <Button size="sm" title="Drop" variant="outline" onPress={onDrop}
                             disabled={action?.busy || dropDisabled || !actionsReady || locks.length > 0}
                             accessibilityLabel={`Drop ${player.display_name}`} /></LockedActionExplanation>
                     ) : null}
                 </View>
-            </View>
-            <View style={styles.metaRow} testID="player-position-line">
-                <PlayerDetailsLine team={player.nba_team} positions={eligiblePositions} jersey={player.jersey_number} />
-            </View>
-            <View style={styles.summaryRow} testID="player-summary-line">
-                {summary ? <Text style={styles.summary} numberOfLines={1}>{summary}</Text> : null}
-                <LockedAssetNotice locks={locks} />
-                {leagueActive ? <Text style={styles.rosterStatus} numberOfLines={1}>{statusLabel}</Text> : null}
-            </View>
+                </View>
+            ) : detail}
         </View>
     )
 }
@@ -113,7 +124,9 @@ const styles = StyleSheet.create({
     metaRow: { flexDirection: 'row', flexWrap: 'nowrap', alignItems: 'center', gap: spacing.xs, minHeight: textStyles.body.lineHeight },
     summary: { ...componentTokens.playerRow.metadata, color: colors.textSecondary, flexShrink: 1, minWidth: 0 },
     summaryRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.xs, minHeight: textStyles.body.lineHeight },
-    rosterStatus: { ...textStyles.meta, ...typeScale.caption, maxWidth: spacing['6xl'] * 2 + spacing.xl, flexShrink: 1, backgroundColor: colors.bgMuted, borderRadius: radii.sm, paddingHorizontal: spacing.xs },
-    actionWrap: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, width: controlSize.minTouch * 2 + spacing['3xl'], minWidth: controlSize.minTouch * 2 + spacing['3xl'], minHeight: controlSize.minTouch, flexShrink: 0, justifyContent: 'flex-end' },
-    placeholder: { height: controlSize.button.inline.height, width: controlSize.minTouch, backgroundColor: colors.bgMuted, borderRadius: radii.md },
+    decision: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md, backgroundColor: colors.bgCard, borderWidth: borderWidth.thin, borderColor: colors.borderLight, borderRadius: radii.lg, borderCurve: 'continuous' },
+    decisionCopy: { flex: 1, minWidth: 0, gap: spacing.xxs },
+    availability: { ...typeScale.row, fontWeight: fontWeight.bold },
+    actionWrap: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minWidth: controlSize.minTouch * 2, minHeight: controlSize.minTouch, flexShrink: 0, justifyContent: 'flex-end' },
+    placeholder: { height: controlSize.button.sm.height, width: controlSize.minTouch * 2, backgroundColor: colors.bgMuted, borderRadius: radii.md },
 })
