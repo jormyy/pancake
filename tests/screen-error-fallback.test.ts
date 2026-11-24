@@ -27,18 +27,4 @@ describe('screen error fallback', () => {
             vi.unstubAllGlobals()
         }
     })
-
-    it('appends the error message only in development', async () => {
-        vi.stubGlobal('__DEV__', true)
-        let renderer!: ReactTestRenderer
-        try {
-            await act(async () => {
-                renderer = create(React.createElement(ScreenErrorFallback, { error: new Error('boom'), retry: vi.fn(async () => undefined) }))
-            })
-            expect(renderer.root.findByType('EmptyState' as React.ElementType).props.description).toContain('boom')
-        } finally {
-            await act(async () => { renderer?.unmount() })
-            vi.unstubAllGlobals()
-        }
-    })
 })

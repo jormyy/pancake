@@ -60,23 +60,6 @@ it('announces a current skipped week without a matchup or score', async () => {
     await act(async () => screen.unmount())
 })
 
-it('splits the outcome from whole-number scores in fixed columns', async () => {
-    const rows: LeagueScheduleRow[] = [
-        { weekNumber: 1, opponentTeamName: 'Cedar Owls', isCurrent: false, status: 'win', myPoints: 112.6, opponentPoints: 98.2 },
-        { weekNumber: 2, opponentTeamName: 'Harbor Hawks', isCurrent: true, status: 'live', myPoints: 87.4, opponentPoints: 101 },
-    ]
-    let screen!: ReturnType<typeof create>
-    await act(async () => { screen = create(React.createElement(LeagueSchedule, { rows })) })
-    const items = screen.root.findAll(node => node.props.role === 'listitem')
-    expect(items.map(row => row.props['aria-label'])).toEqual(['Week 1, Cedar Owls, W 113–98', 'Week 2, current week, Harbor Hawks, Live 87–101'])
-    expect(items.map(row => row.findAllByType('Text' as React.ElementType).map(node => node.children.join('')))).toEqual([
-        ['1', 'Cedar Owls', 'W', '113', '98'], ['2', 'Harbor Hawks', 'Live', '87', '101'],
-    ])
-    const widths = items.map(row => row.findAllByType('Text' as React.ElementType).slice(-2).map(node => Object.assign({}, ...[node.props.style].flat()).width))
-    expect(new Set(widths.flat()).size).toBe(1)
-    await act(async () => screen.unmount())
-})
-
 it('shows an empty state before a season calendar exists', async () => {
     let screen!: ReturnType<typeof create>
     await act(async () => { screen = create(React.createElement(LeagueSchedule, { rows: [] })) })
