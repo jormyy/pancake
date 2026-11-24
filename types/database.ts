@@ -6092,6 +6092,15 @@ export type Database = {
         }
         Returns: boolean
       }
+      claim_lineup_refills: {
+        Args: { p_limit?: number }
+        Returns: {
+          league_id: string
+          league_season_id: string
+          member_id: string
+          requested_at: string
+        }[]
+      }
       claim_lineup_tipoff_dispatch: {
         Args: { p_scope?: string; p_tipoff_at: string; p_token: string }
         Returns: string
@@ -6194,6 +6203,10 @@ export type Database = {
       }
       complete_accepted_trade_atomic: {
         Args: { p_trade_id: string }
+        Returns: undefined
+      }
+      complete_lineup_refill: {
+        Args: { p_member_id: string; p_requested_at: string }
         Returns: undefined
       }
       complete_matchup_forecast: {

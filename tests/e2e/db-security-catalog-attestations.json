@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261223140000",
+  "candidateVersion": "20261224000000",
   "common": {
     "functions": [
       {
@@ -1119,6 +1119,13 @@
           "enabled": "O",
           "definition": "CREATE TRIGGER work_lease_fence BEFORE INSERT OR DELETE OR UPDATE ON public.roster_players FOR EACH STATEMENT EXECUTE FUNCTION private.work_enforce_lease()",
           "functionName": "work_enforce_lease",
+          "functionSchema": "private"
+        },
+        {
+          "name": "z_request_lineup_refill",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER z_request_lineup_refill AFTER INSERT OR DELETE OR UPDATE OF member_id, league_season_id, is_on_ir, is_on_taxi ON public.roster_players FOR EACH ROW EXECUTE FUNCTION private.roster_change_requests_lineup_refill()",
+          "functionName": "roster_change_requests_lineup_refill",
           "functionSchema": "private"
         }
       ],
@@ -2828,6 +2835,10 @@
     {
       "filename": "20261223140000_one_player_game_lock.sql",
       "sha256": "1aec167944383b4835399d2cdfb32e0fba973a1f86274edaab40e4de641405fe"
+    },
+    {
+      "filename": "20261224000000_lineup_refill_after_roster_change.sql",
+      "sha256": "ebdae4e8406fba471bd219c6ed2a7cf75b896d2c0bee7f4561c9a09beb8cb812"
     }
   ],
   "preMigration": {

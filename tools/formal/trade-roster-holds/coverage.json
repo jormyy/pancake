@@ -62,7 +62,7 @@
   ],
   "migrations": {
     "dir": "supabase/migrations",
-    "through": "20261223140000_one_player_game_lock.sql",
-    "sha256": "3b599cf12e17269a2c5c9a035e50aa342562ae19a9243491c43f53cd561d00a0"
+    "through": "20261224000000_lineup_refill_after_roster_change.sql",
+    "sha256": "d3c1ee536b3834159942aece3cf33b0cde9b7ed376e57228baaffdf34e70221a"
   }
 }
