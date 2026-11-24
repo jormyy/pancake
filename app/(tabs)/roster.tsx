@@ -47,8 +47,6 @@ import { getRosterStatusChangeLockMessage } from '@/lib/roster-locks'
 import { ClaimsPill } from '@/components/roster/ClaimsPill'
 import { RosterTrimBanner } from '@/components/roster/RosterTrimBanner'
 import { activeRosterOverflow, createRosterRecoveryRunner } from '@/lib/roster-overflow'
-import { AutoSetToggle } from '@/components/roster/AutoSetToggle'
-import { useLineupOptimizerSetting } from '@/hooks/use-lineup-optimizer-setting'
 import { ActivationOverflowModal } from '@/components/ActivationOverflowModal'
 
 
@@ -268,9 +266,6 @@ export default function RosterScreen() {
     const rosterView = useScreenView<RosterView>(user?.id && current?.id && leagueId
         ? screenScope('roster', leagueId, current.id, {}, user.id) : null)
     const refreshRosterView = rosterView.refresh
-    const seasonId = rosterView.data?.context?.seasonId ?? null
-    const optimizerScope = useMemo(() => current?.id && leagueId && seasonId ? { memberId: current.id, leagueId, seasonId } : null, [current?.id, leagueId, seasonId])
-    const autoLineup = useLineupOptimizerSetting(optimizerScope)
     const data = useMemo(() => rosterView.data ? rosterViewData(rosterView.data) : null, [rosterView.data])
     const { loading, refreshing, error } = rosterView
     const refresh = useCallback(async () => { await refreshRosterView(true) }, [refreshRosterView])
@@ -815,29 +810,22 @@ export default function RosterScreen() {
                         <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={[styles.summaryText, { minHeight: textStyles.meta.lineHeight, opacity: !data ? 0 : 1 }]} aria-busy={!data} accessibilityState={{ busy: !data }}>
                             {data ? `${active.length}/${limits?.rosterSize ?? '—'} active · ${ir.length}/${limits?.irSlots ?? '—'} IR · ${taxi.length}/${limits?.taxiSlots ?? '—'} taxi` : ''}
                         </Text>
-                    </View>
-                )}
-                actions={(
-                    <View style={styles.headerActions}>
-                    <ClaimsPill count={pendingClaimCount} />
+                        <View style={styles.headerActions}>
+                            {roster.length > 0 ? (
+                                <Button
+                                    size="inline"
+                                    variant="outline"
+                                    style={{ minHeight: controlSize.minTouch }}
+                                    title="Edit lineup"
+                                    onPress={() => push('/(modals)/lineup')}
+                                    accessibilityLabel="Edit lineup and pins"
+                                />
+                            ) : null}
+                            <ClaimsPill count={pendingClaimCount} />
+                        </View>
                     </View>
                 )}
             />
-
-            {/* Lineup controls get their own row so the roster counts never truncate beside them. */}
-            {roster.length > 0 ? (
-                <View style={[styles.lineupControls, { paddingHorizontal: padX }]}>
-                    <Button
-                        size="inline"
-                        variant="outline"
-                        style={{ minHeight: controlSize.minTouch }}
-                        title="Edit lineup"
-                        onPress={() => push('/(modals)/lineup')}
-                        accessibilityLabel="Edit lineup and pins"
-                    />
-                    <AutoSetToggle enabled={autoLineup.enabled} disabled={!optimizerScope || autoLineup.saving || !online} onChange={(enabled) => { void autoLineup.setAutomatic(enabled) }} />
-                </View>
-            ) : null}
 
             {error ? (
                 <ErrorBanner message="Failed to load roster. Tap to retry." onRetry={refresh} />
@@ -928,9 +916,8 @@ const styles = StyleSheet.create({
         gap: spacing.md,
         paddingVertical: spacing.sm,
     },
-    summaryText: { ...textStyles.meta, fontWeight: fontWeight.semibold, fontVariant: ['tabular-nums'] as const },
-    headerActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-    lineupControls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },
+    summaryText: { ...textStyles.meta, flexShrink: 1, fontWeight: fontWeight.semibold, fontVariant: ['tabular-nums'] as const },
+    headerActions: { flexGrow: 1, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'flex-end', gap: spacing.sm },
 
 
     body: { flex: 1, minHeight: 0 },

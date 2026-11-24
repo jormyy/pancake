@@ -50,7 +50,6 @@ vi.mock('@/lib/shared/season', () => ({ getActiveSeasonId: async () => 'season' 
 vi.mock('@/lib/league', () => ({ isTradingClosed: () => false, getMemberTransactionState: async () => memberTransactionState({ faabBalance: 100, weeklyAddLimit: 2, weeklyAddCount: 0 }) }))
 vi.mock('@/lib/format', () => ({ countLabel: String, formatAvgPoints: String, formatPoints: String, formatStat: String, playerHeadshotUrl: () => null }))
 vi.mock('@/components/ui', async () => ({ Page: 'Page', PageHeader: 'PageHeader', Button: (await import('@/components/ui/Button')).Button, Card: (await import('@/components/ui/Card')).Card, usePageMetrics: () => ({ padX: 16, usableWidth: mocks.width }) }))
-vi.mock('@/components/roster/AutoSetToggle', () => ({ AutoSetToggle: 'AutoSetToggle' }))
 vi.mock('@/components/EmptyState', () => ({ EmptyState: 'EmptyState' }))
 vi.mock('@/components/NoLeagueState', () => ({ NoLeagueState: 'NoLeagueState' }))
 vi.mock('@/components/roster/RosterItems', async importOriginal => {
@@ -104,7 +103,7 @@ it.each([358, 1600])('keeps claims in the pill and out of the roster at width %s
     expect(mocks.roster).not.toHaveBeenCalled()
     expect(mocks.claims).not.toHaveBeenCalled()
     expect(screen.root.findAllByType(RosterClaimItem)).toHaveLength(0)
-    const actions = screen.root.findByType('PageHeader' as React.ElementType).props.actions
+    const actions = React.Children.toArray(screen.root.findByType('PageHeader' as React.ElementType).props.tabs.props.children)[1] as React.ReactElement<{ children: React.ReactNode }>
     const pill = React.Children.toArray(actions.props.children).find(child => React.isValidElement(child) && child.type === ClaimsPill) as React.ReactElement<{ count: number }>
     expect(pill.props.count).toBe(1)
 })
