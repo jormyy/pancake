@@ -100,7 +100,8 @@ export function Button({
             accessibilityRole="button"
             accessibilityLabel={accessibilityLabel ?? title}
             accessibilityHint={accessibilityHint}
-            accessibilityState={{ ...accessibilityState, disabled: isDisabled || accessibilityState?.disabled === true }}
+            accessibilityState={{ ...accessibilityState, disabled: isDisabled || accessibilityState?.disabled === true, busy: loading || accessibilityState?.busy === true }}
+            aria-busy={loading || accessibilityState?.busy === true}
             style={state => [inline ? [styles.inlineTarget, state.pressed && !isDisabled && styles.pressed] : surfaceStyle(state), fullWidth && styles.fullWidth, style]}
         >
             {inline ? <View pointerEvents="none" style={surfaceStyle({})}>{content}</View> : content}
