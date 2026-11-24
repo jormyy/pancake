@@ -1,4 +1,5 @@
 export { Button } from './Button'
+export { SwitchRow } from './SwitchRow'
 export { Card } from './Card'
 export { Input } from './Input'
 export { SegmentedControl } from './SegmentedControl'

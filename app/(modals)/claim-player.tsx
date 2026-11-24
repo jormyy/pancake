@@ -19,7 +19,6 @@ import {
     Pressable,
     StyleSheet,
     TextInput,
-    Switch,
     ScrollView,
     Platform,
     useWindowDimensions,
@@ -44,6 +43,7 @@ import { useRosterHoldCheck } from '@/hooks/use-roster-hold-check'
 import { RosterHoldWarning } from '@/components/roster/RosterHoldWarning'
 import { colors, controlSize, fontFamily, fontWeight, layout, radii, spacing, table, textStyles, uiColors, typeScale } from '@/constants/tokens'
 import { LoadingState, PageHeader, usePageMetrics } from '@/components/ui'
+import { SwitchRow } from '@/components/ui/SwitchRow'
 import { Card } from '@/components/ui/Card'
 import { SectionBand } from '@/components/ui/SectionBand'
 import { showAlert, showSuccess } from '@/lib/alert'
@@ -395,22 +395,21 @@ export default function ClaimPlayerScreen() {
     function renderIRChoice() {
         return <>
         {irEligible ? (
-            <View style={styles.irChoice}>
+            <SwitchRow accessibilityLabel="Place on IR" value={toIr} disabled={submitting}
+                onValueChange={value => { setIRChoice({ owner: ownerKey, value }); if (value) { setTaxiChoice({ owner: ownerKey, value: false }); if (selectedDrop && rosterLocation(selectedDrop) === 'active') setSelectedDrop(null) } }}>
                 <View style={styles.claimPlayerCopy}>
                     <Text style={styles.bidLabel}>Place on IR</Text>
                     <Text style={styles.claimMeta}>{inactiveDrop ? 'The claim fails if IR becomes unavailable or the pickup loses eligibility.' : 'Needs active roster space if IR becomes unavailable.'}</Text>
                 </View>
-                <Switch value={toIr} onValueChange={value => { setIRChoice({ owner: ownerKey, value }); if (value) { setTaxiChoice({ owner: ownerKey, value: false }); if (selectedDrop && rosterLocation(selectedDrop) === 'active') setSelectedDrop(null) } }}
-                    accessibilityLabel="Place on IR" disabled={submitting} />
-            </View>
+            </SwitchRow>
         ) : null}
-        {taxiEligible ? <View style={styles.irChoice}>
+        {taxiEligible ? <SwitchRow accessibilityLabel="Place on taxi" value={toTaxi} disabled={submitting}
+            onValueChange={value => { setTaxiChoice({ owner: ownerKey, value }); if (value) { setIRChoice({ owner: ownerKey, value: false }); if (selectedDrop && rosterLocation(selectedDrop) === 'active') setSelectedDrop(null) } }}>
             <View style={styles.claimPlayerCopy}>
                 <Text style={styles.bidLabel}>Place on taxi</Text>
                 <Text style={styles.claimMeta}>{inactiveDrop ? 'The claim fails if Taxi becomes unavailable or the pickup loses eligibility.' : 'Needs active roster space if taxi becomes unavailable.'}</Text>
             </View>
-            <Switch value={toTaxi} onValueChange={value => { setTaxiChoice({ owner: ownerKey, value }); if (value) { setIRChoice({ owner: ownerKey, value: false }); if (selectedDrop && rosterLocation(selectedDrop) === 'active') setSelectedDrop(null) } }} accessibilityLabel="Place on taxi" disabled={submitting} />
-        </View> : null}
+        </SwitchRow> : null}
         </>
     }
 
@@ -651,7 +650,6 @@ const styles = StyleSheet.create({
     claimName: { ...textStyles.rowTitle },
     claimMeta: { ...textStyles.meta },
     claimFacts: { ...textStyles.meta, color: colors.textSecondary },
-    irChoice: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
     bidRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
     bidLabel: { ...textStyles.rowTitle, flex: 1 },
     bidField: {

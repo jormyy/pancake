@@ -3,13 +3,14 @@ import { readAssetLocks } from '@/lib/locked-assets'
 import { useLeagueTimezone } from '@/hooks/use-league-timezone'
 import { PendingMutationBadge } from '@/components/PendingMutationBadge'
 import { SectionBand } from '@/components/ui/SectionBand'
+import { SwitchRow } from '@/components/ui/SwitchRow'
 import { pickLabel } from '@/lib/picks'
 import { useUnsentFormUpdate } from '@/hooks/use-unsent-form-update'
 import { isTaxiEligible } from '@pancake/core'
 import { PlayerEligibilityContext } from '@/contexts/player-eligibility-context'
 import { PlayerRowContent } from '@/components/player/PlayerRowContent'
 import { memo, useContext, useEffect, useState, type ReactNode } from 'react'
-import { View, Text, StyleSheet, TextInput, Switch } from 'react-native'
+import { View, Text, StyleSheet, TextInput } from 'react-native'
 import { alpha, colors, componentTokens, controlSize, fontWeight, radii, spacing, table, textStyles, typeScale } from '@/constants/tokens'
 import { slotColor } from '@/constants/positions'
 import { isIREligible, RosterPlayer } from '@/lib/roster'
@@ -152,10 +153,10 @@ export const RosterClaimItem = memo(function RosterClaimItem({
             {onTimeline ? <MotionPressable onPress={onTimeline} accessibilityRole="button" accessibilityLabel="What happened?" style={styles.actionButton}>
                 <Text style={styles.actionButtonText}>What happened?</Text>
             </MotionPressable> : null}
-            {editable && taxiEligible && onEditTaxi ? <View style={styles.claimEditRow}>
+            {editable && taxiEligible && onEditTaxi ? <SwitchRow accessibilityLabel={`Place ${claim.playerName} on taxi`} value={claim.toTaxi ?? false} disabled={disabled}
+                onValueChange={value => { if (value !== Boolean(claim.toTaxi)) onEditTaxi(claim, value) }} style={styles.claimEditRow}>
                 <Text style={styles.meta}>Place on taxi</Text>
-                <Switch value={claim.toTaxi ?? false} onValueChange={value => { if (value !== Boolean(claim.toTaxi)) onEditTaxi(claim, value) }} accessibilityLabel={`Place ${claim.playerName} on taxi`} disabled={disabled} />
-            </View> : null}
+            </SwitchRow> : null}
             {editable ? (
                 <View style={styles.claimEditRow}>
                     {usesFaab ? (

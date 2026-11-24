@@ -1057,7 +1057,8 @@
         "Button",
         "PlayerRow",
         "ErrorBanner",
-        "EmptyState"
+        "EmptyState",
+        "SwitchRow"
       ],
       "states": [
         "loading",
@@ -1715,7 +1716,8 @@
         "SegmentedControl",
         "Input",
         "Button",
-        "ErrorBanner"
+        "ErrorBanner",
+        "SwitchRow"
       ],
       "states": [
         "loading",
