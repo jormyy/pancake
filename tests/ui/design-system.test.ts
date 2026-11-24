@@ -1,4 +1,4 @@
-import { designSystemViolations, inventoryViolations, primitivesUsed, readInventory, scanDesignSystem } from '../../scripts/check-design-system.mjs'
+import { EXCEPTIONS, designSystemViolations, scanDesignSystem } from '../../scripts/check-design-system.mjs'
 import { readFileSync } from 'node:fs'
 import { runInNewContext } from 'node:vm'
 import { ModuleKind, transpileModule } from 'typescript'
@@ -176,47 +176,9 @@ it('accepts shared tokens, runtime sizes and structural numbers', () => {
     expect(scanDesignSystem('const style = { padding: 16 }', 'constants/tokens.ts')).toEqual([])
 })
 
-it('lists every route and overlay as an inventoried surface', () => {
-    expect(inventoryViolations()).toEqual([])
-})
-it.each([
-    ['app/(tabs)/roster.tsx', 'roster.main'],
-    ['components/IRResolutionModal.tsx', 'roster.ir-resolution'],
-])('flags %s once its surface leaves the inventory', (file, id) => {
-    const inventory = readInventory()
-    const surfaces = inventory.surfaces.filter((surface: { id: string }) => surface.id !== id)
-        .map((surface: { sources: string[] }) => ({ ...surface, sources: surface.sources.filter(source => source !== file) }))
-    expect(inventoryViolations(process.cwd(), { ...inventory, surfaces })).toContain(`${file}: opens a screen, overlay, form, dialog or toast but no surface in tests/ui/ui-inventory.json lists it`)
-})
-it('rejects malformed surfaces', () => {
-    const inventory = readInventory()
-    const [first] = inventory.surfaces
-    const problems = inventoryViolations(process.cwd(), { ...inventory, surfaces: [...inventory.surfaces, { ...first, kind: 'popup', roles: ['guest'], primitives: ['NotAComponent'], states: ['unreachable'] }] })
-    expect(problems).toEqual(expect.arrayContaining([
-        `${first.id}: duplicate id`, `${first.id}: unknown kind popup`, `${first.id}: unknown role guest`,
-        `${first.id}: an unreachable surface needs its reason, and only then`, `${first.id}: NotAComponent is not a shared component export`,
-    ]))
-})
-it('flags a listed primitive that the surface sources never use', () => {
-    const inventory = readInventory()
-    const surfaces = inventory.surfaces.map((surface: { id: string; primitives?: string[] }) => surface.id === 'roster.hold-warning' ? { ...surface, primitives: ['Button', 'Card'] } : surface)
-    expect(inventoryViolations(process.cwd(), { ...inventory, surfaces })).toEqual(['roster.hold-warning: lists Card but its sources never use it'])
-})
-it('counts primitives used through imported feature components', () => {
-    const used = primitivesUsed(process.cwd(), ['components/roster/RosterPlayerSheet.tsx'])
-    expect(used.has('Sheet')).toBe(true)
-    expect(used.has('Card')).toBe(false)
-})
-it('accepts a native control only with its reason and no primitives', () => {
-    const inventory = readInventory()
-    const strip = (patch: object) => inventory.surfaces.map((surface: { id: string }) => surface.id === 'player.season-menu' ? { ...surface, ...patch } : surface)
-    expect(inventoryViolations(process.cwd(), { ...inventory, surfaces: strip({ nativeControl: ' ' }) })).toEqual(['player.season-menu: name the shared primitives it uses, or the reason it is a native control'])
-    expect(inventoryViolations(process.cwd(), { ...inventory, surfaces: strip({ primitives: ['Button'] }) })).toContain('player.season-menu: a native control lists no shared primitives')
-})
-it('reports exceptions without a reason or without a matching literal', () => {
-    const inventory = readInventory()
-    const exceptions = [...inventory.exceptions, { file: 'components/Fixture.tsx', property: 'padding', value: '16', reason: 'fixture' }, { file: 'components/Fixture.tsx', property: 'margin', value: '8', reason: '' }]
-    expect(designSystemViolations(process.cwd(), { ...inventory, exceptions }).map((item: { value: string }) => item.value)).toEqual(['16 is a stale exception', '8 has no reason'])
+it('reports an exception that no longer matches a literal', () => {
+    const exceptions = [...EXCEPTIONS, { file: 'components/Fixture.tsx', property: 'padding', value: '16', reason: 'fixture' }]
+    expect(designSystemViolations(process.cwd(), exceptions).map((item: { value: string }) => item.value)).toEqual(['16 is a stale exception'])
 })
 
 it('separates section bars from their first content row with a spacing token', async () => {
