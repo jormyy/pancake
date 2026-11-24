@@ -34,14 +34,14 @@ it.each([['Gary Trent Jr.', 'G. Trent', '1629018'], ['Jaren Jackson III', 'J. Ja
 const rowPlayer = (playerId: string, nbaTeam: string, injuryStatus: string | null = null) => ({ rosterPlayerId: playerId, playerId, displayName: playerId, position: 'PG', eligiblePositions: ['PG'], nbaTeam, injuryStatus, nbaId: null })
 const rowProps = () => ({ myPlayer: rowPlayer('Mine', 'TOR', 'DTD'), oppPlayer: rowPlayer('Theirs', 'OKC', 'Out'), slotType: 'PG', slotIndex: 0, playingTeams: new Set(['TOR', 'OKC']), liveStats: new Map(), liveTeams: new Set<string>(), scoringSettings: {}, teamMatchups: new Map([['TOR', { opponent: 'OKC', isHome: false }], ['OKC', { opponent: 'TOR', isHome: true }]]), compact: true })
 
-it('mirrors names and badges outward from the centre headshots', async () => {
+it('mirrors headshots to the outer edges with scores beside the slot', async () => {
     const props = rowProps()
     await act(async () => { screen = create(React.createElement(MatchupRow, props)) })
     const avatars = screen.root.findAllByType('Avatar' as React.ElementType)
-    // Each side is [name + game line, headshot], mirrored so both headshots face the slot chip.
+    // Each side is [headshot, name + game line], mirrored so both headshots sit on the outer edges.
     const sides = avatars.map(avatar => avatar.parent!.parent!.parent!.parent!.children.filter(child => typeof child !== 'string').map(child => typeof child === 'string' ? child : child.type))
-    expect(sides[0]).toEqual(['View', expect.any(Function)])
-    expect(sides[1]).toEqual([expect.any(Function), 'View'])
+    expect(sides[0]).toEqual([expect.any(Function), 'View'])
+    expect(sides[1]).toEqual(['View', expect.any(Function)])
     const nameRows = screen.root.findAllByProps({ testID: 'matchup-player-name' }).map(name => name.parent!.children.filter(child => typeof child !== 'string').map(child => typeof child === 'string' ? child : child.type))
     // Injury badges sit on the outer edge; the team logo is always right of the name.
     expect(nameRows).toEqual([['InjuryBadge', 'Text', expect.any(Function)], ['Text', expect.any(Function), 'InjuryBadge']])
