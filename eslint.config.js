@@ -8,6 +8,7 @@ const lifecycleOwner = require('./eslint/rules/lifecycle-owner')
 const runtimeBoundaries = require('./eslint/rules/runtime-boundaries')
 const easternDay = require('./eslint/rules/eastern-day')
 const pagedReads = require('./eslint/rules/paged-reads')
+const pickYears = require('./eslint/rules/pick-years')
 const gamePhase = require('./eslint/rules/game-phase')
 
 const edgeShared = 'supabase/functions/_shared'
@@ -50,6 +51,7 @@ const pancake = {
         'runtime-boundaries': runtimeBoundaries,
         'eastern-day': easternDay,
         'paged-reads': pagedReads,
+        'pick-years': pickYears,
         'game-phase': gamePhase,
     },
 }
@@ -97,6 +99,11 @@ module.exports = defineConfig([
         rules: {
             'import/first': 'off',
         },
+    },
+    {
+        files: ['lib/trade*.ts', 'lib/rookieDraft.ts', 'lib/draft*.ts', 'lib/dynasty*.ts', 'components/trades/**/*.{ts,tsx}', 'components/league/**/*.{ts,tsx}', 'components/roster/**/*.{ts,tsx}', 'app/**/*{draft,trade,pick}*.{ts,tsx}', 'hooks/**/*{draft,trade,pick,dynasty}*.{ts,tsx}'],
+        plugins: { pancake },
+        rules: { 'pancake/pick-years': 'error' },
     },
     ...restrictions.map(({ name, files, ignores }) => ({
         files,

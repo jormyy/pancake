@@ -3,6 +3,7 @@ import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Trade } from '@/lib/trades'
+import { storedDraftYear } from '@/lib/picks'
 
 // Round-3 #25 / round-4 #2 and #6: add/remove and load-more failures are not
 // load errors, and a refresh (the banner's own recovery) clears them.
@@ -50,7 +51,7 @@ describe('useTradeBlock action errors', () => {
         }
         let renderer!: ReactTestRenderer
         await act(async () => { renderer = create(React.createElement(Probe, { online: false })) })
-        await act(async () => { await latest.addPick({ kind: 'pick', pickId: 'pick', seasonYear: 2027, round: 1, originalTeamName: 'Own' }) })
+        await act(async () => { await latest.addPick({ kind: 'pick', pickId: 'pick', seasonYear: storedDraftYear(2027), round: 1, originalTeamName: 'Own' }) })
         await act(async () => { renderer.update(React.createElement(Probe, { online: true })) })
         expect(mocks.addTradeBlockItem.mock.calls.length).toBe(before)
         await act(async () => { renderer.unmount() })

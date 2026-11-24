@@ -5,6 +5,7 @@ import type { Trade, TradePickItem } from '@/lib/trades'
 import { trade } from '../../helpers/fixtures'
 import { analyzeDynastyTrade } from '@/core/src/dynasty/tradeScoring'
 import TradeAnalyzer from '@/components/trades/TradeAnalyzer'
+import { storedDraftYear } from '@/lib/picks'
 
 const saved = vi.hoisted(() => new Map<string, unknown>())
 const request = vi.hoisted(() => vi.fn())
@@ -59,7 +60,7 @@ it.each(['composer', 'historical'] as const)('orders metadata-free server assets
         fromMemberId: 'me', toMemberId: 'them', asset: { ...asset, slot: null, valueBands: { early: 500, mid: 400, late: 300 } },
     })))
     expect(analysis.assets.every(asset => !('round' in asset) && !('seasonYear' in asset))).toBe(true)
-    const metadata: TradePickItem[] = picks.map(pick => ({ kind: 'pick', pickId: pick.id, round: pick.round, seasonYear: pick.seasonYear, originalTeamName: 'My team' }))
+    const metadata: TradePickItem[] = picks.map(pick => ({ kind: 'pick', pickId: pick.id, round: pick.round, seasonYear: storedDraftYear(pick.seasonYear), originalTeamName: 'My team' }))
     composer.participantViews = [{ memberId: 'me', picks: source === 'composer' ? metadata : [] }, { memberId: 'them', picks: [] }]
     const prefillTrade: Trade | undefined = source === 'historical' ? trade({ id: 'history', routedItems: metadata.map(pick => ({ ...pick, fromMemberId: 'me', toMemberId: 'them' })) }) : undefined
     const value = { id: 'quote', analysis, seasonYear: 2027, createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 600000).toISOString() }

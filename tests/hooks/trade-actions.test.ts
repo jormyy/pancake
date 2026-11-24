@@ -3,6 +3,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useTradeActions } from '@/hooks/use-trade-actions'
 import type { Trade } from '@/lib/trades'
+import { storedDraftYear } from '@/lib/picks'
 
 const gameBoundary = vi.hoisted(() => ({ teams: new Set<string>() }))
 vi.mock('@/lib/games', () => ({ getGameDay: async () => ({ games: [], startedTeams: gameBoundary.teams }) }))
@@ -320,7 +321,7 @@ it.each([
     let renderer!: ReactTestRenderer
     await act(async () => { renderer = create(React.createElement(Probe)) })
     const offer = trade('offer')
-    offer.routedItems.push({ kind: 'pick', pickId: 'pick', round: 1, seasonYear: 2027, originalTeamName: 'A', fromMemberId: 'member-a', toMemberId: 'other' },
+    offer.routedItems.push({ kind: 'pick', pickId: 'pick', round: 1, seasonYear: storedDraftYear(2027), originalTeamName: 'A', fromMemberId: 'member-a', toMemberId: 'other' },
         { kind: 'faab', amount: 5, fromMemberId: 'member-a', toMemberId: 'other' })
     await act(async () => { await latest.accept(offer) })
     expect(mocks.acceptTrade).not.toHaveBeenCalled()

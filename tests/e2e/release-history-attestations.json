@@ -3809,6 +3809,13 @@
       "statementCount": 8,
       "statementsSha256": "ee4362116438f66626840c665d1acf96497467a72f74ce1763e42647a303d6fc",
       "sha256": "3219274978fffad9898eb008269c57825c2b045d645d8e2b57af32c5e9c320e9"
+    },
+    {
+      "name": "single_pick_allocator",
+      "version": "20261223130000",
+      "statementCount": 14,
+      "statementsSha256": "99962bad76a9be24d60fef272a59fb046d1e6eeab3cc740372dcae507f5275dd",
+      "sha256": "b8609ae876c2cec8d60fbdd11219eb006785337321cbd2d7d1996ad334e37c82"
     }
   ]
 }

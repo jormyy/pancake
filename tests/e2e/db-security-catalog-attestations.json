@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261215230000",
+  "candidateVersion": "20261223130000",
   "common": {
     "functions": [
       {
@@ -2813,6 +2813,10 @@
     {
       "filename": "20261215230000_game_availability_single_rule.sql",
       "sha256": "3219274978fffad9898eb008269c57825c2b045d645d8e2b57af32c5e9c320e9"
+    },
+    {
+      "filename": "20261223130000_single_pick_allocator.sql",
+      "sha256": "b8609ae876c2cec8d60fbdd11219eb006785337321cbd2d7d1996ad334e37c82"
     }
   ],
   "preMigration": {

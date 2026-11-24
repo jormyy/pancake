@@ -7,6 +7,7 @@ import { RosterPickItem } from '@/components/roster/RosterItems'
 import { TradeAssetColumn } from '@/components/trades/TradeAssetColumn'
 import { AssetList } from '@/components/trades/TradeCard'
 import { TradeBlockPickRow } from '@/components/trades/TradeListRow'
+import { storedDraftYear } from '@/lib/picks'
 
 vi.mock('@/components/trades/PendingTradeRosterPlan', () => ({ PendingTradeRosterPlan: () => null }))
 vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => ({ current: null, currentLeague: null }) }))
@@ -20,12 +21,12 @@ vi.mock('@/components/ui/SegmentedControl', () => ({ SegmentedControl: 'Segmente
 vi.mock('@/components/ui/Page', () => ({ usePageMetrics: () => ({ padX: 16 }) }))
 vi.mock('@/hooks/use-web-viewport', () => ({ useWebViewport: () => ({ viewportWidth: 390, viewportHeight: 844, compactLandscape: false }) }))
 let screen: ReactTestRenderer
-const pick = { kind: 'pick' as const, id: 'pick', pickId: 'pick', seasonYear: 2028, round: 1, originalTeamName: 'A', originalOwnerMemberId: 'a', currentTeamName: 'A', currentOwnerMemberId: 'a', isUsed: false }
+const pick = { kind: 'pick' as const, id: 'pick', pickId: 'pick', seasonYear: storedDraftYear(2028), round: 1, originalTeamName: 'A', originalOwnerMemberId: 'a', currentTeamName: 'A', currentOwnerMemberId: 'a', isUsed: false }
 const text = () => screen.root.findAllByType('Text' as React.ElementType).map(node => node.props.children).flat().join(' ')
 afterEach(async () => { await act(async () => screen?.unmount()) })
 
 it('shows the three stored pick years and labels accessible pick rows', async () => {
-    await act(async () => { screen = create(React.createElement(PicksBankList, { picks: [2028, 2029, 2030].map(seasonYear => ({ ...pick, id: String(seasonYear), seasonYear })) })) })
+    await act(async () => { screen = create(React.createElement(PicksBankList, { picks: [2028, 2029, 2030].map(year => ({ ...pick, id: String(year), seasonYear: storedDraftYear(year) })) })) })
     for (const year of [2028, 2029, 2030]) expect(text()).toContain(`${year} R1`)
     expect(text()).not.toContain('2031')
     expect(screen.root.findAll(node => typeof node.props?.accessibilityLabel === 'string' && node.props?.accessibilityLabel.startsWith('2028 Round 1, from A')).length).toBeGreaterThan(0)
@@ -72,7 +73,7 @@ it('keeps an honest Mine empty state when all original picks were traded away', 
 
 it('shows five years of picks in the league tab at 390 pixels', async () => {
     const picks = [2028, 2029, 2030, 2031, 2032].flatMap(seasonYear => [1, 2, 3].map(round => ({
-        ...pick, id: `${seasonYear}-${round}`, pickId: `${seasonYear}-${round}`, seasonYear, round,
+        ...pick, id: `${seasonYear}-${round}`, pickId: `${seasonYear}-${round}`, seasonYear: storedDraftYear(seasonYear), round,
     })))
     await act(async () => { screen = create(React.createElement(PicksBankList, { picks, myMemberId: 'a' })) })
     expect(screen.root.findAll(node => node.props.role === 'listitem')).toHaveLength(15)
@@ -83,7 +84,7 @@ it('shows five years of picks in the league tab at 390 pixels', async () => {
 it('lets the trade builder select fifth-year picks at 390 pixels', async () => {
     const onTogglePick = vi.fn()
     const picks = [2028, 2029, 2030, 2031, 2032].flatMap(seasonYear => [1, 2, 3].map(round => ({
-        ...pick, id: `${seasonYear}-${round}`, pickId: `${seasonYear}-${round}`, seasonYear, round,
+        ...pick, id: `${seasonYear}-${round}`, pickId: `${seasonYear}-${round}`, seasonYear: storedDraftYear(seasonYear), round,
     })))
     await act(async () => { screen = create(React.createElement(TradeAssetColumn, {
         title: 'Give', subtitle: 'A', side: 'give', twoColumn: false, roster: [], picks,

@@ -7,6 +7,7 @@ import { TradeAssetColumn } from '@/components/trades/TradeAssetColumn'
 import { readTradeAssetLocks } from '@/lib/trades'
 import type { AssetLock } from '@/lib/locked-assets'
 import { rosterPlayer } from './helpers/fixtures'
+import { storedDraftYear } from '@/lib/picks'
 
 const state = vi.hoisted(() => ({ data: undefined as unknown }))
 vi.mock('@/hooks/use-auth', () => ({ useAuth: () => ({ user: { id: 'user' } }) }))
@@ -19,7 +20,7 @@ vi.mock('@/components/roster/LockedAssetNotice', async () => ({
 
 const player = rosterPlayer()
 const pending: AssetLock = { assetKind: 'player', assetId: player.players.id, sourceKind: 'trade', sourceId: 'pending', reason: 'Locked by trade pending.' }
-const pick = { kind: 'pick' as const, pickId: 'pick', seasonYear: 2028, round: 1, originalTeamName: 'Team A' }
+const pick = { kind: 'pick' as const, pickId: 'pick', seasonYear: storedDraftYear(2028), round: 1, originalTeamName: 'Team A' }
 const pickLock: AssetLock = { ...pending, assetKind: 'pick', assetId: pick.pickId }
 
 it('uses the separate trading locks and tolerates snapshots without them', () => {

@@ -11,6 +11,7 @@ import { ActivityFeed } from '@/components/league/LeagueActivityFeed'
 import { tradePickLabel, tradePickContext } from '@/lib/trade-pick-label'
 import type { TransactionRow } from '@/lib/transactions'
 import { trade } from '../../helpers/fixtures'
+import { storedDraftYear } from '@/lib/picks'
 
 vi.mock('@/components/ui/Button', () => ({ Button: 'Button' }))
 vi.mock('@/hooks/use-auth', () => ({ useAuth: () => ({ user: null }) }))
@@ -41,8 +42,8 @@ let screen: ReactTestRenderer
 afterEach(async () => { await act(async () => screen?.unmount()) })
 
 const picks = [
-        { kind: 'pick' as const, pickId: '66937c0f-20b3-4c14-aee0-63334f4c9f4d', seasonYear: 2029, round: 1, originalTeamName: "Mike's Minions", fromMemberId: 'mike', toMemberId: 'matthew' },
-        { kind: 'pick' as const, pickId: '4165e18b-051d-4a9a-bba0-88d4c2ca9669', seasonYear: 2028, round: 2, originalTeamName: "Mike's Minions", fromMemberId: 'mike', toMemberId: 'matthew' },
+        { kind: 'pick' as const, pickId: '66937c0f-20b3-4c14-aee0-63334f4c9f4d', seasonYear: storedDraftYear(2029), round: 1, originalTeamName: "Mike's Minions", fromMemberId: 'mike', toMemberId: 'matthew' },
+        { kind: 'pick' as const, pickId: '4165e18b-051d-4a9a-bba0-88d4c2ca9669', seasonYear: storedDraftYear(2028), round: 2, originalTeamName: "Mike's Minions", fromMemberId: 'mike', toMemberId: 'matthew' },
 ]
 
 it('identifies Matthew’s incoming picks without calling their original owner You', async () => {

@@ -11,6 +11,7 @@ import {
 } from '@/lib/multi-team-trade-state'
 import type { RoutedTradeItem, Trade } from '@/lib/trades'
 import { MAX_TRADE_FAAB_AMOUNT, MAX_TRADE_ITEMS, MAX_TRADE_PARTICIPANTS } from '@pancake/core'
+import { storedDraftYear } from '@/lib/picks'
 
 const members = ['B', 'C']
 
@@ -62,7 +63,7 @@ describe('multi-team trade state', () => {
     it.each(['A', 'B'])('prefills both two-team sides from the perspective of %s', (actor) => {
         const source = { ...routedTrade([
             { kind: 'player', playerId: 'offered', playerName: 'Offered', position: 'PG', nbaTeam: null, fromMemberId: 'A', toMemberId: 'B' },
-            { kind: 'pick', pickId: 'requested', seasonYear: 2028, round: 1, originalTeamName: 'B', fromMemberId: 'B', toMemberId: 'A' },
+            { kind: 'pick', pickId: 'requested', seasonYear: storedDraftYear(2028), round: 1, originalTeamName: 'B', fromMemberId: 'B', toMemberId: 'A' },
             { kind: 'faab', amount: 7, fromMemberId: 'A', toMemberId: 'B' },
             { kind: 'faab', amount: 3, fromMemberId: 'B', toMemberId: 'A' },
         ], ['A', 'B']), isMultiTeam: false }
@@ -235,7 +236,7 @@ describe('multi-team trade state', () => {
 
         const prefilled = multiTeamTradeStateFromTrade(routedTrade([
             { kind: 'faab', amount: MAX_TRADE_FAAB_AMOUNT + 1, fromMemberId: 'A', toMemberId: 'B' },
-            { kind: 'pick', pickId: 'pick-1', seasonYear: 2028, round: 1, originalTeamName: 'C Team', fromMemberId: 'C', toMemberId: 'A' },
+            { kind: 'pick', pickId: 'pick-1', seasonYear: storedDraftYear(2028), round: 1, originalTeamName: 'C Team', fromMemberId: 'C', toMemberId: 'A' },
         ]), 'A')
         const oversizedItems = buildMultiTeamTradeItems(prefilled, true)
         expect(validateTradeFaabInput(prefilled.participants.A.faabInputs.B).error)
@@ -351,7 +352,7 @@ describe('multi-team trade state', () => {
                 fromMemberId: 'A',
                 toMemberId: 'C',
             },
-            { kind: 'pick', pickId: 'pick-1', seasonYear: 2028, round: 1, originalTeamName: 'B Team', fromMemberId: 'B', toMemberId: 'C' },
+            { kind: 'pick', pickId: 'pick-1', seasonYear: storedDraftYear(2028), round: 1, originalTeamName: 'B Team', fromMemberId: 'B', toMemberId: 'C' },
             { kind: 'faab', amount: 12, fromMemberId: 'C', toMemberId: 'A' },
         ]), 'B')
 

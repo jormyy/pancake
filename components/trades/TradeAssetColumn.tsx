@@ -6,7 +6,7 @@ import { screenScope } from '@/lib/cache/screen-scope'
 import type { RosterView } from '@/lib/cache/view-types'
 import { useAuth } from '@/hooks/use-auth'
 import { useLeagueContext } from '@/contexts/league-context'
-import { pickLabel, draftYear } from '@/lib/picks'
+import { pickLabel } from '@/lib/picks'
 import { TradePlayerLink } from '@/components/trades/TradePlayerLink'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { View, Text, StyleSheet } from 'react-native'
@@ -103,7 +103,7 @@ function PickRow({
             id={testID}
         >
             <View style={[styles.pickCircle, selected && styles.pickCircleSelected]}>
-                <Text style={styles.pickCircleText}>{yearShort(draftYear(pick.seasonYear))}</Text>
+                <Text style={styles.pickCircleText}>{yearShort(pick.seasonYear)}</Text>
             </View>
             <View style={styles.playerInfo}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>

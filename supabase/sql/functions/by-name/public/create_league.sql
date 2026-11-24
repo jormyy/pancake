@@ -28,7 +28,6 @@ DECLARE
   v_member_id    uuid;
   v_season_id    uuid;
   v_season_year  int;
-  v_future_pick_years smallint;
   v_email_prefix text;
   v_username     text;
   v_counter      int := 0;
@@ -74,7 +73,7 @@ BEGIN
 
   INSERT INTO public.leagues (name, slug, invite_code, commissioner_id, auction_budget, playoff_start_week)
   VALUES (trim(p_name), v_slug, v_invite_code, v_user_id, p_auction_budget, 17)
-  RETURNING id, future_pick_years INTO v_league_id, v_future_pick_years;
+  RETURNING id INTO v_league_id;
 
   INSERT INTO public.league_members (league_id, user_id, role, team_name)
   VALUES (v_league_id, v_user_id, 'commissioner', v_team_name)
@@ -87,10 +86,7 @@ BEGIN
   INSERT INTO public.waiver_priorities (league_id, league_season_id, member_id, priority)
   VALUES (v_league_id, v_season_id, v_member_id, 1);
 
-  INSERT INTO public.draft_picks (league_id, season_year, round, original_owner_id, current_owner_id)
-  SELECT v_league_id, year_value, round_value, v_member_id, v_member_id
-    FROM generate_series(v_season_year, v_season_year + v_future_pick_years - 1) AS year_value
-   CROSS JOIN generate_series(1, 3) AS round_value;
+  PERFORM private.reconcile_future_picks(v_league_id);
 
   __request_result := jsonb_build_object(
     'id',              v_league_id,
