@@ -72,14 +72,14 @@ export default function CommissionerSettingsScreen() {
         // renders — no placeholder card that would swap for the settings form.
         return <>
             <Stack.Screen options={{ title: 'League Settings', presentation: 'modal', headerShown: false }} />
-            {frame(<>
+            {frame(<View style={styles.loadingFrame} aria-busy={loadState === 'loading'} accessibilityState={{ busy: loadState === 'loading' }}>
                 {loadState === 'error' ? <ErrorBanner message={`${loadError ?? 'Could not load league settings.'} Tap to retry.`} onRetry={retryLoad} /> : null}
                 {loadState === 'unauthorized' || loadState === 'error' ? (
                     <EmptyState fullScreen={false}
                         message={loadState === 'unauthorized' ? 'Commissioner access required' : 'Settings unavailable'}
                         description={loadState === 'unauthorized' ? 'Only league commissioners can manage these settings.' : 'League controls will appear when the current configuration is ready.'} />
                 ) : null}
-            </>)}
+            </View>)}
         </>
     }
 

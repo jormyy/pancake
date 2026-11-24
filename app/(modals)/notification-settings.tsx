@@ -46,7 +46,7 @@ export default function NotificationSettingsScreen() {
         <>
             <Stack.Screen options={{ headerShown: false }} />
             <ModalScreen title="Notifications" onBack={back}>
-                <ScrollView contentContainerStyle={[styles.content, { paddingHorizontal: padX }]}>
+                <ScrollView contentContainerStyle={[styles.content, { paddingHorizontal: padX }]} aria-busy={!profileLoaded && !profileError} accessibilityState={{ busy: !profileLoaded && !profileError }}>
                     {profileError ? <ErrorBanner message={profileError} onRetry={retryProfile} /> : null}
                     {profileLoaded ? <NotificationSettings preferences={preferences} disabled={false} onChange={change} /> : null}
                     {Platform.OS === 'web' ? <WebPushSettings key={owner} /> : null}

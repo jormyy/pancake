@@ -2,6 +2,7 @@ import { StyleSheet } from 'react-native'
 import { colors, controlSize, fontWeight, layout, radii, spacing, textStyles, typeScale } from '@/constants/tokens'
 
 export const styles = StyleSheet.create({
+    loadingFrame: { flex: 1 },
     // Screens add the page's side padding from usePageMetrics().
     scroll: {
         paddingTop: spacing.xl,
