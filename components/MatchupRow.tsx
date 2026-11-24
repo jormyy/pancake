@@ -5,7 +5,7 @@ import { LineupPlayer } from '@/lib/lineup'
 import { LiveStatLine } from '@/lib/games'
 import { computeLiveFantasyPoints } from '@/lib/scoring'
 import { slotColor } from '@/constants/positions'
-import { alpha, borderWidth, palette, colors, componentTokens, controlSize, fontSize, fontWeight, radii, spacing, textStyles, uiColors, tracking } from '@/constants/tokens'
+import { alpha, borderWidth, colors, componentTokens, controlSize, fontSize, fontWeight, radii, spacing, textStyles, uiColors, tracking } from '@/constants/tokens'
 import { PosTag } from '@/components/PosTag'
 import { TeamLogo } from '@/components/TeamLogo'
 import { InjuryTag } from '@/components/InjuryTag'
@@ -137,7 +137,7 @@ function FantasyScore({
                 styles.fptsNum,
                 compact && styles.fptsNumCompact,
                 dense && styles.fptsNumDense,
-                side === 'right' && styles.fptsRight,
+                side === 'left' && styles.fptsLeft,
                 side === 'left' && compact && styles.fptsLeftCompact,
                 side === 'right' && compact && styles.fptsRightCompact,
                 value == null && styles.fptsPlaceholder,
@@ -190,22 +190,22 @@ export function MatchupColumnHeader({ columns }: { columns: StatColumn[] }) {
     return (
         <View style={[styles.matchupRow, styles.columnHeader]} aria-hidden>
             <View style={styles.rowSideLeft}>
-                <Text style={[styles.columnLabel, styles.columnLabelFpts]}>FP</Text>
-                {labels}
                 <View style={styles.playerBlockSpacer} />
+                {labels}
+                <Text style={[styles.columnLabel, styles.columnLabelFpts, styles.columnLabelLeft]}>FP</Text>
             </View>
             <View style={{ width: SLOT_W }} />
             <View style={styles.rowSideRight}>
-                <View style={styles.playerBlockSpacer} />
+                <Text style={[styles.columnLabel, styles.columnLabelFpts]}>FP</Text>
                 {labels}
-                <Text style={[styles.columnLabel, styles.columnLabelFpts, styles.columnLabelRight]}>FP</Text>
+                <View style={styles.playerBlockSpacer} />
             </View>
         </View>
     )
 }
 
 // One half of a head-to-head row. The left half (mine) mirrors the right half
-// (opponent) so both names sit next to the slot chip and points sit outside.
+// (opponent) so both scores sit next to the slot chip and headshots sit outside.
 function PlayerSide({
     side,
     player,
@@ -251,7 +251,7 @@ function PlayerSide({
     const detail = matchupLine(gameParts)
     const detailRef = useFittedText(gameParts?.suffix ?? '', true, 1)
     const left = side === 'left'
-    const align = left ? 'flex-end' : 'flex-start'
+    const align = left ? 'flex-start' : 'flex-end'
     const mirror = (items: ReactNode[]) => (left ? items : [...items].reverse())
 
     let block: ReactNode
@@ -319,7 +319,7 @@ function PlayerSide({
             </View>
         )
         block = <View style={[styles.playerContent, { justifyContent: align }]}>
-            {mirror([text, <LineupAvatar key="avatar" player={player} />])}
+            {mirror([<LineupAvatar key="avatar" player={player} />, text])}
         </View>
     }
 
@@ -340,7 +340,7 @@ function PlayerSide({
         </MotionPressable>
     )
     const cells = statColumns ? <StatCells key="cells" columns={statColumns} stats={player ? stats : undefined} isLive={isLive} /> : null
-    return <>{left ? [score, cells, body] : [body, cells, score]}</>
+    return <>{left ? [body, cells, score] : [score, cells, body]}</>
 }
 
 type MatchupRowProps = {
@@ -373,7 +373,6 @@ function MatchupRowImpl({
     playingTeams,
     liveStats,
     liveTeams,
-    onCourt,
     scoringSettings,
     teamMatchups,
     timezone,
@@ -397,8 +396,6 @@ function MatchupRowImpl({
     const oppIsLive = !reserveSlot && oppPlayer?.nbaTeam ? liveTeams.has(oppPlayer.nbaTeam) : false
     const myIsFinal = !reserveSlot && myPlayer?.nbaTeam ? teamMatchups.get(myPlayer.nbaTeam)?.status === 'Final' : false
     const oppIsFinal = !reserveSlot && oppPlayer?.nbaTeam ? teamMatchups.get(oppPlayer.nbaTeam)?.status === 'Final' : false
-    const myOnCourt = myIsLive && myPlayer ? onCourt?.has(myPlayer.playerId) === true : false
-    const oppOnCourt = oppIsLive && oppPlayer ? onCourt?.has(oppPlayer.playerId) === true : false
     const myFpts = myStats && !myStats.didNotPlay ? computeLiveFantasyPoints(myStats, scoringSettings) : null
     const oppFpts = oppStats && !oppStats.didNotPlay ? computeLiveFantasyPoints(oppStats, scoringSettings) : null
     const openDetails = onOpenDetails && (myPlayer || oppPlayer)
@@ -414,7 +411,7 @@ function MatchupRowImpl({
                     dense && styles.matchupRowDense,
                 ]}
             >
-            <View style={[styles.rowSideLeft, compact && styles.rowSideLeftCompact, myOnCourt && styles.onCourtLeft]}>
+            <View style={[styles.rowSideLeft, compact && styles.rowSideLeftCompact]}>
                 <PlayerSide
                     side="left"
                     player={myPlayer}
@@ -451,7 +448,7 @@ function MatchupRowImpl({
                 </Text>
             </View>
 
-            <View style={[styles.rowSideRight, compact && styles.rowSideRightCompact, oppOnCourt && styles.onCourtRight]}>
+            <View style={[styles.rowSideRight, compact && styles.rowSideRightCompact]}>
                 <PlayerSide
                     side="right"
                     player={oppPlayer}
@@ -506,9 +503,6 @@ const styles = StyleSheet.create({
     },
     rowSideLeft: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', paddingLeft: spacing.sm },
     rowSideRight: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', paddingRight: spacing.sm },
-    // Scores sit on the outer edges, so they get a little more room than the centre.
-    onCourtLeft: { backgroundColor: alpha(palette.amber400, 0.16), borderLeftWidth: 4, borderLeftColor: palette.amber400 },
-    onCourtRight: { backgroundColor: alpha(palette.amber400, 0.16), borderRightWidth: 4, borderRightColor: palette.amber400 },
     rowSideLeftCompact: { paddingLeft: spacing.xs, paddingRight: spacing.xxs },
     rowSideRightCompact: { paddingLeft: spacing.xxs, paddingRight: spacing.xs },
     // Sized to the score itself (three digits) so names get the spare width.
@@ -529,9 +523,9 @@ const styles = StyleSheet.create({
     },
     fptsNumCompact: { width: 34, fontSize: fontSize.xs },
     fptsNumDense: { width: 40, fontSize: fontSize.md },
-    fptsRight: { textAlign: 'right', marginRight: spacing.none, marginLeft: spacing.sm },
-    fptsLeftCompact: { marginRight: spacing.none },
-    fptsRightCompact: { marginLeft: spacing.none },
+    fptsLeft: { textAlign: 'right', marginRight: spacing.none, marginLeft: spacing.sm },
+    fptsLeftCompact: { marginLeft: spacing.none },
+    fptsRightCompact: { marginRight: spacing.none },
     fptsPlaceholder: { color: colors.textPlaceholder },
     fptsProjected: { fontWeight: fontWeight.medium },
     // Only finished games are bold; live and upcoming scores stay light.
@@ -590,6 +584,6 @@ const styles = StyleSheet.create({
     columnHeader: { paddingVertical: spacing.xs, borderBottomWidth: 1, borderBottomColor: colors.separator },
     columnLabel: { ...textStyles.sectionLabel, fontSize: fontSize['2xs'], textAlign: 'center' },
     columnLabelFpts: { width: FPTS_W, marginRight: spacing.sm, textAlign: 'left' },
-    columnLabelRight: { marginRight: spacing.none, marginLeft: spacing.sm, textAlign: 'right' },
+    columnLabelLeft: { marginRight: spacing.none, marginLeft: spacing.sm, textAlign: 'right' },
     playerBlockSpacer: { flex: 1, minWidth: NAME_MIN_W },
 })
