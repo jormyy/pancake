@@ -9,6 +9,8 @@ vi.mock('react-native', () => ({
     View: 'View', Text: 'Text', Pressable: 'Pressable', ScrollView: 'ScrollView', RefreshControl: 'RefreshControl', ActivityIndicator: 'ActivityIndicator',
 }))
 vi.mock('@/components/ui/ScreenFrame', () => ({ ScreenFrame: 'ScreenFrame' }))
+vi.mock('@/components/ui/SegmentedControl', () => ({ SegmentedControl: 'SegmentedControl' }))
+vi.mock('@/components/ui/Button', () => ({ Button: 'Button' }))
 vi.mock('@/lib/supabase', () => ({ supabase: {} }))
 const mocks = vi.hoisted(() => ({ state: { events: [] as TimelineEvent[], loading: false, loadingMore: false, hasMore: false,
     error: null as string | null, refresh: vi.fn(), loadMore: vi.fn(), retry: vi.fn() } }))
@@ -40,8 +42,9 @@ describe('timeline screen', () => {
     it('filters entries and retains the recorded reason text', async () => {
         let renderer!: ReactTestRenderer
         await act(async () => { renderer = create(React.createElement(TeamTimelineScreen, { leagueId: 'league', memberId: 'a' })) })
-        const button = renderer.root.findAllByType('Pressable' as React.ElementType).find(node => node.findAllByType('Text' as React.ElementType).some(text => text.props.children === 'Claims'))!
-        await act(async () => { button.props.onPress() })
+        const filter = renderer.root.findByType('SegmentedControl' as React.ElementType)
+        expect(filter.props.options.map((option: { label: string }) => option.label)).toEqual(['All', 'Claims', 'Trades', 'Lineups', 'Scores'])
+        await act(async () => { filter.props.onChange('claims') })
         expect(content(renderer)).toContain('Bid tied; the other team has priority.')
         expect(content(renderer)).not.toContain('Trade executed')
         await act(async () => { renderer.unmount() })
@@ -51,7 +54,7 @@ describe('timeline screen', () => {
         let renderer!: ReactTestRenderer
         await act(async () => { renderer = create(React.createElement(TeamTimelineScreen, { leagueId: 'league', memberId: 'a', entityId: 'older' })) })
         expect(content(renderer)).toContain('No matching activity on this page.')
-        const button = renderer.root.findAllByType('Pressable' as React.ElementType).find(node => node.findAllByType('Text' as React.ElementType).some(text => text.props.children === 'Load older activity'))!
+        const button = renderer.root.findAllByType('Button' as React.ElementType).find(node => node.props.title === 'Load older activity')!
         await act(async () => { button.props.onPress() })
         expect(mocks.state.loadMore).toHaveBeenCalledOnce()
         await act(async () => { renderer.unmount() })

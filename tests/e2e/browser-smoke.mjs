@@ -735,7 +735,7 @@ export async function runBrowserSmoke({
           routeEvidence.online.push(await observeRoute(session, { label, route, phase: 'online' }))
         }
         if (label === 'timeline') {
-        const surface = await browserJson(session, `JSON.stringify({ text: document.body.innerText, buttons: Array.from(document.querySelectorAll('[role=button],button')).map(node => (node.textContent || '').trim()) })`)
+        const surface = await browserJson(session, `JSON.stringify({ text: document.body.innerText, buttons: Array.from(document.querySelectorAll('[role=button],button,[role=tab]')).map(node => (node.textContent || '').trim()) })`)
         const failures = timelineSurfaceFailures(surface)
         if (failures.length) throw new Error(failures.join('; '))
       }
@@ -806,7 +806,7 @@ export async function runBrowserSmoke({
         await browser(session, ['wait', '1500'])
       }
       if (label === 'timeline') {
-        const surface = await browserJson(session, `JSON.stringify({ text: document.body.innerText, buttons: Array.from(document.querySelectorAll('[role=button],button')).map(node => (node.textContent || '').trim()) })`)
+        const surface = await browserJson(session, `JSON.stringify({ text: document.body.innerText, buttons: Array.from(document.querySelectorAll('[role=button],button,[role=tab]')).map(node => (node.textContent || '').trim()) })`)
         const failures = timelineSurfaceFailures(surface)
         if (failures.length) throw new Error(failures.join('; '))
       }
