@@ -22,7 +22,6 @@ export default function ChangePasswordScreen() {
     const [currentPassword, setCurrentPassword] = useState('')
     const [newPassword, setNewPassword] = useState('')
     const [confirmPassword, setConfirmPassword] = useState('')
-    // Each message shows under the field it is about.
     const [error, setError] = useState<{ field: 'current' | 'new' | 'confirm'; message: string } | null>(null)
     const [saving, setSaving] = useState(false)
     const submittingRef = useRef(false)

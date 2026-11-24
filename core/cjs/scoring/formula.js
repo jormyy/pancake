@@ -41,10 +41,6 @@ function roundFantasyPoints(value) {
     const shifted = Number(`${coefficient}e${Number(exponent) + 2}`);
     return sign * Number(`${Math.round(shifted)}e-2`);
 }
-/**
- * Convert a snake_case stat row (as stored in the DB) into a camelCase StatLine.
- * Missing or null fields default to 0 / false so callers don't need to guard.
- */
 function snakeToStatLine(row) {
     return {
         points: row.points ?? 0,

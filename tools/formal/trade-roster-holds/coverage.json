@@ -63,6 +63,6 @@
   "migrations": {
     "dir": "supabase/migrations",
     "through": "20261223130000_single_pick_allocator.sql",
-    "sha256": "71751929e06a8c120698ab8bc831cf18d9ba11e2fe49c883044ef5409bc7bb55"
+    "sha256": "ef35715c1d08ca26cde6ebb4fa1b7abc54dc931d63b0f93c826fd4f38e7080f5"
   }
 }

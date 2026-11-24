@@ -83,7 +83,6 @@ export const GameLogTable = memo(function GameLogTable({
     const numCell = [compact ? styles.compactNumCell : styles.numCell]
     const content = (
         <View style={[styles.tableInner, compact && styles.compactTableInner]}>
-            {/* Header row */}
             <ListHeader>
                 <Text style={[...dateCell, styles.colHdr]}>DATE</Text>
                 <Text style={[...oppCell, styles.colHdr]}>OPP</Text>
@@ -103,7 +102,6 @@ export const GameLogTable = memo(function GameLogTable({
                 </>}
             </ListHeader>
 
-            {/* Data rows */}
             {rows.map((g, i) => {
                 const dnp = g.didNotPlay
                 const fpts = dnp ? undefined : fantasyPointsMap?.get(g.gameId)

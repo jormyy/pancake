@@ -2,7 +2,7 @@ CREATE OR REPLACE FUNCTION public.get_compact_matchup_forecast_context(p_matchup
 RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path='' AS $$
 DECLARE value jsonb:=public.get_prepared_matchup_forecast_context(p_matchup_id);
 BEGIN
-  IF NOT EXISTS(SELECT 1 FROM jsonb_array_elements(value->'games') game WHERE COALESCE(game->>'status','') NOT IN ('Final','Cancelled','Postponed')) THEN
+  IF NOT EXISTS(SELECT 1 FROM jsonb_array_elements(value->'games') game WHERE COALESCE(game->>'status','')<>'Final') THEN
     value:=value||jsonb_build_object('roster','[]'::jsonb,'history','[]'::jsonb,'projections','[]'::jsonb,
       'lineups','[]'::jsonb,'templates','[]'::jsonb,'seasonAverages','[]'::jsonb,'previous',NULL);
   END IF;

@@ -3804,6 +3804,13 @@
       "sha256": "49e157948c05c58450d915b79241f6a003a2221b89c18c2010af5d3dd45ebf26"
     },
     {
+      "name": "game_availability_single_rule",
+      "version": "20261215230000",
+      "statementCount": 8,
+      "statementsSha256": "ee4362116438f66626840c665d1acf96497467a72f74ce1763e42647a303d6fc",
+      "sha256": "3219274978fffad9898eb008269c57825c2b045d645d8e2b57af32c5e9c320e9"
+    },
+    {
       "name": "single_pick_allocator",
       "version": "20261223130000",
       "statementCount": 14,

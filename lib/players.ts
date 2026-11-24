@@ -1,4 +1,4 @@
-import { calculateFantasyPoints, snakeToStatLine, roundFantasyPoints, type ScoringSettings } from '@pancake/core'
+import { calculateFantasyPoints, gamePhase, snakeToStatLine, roundFantasyPoints, type ScoringSettings } from '@pancake/core'
 import { supabase } from '@/lib/supabase'
 import type { Database } from '@/types/database'
 import { TRANSACTION_LABELS } from '@/lib/shared/transaction-labels'
@@ -7,7 +7,6 @@ import {
     type PlayerSearchSortMode,
 } from '@/lib/player-search-sort'
 
-/** Resolves a player's eligible positions, falling back to the primary position. */
 export function getEligiblePositions(player: { eligible_positions?: string[] | null; position?: string | null }): string[] {
     if (player.eligible_positions?.length) return player.eligible_positions as string[]
     return player.position ? [player.position] : []
@@ -300,7 +299,7 @@ export function applyVisiblePlayerTotals(player: PlayerRow, row: VisiblePlayerTo
     const line = Object.fromEntries(Object.entries(totals).map(([key, value]) => [key, Number(value) || 0]))
     const totalFP = scoring ? roundFantasyPoints(calculateFantasyPoints(snakeToStatLine({ ...line, double_double: false, triple_double: false }), scoring)
         + value('double_double') * (scoring.double_double ?? 0) + value('triple_double') * (scoring.triple_double ?? 0)) : null
-    const status = row.game_status?.toLowerCase().replaceAll('_', '')
+    const phase = gamePhase({ status: row.game_status })
     const tipoff = row.started_at ?? row.game_time
     return {
         ...player,
@@ -309,7 +308,7 @@ export function applyVisiblePlayerTotals(player: PlayerRow, row: VisiblePlayerTo
         avg_points: average('points'), avg_rebounds: average('rebounds'), avg_assists: average('assists'),
         avg_steals: average('steals'), avg_blocks: average('blocks'), avg_turnovers: average('turnovers'),
         avg_three_pointers_made: average('three_pointers_made'), avg_minutes_played: average('minutes_played'),
-        playing_now: status === 'inprogress' || (status === 'scheduled' && tipoff != null && Date.parse(tipoff) <= now),
+        playing_now: phase === 'live' || (phase === 'upcoming' && tipoff != null && Date.parse(tipoff) <= now),
     }
 }
 

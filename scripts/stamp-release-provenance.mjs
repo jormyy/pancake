@@ -26,7 +26,6 @@ const SERVICE_WORKER_SHELL_ROUTES = /const SHELL_ROUTES = \[[^\n]*\]/
 // reload that follows a service-worker update paints from disk instead of
 // re-downloading the bundle, which is what turned every deploy into a blank
 // launch. Deliberately not the whole build: other per-route chunks stay lazy.
-/** Hashed asset paths under dist/assets, as URLs. */
 const assetUrls = async (root) => {
   const walk = async (dir, prefix) => {
     const out = []

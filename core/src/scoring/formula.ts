@@ -42,10 +42,6 @@ export function roundFantasyPoints(value: number): number {
     return sign * Number(`${Math.round(shifted)}e-2`)
 }
 
-/**
- * Convert a snake_case stat row (as stored in the DB) into a camelCase StatLine.
- * Missing or null fields default to 0 / false so callers don't need to guard.
- */
 export function snakeToStatLine(row: Record<string, unknown>): StatLine {
     return {
         points: (row.points as number) ?? 0,

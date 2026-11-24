@@ -15,7 +15,6 @@ import type { MemberTransactionState } from '@/lib/league'
 import { getRosterProblems } from '@/lib/roster-problems'
 import { partitionRoster, sameRosterLimits, staleRosterLimitsNotice, type RosterLimits } from '@/lib/roster-capacity'
 
-/** What a pickup needs to know about its player. */
 type QuickAddPlayer = Pick<PlayerRow, 'id' | 'display_name'> & { injury_status?: string | null; years_exp?: number | null; career_regular_season_games?: number | null }
 
 export type PickupClaimSelection = { dropPlayerId: string; destination: PickupDestination }

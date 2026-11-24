@@ -106,7 +106,6 @@ export default function CreateLeagueScreen() {
         }
     }
 
-    // Success state — show invite code
     if (inviteCode) {
         return (
             <>
@@ -211,7 +210,6 @@ const styles = StyleSheet.create({
     compactFormRow: { flexDirection: 'row', gap: spacing.md },
     compactField: { flex: 1, minWidth: 0 },
     error: { ...textStyles.body, color: colors.dangerDark },
-    // Success state
     successContainer: {
         flex: 1,
         justifyContent: 'center',

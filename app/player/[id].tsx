@@ -89,7 +89,6 @@ export default function PlayerDetailScreen() {
     const isCurrent = useCallback((generation: number, identity: string | null) =>
         generationRef.current === generation && activeOwnerRef.current === identity && isCurrentRead(readEpoch), [isCurrentRead, readEpoch])
 
-    // Roster status
     const [rosterStatusResource, setRosterStatusResource] = useState<{
         ownerIdentity: string | null
         claimPending?: boolean

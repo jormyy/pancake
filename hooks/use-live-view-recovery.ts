@@ -17,8 +17,7 @@ export function useLiveViewRecovery(scope: ScreenScope | null, value: unknown, e
     const verificationFailed = useRef(false)
     const slateReady = slate?.key === dayKey
     const games = (source?.liveGames?.length ? source.liveGames : external ? slateReady ? slate!.games : [] : source?.todaysGames ?? [])
-        .map(game => game.status === 'Final' && game.stats_synced_at === null ? { ...game, status: 'InProgress' } : game)
-    const signature = JSON.stringify(games.map(game => [game.id ?? game.nba_game_id, game.status, game.game_time, game.game_status_text]))
+    const signature = JSON.stringify(games.map(game => [game.id ?? game.nba_game_id, game.status, game.stats_synced_at, game.game_time, game.game_status_text]))
     const latest = useRef({ scope, games, source, dayKey, slateReady })
     latest.current = { scope, games, source, dayKey, slateReady }
     useEffect(() => {

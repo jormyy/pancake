@@ -64,7 +64,6 @@ function FilterTrigger({
     )
 }
 
-/** Single-choice filter. Options open in the shared Sheet. */
 export function FilterSelect<T extends string>({
     label,
     value,
@@ -118,7 +117,6 @@ export function FilterSelect<T extends string>({
     )
 }
 
-/** Multi-choice filter. Options open in the shared Sheet as toggle chips. */
 export function MultiSelect<T extends string>({
     label,
     options,
