@@ -37,7 +37,8 @@
       "sources": [
         "app/+html.tsx",
         "constants/boot-shell.ts",
-        "hooks/use-boot-shell-handoff.ts"
+        "hooks/use-boot-shell-handoff.ts",
+        "components/navigation/WebTabShell.tsx"
       ],
       "primitives": [
         "WebAppShell"
@@ -231,7 +232,7 @@
         "components/PendingMutationBadge.tsx"
       ],
       "primitives": [
-        "Badge"
+        "Button"
       ],
       "states": [
         "offline"
@@ -534,7 +535,9 @@
         "components/WeekOffNotice.tsx"
       ],
       "primitives": [
-        "EmptyState"
+        "Card",
+        "Button",
+        "DeferredContent"
       ],
       "states": [
         "empty",
@@ -578,7 +581,7 @@
       ],
       "primitives": [
         "Sheet",
-        "Button"
+        "PlayerRow"
       ],
       "states": [
         "default",
@@ -659,7 +662,7 @@
       ],
       "primitives": [
         "Sheet",
-        "Button"
+        "PlayerRow"
       ],
       "states": [
         "default",
@@ -768,7 +771,8 @@
         "components/roster/RosterTrimBanner.tsx"
       ],
       "primitives": [
-        "Card"
+        "Button",
+        "PlayerRowContent"
       ],
       "states": [
         "default"
@@ -789,7 +793,6 @@
         "hooks/use-roster-hold-check.ts"
       ],
       "primitives": [
-        "Card",
         "Button"
       ],
       "states": [
@@ -839,8 +842,9 @@
         "components/timeline/TeamTimelineScreen.tsx"
       ],
       "primitives": [
-        "Page",
+        "ModalScreen",
         "PageHeader",
+        "SegmentedControl",
         "Button"
       ],
       "states": [
@@ -1132,12 +1136,10 @@
       "sources": [
         "components/player/SeasonSelector.web.tsx"
       ],
-      "primitives": [
-        "FilterSelect"
-      ],
       "states": [
         "default"
-      ]
+      ],
+      "nativeControl": "The web season picker is the browser's own select so iPhone opens its system picker wheel; it uses shared tokens for its 44px height, title type and card colors, and tests/components/player/player-detail.test.ts pins it."
     },
     {
       "id": "player.season-menu-native",
@@ -1277,8 +1279,9 @@
         "components/trades/SavedTradeEstimate.tsx"
       ],
       "primitives": [
-        "SegmentedControl",
-        "Card"
+        "Button",
+        "PlayerRow",
+        "DeferredContent"
       ],
       "states": [
         "loading",
@@ -1851,7 +1854,7 @@
     {
       "id": "settings.announcement",
       "kind": "form",
-      "entry": "Notification settings, commissioner announcement",
+      "entry": "Commissioner tools, league announcement",
       "roles": [
         "commissioner"
       ],

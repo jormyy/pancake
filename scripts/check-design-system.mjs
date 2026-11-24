@@ -118,6 +118,37 @@ const listSources = (root, folders) => folders.flatMap(folder => readdirSync(pat
 
 export const readInventory = (root = process.cwd()) => JSON.parse(readFileSync(path.join(root, INVENTORY), 'utf8'))
 
+const IMPORT = /(?:import|export)\s+(?:type\s+)?(?:([\w\s{},*]+?)\s+from\s+)?['"]([^'"]+)['"]|import\(\s*['"]([^'"]+)['"]\s*\)/g
+const FEEDBACK_CALL = /\b(?:confirmAction|confirmRosterActivation|showAlert|showSuccess)\(/
+const PRIMITIVE_DEPTH = 3
+
+function resolveImport(root, from, specifier) {
+    const base = specifier.startsWith('@/') ? specifier.slice(2) : specifier.startsWith('.') ? path.posix.join(path.posix.dirname(from), specifier) : null
+    if (!base) return null
+    return ['.web.tsx', '.tsx', '.ts', '/index.ts', '/index.tsx', ''].map(ext => base + ext).find(file => /\.tsx?$/.test(file) && existsSync(path.join(root, file))) ?? null
+}
+
+export function primitivesUsed(root, sources) {
+    const used = new Set()
+    const seen = new Set()
+    const queue = sources.map(file => [file, 0])
+    while (queue.length) {
+        const [file, depth] = queue.pop()
+        if (seen.has(file) || !existsSync(path.join(root, file))) continue
+        seen.add(file)
+        const source = readFileSync(path.join(root, file), 'utf8')
+        if (depth === 0) for (const match of source.matchAll(/export (?:function|const|class) (\w+)/g)) used.add(match[1])
+        if (FEEDBACK_CALL.test(source)) used.add('FeedbackProvider')
+        for (const match of source.matchAll(IMPORT)) {
+            const target = resolveImport(root, file, match[2] ?? match[3])
+            if (!target?.startsWith('components/')) continue
+            for (const name of (match[1] ?? '').matchAll(/\b[A-Z]\w*/g)) used.add(name[0])
+            if (depth < PRIMITIVE_DEPTH) queue.push([target, depth + 1])
+        }
+    }
+    return used
+}
+
 export function designSystemViolations(root = process.cwd(), inventory = readInventory(root)) {
     const allowed = new Map(inventory.exceptions.map(item => [`${item.file}|${item.property}|${item.value}`, item]))
     const used = new Set()
@@ -157,8 +188,11 @@ export function inventoryViolations(root = process.cwd(), inventory = readInvent
         for (const state of surface.states ?? []) if (!states.has(state)) problems.push(`${where}: unknown state ${state}`)
         const unreachable = surface.states?.includes('unreachable')
         if (unreachable !== Boolean(surface.unreachable?.trim())) problems.push(`${where}: an unreachable surface needs its reason, and only then`)
-        if (!unreachable && !surface.primitives?.length) problems.push(`${where}: name the shared primitives it uses`)
+        if (!unreachable && !surface.primitives?.length && !surface.nativeControl?.trim()) problems.push(`${where}: name the shared primitives it uses, or the reason it is a native control`)
+        if (surface.nativeControl !== undefined && surface.primitives?.length) problems.push(`${where}: a native control lists no shared primitives`)
         for (const primitive of surface.primitives ?? []) if (!exported.has(primitive)) problems.push(`${where}: ${primitive} is not a shared component export`)
+        const reached = primitivesUsed(root, surface.sources ?? [])
+        for (const primitive of surface.primitives ?? []) if (exported.has(primitive) && !reached.has(primitive)) problems.push(`${where}: lists ${primitive} but its sources never use it`)
         if (!surface.sources?.length) problems.push(`${where}: needs at least one source file`)
         for (const source of surface.sources ?? []) {
             covered.add(source)
