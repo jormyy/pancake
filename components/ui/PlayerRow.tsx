@@ -41,7 +41,7 @@ export type PlayerRowProps = {
 
 export function PlayerRow({ lineupPin, locks = [], playerId, name, jerseyNumber, nbaId, headshotUrl, team, positions = [], age, birthdate, yearsExp, careerGames, onTaxi, injuryStatus, stats, metadata, live = false, compact = false, variant, showTags = false }: PlayerRowProps) {
     compact = variant ? variant === 'compact' : compact
-    const jersey = useJerseyNumber(playerId, nbaId, jerseyNumber)
+    const jersey = useJerseyNumber(playerId, nbaId, showTags ? null : jerseyNumber)
     const avatarSize = componentTokens.playerRow[compact ? 'compact' : 'standard'].avatarSize
     return <View style={[styles.row, compact && styles.compactRow]} testID="player-row-content">
         <View testID="player-row-avatar">{headshotUrl ? <Avatar name={name} uri={headshotUrl} size={avatarSize} /> : <PlayerAvatar name={name} nbaId={nbaId} size={avatarSize} />}<InjuryTag status={injuryStatus} avatarSize={avatarSize} /></View>
