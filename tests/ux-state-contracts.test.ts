@@ -2,7 +2,7 @@ import { runInNewContext } from 'node:vm'
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { colors, shadows } from '@/constants/tokens'
+import { colors, controlSize, fontFamily, shadows } from '@/constants/tokens'
 import { holdPwaUpdate } from '@/lib/pwa-update-guard'
 
 vi.mock('react-native', () => ({ Platform: { OS: 'web' } }))
@@ -241,6 +241,13 @@ describe('service worker registration cadence', () => {
         expect(notice.style.cssText).toContain(`background:${colors.bgCard}`)
         expect(notice.style.cssText).toContain(`color:${colors.textPrimary}`)
         expect(notice.style.cssText).toContain(`box-shadow:${shadows.lg}`)
+        expect(notice.style.cssText).toContain(`font-family:${fontFamily.control.replaceAll("'", '"')}`)
+        expect(notice.style.cssText).not.toContain('system-ui')
+        const button = notice.querySelector()!
+        expect(button.style.cssText).toContain(`min-height:${controlSize.minTouch}px`)
+        expect(button.style.cssText).toContain(`background:${colors.primary}`)
+        expect(button.style.cssText).toContain(`color:${colors.textWhite}`)
+        expect(button.style.cssText).toContain(`font-family:${fontFamily.displayMedium.replaceAll("'", '"')}`)
         expect(notice.querySelector()?.disabled).toBe(true)
         expect(page.reload).not.toHaveBeenCalled()
         page.document.visibilityState = 'hidden'

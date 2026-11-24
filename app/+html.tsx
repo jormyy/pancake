@@ -1,7 +1,7 @@
 import { ScrollViewStyleReset } from 'expo-router/html'
 import { usePathname } from 'expo-router'
 import { type PropsWithChildren } from 'react'
-import { colors, fontFamily, shadows, webChrome, radii, spacing, typeScale } from '@/constants/tokens'
+import { borderWidth, colors, controlSize, fontFamily, fontWeight, shadows, webChrome, radii, spacing, typeScale } from '@/constants/tokens'
 import { Asset } from 'expo-asset'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { FontDisplay, useFonts } from 'expo-font'
@@ -11,6 +11,7 @@ import { THEME_BOOT_SCRIPT } from '@/lib/theme-preference'
 import { AUTH_SCAFFOLD_CSS } from '@/components/auth/authScaffoldCss'
 import { AuthDocumentForm } from '@/components/auth/AuthDocumentForm'
 
+const cssFont = (family: string) => family.replaceAll("'", '"')
 
 // Dev is excluded: Metro serves unhashed bundles, so the service worker's
 // stale-while-revalidate would replay outdated module graphs after every edit
@@ -49,14 +50,15 @@ if (window.isSecureContext) {
       var notice = document.getElementById('pancake-update-notice') || document.createElement('div');
       notice.id = 'pancake-update-notice';
       notice.setAttribute('role', 'status');
-      notice.style.cssText = 'position:fixed;bottom:${spacing['6xl'] * 2}px;left:${spacing.xl}px;right:${spacing.xl}px;z-index:10000;padding:${spacing.xl}px;border-radius:${radii.xl}px;background:${colors.bgCard};color:${colors.textPrimary};box-shadow:${shadows.lg};font:${typeScale.number.fontSize}px system-ui';
+      notice.style.cssText = 'position:fixed;bottom:${spacing['6xl'] * 2}px;left:${spacing.xl}px;right:${spacing.xl}px;max-width:440px;margin:${spacing.none}px auto;z-index:10000;box-sizing:border-box;display:flex;align-items:center;gap:${spacing.md}px;padding:${spacing.lg}px;border-radius:${radii.xl}px;border:${borderWidth.thin}px solid ${colors.borderLight};border-left:${borderWidth.accent}px solid ${colors.accent};background:${colors.bgCard};color:${colors.textPrimary};box-shadow:${shadows.lg};font-family:${cssFont(fontFamily.control)};font-size:${typeScale.row.fontSize}px;line-height:${typeScale.row.lineHeight}px';
       notice.textContent = held() ? 'An update is ready. Finish your current work, then reload.' :
         navigator.onLine === false ? 'Reconnect to update this screen.' :
         retry ? 'Update could not finish. Reload to retry.' : assetMissed ? 'Updating…' : 'An update is ready. Reload to continue.';
       var button = document.createElement('button');
       button.textContent = 'Reload';
       button.disabled = held();
-      button.style.cssText = 'margin-left:${spacing.lg}px;padding:${spacing.md}px ${spacing.lg}px;font:inherit';
+      button.style.cssText = 'margin-left:auto;flex-shrink:0;min-height:${controlSize.minTouch}px;min-width:${controlSize.minTouch}px;padding:${spacing.none}px ${spacing.lg}px;border:${spacing.none}px;border-radius:${radii.md}px;background:${colors.primary};color:${colors.textWhite};font-family:${cssFont(fontFamily.displayMedium)};font-weight:${fontWeight.bold};font-size:${typeScale.small.fontSize}px;cursor:pointer';
+      button.style.opacity = button.disabled ? '0.5' : '';
       button.addEventListener('click', function () { reloadScreen(); });
       notice.appendChild(button);
       document.body.appendChild(notice);
@@ -145,7 +147,7 @@ if (window.isSecureContext) {
     window.addEventListener('pancake-pwa-hold-change', function () {
       requestActivation();
       var button = document.getElementById('pancake-update-notice')?.querySelector('button');
-      if (button) button.disabled = held();
+      if (button) { button.disabled = held(); button.style.opacity = button.disabled ? '0.5' : ''; }
       tryReload(false);
     });
     window.addEventListener('online', function () { checkForUpdate(true); requestActivation(); tryReload(false); });
