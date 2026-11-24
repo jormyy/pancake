@@ -400,6 +400,7 @@ export const table = {
     rowHeight: 48,
     rowHeightCompact: 44,
     statColWidth: 44,
+    scoreColWidth: unit(8),
     scoreBreakdownRowHeight: unit(10),
     cellPadX: spacing.sm,
 } as const

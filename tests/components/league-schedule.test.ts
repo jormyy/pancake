@@ -9,6 +9,7 @@ import { colors } from '@/constants/tokens'
 vi.mock('react-native', () => ({ Platform: { OS: 'web' }, View: 'View', Text: 'Text', StyleSheet: { create: (value: unknown) => value, hairlineWidth: 1 } }))
 vi.mock('@/components/ui/ScreenStatusOverlay', () => ({ ScreenStatusScrollView: 'ScrollView' }))
 vi.mock('@/components/ui/ListHeader', () => ({ ListHeader: 'View' }))
+vi.mock('@/components/ui/Badge', () => ({ Badge: 'Badge' }))
 vi.mock('@/components/ui', () => ({ usePageMetrics: () => ({ padX: 12 }) }))
 vi.mock('@/components/EmptyState', () => ({ EmptyState: 'EmptyState' }))
 vi.mock('@/components/Motion', () => ({ MotionPressable: 'Pressable' }))
@@ -21,7 +22,8 @@ it('renders ordered weeks, skipped weeks, scores, current state, and undecided p
     expect(rows).toHaveLength(20)
     expect(rows.map(row => row.props['aria-label'])).toEqual(snapshot.map(row => {
         if (row.status === 'skipped') return `Week ${row.weekNumber}, skipped`
-        const result = row.status === 'win' ? `W ${row.myPoints}–${row.opponentPoints}` : row.status === 'loss' ? `L ${row.myPoints}–${row.opponentPoints}` : row.status === 'tie' ? `T ${row.myPoints}–${row.opponentPoints}` : row.status === 'live' ? `Live ${row.myPoints}–${row.opponentPoints}` : row.status === 'playoffs' ? 'Playoffs' : 'Upcoming'
+        const score = `${Math.round(row.myPoints ?? 0)}–${Math.round(row.opponentPoints ?? 0)}`
+        const result = row.status === 'win' ? `W ${score}` : row.status === 'loss' ? `L ${score}` : row.status === 'tie' ? `T ${score}` : row.status === 'live' ? `Live ${score}` : row.status === 'playoffs' ? 'Playoffs' : 'Upcoming'
         return `Week ${row.weekNumber}${row.isCurrent ? ', current week' : ''}${row.opponentTeamName ? `, ${row.opponentTeamName}` : ''}, ${result}`
     }))
     expect(rows[0].findAllByType('Text' as React.ElementType).map(node => node.children.join(''))).toEqual(['1', 'No matchup', 'Skipped'])
@@ -53,7 +55,25 @@ it('announces a current skipped week without a matchup or score', async () => {
     const row = screen.root.find(node => node.props.role === 'listitem')
     expect(row.props['aria-label']).toBe('Week 5, skipped')
     expect(row.props.accessibilityLabel).toBe('Week 5, skipped')
-    expect(row.findAllByType('Text' as React.ElementType).map(node => node.children.join(''))).toEqual(['5', 'Current', 'No matchup', 'Skipped'])
+    expect(row.findAllByType('Text' as React.ElementType).map(node => node.children.join(''))).toEqual(['5', 'No matchup', 'Skipped'])
+    expect(row.findByType('Badge' as React.ElementType).props.label).toBe('Now')
+    await act(async () => screen.unmount())
+})
+
+it('splits the outcome from whole-number scores in fixed columns', async () => {
+    const rows: LeagueScheduleRow[] = [
+        { weekNumber: 1, opponentTeamName: 'Cedar Owls', isCurrent: false, status: 'win', myPoints: 112.6, opponentPoints: 98.2 },
+        { weekNumber: 2, opponentTeamName: 'Harbor Hawks', isCurrent: true, status: 'live', myPoints: 87.4, opponentPoints: 101 },
+    ]
+    let screen!: ReturnType<typeof create>
+    await act(async () => { screen = create(React.createElement(LeagueSchedule, { rows })) })
+    const items = screen.root.findAll(node => node.props.role === 'listitem')
+    expect(items.map(row => row.props['aria-label'])).toEqual(['Week 1, Cedar Owls, W 113–98', 'Week 2, current week, Harbor Hawks, Live 87–101'])
+    expect(items.map(row => row.findAllByType('Text' as React.ElementType).map(node => node.children.join('')))).toEqual([
+        ['1', 'Cedar Owls', 'W', '113', '98'], ['2', 'Harbor Hawks', 'Live', '87', '101'],
+    ])
+    const widths = items.map(row => row.findAllByType('Text' as React.ElementType).slice(-2).map(node => Object.assign({}, ...[node.props.style].flat()).width))
+    expect(new Set(widths.flat()).size).toBe(1)
     await act(async () => screen.unmount())
 })
 
