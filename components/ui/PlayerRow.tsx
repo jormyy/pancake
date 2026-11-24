@@ -10,6 +10,9 @@ import { useJerseyNumber } from '@/hooks/use-jersey-number'
 import { Avatar } from '@/components/Avatar'
 import { PlayerDetailsLine } from '@/components/player/PlayerDetailsLine'
 import { InjuryTag } from '@/components/InjuryTag'
+import { PlayerEligibilityTags } from '@/components/player/PlayerEligibilityTags'
+import { Badge } from '@/components/ui/Badge'
+import { usePlayerAge } from '@/hooks/use-player-age'
 
 export type PlayerRowProps = {
     lineupPin?: LineupPin
@@ -33,10 +36,10 @@ export type PlayerRowProps = {
     live?: boolean
     compact?: boolean
     variant?: 'compact' | 'standard'
+    showTags?: boolean
 }
 
-// Age, experience, and eligibility props are still accepted from callers but no longer shown.
-export function PlayerRow({ lineupPin, locks = [], playerId, name, jerseyNumber, nbaId, headshotUrl, team, positions = [], injuryStatus, stats, metadata, live = false, compact = false, variant }: PlayerRowProps) {
+export function PlayerRow({ lineupPin, locks = [], playerId, name, jerseyNumber, nbaId, headshotUrl, team, positions = [], age, birthdate, yearsExp, careerGames, onTaxi, injuryStatus, stats, metadata, live = false, compact = false, variant, showTags = false }: PlayerRowProps) {
     compact = variant ? variant === 'compact' : compact
     const jersey = useJerseyNumber(playerId, nbaId, jerseyNumber)
     const avatarSize = componentTokens.playerRow[compact ? 'compact' : 'standard'].avatarSize
@@ -46,6 +49,7 @@ export function PlayerRow({ lineupPin, locks = [], playerId, name, jerseyNumber,
             <Text style={styles.name} testID="player-name-line">{name}</Text>
             <View style={[styles.metadata, compact && styles.compactMetadata]} testID="player-meta-line">
                 <PlayerDetailsLine team={team} positions={positions} jersey={jersey} />
+                {showTags ? <PlayerTags playerId={playerId} nbaId={nbaId} age={age} birthdate={birthdate} yearsExp={yearsExp} careerGames={careerGames} onTaxi={onTaxi} /> : null}
                 {locks.length > 0 ? <LockedAssetNotice locks={locks} /> : null}
                 <LineupPinTag pin={lineupPin} />
                 {metadata}
@@ -55,6 +59,15 @@ export function PlayerRow({ lineupPin, locks = [], playerId, name, jerseyNumber,
             </View> : null}
         </View>
     </View>
+}
+
+function PlayerTags({ playerId, nbaId, age, birthdate, yearsExp, careerGames, onTaxi }: Pick<PlayerRowProps, 'playerId' | 'nbaId' | 'age' | 'birthdate' | 'yearsExp' | 'careerGames' | 'onTaxi'>) {
+    const displayAge = usePlayerAge(playerId, birthdate, age, nbaId)
+    return <>
+        <PlayerEligibilityTags yearsExp={yearsExp} careerGames={careerGames} onTaxi={onTaxi} />
+        {displayAge != null ? <Badge inline label={`${displayAge}`} accessibilityLabel={`Age ${displayAge}`} color={colors.textMuted} /> : null}
+        {yearsExp != null ? <Badge inline label={`Yr ${yearsExp + 1}`} color={colors.textMuted} /> : null}
+    </>
 }
 
 const styles = StyleSheet.create({

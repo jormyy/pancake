@@ -106,7 +106,7 @@ function PlayerSearchItemImpl({
                 accessibilityLabel={`Open ${item.display_name}`}
             >
                 <PendingMutationBadge rowId={item.id} />
-                <PlayerRowContent compact={!showStats} name={item.display_name} nbaId={item.nba_id} team={item.nba_team} positions={getEligiblePositions(item)}
+                <PlayerRowContent showTags compact={!showStats} name={item.display_name} nbaId={item.nba_id} team={item.nba_team} positions={getEligiblePositions(item)}
                     age={item.age} birthdate={item.birthdate} yearsExp={item.years_exp} careerGames={item.career_regular_season_games} injuryStatus={item.injury_status} onTaxi={owned?.isOnTaxi} metadata={showStats ? statusBadge : undefined} stats={summary} />
 
             </Pressable>

@@ -161,7 +161,7 @@ function RosterTablePlayerItem({
             >
                 <View style={styles.rosterTableSlot}><RosterSlotTag slotType={slotType} /></View>
                 <View style={styles.rosterTablePlayerCell}>
-                    <PlayerRowContent lineupPin={item.lineupPin} locks={locks} name={item.players.display_name} nbaId={item.players.nba_id} team={item.players.nba_team} positions={positions}
+                    <PlayerRowContent showTags lineupPin={item.lineupPin} locks={locks} name={item.players.display_name} nbaId={item.players.nba_id} team={item.players.nba_team} positions={positions}
                         birthdate={item.players.birthdate} yearsExp={item.players.years_exp} careerGames={item.players.career_regular_season_games} injuryStatus={item.players.injury_status}
                         stats={`${formatAvgPoints(avgFpts)} FP · ${fmtStat(stats?.avg_minutes_played)} MIN`} />
                 </View>

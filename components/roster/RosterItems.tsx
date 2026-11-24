@@ -65,7 +65,7 @@ export function RosterPlayerRow({ item, avgFpts, avgMinutes, leading, metadata, 
     const player = item.players
     const content = <>
         {leading}
-        <PlayerRowContent lineupPin={item.lineupPin} locks={readAssetLocks(item)} name={player.display_name} nbaId={player.nba_id} team={player.nba_team} positions={getEligiblePositions(player)}
+        <PlayerRowContent showTags lineupPin={item.lineupPin} locks={readAssetLocks(item)} name={player.display_name} nbaId={player.nba_id} team={player.nba_team} positions={getEligiblePositions(player)}
             birthdate={player.birthdate} yearsExp={player.years_exp} careerGames={player.career_regular_season_games}
             injuryStatus={player.injury_status} onTaxi={rosterLocation(item) === 'taxi'} metadata={metadata}
             stats={<PlayerStats avgFpts={avgFpts} avgMinutes={avgMinutes} />} />
@@ -316,7 +316,7 @@ export const ReadOnlyRosterPlayerItem = memo(function ReadOnlyRosterPlayerItem({
             accessibilityLabel={`Open ${player.display_name}`}
         >
             <PendingMutationBadge rowId={player.id} />
-                <PlayerRowContent lineupPin={item.lineupPin} locks={readAssetLocks(item)} name={player.display_name} nbaId={player.nba_id} team={player.nba_team} positions={positions}
+                <PlayerRowContent showTags lineupPin={item.lineupPin} locks={readAssetLocks(item)} name={player.display_name} nbaId={player.nba_id} team={player.nba_team} positions={positions}
                     birthdate={player.birthdate} yearsExp={player.years_exp} careerGames={player.career_regular_season_games} injuryStatus={player.injury_status} onTaxi={rosterLocation(item) === 'taxi'}
                     stats={<PlayerStats avgFpts={avgFpts} avgMinutes={avgMinutes} />} />
             <Text style={styles.chevron} aria-hidden>›</Text>
@@ -353,7 +353,7 @@ export const TaxiPlayerItem = memo(function TaxiPlayerItem({
             >
                 <RosterSlotTag slotType="TX" />
                 <PendingMutationBadge rowId={player.id} />
-                <PlayerRowContent lineupPin={item.lineupPin} locks={readAssetLocks(item)} name={player.display_name} nbaId={player.nba_id} team={player.nba_team} positions={positions}
+                <PlayerRowContent showTags lineupPin={item.lineupPin} locks={readAssetLocks(item)} name={player.display_name} nbaId={player.nba_id} team={player.nba_team} positions={positions}
                     birthdate={player.birthdate} yearsExp={player.years_exp} careerGames={player.career_regular_season_games} injuryStatus={player.injury_status} onTaxi={rosterLocation(item) === 'taxi'}
                     stats={<PlayerStats avgFpts={avgFpts} avgMinutes={avgMinutes} />} />
             </MotionPressable>
