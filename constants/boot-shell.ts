@@ -130,7 +130,6 @@ ${themeVariablesCss()}
     padding-left:calc(${spacing.lg}px + env(safe-area-inset-left,0px));padding-right:calc(${spacing.lg}px + env(safe-area-inset-right,0px));
     height:calc(${MOBILE_TOPBAR_HEIGHT}px + env(safe-area-inset-top,0px));
     padding-top:env(safe-area-inset-top,0px);background:var(--pancake-bg-card);
-    -webkit-backdrop-filter:blur(20px) saturate(180%);backdrop-filter:blur(20px) saturate(180%);
     border-bottom:1px solid var(--pancake-border-light);}
   .pbs-topbar img{width:44px;height:44px;flex-shrink:0;object-fit:contain;}
   .pbs-topbar-league{flex:1;min-width:0;height:44px;display:flex;align-items:center;
