@@ -66,7 +66,7 @@ export default function OtherMatchupScreen() {
                             {myLineup && oppLineup ? <MatchupLineupView
                                 hideSlotCounts
                                 myLineup={myLineup} oppLineup={oppLineup} playingTeams={playingTeams}
-                                liveStats={liveSnapshot.liveStats} liveTeams={liveTeams} scoringSettings={settings}
+                                liveStats={liveSnapshot.liveStats} liveTeams={liveTeams} onCourt={liveSnapshot.onCourt} scoringSettings={settings}
                                 teamMatchups={liveSnapshot.teamMatchups} statColumns={showColumns ? columns : null}
                                 onOpenDetails={setDetails} onOpenPlayer={setPreviewPlayer} projections={dayProjections}
                                 capacity={{ bench: myLineup.benchSlots, ir: limits?.irSlots ?? 0, taxi: limits?.taxiSlots ?? 0 }}

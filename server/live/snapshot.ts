@@ -44,11 +44,13 @@ function compactBox(box: NBABoxScore, board: NBAGame | undefined, event: EspnEve
     return { team: side.teamTricode, score: side.score!, players }
   })
   const identities = sides.flatMap(side => side.players.map(player => player[0]))
+  const onCourt = box.gameStatus === 3 ? [] : [box.homeTeam,box.awayTeam].flatMap(side => side.players
+    .filter(player => String(player.oncourt) === '1').map(player => ids?.get(player) ?? String(player.personId === 196295686 ? 1641794 : player.personId)))
   if (new Set(identities).size !== identities.length) throw new Error('Provider player appears on both sides')
   return { id: board?.gameId ?? `espn:${event!.id}`, nbaId: board?.gameId ?? null, espnId: event?.id ?? null,
     source: ids ? 'espn' : 'nba', status: box.gameStatus === 3 ? 'Final' : 'InProgress', updatedAt,
     ...(box.gameStatus !== 3 && event?.status.type.state === 'post' ? {completionPending:true} : {}),
-    period: box.period, clock: box.gameClock, home: sides[0], away: sides[1] }
+    period: box.period, clock: box.gameClock, home: sides[0], away: sides[1], ...(onCourt.length ? { onCourt } : {}) }
 }
 
 function nbaIsCurrent(box: NBABoxScore, event: EspnEvent | undefined, observedAt: number): boolean {

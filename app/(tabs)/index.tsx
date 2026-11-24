@@ -160,6 +160,7 @@ export default function HomeScreen() {
                             playingTeams={todayPlayingTeams}
                             liveStats={liveStats}
                             liveTeams={liveTeams}
+                            onCourt={liveSnapshot.onCourt}
                             scoringSettings={scoringSettings}
                             teamMatchups={teamMatchups}
                             timezone={timezone}
