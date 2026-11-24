@@ -54,7 +54,7 @@ export function scanDesignSystem(source, file = 'app/fixture.tsx') {
         ts.forEachChild(node, child => numbers(child, kind, property, seen))
     }
     const visit = node => {
-        if (ts.isImportDeclaration(node) && node.moduleSpecifier.text === '@/constants/tokens' && node.importClause?.namedBindings && ts.isNamedImports(node.importClause.namedBindings)) {
+        if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier) && node.moduleSpecifier.text === '@/constants/tokens' && node.importClause?.namedBindings && ts.isNamedImports(node.importClause.namedBindings)) {
             for (const item of node.importClause.namedBindings.elements) {
                 const imported = (item.propertyName ?? item.name).text
                 if (rawScale.has(imported)) register(item, 'type', imported, imported)
