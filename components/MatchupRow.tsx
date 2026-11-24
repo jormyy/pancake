@@ -22,6 +22,7 @@ const FPTS_W = componentTokens.matchupRow.pointsWidth
 const STAT_COL_W = componentTokens.matchupRow.statWidth
 const STAT_COL_WIDE_W = componentTokens.matchupRow.wideStatWidth
 const NAME_MIN_W = componentTokens.matchupRow.nameMinWidth
+const COMPACT_SCORE_W = componentTokens.matchupRow.statWidth
 const STABLE_PLACEHOLDER = '—'
 
 export type MatchupGame = { opponent: string; isHome: boolean; gameTime?: string | null; status?: string; statusText?: string | null; timezone?: string }
@@ -507,7 +508,7 @@ const styles = StyleSheet.create({
     rowSideRightCompact: { paddingLeft: spacing.xxs, paddingRight: spacing.xs },
     // Sized to the score itself (three digits) so names get the spare width.
     scoreTarget: { minHeight: controlSize.minTouch, justifyContent: 'center' },
-    scoreTargetCompact: { alignSelf: 'center', justifyContent: 'center', alignItems: 'center', minWidth: controlSize.minTouch },
+    scoreTargetCompact: { alignSelf: 'center', justifyContent: 'center', alignItems: 'center', width: controlSize.minTouch, marginHorizontal: (COMPACT_SCORE_W - controlSize.minTouch) / 2, zIndex: 1 },
     playerBlock: { flex: 1, minWidth: 0, height: componentTokens.matchupRow.rowHeight, minHeight: componentTokens.matchupRow.rowHeight, justifyContent: 'center', gap: spacing.xxs },
     playerBlockCompact: { minHeight: controlSize.minTouch + spacing.lg },
     playerBlockDense: { minHeight: controlSize.minTouch },
@@ -521,7 +522,7 @@ const styles = StyleSheet.create({
         marginRight: spacing.sm,
         fontVariant: ['tabular-nums'] as const,
     },
-    fptsNumCompact: { ...typeScale.caption, width: 34 },
+    fptsNumCompact: { ...typeScale.caption, width: COMPACT_SCORE_W },
     fptsNumDense: { ...typeScale.body, width: 40 },
     fptsLeft: { textAlign: 'right', marginRight: spacing.none, marginLeft: spacing.sm },
     fptsLeftCompact: { marginLeft: spacing.none },

@@ -17,7 +17,7 @@ export function Avatar({ name, color = colors.bgMuted, textColor = colors.textSe
     const containerRef = useRef<View | null>(null)
     const [visibleUri, setVisibleUri] = useState(() => uri && loadedImageUris.has(uri) ? uri : null)
     const half = size / 2
-    const fs = (size <= 38 ? typeScale.small : size <= 44 ? typeScale.number : typeScale.heading).fontSize
+    const type = size <= 38 ? typeScale.small : size <= 44 ? typeScale.number : typeScale.heading
 
     useEffect(() => {
         if (!uri) return
@@ -49,16 +49,17 @@ export function Avatar({ name, color = colors.bgMuted, textColor = colors.textSe
                 { width: size, height: size, borderRadius: half, backgroundColor: color },
             ]}
         >
-            <AvatarContent key={uri} uri={uri === visibleUri ? uri : null} name={name} size={size} fontSize={fs} textColor={textColor} />
+            <AvatarContent key={uri} uri={uri === visibleUri ? uri : null} name={name} size={size} fontSize={type.fontSize} lineHeight={type.lineHeight} textColor={textColor} />
         </View>
     )
 }
 
-function AvatarContent({ uri, name, size, fontSize, textColor }: {
+function AvatarContent({ uri, name, size, fontSize, lineHeight, textColor }: {
     uri?: string | null
     name: string
     size: number
     fontSize: number
+    lineHeight: number
     textColor: string
 }) {
     const [loaded, setLoaded] = useState(false)
@@ -66,7 +67,7 @@ function AvatarContent({ uri, name, size, fontSize, textColor }: {
     const initials = getInitials(name)
     return (
         <>
-            {(!loaded || failed) && initials !== '?' ? <Text style={[styles.text, { fontSize, color: textColor }]}>{initials}</Text> : null}
+            {(!loaded || failed) && initials !== '?' ? <Text style={[styles.text, { fontSize, lineHeight, color: textColor }]}>{initials}</Text> : null}
             {uri && !failed ? (
                 <Image
                     source={{ uri }}

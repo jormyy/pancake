@@ -37,6 +37,16 @@ describe('design system source guards', () => {
 })
 
 describe('theme variables', () => {
+    it('pairs every control label size with a type-scale line height', async () => {
+        const { componentTokens, controlSize, typeScale } = await import('../constants/tokens')
+        const pairs = new Set(Object.values(typeScale).map(({ fontSize, lineHeight }) => `${fontSize}/${lineHeight}`))
+
+        for (const size of Object.values(controlSize.button)) expect(pairs).toContain(`${size.font}/${size.line}`)
+        for (const label of [componentTokens.segmentedControl.pillLabel, componentTokens.segmentedControl.tabLabel, componentTokens.badge.label, componentTokens.badge.countLabel, componentTokens.statCell.summary]) {
+            expect(pairs).toContain(`${label.fontSize}/${label.lineHeight}`)
+        }
+    })
+
     it('gives every themed light color a dark value, and nothing extra', async () => {
         const { WEB_THEME_VARS, WEB_THEME_VARS_DARK } = await import('../constants/tokens')
 

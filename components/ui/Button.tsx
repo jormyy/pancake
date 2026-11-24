@@ -27,7 +27,7 @@ type Props = {
 
 type PressableState = { hovered?: boolean; pressed?: boolean }
 
-const SIZES: Record<ButtonSize, { height: number; padX: number; font: number; icon: number; gap: number }> = controlSize.button
+const SIZES: Record<ButtonSize, { height: number; padX: number; font: number; line: number; icon: number; gap: number }> = controlSize.button
 
 function variantColors(variant: ButtonVariant) {
     switch (variant) {
@@ -86,7 +86,7 @@ export function Button({
     const content = <>
         {icon ? <MaterialIcons name={icon} size={s.icon} color={c.fg} /> : null}
         {title ? (
-            <Text style={[styles.label, { color: c.fg, fontSize: s.font }, inline && styles.inlineLabel, labelStyle]} numberOfLines={1}>
+            <Text style={[styles.label, { color: c.fg, fontSize: s.font, lineHeight: s.line }, inline && styles.inlineLabel, labelStyle]} numberOfLines={1}>
                 {title}
             </Text>
         ) : children}
@@ -118,7 +118,7 @@ const styles = StyleSheet.create({
     } as ViewStyle,
     fullWidth: { width: '100%' },
     inlineTarget: { minHeight: controlSize.minTouch, minWidth: controlSize.minTouch, alignItems: 'center', justifyContent: 'center' },
-    inlineLabel: { lineHeight: controlSize.icon.sm, fontWeight: fontWeight.semibold, fontFamily: fontFamily.control, letterSpacing: tracking.none },
+    inlineLabel: { fontWeight: fontWeight.semibold, fontFamily: fontFamily.control, letterSpacing: tracking.none },
     label: {
         fontWeight: fontWeight.bold,
         fontFamily: fontFamily.displayMedium,

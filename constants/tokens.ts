@@ -291,7 +291,7 @@ export const radii = {
 
 // ── Typography ──────────────────────────────────────────────────
 
-const TYPE_SCALE = [10, 11, 12, 13, 14, 16, 17, 18, 20, 24, 28, 32] as const
+const TYPE_SCALE = [10, 11, 12, 13, 14, 16, 18, 20, 24, 28, 32] as const
 
 export const fontSize = {
     '2xs': TYPE_SCALE[0],
@@ -300,12 +300,11 @@ export const fontSize = {
     md: TYPE_SCALE[3],
     '2md': TYPE_SCALE[4],
     lg: TYPE_SCALE[5],
-    '2lg': TYPE_SCALE[6],
-    xl: TYPE_SCALE[7],
-    '2xl': TYPE_SCALE[8],
-    '3xl': TYPE_SCALE[9],
-    '4xl': TYPE_SCALE[10],
-    '5xl': TYPE_SCALE[11],
+    xl: TYPE_SCALE[6],
+    '2xl': TYPE_SCALE[7],
+    '3xl': TYPE_SCALE[8],
+    '4xl': TYPE_SCALE[9],
+    '5xl': TYPE_SCALE[10],
 } as const
 
 // Display face — Outfit, loaded via useFonts in app/_layout.tsx without
@@ -410,10 +409,10 @@ export const controlSize = {
     icon: { sm: unit(4), md: unit(5), lg: unit(6) },
     avatar: { sm: unit(7), md: unit(8), lg: unit(11), profile: unit(13) },
     button: {
-        inline: { height: unit(7), padX: spacing.md, font: fontSize.sm, icon: unit(4), gap: spacing.xs },
-        sm: { height: unit(11), padX: spacing.lg, font: fontSize.sm, icon: unit(4), gap: spacing.sm },
-        md: { height: unit(11), padX: spacing.xl, font: fontSize.md, icon: halfUnit(9), gap: spacing.md },
-        lg: { height: unit(12), padX: spacing['3xl'], font: fontSize.lg, icon: unit(5), gap: spacing.md },
+        inline: { height: unit(7), padX: spacing.md, font: typeScale.small.fontSize, line: typeScale.small.lineHeight, icon: unit(4), gap: spacing.xs },
+        sm: { height: unit(11), padX: spacing.lg, font: typeScale.small.fontSize, line: typeScale.small.lineHeight, icon: unit(4), gap: spacing.sm },
+        md: { height: unit(11), padX: spacing.xl, font: typeScale.body.fontSize, line: typeScale.body.lineHeight, icon: halfUnit(9), gap: spacing.md },
+        lg: { height: unit(12), padX: spacing['3xl'], font: typeScale.title.fontSize, line: typeScale.title.lineHeight, icon: unit(5), gap: spacing.md },
     },
     field: {
         fontSize: fontSize.lg,
@@ -697,12 +696,12 @@ export const componentTokens = {
         inline: { minHeight: controlSize.badge.height, paddingHorizontal: spacing.xxs, paddingVertical: 0 },
         count: { minWidth: 18, minHeight: 18, paddingVertical: 0, paddingHorizontal: spacing.xs, borderRadius: radii.full },
         tintOpacity: 0.13,
-        label: { fontSize: fontSize.xs, fontWeight: fontWeight.bold },
-        countLabel: { fontSize: fontSize['2xs'], fontWeight: fontWeight.bold },
+        label: { ...typeScale.caption, fontWeight: fontWeight.bold },
+        countLabel: { ...typeScale.micro, fontWeight: fontWeight.bold },
     },
     statCell: {
         width: table.statColWidth,
-        summary: { width: '100%' as const, textAlign: 'center' as const, fontSize: fontSize['2lg'], fontWeight: fontWeight.bold, color: colors.textPrimary, fontVariant: tabularNums },
+        summary: { width: '100%' as const, textAlign: 'center' as const, ...typeScale.title, fontWeight: fontWeight.bold, color: colors.textPrimary, fontVariant: tabularNums },
         text: { ...textStyles.meta, fontWeight: fontWeight.semibold, textAlign: 'right' as const },
         highlight: { color: colors.primaryDark, fontWeight: fontWeight.extrabold },
     },
@@ -713,8 +712,8 @@ export const componentTokens = {
         gap: spacing.sm,
         radius: radii['3xl'],
         underlineWidth: borderWidth.strong,
-        pillLabel: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, fontFamily: fontFamily.displayMedium, color: colors.textSecondary },
-        tabLabel: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textMuted },
+        pillLabel: { ...typeScale.small, fontWeight: fontWeight.bold, fontFamily: fontFamily.displayMedium, color: colors.textSecondary },
+        tabLabel: { ...typeScale.body, fontWeight: fontWeight.semibold, color: colors.textMuted },
     },
     sheet: {
         ...layout.sheet,

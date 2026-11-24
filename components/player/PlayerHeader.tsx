@@ -120,7 +120,7 @@ const styles = StyleSheet.create({
     identity: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: controlSize.field.md },
     avatarWrap: { flexShrink: 0 },
     name: { ...textStyles.pageTitle, flex: 1, minWidth: 0 },
-    nameCompact: { ...textStyles.rowTitle, fontSize: componentTokens.pageHeader.compact.title.fontSize },
+    nameCompact: { ...textStyles.rowTitle, ...typeScale.title },
     metaRow: { flexDirection: 'row', flexWrap: 'nowrap', alignItems: 'center', gap: spacing.xs, minHeight: textStyles.body.lineHeight },
     summary: { ...componentTokens.playerRow.metadata, color: colors.textSecondary, flexShrink: 1, minWidth: 0 },
     summaryRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.xs, minHeight: textStyles.body.lineHeight },
