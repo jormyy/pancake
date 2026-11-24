@@ -222,7 +222,8 @@ export default function ProfileScreen() {
                     onRetry={() => { void retryProfile() }}
                 />
             ) : null}
-            <ScrollView aria-busy={!contentVisible} aria-hidden={!contentVisible} pointerEvents={contentVisible ? 'auto' : 'none'} accessibilityState={{ busy: !contentVisible }} style={[styles.scroll, !contentVisible && styles.pendingContent]} contentContainerStyle={[styles.scrollContent, styles.formColumn, { paddingHorizontal: padX }]}>
+            <View style={styles.scroll} aria-busy={!contentVisible} accessibilityState={{ busy: !contentVisible }}>
+            <ScrollView aria-hidden={!contentVisible} pointerEvents={contentVisible ? 'auto' : 'none'} style={[styles.scroll, !contentVisible && styles.pendingContent]} contentContainerStyle={[styles.scrollContent, styles.formColumn, { paddingHorizontal: padX }]}>
                 <View style={styles.identity}>
                     <Pressable
                         onPress={handlePickAvatar}
@@ -321,6 +322,7 @@ export default function ProfileScreen() {
                     <SettingsRow label="Sign out" tone="danger" chevron={false} onPress={handleSignOut} />
                 </SettingsGroup>
             </ScrollView>
+            </View>
         </Page>
     )
 }
