@@ -3,7 +3,7 @@ import { Animated, Modal, Platform, Pressable, StyleSheet, Text, View, useWindow
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { useReducedMotion } from '@/components/Motion'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { breakpoints, colors, elevation, fontWeight, radii, scrim, spacing, typeScale } from '@/constants/tokens'
+import { breakpoints, colors, controlSize, elevation, fontWeight, radii, scrim, spacing, typeScale } from '@/constants/tokens'
 import { Button } from './Button'
 import { focusableDialogElements, trapDialogTabFocus, type DialogKeyboardEvent } from './dialogFocus'
 import { scheduleWebFocusRecovery } from './webFocus'
@@ -197,7 +197,7 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
                                 {t.title ? <Text style={styles.toastTitle}>{t.title}</Text> : null}
                                 <Text style={styles.toastMessage}>{t.message}</Text>
                             </View>
-                            <Pressable onPress={() => dismiss(t.id)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Dismiss">
+                            <Pressable onPress={() => dismiss(t.id)} style={styles.toastDismiss} accessibilityRole="button" accessibilityLabel="Dismiss">
                                 <MaterialIcons name="close" size={18} color={colors.textMuted} />
                             </Pressable>
                         </ToastView>
@@ -304,6 +304,7 @@ const styles = StyleSheet.create({
         ...(elevation('lg') as object),
     },
     toastBody: { flex: 1, gap: spacing.xxs },
+    toastDismiss: { minWidth: controlSize.minTouch, minHeight: controlSize.minTouch, alignItems: 'center', justifyContent: 'center', margin: -spacing.md },
     toastTitle: { ...typeScale.row, fontWeight: fontWeight.bold, color: colors.textPrimary },
     toastMessage: { ...typeScale.small, color: colors.textSecondary },
 

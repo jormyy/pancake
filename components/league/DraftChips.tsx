@@ -351,8 +351,9 @@ const styles = StyleSheet.create({
         borderCurve: 'continuous' as const,
         backgroundColor: colors.bgCard,
         paddingHorizontal: spacing.sm,
-        paddingVertical: spacing.xs,
-        justifyContent: 'center',
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.xs,
     },
     customTimerFieldActive: {
         borderColor: colors.primary,
@@ -365,7 +366,9 @@ const styles = StyleSheet.create({
     },
     customTimerLabelActive: { color: colors.primaryDark },
     customTimerInput: {
-        minHeight: 22,
+        flex: 1,
+        minWidth: 0,
+        minHeight: controlSize.minTouch,
         padding: spacing.none,
         fontSize: controlSize.field.fontSize,
         fontWeight: fontWeight.semibold,

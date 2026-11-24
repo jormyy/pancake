@@ -547,12 +547,12 @@ export default function ClaimPlayerScreen() {
                 <View style={{ flex: 1 }} aria-busy={loading} accessibilityState={{ busy: loading }}>
                 {renderScreenHeader()}
                 {loadError ? (
-                    <Pressable onPress={() => setLoadAttempt(value => value + 1)} accessibilityRole="button" accessibilityLabel="Retry waiver claim load" style={{ padding: spacing.lg }}>
+                    <Pressable onPress={() => setLoadAttempt(value => value + 1)} accessibilityRole="button" accessibilityLabel="Retry waiver claim load" style={styles.loadRetry}>
                         <Text accessibilityRole="alert" style={{ color: colors.danger }}>{loadError} Tap to retry.</Text>
                     </Pressable>
                 ) : null}
                 {balanceUnknown && !loading ? (
-                    <Pressable onPress={refreshTransactionState} accessibilityRole="button" accessibilityLabel="Retry FAAB balance" style={{ padding: spacing.lg }}>
+                    <Pressable onPress={refreshTransactionState} accessibilityRole="button" accessibilityLabel="Retry FAAB balance" style={styles.loadRetry}>
                         <Text accessibilityRole="alert" style={{ color: colors.danger }}>Could not load your FAAB balance. Tap to retry.</Text>
                     </Pressable>
                 ) : null}
@@ -612,6 +612,7 @@ const NARROW_HEADER = 360
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgScreen },
+    loadRetry: { minHeight: controlSize.minTouch, justifyContent: 'center', padding: spacing.lg },
     bodyScroll: { flex: 1 },
     bodyContent: {
         width: '100%',

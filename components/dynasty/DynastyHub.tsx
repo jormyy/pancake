@@ -18,7 +18,7 @@ import { useRouter } from 'expo-router'
 
 import { EmptyState } from '@/components/EmptyState'
 import { ItemSeparator } from '@/components/ItemSeparator'
-import { Card, ErrorBanner, Input, SegmentedControl } from '@/components/ui'
+import { Button, Card, ErrorBanner, Input, SegmentedControl } from '@/components/ui'
 import { usePageMetrics } from '@/components/ui/Page'
 import { RetainedPanel } from '@/components/ui/RetainedPanel'
 import { useLeagueContext } from '@/contexts/league-context'
@@ -220,10 +220,7 @@ export function DynastyHub({ section }: { section: DynastySection }) {
                                 <MaterialIcons name="error-outline" size={26} color={colors.danger} />
                                 <Text style={styles.errorTitle}>Rankings could not load</Text>
                                 <Text style={styles.errorText}>{rankings.error.message}</Text>
-                                <Pressable style={styles.retryButton} onPress={() => void rankings.refresh()} accessibilityRole="button" accessibilityLabel="Retry rankings">
-                                    <MaterialIcons name="refresh" size={18} color={colors.textWhite} />
-                                    <Text style={styles.retryButtonText}>Retry</Text>
-                                </Pressable>
+                                <Button title="Retry" icon="refresh" accessibilityLabel="Retry rankings" onPress={() => void rankings.refresh()} />
                             </View>
                         ) : (
                             <FlashList
@@ -372,17 +369,6 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         color: colors.textMuted,
     },
-    retryButton: {
-        minHeight: 42,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: spacing.sm,
-        borderRadius: radii.md,
-        paddingHorizontal: spacing.xl,
-        backgroundColor: colors.primary,
-    },
-    retryButtonText: { ...typeScale.small, fontWeight: fontWeight.bold, color: colors.textWhite },
     footerRetry: {
         minHeight: 54,
         flexDirection: 'row',

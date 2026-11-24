@@ -350,6 +350,7 @@ const styles = StyleSheet.create({
     input: {
         flex: 1.4,
         minWidth: 0,
+        minHeight: controlSize.minTouch,
         fontSize: controlSize.field.fontSize,
         color: colors.textPrimary,
         textAlign: 'right',

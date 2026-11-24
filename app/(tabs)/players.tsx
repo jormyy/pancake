@@ -574,7 +574,7 @@ function PlayersScreen() {
 }
 
 const localStyles = StyleSheet.create({
-    freshness: { paddingVertical: spacing.sm },
+    freshness: { minHeight: controlSize.minTouch, justifyContent: 'center', paddingVertical: spacing.sm },
     freshnessText: { ...typeScale.small, color: colors.textSecondary },
     panel: { flex: 1, minHeight: 0 },
     results: { flex: 1, minHeight: 320 },

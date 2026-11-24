@@ -97,6 +97,6 @@ const styles = StyleSheet.create({
     incoming: { ...textStyles.meta, color: colors.primaryDark },
     planActions: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-end', gap: spacing.sm, flexWrap: 'wrap' },
     choices: { flexDirection: 'row', gap: spacing.xs, alignSelf: 'flex-end' },
-    choice: { minHeight: foundation.minTouch, paddingHorizontal: spacing.md, justifyContent: 'center', borderRadius: radii.md },
+    choice: { minHeight: foundation.minTouch, minWidth: foundation.minTouch, paddingHorizontal: spacing.md, alignItems: 'center', justifyContent: 'center', borderRadius: radii.md },
     selected: { backgroundColor: colors.primaryLight },
 })
