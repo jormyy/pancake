@@ -207,7 +207,7 @@ const styles = StyleSheet.create({
     txTime: { ...typeScale.caption, color: colors.textMuted },
     meTag: { color: colors.textMuted, fontWeight: fontWeight.regular },
     activityFooterAction: {
-        minHeight: 44,
+        minHeight: controlSize.minTouch,
         padding: spacing['3xl'],
         alignItems: 'center',
         justifyContent: 'center',

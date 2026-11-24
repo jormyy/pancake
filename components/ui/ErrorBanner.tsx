@@ -1,5 +1,5 @@
 import { Pressable, StyleSheet, Text } from 'react-native'
-import { colors, fontWeight, spacing, typeScale } from '@/constants/tokens'
+import { colors, fontWeight, spacing, typeScale, controlSize } from '@/constants/tokens'
 
 type Props = {
     message?: string
@@ -25,7 +25,7 @@ const styles = StyleSheet.create({
         backgroundColor: colors.dangerLight,
         paddingHorizontal: spacing.xl,
         paddingVertical: spacing.md,
-        minHeight: 44,
+        minHeight: controlSize.minTouch,
         alignItems: 'center',
         justifyContent: 'center',
     },

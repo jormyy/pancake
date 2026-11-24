@@ -14,7 +14,7 @@ export const styles = StyleSheet.create({
     scrollCompact: { paddingTop: spacing.md, gap: spacing.sm, paddingBottom: spacing['5xl'] },
 
     headerSave: {
-        minHeight: 44,
+        minHeight: controlSize.minTouch,
         paddingHorizontal: spacing.lg,
         borderRadius: radii.md,
         borderCurve: 'continuous' as const,
@@ -94,7 +94,7 @@ export const styles = StyleSheet.create({
     segmentRowCompact: { width: '100%' },
     segmentButton: {
         minWidth: 76,
-        minHeight: 44,
+        minHeight: controlSize.minTouch,
         alignItems: 'center',
         justifyContent: 'center',
         borderWidth: 1,
@@ -119,7 +119,7 @@ export const styles = StyleSheet.create({
         paddingBottom: spacing.sm,
     },
     memberChip: {
-        minHeight: 44,
+        minHeight: controlSize.minTouch,
         justifyContent: 'center',
         borderRadius: radii.md,
         borderCurve: 'continuous' as const,
@@ -139,7 +139,7 @@ export const styles = StyleSheet.create({
     overrideInput: {
         ...typeScale.title,
         flex: 1,
-        minHeight: 44,
+        minHeight: controlSize.minTouch,
         borderWidth: 1,
         borderColor: colors.borderLight,
         borderRadius: radii.md,
@@ -149,7 +149,7 @@ export const styles = StyleSheet.create({
     },
     overrideButton: {
         minWidth: 92,
-        minHeight: 44,
+        minHeight: controlSize.minTouch,
         alignItems: 'center',
         justifyContent: 'center',
         borderRadius: radii.md,
@@ -161,8 +161,8 @@ export const styles = StyleSheet.create({
 
     stepper: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg },
     stepBtn: {
-        width: 44,
-        height: 44,
+        width: controlSize.minTouch,
+        height: controlSize.minTouch,
         borderRadius: radii.md,
         borderCurve: 'continuous' as const,
         backgroundColor: colors.bgMuted,
@@ -184,7 +184,7 @@ export const styles = StyleSheet.create({
         borderCurve: 'continuous' as const,
         borderWidth: 1,
         borderColor: colors.primary,
-        minHeight: 44,
+        minHeight: controlSize.minTouch,
         justifyContent: 'center',
         alignItems: 'center',
         paddingHorizontal: spacing.lg,

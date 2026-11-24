@@ -163,12 +163,15 @@ it.each([
     "import { fontSize } from '@/constants/tokens'",
     "import { lineHeight as leading } from '@/constants/tokens'",
     'const css = `padding: 12px 8px; border-radius: 4px; font-size: 16px`',
+    'const style = { minHeight: 44 }',
+    'const style = { width: wide ? 60 : 44 }',
 ])('rejects a raw design literal: %s', source => {
     expect(scanDesignSystem(source, 'components/Fixture.tsx').length).toBeGreaterThan(0)
 })
 it('accepts shared tokens, runtime sizes and structural numbers', () => {
     expect(scanDesignSystem('const style = { padding: spacing.md, margin: spacing.lg * 2, fontSize: typeScale.title.fontSize, borderRadius: radii.md, color: colors.primary, flex: 1, opacity: 0.5, top: insets.top }')).toEqual([])
     expect(scanDesignSystem('const styles = { left: { flex: 1, minWidth: 0 }, right: { flex: 1 } }')).toEqual([])
+    expect(scanDesignSystem('const style = { minHeight: controlSize.minTouch, width: 80, height: 40 }')).toEqual([])
     expect(scanDesignSystem('const style = { padding: 16 }', 'components/ui/Fixture.tsx')).toHaveLength(1)
     expect(scanDesignSystem('const style = { padding: 16 }', 'constants/tokens.ts')).toEqual([])
 })

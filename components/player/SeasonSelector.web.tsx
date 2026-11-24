@@ -18,8 +18,8 @@ export function SeasonSelector({ seasons, selectedSeason, onSelect }: Props) {
                 onChange={event => onSelect(Number(event.currentTarget.value))}
                 style={{
                     ...typeScale.title,
-                    minHeight: 44,
-                    height: 44,
+                    minHeight: controlSize.minTouch,
+                    height: controlSize.minTouch,
                     width: '100%',
                     appearance: 'none',
                     WebkitAppearance: 'none',

@@ -1,6 +1,6 @@
 import { createContext, forwardRef, useCallback, useContext, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Platform, ScrollView, StyleSheet, View, useWindowDimensions, type NativeScrollEvent, type NativeSyntheticEvent, type ScrollViewProps, type StyleProp, type ViewStyle } from 'react-native'
-import { breakpoints, colors, layout, spacing } from '@/constants/tokens'
+import { breakpoints, colors, layout, spacing, controlSize } from '@/constants/tokens'
 
 type StatusValue = { inset: number, bottom: number, setVisible: (visible: boolean) => void, setHeight: (height: number) => void }
 
@@ -61,5 +61,5 @@ export const ScreenStatusScrollView = forwardRef<ScrollView, ScrollViewProps>(fu
 
 const styles = StyleSheet.create({
     overlay: { position: 'absolute', left: spacing.lg, right: spacing.lg, zIndex: 900 },
-    notice: { minHeight: 44, backgroundColor: colors.bgScreen },
+    notice: { minHeight: controlSize.minTouch, backgroundColor: colors.bgScreen },
 })

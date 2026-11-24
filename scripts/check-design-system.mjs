@@ -11,6 +11,8 @@ const rawColor = /#[\da-f]{3,8}\b|\b(?:rgba?|hsla?|oklch|color)\s*\(/i
 const colorProperty = /(?:color|fill|stroke|background)$/i
 const semanticColor = /^(?:inherit|initial|unset|revert|none|currentColor|var\(|url\()/i
 const rawScale = new Set(['fontSize', 'lineHeight'])
+const touchSize = new Set(['minHeight', 'minWidth', 'height', 'width'])
+const TOUCH = 44
 
 export function scanDesignSystem(source, file = 'app/fixture.tsx') {
     if (!/^(?:app|components)\//.test(file)) return []
@@ -63,6 +65,13 @@ export function scanDesignSystem(source, file = 'app/fixture.tsx') {
             const property = ts.isStringLiteralLike(name) ? name.text : name.getText(tree)
             const kind = metricKind(property)
             if (kind && node.initializer) numbers(node.initializer, kind, property)
+            if (touchSize.has(property) && node.initializer) {
+                const touch = child => {
+                    if (ts.isConditionalExpression(child)) { touch(child.whenTrue); touch(child.whenFalse); return }
+                    if (ts.isNumericLiteral(child) && Number(child.text) === TOUCH) register(child, 'touch', property)
+                }
+                touch(node.initializer)
+            }
             if (colorProperty.test(property) && node.initializer) {
                 const checkColor = (child, seen = new Set()) => {
                     if (ts.isPropertyAccessExpression(child) || ts.isElementAccessExpression(child)) {

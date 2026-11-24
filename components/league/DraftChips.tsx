@@ -307,7 +307,7 @@ const styles = StyleSheet.create({
     nominationModeChip: {
         flexGrow: 1,
         flexBasis: 78,
-        minHeight: 44,
+        minHeight: controlSize.minTouch,
         paddingVertical: spacing.sm,
         paddingHorizontal: spacing.md,
         borderRadius: radii.md,
@@ -344,7 +344,7 @@ const styles = StyleSheet.create({
         flexGrow: 1,
         flexBasis: 118,
         minWidth: 118,
-        minHeight: 44,
+        minHeight: controlSize.minTouch,
         borderWidth: 1,
         borderColor: colors.border,
         borderRadius: radii.md,

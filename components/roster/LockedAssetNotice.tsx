@@ -1,7 +1,7 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import type { ElementType, ReactNode } from 'react'
 import { Pressable, StyleSheet, View, type PressableProps, type StyleProp, type ViewStyle } from 'react-native'
-import { colors, componentTokens, controlSize, spacing } from '@/constants/tokens'
+import { colors, componentTokens, controlSize } from '@/constants/tokens'
 import { assetLockReason, type AssetLock } from '@/lib/locked-assets'
 
 async function explainLock(reason: string) {
@@ -12,7 +12,7 @@ async function explainLock(reason: string) {
 export function LockedAssetNotice({ locks }: { locks: readonly AssetLock[] }) {
     const reason = assetLockReason(locks)
     if (!reason) return null
-    return <Pressable style={styles.icon} hitSlop={spacing.xs}
+    return <Pressable style={styles.icon}
         accessibilityRole="button" accessibilityLabel={reason} accessibilityState={{ disabled: false }}
         onPress={event => { event.stopPropagation(); return explainLock(reason) }}
         onLongPress={event => { event.stopPropagation(); return explainLock(reason) }}>
@@ -45,5 +45,12 @@ export function LockedActionExplanation({ locks, label, children, busy = false }
 }
 
 const styles = StyleSheet.create({
-    icon: { minWidth: controlSize.icon.sm, minHeight: componentTokens.badge.inline.minHeight, alignItems: 'center', justifyContent: 'center' },
+    icon: {
+        width: controlSize.minTouch,
+        height: controlSize.minTouch,
+        marginHorizontal: (controlSize.icon.sm - controlSize.minTouch) / 2,
+        marginVertical: (componentTokens.badge.inline.minHeight - controlSize.minTouch) / 2,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
 })

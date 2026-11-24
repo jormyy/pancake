@@ -181,7 +181,7 @@ const styles = StyleSheet.create({
     countdownTextUrgent: { color: colors.dangerDark },
     bidInputRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.md },
     bidStepGroup: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, flexShrink: 0 },
-    bidStep: { width: 44, height: controlSize.minTouch, borderRadius: radii.full, borderCurve: 'continuous', backgroundColor: colors.bgMuted,
+    bidStep: { width: controlSize.minTouch, height: controlSize.minTouch, borderRadius: radii.full, borderCurve: 'continuous', backgroundColor: colors.bgMuted,
         justifyContent: 'center', alignItems: 'center' },
     bidStepText: { ...typeScale.heading, fontWeight: fontWeight.semibold, color: colors.textSecondary },
     bidAmountInput: {

@@ -507,7 +507,7 @@ const styles = StyleSheet.create({
     rowSideRightCompact: { paddingLeft: spacing.xxs, paddingRight: spacing.xs },
     // Sized to the score itself (three digits) so names get the spare width.
     scoreTarget: { minHeight: controlSize.minTouch, justifyContent: 'center' },
-    scoreTargetCompact: { alignSelf: 'center', justifyContent: 'center' },
+    scoreTargetCompact: { alignSelf: 'center', justifyContent: 'center', alignItems: 'center', minWidth: controlSize.minTouch },
     playerBlock: { flex: 1, minWidth: 0, height: componentTokens.matchupRow.rowHeight, minHeight: componentTokens.matchupRow.rowHeight, justifyContent: 'center', gap: spacing.xxs },
     playerBlockCompact: { minHeight: controlSize.minTouch + spacing.lg },
     playerBlockDense: { minHeight: controlSize.minTouch },

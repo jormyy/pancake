@@ -3,7 +3,7 @@ import { TradePlayerLink } from '@/components/trades/TradePlayerLink'
 import { pickLabel } from '@/lib/picks'
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
 import { TradeAssetColumn } from '@/components/trades/TradeAssetColumn'
-import { colors, fontWeight, radii, spacing, textStyles, uiColors, typeScale } from '@/constants/tokens'
+import { colors, fontWeight, radii, spacing, textStyles, uiColors, typeScale, controlSize } from '@/constants/tokens'
 import { canUpdateTradeFaabInput, MAX_TRADE_FAAB_DIGITS, validateTradeFaabInput } from '@/lib/multi-team-trade-state'
 import type { TradeParticipantView } from '@/lib/trade-ui-model'
 
@@ -235,7 +235,7 @@ const styles = StyleSheet.create({
     routePickerLabel: { ...textStyles.sectionLabel, ...typeScale.micro },
     routeOptions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
     routeOption: {
-        minHeight: 44,
+        minHeight: controlSize.minTouch,
         maxWidth: 180,
         borderWidth: 1,
         borderColor: uiColors.borderNeutral,
@@ -256,7 +256,7 @@ const styles = StyleSheet.create({
     termLabel: { ...textStyles.sectionLabel, ...typeScale.micro },
     termInput: {
         ...typeScale.title,
-        minHeight: 44,
+        minHeight: controlSize.minTouch,
         borderWidth: 1,
         borderColor: uiColors.borderNeutral,
         borderRadius: radii.md,

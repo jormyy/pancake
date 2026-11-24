@@ -16,6 +16,7 @@ vi.mock('@/constants/tokens', () => ({
     fontWeight: { bold: '700' },
     radii: { md: 4 },
     spacing: { sm: 8, md: 12, xl: 24 },
+    controlSize: { minTouch: 44 },
 }))
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
