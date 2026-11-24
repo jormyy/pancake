@@ -108,3 +108,16 @@ it('keeps the server refusal on screen when the same offer refreshes', async () 
     expect(banner()).toEqual([refusal])
     expect(confirmDisabled()).toBe(true)
 })
+
+it('shows that the acceptance is being sent while the request is open', async () => {
+    await act(async () => { screen = create(render(trade())) })
+    await settle()
+    let finish!: () => void
+    reads.accept.mockReturnValueOnce(new Promise<void>(done => { finish = done }))
+    await act(async () => { void screen.root.findByProps({ testID: 'trade-confirm-accept' }).props.onPress() })
+    const submit = screen.root.findByProps({ testID: 'trade-confirm-accept' })
+    expect(submit.props['aria-busy']).toBe(true)
+    expect(text()).toContain('Accepting…')
+    await act(async () => finish())
+    expect(screen.root.findByProps({ testID: 'trade-confirm-accept' }).props['aria-busy']).toBe(false)
+})
