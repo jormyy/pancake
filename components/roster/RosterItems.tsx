@@ -10,7 +10,7 @@ import { PlayerEligibilityContext } from '@/contexts/player-eligibility-context'
 import { PlayerRowContent } from '@/components/player/PlayerRowContent'
 import { memo, useContext, useEffect, useState, type ReactNode } from 'react'
 import { View, Text, StyleSheet, TextInput, Switch } from 'react-native'
-import { alpha, colors, componentTokens, controlSize, fontSize, fontWeight, radii, spacing, table, textStyles, tracking } from '@/constants/tokens'
+import { alpha, colors, componentTokens, controlSize, fontWeight, radii, spacing, table, textStyles, typeScale } from '@/constants/tokens'
 import { slotColor } from '@/constants/positions'
 import { isIREligible, RosterPlayer } from '@/lib/roster'
 import { getEligiblePositions } from '@/lib/players'
@@ -383,7 +383,7 @@ const styles = StyleSheet.create({
         borderRadius: radii.xs,
         borderCurve: 'continuous' as const,
     },
-    slotTagText: { fontSize: fontSize['2xs'], fontWeight: fontWeight.extrabold, letterSpacing: tracking.tight },
+    slotTagText: { ...typeScale.micro, fontWeight: fontWeight.extrabold },
     slotTagTextStrong: { fontWeight: fontWeight.black },
 
     row: {
@@ -431,7 +431,7 @@ const styles = StyleSheet.create({
     },
     irButtonActive: { backgroundColor: colors.danger, borderColor: colors.danger },
     taxiButtonActive: { backgroundColor: colors.info, borderColor: colors.info },
-    actionButtonText: { fontSize: fontSize['2sm'], fontWeight: fontWeight.bold, color: colors.textSecondary },
+    actionButtonText: { ...typeScale.small, fontWeight: fontWeight.bold, color: colors.textSecondary },
     actionButtonTextActive: { color: colors.onAccent },
 
     pickCircle: {
@@ -443,7 +443,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
-    pickCircleText: { color: colors.onAccent, fontWeight: fontWeight.bold, fontSize: fontSize['2sm'] },
+    pickCircleText: { ...typeScale.small, color: colors.onAccent, fontWeight: fontWeight.bold },
 
     claimRow: { paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, gap: spacing.sm },
     claimTop: { flexDirection: 'row', alignItems: 'center', minHeight: controlSize.minTouch, gap: spacing.md },
@@ -472,6 +472,6 @@ const styles = StyleSheet.create({
         borderCurve: 'continuous' as const,
         paddingHorizontal: spacing.sm,
     },
-    miniButtonText: { fontSize: fontSize['2sm'], fontWeight: fontWeight.bold, color: colors.textSecondary },
-    chevron: { fontSize: fontSize.xl, color: colors.textPlaceholder },
+    miniButtonText: { ...typeScale.small, fontWeight: fontWeight.bold, color: colors.textSecondary },
+    chevron: { ...typeScale.heading, color: colors.textPlaceholder },
 })

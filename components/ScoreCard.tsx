@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { Platform, Pressable, View, Text, StyleSheet } from 'react-native'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import type { Matchup } from '@/lib/scoring'
-import { alpha, componentTokens, borderWidth, colors, controlSize, fontSize, fontWeight, radii, shadows, spacing, textStyles, uiColors } from '@/constants/tokens'
+import { alpha, componentTokens, borderWidth, colors, controlSize, fontWeight, radii, shadows, spacing, textStyles, uiColors, typeScale } from '@/constants/tokens'
 import { formatPoints } from '@/lib/format'
 
 export function ScoreCard({ matchup, compact = false, children, onPreviousMatchup, onNextMatchup }: {
@@ -129,7 +129,7 @@ const styles = StyleSheet.create({
         paddingBottom: spacing.xs,
     },
     week: {
-        fontSize: fontSize['2xs'],
+        ...typeScale.micro,
         fontWeight: fontWeight.extrabold,
         color: colors.primaryDark,
         letterSpacing: textStyles.sectionLabel.letterSpacing,
@@ -167,27 +167,25 @@ const styles = StyleSheet.create({
     side: { flex: 1, minWidth: 0, gap: spacing.xxs },
     sideRight: { alignItems: 'flex-end' },
     teamName: {
+        ...typeScale.small,
         flexGrow: 1,
         width: '100%',
-        fontSize: fontSize['2sm'],
         color: colors.textMuted,
         fontWeight: fontWeight.semibold,
     },
     teamNameCompact: {
-        fontSize: fontSize.xs,
-        lineHeight: textStyles.sectionLabel.lineHeight,
+        ...typeScale.caption,
     },
     teamNameRight: { textAlign: 'right' },
     compactMeta: {
+        ...typeScale.micro,
         marginTop: spacing.none,
-        fontSize: fontSize['2xs'],
-        lineHeight: textStyles.tableHeader.lineHeight,
         color: colors.textPlaceholder,
         fontWeight: fontWeight.semibold,
     },
     textRight: { textAlign: 'right' },
     record: {
-        fontSize: fontSize.xs,
+        ...typeScale.caption,
         color: colors.textPlaceholder,
         fontWeight: fontWeight.semibold,
         marginTop: spacing.xxs,

@@ -9,7 +9,7 @@ import { TradePlayerLink } from '@/components/trades/TradePlayerLink'
 import { View, Text, StyleSheet } from 'react-native'
 import { SavedTradeEstimate } from '@/components/trades/SavedTradeEstimate'
 import { useRouter } from 'expo-router'
-import { TRADE_STATUS_COLORS, colors, controlSize, fontSize, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
+import { TRADE_STATUS_COLORS, colors, controlSize, fontWeight, radii, spacing, textStyles, typeScale } from '@/constants/tokens'
 import { Trade, TradeItem, type TradeRosterPlan, needsMemberAcceptance } from '@/lib/trades'
 import { MotionPressable } from '@/components/Motion'
 
@@ -409,7 +409,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         gap: spacing.md,
     },
-    cardOpponent: { ...textStyles.rowTitle, fontSize: fontSize.lg, flex: 1, minWidth: 0 },
+    cardOpponent: { ...textStyles.rowTitle, ...typeScale.title, flex: 1, minWidth: 0 },
     cardHeaderControls: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexShrink: 0 },
     analyzeBtn: {
         minHeight: controlSize.minTouch,
@@ -420,7 +420,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     analyzeBtnDisabled: { opacity: 0.5 },
-    analyzeBtnText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.primaryDark },
+    analyzeBtnText: { ...typeScale.small, fontWeight: fontWeight.bold, color: colors.primaryDark },
     summary: { gap: spacing.md },
     meta: { ...textStyles.meta },
     sides: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.lg },
@@ -431,10 +431,10 @@ const styles = StyleSheet.create({
     assetRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 32 },
     assetLink: { minHeight: controlSize.minTouch, borderRadius: radii.sm },
     assetCopy: { flex: 1, minWidth: 0, gap: spacing.xxs },
-    assetName: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textPrimary },
+    assetName: { ...typeScale.small, fontWeight: fontWeight.semibold, color: colors.textPrimary },
     assetMetaRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.xs },
-    assetMeta: { fontSize: fontSize.xs, color: colors.textMuted },
-    assetContext: { fontSize: fontSize.xs, color: colors.primaryDark, fontWeight: fontWeight.semibold },
+    assetMeta: { ...typeScale.caption, color: colors.textMuted },
+    assetContext: { ...typeScale.caption, color: colors.primaryDark, fontWeight: fontWeight.semibold },
     assetIcon: {
         width: 28,
         height: 28,
@@ -443,7 +443,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
-    assetIconText: { fontSize: fontSize['2xs'], fontWeight: fontWeight.extrabold, color: colors.textSecondary },
+    assetIconText: { ...typeScale.micro, fontWeight: fontWeight.extrabold, color: colors.textSecondary },
     notes: { ...textStyles.meta, fontStyle: 'italic', color: colors.textSecondary },
     actions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
     actionBtn: {
@@ -459,6 +459,6 @@ const styles = StyleSheet.create({
     actionTextDisabled: { color: colors.textDisabled },
     actionBtnPrimary: { backgroundColor: colors.primary },
     actionBtnSecondary: { backgroundColor: colors.bgCard, borderWidth: 1, borderColor: colors.border },
-    actionTextPrimary: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.md },
-    actionTextSecondary: { color: colors.textSecondary, fontWeight: fontWeight.semibold, fontSize: fontSize.md },
+    actionTextPrimary: { ...typeScale.row, color: colors.textWhite, fontWeight: fontWeight.bold },
+    actionTextSecondary: { ...typeScale.row, color: colors.textSecondary, fontWeight: fontWeight.semibold },
 })

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { View, Text, Image, StyleSheet, Platform } from 'react-native'
-import { colors, controlSize, fontWeight, fontSize } from '@/constants/tokens'
+import { colors, controlSize, fontWeight, typeScale } from '@/constants/tokens'
 import { getInitials } from '@/lib/format'
 
 const loadedImageUris = new Set<string>()
@@ -17,7 +17,7 @@ export function Avatar({ name, color = colors.bgMuted, textColor = colors.textSe
     const containerRef = useRef<View | null>(null)
     const [visibleUri, setVisibleUri] = useState(() => uri && loadedImageUris.has(uri) ? uri : null)
     const half = size / 2
-    const fs = size <= 38 ? fontSize.sm : size <= 44 ? fontSize['2md'] : fontSize.xl
+    const fs = (size <= 38 ? typeScale.small : size <= 44 ? typeScale.number : typeScale.heading).fontSize
 
     useEffect(() => {
         if (!uri) return

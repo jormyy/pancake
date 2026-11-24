@@ -18,7 +18,7 @@ import { EmptyState } from '@/components/EmptyState'
 import { Button, ErrorBanner } from '@/components/ui'
 import { MultiTeamTradeBuilder } from '@/components/trades/MultiTeamTradeBuilder'
 import { TradeAnalysisSummary } from '@/components/trades/TradeAnalysisSummary'
-import { colors, controlSize, fontSize, fontWeight, foundation, layout, radii, spacing, textStyles } from '@/constants/tokens'
+import { colors, controlSize, fontWeight, foundation, layout, radii, spacing, textStyles, typeScale } from '@/constants/tokens'
 import { PageHeader, usePageMetrics } from '@/components/ui/Page'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
@@ -827,7 +827,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     submitButtonDisabled: { backgroundColor: colors.bgMuted, borderWidth: 1, borderColor: colors.borderLight, opacity: 0.55 },
-    submitText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.md },
+    submitText: { ...typeScale.row, color: colors.textWhite, fontWeight: fontWeight.bold },
     submitTextDisabled: { color: colors.textPlaceholder },
     modeSwitch: { flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.lg, paddingTop: spacing.lg, paddingBottom: spacing.sm },
     modeButton: {
@@ -843,7 +843,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     modeButtonActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-    modeButtonText: { color: colors.textSecondary, fontSize: fontSize.sm, fontWeight: fontWeight.bold },
+    modeButtonText: { ...typeScale.small, color: colors.textSecondary, fontWeight: fontWeight.bold },
     modeButtonTextActive: { color: colors.textWhite },
     teamTrack: { flexGrow: 0, minHeight: foundation.minTouch },
     teamChips: { paddingHorizontal: spacing.lg, paddingVertical: spacing.xs, gap: spacing.sm, flexDirection: 'row' },
@@ -860,7 +860,7 @@ const styles = StyleSheet.create({
     },
     teamChipActive: { backgroundColor: colors.primary },
     teamChipDisabled: { opacity: 0.45 },
-    teamChipText: { flexShrink: 1, fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textSecondary, textAlign: 'center' },
+    teamChipText: { ...typeScale.small, flexShrink: 1, fontWeight: fontWeight.semibold, color: colors.textSecondary, textAlign: 'center' },
     teamChipTextActive: { color: colors.textWhite },
     lockBanner: {
         marginHorizontal: spacing.xl,
@@ -871,8 +871,8 @@ const styles = StyleSheet.create({
         borderColor: colors.warningDark,
         backgroundColor: colors.warningLight,
     },
-    lockBannerText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.warningDark, textAlign: 'center' },
+    lockBannerText: { ...typeScale.small, fontWeight: fontWeight.semibold, color: colors.warningDark, textAlign: 'center' },
     emptyCenter: { alignItems: 'center', padding: spacing['5xl'] },
-    emptyText: { fontSize: fontSize.md, color: colors.textPlaceholder, textAlign: 'center' },
+    emptyText: { ...typeScale.body, color: colors.textPlaceholder, textAlign: 'center' },
     bottomSpace: { height: spacing['5xl'] },
 })

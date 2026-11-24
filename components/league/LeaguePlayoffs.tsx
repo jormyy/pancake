@@ -18,7 +18,7 @@ import type { StandingRow } from '@/lib/scoring'
 import { ErrorBanner, LoadingState, usePageMetrics } from '@/components/ui'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 import { formatPoints } from '@/lib/format'
-import { colors, fontSize, fontWeight, layout, radii, spacing, textStyles, uiColors } from '@/constants/tokens'
+import { colors, fontWeight, layout, radii, spacing, textStyles, uiColors, typeScale } from '@/constants/tokens'
 
 type Round = { key: string; label: string; matchups: (BracketMatchup | ProjectedMatchup)[]; final?: boolean }
 type LoadStatus = 'loading' | 'ready' | 'error'
@@ -311,7 +311,7 @@ const styles = StyleSheet.create({
         gap: spacing.xs,
     },
     championBannerCompact: { padding: spacing.lg },
-    championName: { fontSize: fontSize['2xl'], fontWeight: fontWeight.bold, color: colors.textPrimary },
+    championName: { ...typeScale.headline, fontWeight: fontWeight.bold, color: colors.textPrimary },
 
     card: {
         backgroundColor: colors.bgCard,
@@ -350,15 +350,15 @@ const styles = StyleSheet.create({
     teamRowWon: { backgroundColor: colors.successLight },
     teamRowLost: {},
     teamLeft: { flexDirection: 'row', alignItems: 'center', flex: 1, gap: spacing.sm },
-    winIndicator: { fontSize: fontSize['2xs'], color: uiColors.successTextLive },
-    teamName: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textPrimary, flex: 1 },
-    teamNameCompact: { fontSize: fontSize.md },
+    winIndicator: { ...typeScale.micro, color: uiColors.successTextLive },
+    teamName: { ...typeScale.row, fontWeight: fontWeight.semibold, color: colors.textPrimary, flex: 1 },
+    teamNameCompact: { ...typeScale.body },
     teamNameWon: { color: uiColors.successTextStrong, fontWeight: fontWeight.bold },
     teamNameLost: { color: colors.textMuted },
     teamNameMe: { color: colors.primaryDark },
-    meTag: { fontSize: fontSize.sm, color: colors.textPlaceholder, fontWeight: fontWeight.regular },
-    teamPoints: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: uiColors.tableText, minWidth: 60, textAlign: 'right', fontVariant: ['tabular-nums'] as const },
-    teamPointsCompact: { fontSize: fontSize.md, minWidth: 52 },
+    meTag: { ...typeScale.small, color: colors.textPlaceholder, fontWeight: fontWeight.regular },
+    teamPoints: { ...typeScale.title, fontWeight: fontWeight.bold, color: uiColors.tableText, minWidth: 60, textAlign: 'right', fontVariant: ['tabular-nums'] as const },
+    teamPointsCompact: { ...typeScale.body, minWidth: 52 },
     teamPointsWon: { color: uiColors.successTextStrong },
     teamPointsLost: { color: colors.textMuted },
 })

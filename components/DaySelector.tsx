@@ -1,7 +1,7 @@
 import { View, Text, StyleSheet, Platform } from 'react-native'
 import { WeekDay } from '@/lib/lineup'
 import { useLeagueDay } from '@/hooks/use-league-day'
-import { colors, componentTokens, controlSize, fontSize, fontWeight, radii, spacing, tints, uiColors } from '@/constants/tokens'
+import { colors, componentTokens, controlSize, fontWeight, radii, spacing, tints, uiColors, typeScale } from '@/constants/tokens'
 import { MotionPressable } from '@/components/Motion'
 
 // react-native-web forwards aria-* props to the DOM, but React Native's prop
@@ -88,12 +88,12 @@ const styles = StyleSheet.create({
     cellSelected: { backgroundColor: colors.primary },
     cellToday: { backgroundColor: colors.primaryLight },
     cellNoGames: { opacity: 0.4 },
-    label: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.textMuted },
-    labelCompact: { fontSize: fontSize['2xs'], lineHeight: fontSize.xs },
+    label: { ...typeScale.caption, fontWeight: fontWeight.bold, color: colors.textMuted },
+    labelCompact: { ...typeScale.micro },
     labelSelected: { color: colors.textWhite },
     labelFaint: { color: uiColors.textFaint },
-    num: { fontSize: fontSize.lg, fontWeight: fontWeight.extrabold, color: colors.textPrimary, fontVariant: ['tabular-nums'] as const },
-    numCompact: { fontSize: fontSize.md, lineHeight: fontSize.lg },
+    num: { ...typeScale.title, fontWeight: fontWeight.extrabold, color: colors.textPrimary, fontVariant: ['tabular-nums'] as const },
+    numCompact: { ...typeScale.body },
     numSelected: { color: colors.textWhite },
     numFaint: { color: uiColors.textFaint },
     dot: { width: componentTokens.daySelector.dotSize, height: componentTokens.daySelector.dotSize, borderRadius: componentTokens.daySelector.dotRadius, borderCurve: 'continuous' as const, backgroundColor: colors.primary, marginTop: componentTokens.daySelector.indicatorOffset },

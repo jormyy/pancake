@@ -5,7 +5,7 @@ import { LineupPlayer } from '@/lib/lineup'
 import { LiveStatLine } from '@/lib/games'
 import { computeLiveFantasyPoints } from '@/lib/scoring'
 import { slotColor } from '@/constants/positions'
-import { alpha, borderWidth, colors, componentTokens, controlSize, fontSize, fontWeight, radii, spacing, textStyles, uiColors, tracking } from '@/constants/tokens'
+import { alpha, borderWidth, colors, componentTokens, controlSize, fontWeight, radii, spacing, textStyles, uiColors, typeScale } from '@/constants/tokens'
 import { PosTag } from '@/components/PosTag'
 import { TeamLogo } from '@/components/TeamLogo'
 import { InjuryTag } from '@/components/InjuryTag'
@@ -512,7 +512,7 @@ const styles = StyleSheet.create({
     playerBlockCompact: { minHeight: controlSize.minTouch + spacing.lg },
     playerBlockDense: { minHeight: controlSize.minTouch },
     fptsNum: {
-        fontSize: fontSize['2md'],
+        ...typeScale.number,
         fontWeight: fontWeight.medium,
         color: colors.textMuted,
         width: FPTS_W,
@@ -521,8 +521,8 @@ const styles = StyleSheet.create({
         marginRight: spacing.sm,
         fontVariant: ['tabular-nums'] as const,
     },
-    fptsNumCompact: { width: 34, fontSize: fontSize.xs },
-    fptsNumDense: { width: 40, fontSize: fontSize.md },
+    fptsNumCompact: { ...typeScale.caption, width: 34 },
+    fptsNumDense: { ...typeScale.body, width: 40 },
     fptsLeft: { textAlign: 'right', marginRight: spacing.none, marginLeft: spacing.sm },
     fptsLeftCompact: { marginLeft: spacing.none },
     fptsRightCompact: { marginRight: spacing.none },
@@ -531,10 +531,10 @@ const styles = StyleSheet.create({
     // Only finished games are bold; live and upcoming scores stay light.
     fptsFinal: { color: colors.textPrimary, fontWeight: fontWeight.extrabold },
     fptsLive: { color: colors.primaryDark },
-    sideName: { fontSize: fontSize['2sm'], fontWeight: fontWeight.bold, color: colors.textPrimary, flexShrink: 1 },
-    emptySlotText: { fontSize: fontSize['2sm'], fontWeight: fontWeight.medium, color: colors.textPlaceholder },
-    sideNameCompact: { ...textStyles.rowTitle, fontSize: fontSize['2xs'], fontWeight: fontWeight.bold, flexShrink: 1, minWidth: 0, ...(Platform.OS === 'web' ? { textOverflow: 'clip' as const } : {}) },
-    sideNameDense: { fontSize: fontSize.xs },
+    sideName: { ...typeScale.small, fontWeight: fontWeight.bold, color: colors.textPrimary, flexShrink: 1 },
+    emptySlotText: { ...typeScale.small, fontWeight: fontWeight.medium, color: colors.textPlaceholder },
+    sideNameCompact: { ...textStyles.rowTitle, ...typeScale.micro, fontWeight: fontWeight.bold, flexShrink: 1, minWidth: 0, ...(Platform.OS === 'web' ? { textOverflow: 'clip' as const } : {}) },
+    sideNameDense: { ...typeScale.caption },
     noGameName: { color: colors.textMuted },
     playerContent: { flex: 1, width: '100%', flexDirection: 'row', alignItems: 'center', gap: spacing.xs, minWidth: 0 },
     playerText: { flex: 1, minWidth: 0, justifyContent: 'center', gap: spacing.xxs },
@@ -547,12 +547,12 @@ const styles = StyleSheet.create({
     // "vs"/"@" and the logo never shrink; only the time gives up space.
     gameFixed: { flexShrink: 0 },
     gameSuffix: { flexShrink: 1, minWidth: 0, ...(Platform.OS === 'web' ? { textOverflow: 'clip' as const } : {}) },
-    statSummary: { ...textStyles.meta, fontSize: fontSize['2xs'], lineHeight: textStyles.tableHeader.lineHeight },
+    statSummary: { ...textStyles.meta, ...typeScale.micro },
     detailRow: { width: '100%', flexDirection: 'row', alignItems: 'center', gap: spacing.xxs, height: componentTokens.matchupRow.gameLineHeight, maxWidth: '100%' },
-    sideMeta: { ...textStyles.meta, fontSize: fontSize.xs },
+    sideMeta: { ...textStyles.meta, ...typeScale.caption },
     detailText: { flex: 1, minWidth: 0, ...(Platform.OS === 'web' ? { textOverflow: 'clip' as const } : {}) },
     detailTextStats: { color: colors.textMuted },
-    lockedBadge: { fontSize: fontSize['2xs'], fontWeight: fontWeight.bold, color: uiColors.successTextLive, letterSpacing: tracking.normal },
+    lockedBadge: { ...typeScale.micro, fontWeight: fontWeight.bold, color: uiColors.successTextLive },
     liveBadgeRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xxs },
     statLineLive: { color: colors.primaryDark, fontWeight: fontWeight.semibold },
     slotChipCenter: {
@@ -569,11 +569,11 @@ const styles = StyleSheet.create({
         height: controlSize.minTouch,
         borderRadius: radii.md,
     },
-    slotChipText: { fontSize: fontSize.xs, fontWeight: fontWeight.extrabold, letterSpacing: tracking.tight },
+    slotChipText: { ...typeScale.caption, fontWeight: fontWeight.extrabold },
     slotChipTextStrong: { fontWeight: fontWeight.black },
     statCells: { flexDirection: 'row', alignItems: 'center', flexShrink: 0 },
     statCell: {
-        fontSize: fontSize.sm,
+        ...typeScale.small,
         fontWeight: fontWeight.semibold,
         color: colors.textSecondary,
         textAlign: 'center',
@@ -582,7 +582,7 @@ const styles = StyleSheet.create({
     statCellEmpty: { color: colors.textDisabled, fontWeight: fontWeight.regular },
     statCellLive: { color: colors.primaryDark },
     columnHeader: { paddingVertical: spacing.xs, borderBottomWidth: 1, borderBottomColor: colors.separator },
-    columnLabel: { ...textStyles.sectionLabel, fontSize: fontSize['2xs'], textAlign: 'center' },
+    columnLabel: { ...textStyles.sectionLabel, ...typeScale.micro, textAlign: 'center' },
     columnLabelFpts: { width: FPTS_W, marginRight: spacing.sm, textAlign: 'left' },
     columnLabelLeft: { marginRight: spacing.none, marginLeft: spacing.sm, textAlign: 'right' },
     playerBlockSpacer: { flex: 1, minWidth: NAME_MIN_W },

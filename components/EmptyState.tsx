@@ -1,7 +1,7 @@
 import { ComponentProps } from 'react'
 import { View, Text, StyleSheet } from 'react-native'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
-import { colors, controlSize, fontFamily, fontSize, fontWeight, radii, spacing, textStyles, lineHeight } from '@/constants/tokens'
+import { colors, controlSize, fontFamily, fontWeight, radii, spacing, textStyles, typeScale } from '@/constants/tokens'
 import { Button } from '@/components/ui'
 import { PromptFrame } from '@/components/ui/PromptFrame'
 
@@ -68,17 +68,16 @@ const styles = StyleSheet.create({
         marginBottom: spacing.sm,
     },
     title: {
+        ...typeScale.row,
         color: colors.textSecondary,
-        fontSize: fontSize.md,
         fontFamily: fontFamily.display,
         fontWeight: fontWeight.black,
         textAlign: 'center',
     },
     description: {
+        ...typeScale.body,
         color: colors.textMuted,
-        fontSize: fontSize.md,
         textAlign: 'center',
-        lineHeight: lineHeight.control,
         maxWidth: 320,
     },
     reservedTitle: { width: '100%' },

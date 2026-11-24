@@ -1,6 +1,6 @@
 import type { ComponentProps, ReactNode } from 'react'
 import { View, Text, StyleSheet, type StyleProp, type TextStyle } from 'react-native'
-import { borderWidth, colors, componentTokens } from '@/constants/tokens'
+import { borderWidth, colors, componentTokens, spacing } from '@/constants/tokens'
 
 type Props = ComponentProps<typeof View> & {
     label: string
@@ -30,9 +30,9 @@ const styles = StyleSheet.create({
         borderBottomWidth: borderWidth.thin,
         borderBottomColor: colors.borderLight,
     },
-    matchup: { paddingHorizontal: componentTokens.sectionBand.matchupPaddingHorizontal, paddingVertical: 0, borderBottomWidth: 0 },
-    action: { minHeight: componentTokens.sectionBand.actionHeight, paddingVertical: 0, borderBottomWidth: 0 },
-    plain: { ...componentTokens.sectionBand.plain, minHeight: 0, paddingHorizontal: 0, paddingVertical: 0, borderBottomWidth: 0, backgroundColor: 'transparent' },
+    matchup: { paddingHorizontal: componentTokens.sectionBand.matchupPaddingHorizontal, paddingVertical: spacing.none, borderBottomWidth: 0 },
+    action: { minHeight: componentTokens.sectionBand.actionHeight, paddingVertical: spacing.none, borderBottomWidth: 0 },
+    plain: { ...componentTokens.sectionBand.plain, minHeight: 0, paddingHorizontal: spacing.none, paddingVertical: spacing.none, borderBottomWidth: 0, backgroundColor: colors.transparent },
     label: { ...componentTokens.sectionBand.label, flex: 1, minWidth: 0 },
     detail: { flexDirection: 'row', alignItems: 'center', gap: componentTokens.segmentedControl.gap, flexShrink: 0 },
 })

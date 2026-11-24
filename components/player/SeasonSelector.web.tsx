@@ -1,5 +1,5 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
-import { colors, controlSize, fontFamily, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { colors, controlSize, fontFamily, fontWeight, radii, spacing, typeScale } from '@/constants/tokens'
 
 type Props = {
     seasons: number[]
@@ -17,6 +17,7 @@ export function SeasonSelector({ seasons, selectedSeason, onSelect }: Props) {
                 value={selectedSeason}
                 onChange={event => onSelect(Number(event.currentTarget.value))}
                 style={{
+                    ...typeScale.title,
                     minHeight: 44,
                     height: 44,
                     width: '100%',
@@ -29,7 +30,6 @@ export function SeasonSelector({ seasons, selectedSeason, onSelect }: Props) {
                     backgroundColor: colors.bgCard,
                     color: colors.textPrimary,
                     fontFamily: fontFamily.control,
-                    fontSize: fontSize.lg,
                     fontWeight: fontWeight.semibold,
                     cursor: 'pointer',
                 }}

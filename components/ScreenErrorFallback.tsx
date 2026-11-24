@@ -1,6 +1,6 @@
 import { View, Text, Pressable, StyleSheet } from 'react-native'
 import type { ErrorBoundaryProps } from 'expo-router'
-import { colors, fontFamily, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { colors, fontFamily, fontWeight, radii, spacing, typeScale } from '@/constants/tokens'
 
 // Rendered by expo-router when a route's own render throws. Because it hangs off
 // the route (not the navigator), the nav shell and routing stay alive — the
@@ -37,19 +37,19 @@ const styles = StyleSheet.create({
         backgroundColor: colors.bgScreen,
     },
     title: {
-        fontSize: fontSize.xl,
+        ...typeScale.heading,
         fontFamily: fontFamily.display,
         fontWeight: fontWeight.bold,
         color: colors.textPrimary,
     },
     body: {
-        fontSize: fontSize.sm,
+        ...typeScale.small,
         color: colors.textSecondary,
         textAlign: 'center',
         maxWidth: 420,
     },
     detail: {
-        fontSize: fontSize.xs,
+        ...typeScale.caption,
         color: colors.textMuted,
         textAlign: 'center',
         maxWidth: 420,
@@ -66,8 +66,8 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     buttonText: {
+        ...typeScale.row,
         color: colors.textWhite,
         fontWeight: fontWeight.bold,
-        fontSize: fontSize.md,
     },
 })

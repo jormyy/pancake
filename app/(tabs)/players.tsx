@@ -17,7 +17,7 @@ import { FlashList } from '@shopify/flash-list'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { type OwnedEntry } from '@/lib/roster'
 import { useLeagueContext } from '@/contexts/league-context'
-import { colors, controlSize, fontSize, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
+import { colors, controlSize, fontWeight, radii, spacing, textStyles, typeScale } from '@/constants/tokens'
 import { EmptyState } from '@/components/EmptyState'
 import { IRResolutionModal } from '@/components/IRResolutionModal'
 import { DropPlayerPickerModal } from '@/components/DropPlayerPickerModal'
@@ -575,7 +575,7 @@ function PlayersScreen() {
 
 const localStyles = StyleSheet.create({
     freshness: { paddingVertical: spacing.sm },
-    freshnessText: { fontSize: fontSize.sm, color: colors.textSecondary },
+    freshnessText: { ...typeScale.small, color: colors.textSecondary },
     panel: { flex: 1, minHeight: 0 },
     results: { flex: 1, minHeight: 320 },
     pageProgress: { minHeight: controlSize.minTouch, alignItems: 'center', justifyContent: 'center' },
@@ -605,10 +605,10 @@ const localStyles = StyleSheet.create({
         backgroundColor: colors.bgCard,
     },
     filterButtonActive: { backgroundColor: colors.primaryLight, borderColor: colors.primaryBorder },
-    filterButtonText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.textSecondary },
+    filterButtonText: { ...typeScale.small, fontWeight: fontWeight.bold, color: colors.textSecondary },
     filterButtonTextActive: { color: colors.primaryDark },
     clearButton: { minHeight: controlSize.minTouch, justifyContent: 'center', paddingHorizontal: spacing.md },
-    clearButtonText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.dangerDark },
+    clearButtonText: { ...typeScale.small, fontWeight: fontWeight.bold, color: colors.dangerDark },
     summary: { ...textStyles.meta },
     summaryWide: { marginLeft: 'auto', flexShrink: 0 },
     sheetFields: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.lg },
@@ -630,10 +630,10 @@ const localStyles = StyleSheet.create({
         borderRadius: radii.md,
         backgroundColor: colors.primary,
     },
-    sheetDoneText: { fontSize: fontSize.md, fontWeight: fontWeight.bold, color: colors.textWhite },
+    sheetDoneText: { ...typeScale.row, fontWeight: fontWeight.bold, color: colors.textWhite },
     addLimitNotice: {
+        ...typeScale.caption,
         marginTop: spacing.xs,
-        fontSize: fontSize.xs,
         fontWeight: fontWeight.semibold,
         color: colors.warningDark,
     },

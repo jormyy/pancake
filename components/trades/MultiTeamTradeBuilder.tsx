@@ -11,7 +11,7 @@ import { MAX_TRADE_EXPIRATION_DAYS, MAX_TRADE_NOTES_BYTES, utf8ByteLength } from
 import { MultiTeamTradeOverview, type TradeFlowItem } from '@/components/trades/MultiTeamTradeOverview'
 import { Button } from '@/components/ui/Button'
 import { ParticipantTradePanel } from '@/components/trades/ParticipantTradePanel'
-import { breakpoints, colors, controlSize, fontSize, fontWeight, layout, radii, spacing, textStyles, uiColors } from '@/constants/tokens'
+import { breakpoints, colors, controlSize, fontWeight, layout, radii, spacing, textStyles, uiColors, typeScale } from '@/constants/tokens'
 import type { TradeParticipantView } from '@/lib/trade-ui-model'
 import { buildTradeComposerPayload } from '@/lib/trade-composer'
 import type { LeagueStatus } from '@/types/database'
@@ -392,13 +392,13 @@ export function MultiTeamTradeBuilder({
 }
 
 const styles = StyleSheet.create({
-    routeWarning: { marginHorizontal: spacing.xl, marginTop: spacing.md, color: colors.warningDark, fontSize: fontSize.sm },
+    routeWarning: { ...typeScale.small, marginHorizontal: spacing.xl, marginTop: spacing.md, color: colors.warningDark },
     root: { width: '100%', maxWidth: '100%', minWidth: 0 },
     reviewRoot: { width: '100%', maxWidth: '100%', minWidth: 0, paddingBottom: spacing.lg },
     reviewHeading: { paddingHorizontal: spacing.lg, paddingTop: spacing.lg },
     reviewTitle: {
+        ...typeScale.small,
         marginTop: spacing.xs,
-        fontSize: fontSize.sm,
         fontWeight: fontWeight.semibold,
         color: colors.textPrimary,
     },
@@ -412,7 +412,7 @@ const styles = StyleSheet.create({
     },
     reviewTermsLabel: { ...textStyles.sectionLabel, marginTop: spacing.sm },
     reviewTermsValue: {
-        fontSize: fontSize.md,
+        ...typeScale.row,
         fontWeight: fontWeight.semibold,
         color: colors.textPrimary,
     },
@@ -433,8 +433,8 @@ const styles = StyleSheet.create({
     },
     compactSummaryCopy: { minWidth: 0, flex: 1 },
     compactSummaryMeta: {
+        ...typeScale.small,
         marginTop: spacing.xxs,
-        fontSize: fontSize.sm,
         fontWeight: fontWeight.semibold,
         color: colors.textPrimary,
     },
@@ -472,6 +472,7 @@ const styles = StyleSheet.create({
     senderTabText: { ...textStyles.rowTitle, color: colors.textMuted, textAlign: 'center' },
     senderTabTextActive: { color: colors.primaryDark },
     notesInput: {
+        ...typeScale.title,
         marginHorizontal: spacing.xl,
         borderWidth: 1,
         borderColor: uiColors.borderNeutral,
@@ -479,7 +480,6 @@ const styles = StyleSheet.create({
         borderCurve: 'continuous' as const,
         paddingHorizontal: spacing.lg,
         paddingVertical: spacing.md,
-        fontSize: fontSize.lg,
         color: colors.textPrimary,
         minHeight: controlSize.minTouch + spacing.lg,
         textAlignVertical: 'top',
@@ -494,25 +494,25 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         gap: spacing.md,
     },
-    notesError: { flex: 1, color: colors.dangerDark, fontSize: fontSize.sm, fontWeight: fontWeight.semibold },
-    notesCount: { marginLeft: 'auto', color: colors.textMuted, fontSize: fontSize.sm, fontWeight: fontWeight.semibold },
+    notesError: { ...typeScale.small, flex: 1, color: colors.dangerDark, fontWeight: fontWeight.semibold },
+    notesCount: { ...typeScale.small, marginLeft: 'auto', color: colors.textMuted, fontWeight: fontWeight.semibold },
     notesCountInvalid: { color: colors.dangerDark },
     termsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, marginHorizontal: spacing.xl },
     termField: { flexGrow: 1, flexBasis: 150, minWidth: 150, gap: spacing.xs },
-    termLabel: { ...textStyles.sectionLabel, fontSize: fontSize['2xs'] },
+    termLabel: { ...textStyles.sectionLabel, ...typeScale.micro },
     termInput: {
+        ...typeScale.title,
         minHeight: controlSize.minTouch,
         borderWidth: 1,
         borderColor: uiColors.borderNeutral,
         borderRadius: radii.md,
         borderCurve: 'continuous' as const,
         paddingHorizontal: spacing.md,
-        fontSize: fontSize.lg,
         fontWeight: fontWeight.bold,
         color: colors.textPrimary,
     },
     termInputInvalid: { borderColor: colors.danger },
-    termError: { color: colors.dangerDark, fontSize: fontSize.sm, fontWeight: fontWeight.semibold },
+    termError: { ...typeScale.small, color: colors.dangerDark, fontWeight: fontWeight.semibold },
     rosterErrorRow: { paddingHorizontal: spacing.xl, paddingVertical: spacing.lg, minHeight: controlSize.minTouch, alignItems: 'center' },
-    rosterErrorText: { color: colors.dangerDark, fontSize: fontSize.md, fontWeight: fontWeight.semibold, textAlign: 'center' },
+    rosterErrorText: { ...typeScale.row, color: colors.dangerDark, fontWeight: fontWeight.semibold, textAlign: 'center' },
 })

@@ -18,7 +18,7 @@ import { DeferredContent } from '@/components/ui/DeferredContent'
 import { DaySelector } from '@/components/DaySelector'
 
 
-import { colors, componentTokens, controlSize, fontSize, fontWeight, layout, radii, spacing, textStyles, uiColors, tracking } from '@/constants/tokens'
+import { colors, componentTokens, controlSize, fontWeight, layout, radii, spacing, textStyles, uiColors, typeScale } from '@/constants/tokens'
 import { useLeagueContext } from '@/contexts/league-context'
 import { onLifecycle, readsAllowed } from '@/lib/lifecycle'
 import { useAuth } from '@/hooks/use-auth'
@@ -797,7 +797,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: spacing.xl,
         paddingVertical: spacing.md,
     },
-    statusBannerText: { fontSize: fontSize.sm, color: colors.primaryDark, fontWeight: fontWeight.medium },
+    statusBannerText: { ...typeScale.small, color: colors.primaryDark, fontWeight: fontWeight.medium },
     errorBanner: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -808,7 +808,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: spacing.xl,
         paddingVertical: spacing.md,
     },
-    errorBannerText: { flex: 1, fontSize: fontSize.sm, color: colors.dangerDark, fontWeight: fontWeight.medium },
+    errorBannerText: { ...typeScale.small, flex: 1, color: colors.dangerDark, fontWeight: fontWeight.medium },
     errorRetryButton: {
         minHeight: controlSize.minTouch,
         paddingHorizontal: spacing.lg,
@@ -818,7 +818,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
-    errorRetryButtonText: { fontSize: fontSize.sm, color: colors.dangerDark, fontWeight: fontWeight.bold },
+    errorRetryButtonText: { ...typeScale.small, color: colors.dangerDark, fontWeight: fontWeight.bold },
 
     scroller: { flex: 1, minHeight: 0 },
     scroll: { paddingTop: spacing.none, paddingBottom: spacing.lg, gap: spacing.md, width: '100%', maxWidth: layout.lineupMaxWidth, alignSelf: 'center' },
@@ -863,8 +863,8 @@ const styles = StyleSheet.create({
     invalidTargetRow: { opacity: 0.38 },
 
     slotLabel: {
+        ...typeScale.caption,
         width: 36,
-        fontSize: fontSize.xs,
         fontWeight: fontWeight.extrabold,
         color: colors.primaryDark,
     },
@@ -878,20 +878,19 @@ const styles = StyleSheet.create({
 
     emptySlot: { ...textStyles.body, color: colors.textMuted, fontStyle: 'italic' },
     lockedBadge: {
-        fontSize: fontSize['2xs'],
+        ...typeScale.micro,
         fontWeight: fontWeight.bold,
         color: uiColors.successTextLive,
     },
     moveBadge: {
-        fontSize: fontSize['2xs'],
+        ...typeScale.micro,
         fontWeight: fontWeight.extrabold,
         color: colors.successDark,
-        letterSpacing: tracking.label,
     },
-    benchEmpty: { fontSize: fontSize.sm, color: colors.textPlaceholder, fontStyle: 'italic' },
+    benchEmpty: { ...typeScale.small, color: colors.textPlaceholder, fontStyle: 'italic' },
 
     empty: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: spacing.xl },
-    emptyText: { fontSize: fontSize.md, color: colors.textPlaceholder },
+    emptyText: { ...typeScale.body, color: colors.textPlaceholder },
     emptySubtext: {
         maxWidth: 320,
         marginTop: spacing.sm,
@@ -908,7 +907,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
-    retryButtonText: { fontSize: fontSize.sm, color: colors.textWhite, fontWeight: fontWeight.bold },
+    retryButtonText: { ...typeScale.small, color: colors.textWhite, fontWeight: fontWeight.bold },
 })
 
 export default function LineupScreenWithStatus() {

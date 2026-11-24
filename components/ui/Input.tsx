@@ -1,7 +1,7 @@
 import { ComponentProps, forwardRef } from 'react'
 import { Platform, StyleSheet, Text, TextInput, View, type StyleProp, type ViewStyle } from 'react-native'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
-import { colors, controlSize, fontFamily, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { colors, controlSize, fontFamily, fontWeight, radii, spacing, tracking, typeScale } from '@/constants/tokens'
 
 type IconName = ComponentProps<typeof MaterialIcons>['name']
 
@@ -54,9 +54,9 @@ export const Input = forwardRef<TextInput, Props>(function Input(
 const styles = StyleSheet.create({
     container: { gap: spacing.sm },
     label: {
-        fontSize: fontSize.xs,
+        ...typeScale.caption,
         fontWeight: fontWeight.bold,
-        letterSpacing: 0.6,
+        letterSpacing: tracking.table,
         textTransform: 'uppercase',
         color: colors.textMuted,
     },
@@ -82,14 +82,14 @@ const styles = StyleSheet.create({
         paddingVertical: spacing.lg,
         ...(Platform.OS === 'web' ? { outlineWidth: 0 } : {}),
     },
-    inputWithIcon: { paddingLeft: 0 },
+    inputWithIcon: { paddingLeft: spacing.none },
     error: {
-        fontSize: fontSize.sm,
+        ...typeScale.small,
         color: colors.danger,
         fontWeight: fontWeight.medium,
     },
     hint: {
-        fontSize: fontSize.sm,
+        ...typeScale.small,
         color: colors.textMuted,
     },
 })

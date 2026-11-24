@@ -11,7 +11,7 @@ import type {
     MockDraftRoomKind,
     MockDraftRoomStatus,
 } from '@/lib/mockDraftRooms'
-import { controlSize, colors, fontSize, radii, spacing, textStyles } from '@/constants/tokens'
+import { controlSize, colors, radii, spacing, textStyles, typeScale } from '@/constants/tokens'
 import { countLabel } from '@/lib/format'
 import {
     DraftChips,
@@ -561,5 +561,5 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     mockRoomsEmptyTitle: { ...textStyles.rowTitle },
-    mockRoomsEmptyTitleCompact: { fontSize: fontSize.sm },
+    mockRoomsEmptyTitleCompact: { ...typeScale.small },
 })

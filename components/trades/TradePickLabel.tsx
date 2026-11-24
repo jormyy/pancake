@@ -1,5 +1,5 @@
 import { StyleSheet, Text } from 'react-native'
-import { colors, fontSize, fontWeight } from '@/constants/tokens'
+import { colors, fontWeight, typeScale } from '@/constants/tokens'
 import { tradePickLabel, type TradePickContext } from '@/lib/trade-pick-label'
 import type { TradePickItem } from '@/lib/trades'
 
@@ -9,5 +9,5 @@ export function TradePickLabel({ pick, context, showDirection = true }: { pick: 
 }
 
 const styles = StyleSheet.create({
-    label: { color: colors.textPrimary, fontSize: fontSize.sm, fontWeight: fontWeight.semibold, flexShrink: 1 },
+    label: { ...typeScale.small, color: colors.textPrimary, fontWeight: fontWeight.semibold, flexShrink: 1 },
 })

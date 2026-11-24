@@ -1,15 +1,17 @@
 import { createContext, forwardRef, useCallback, useContext, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Platform, ScrollView, StyleSheet, View, useWindowDimensions, type NativeScrollEvent, type NativeSyntheticEvent, type ScrollViewProps, type StyleProp, type ViewStyle } from 'react-native'
-import { breakpoints, colors, spacing } from '@/constants/tokens'
+import { breakpoints, colors, layout, spacing } from '@/constants/tokens'
 
-const StatusContext = createContext({ inset: 0, bottom: 0, setVisible: (_visible: boolean) => {}, setHeight: (_height: number) => {} })
+type StatusValue = { inset: number, bottom: number, setVisible: (visible: boolean) => void, setHeight: (height: number) => void }
+
+const StatusContext = createContext<StatusValue>({ inset: spacing.none, bottom: spacing.none, setVisible: () => {}, setHeight: () => {} })
 
 export function ScreenStatusProvider({ children }: { children: ReactNode }) {
     const { width } = useWindowDimensions()
     const [visible, setVisible] = useState(false)
     const [height, setHeight] = useState(44)
-    const bottom = Platform.OS === 'web' && width >= breakpoints.compact ? 144 : 72
-    const value = useMemo(() => ({ inset: visible ? bottom + height + spacing.sm : 0, bottom, setVisible, setHeight }), [visible, bottom, height])
+    const bottom = Platform.OS === 'web' && width >= breakpoints.compact ? layout.shell.statusNoticeBottom.regular : layout.shell.statusNoticeBottom.compact
+    const value = useMemo(() => ({ inset: visible ? bottom + height + spacing.sm : spacing.none, bottom, setVisible, setHeight }), [visible, bottom, height])
     return <StatusContext.Provider value={value}>{children}</StatusContext.Provider>
 }
 
@@ -46,8 +48,8 @@ export function useScreenStatusScroll() {
     const contentStyle = useCallback((style?: StyleProp<ViewStyle>) => {
         if (!paddingBottom) return style
         const flat = StyleSheet.flatten(style)
-        const existing = flat?.paddingBottom ?? flat?.paddingVertical ?? flat?.padding ?? 0
-        return [style, { paddingBottom: (typeof existing === 'number' ? existing : 0) + paddingBottom }]
+        const existing = flat?.paddingBottom ?? flat?.paddingVertical ?? flat?.padding ?? spacing.none
+        return [style, { paddingBottom: (typeof existing === 'number' ? existing : spacing.none) + paddingBottom }]
     }, [paddingBottom])
     return { paddingBottom, onScroll, contentStyle }
 }

@@ -12,7 +12,7 @@ vi.mock('react-native', () => ({
 vi.mock('@/constants/tokens', () => ({
     colors: { bgScreen: '#fff', primary: '#000', textMuted: '#555', textPrimary: '#111', textSecondary: '#333', textWhite: '#fff' },
     fontFamily: { display: 'display' },
-    fontSize: { xs: 10, sm: 12, md: 14, xl: 20 },
+    typeScale: { caption: { fontSize: 11, lineHeight: 14 }, small: { fontSize: 12, lineHeight: 14 }, row: { fontSize: 13, lineHeight: 16 }, heading: { fontSize: 18, lineHeight: 24 } },
     fontWeight: { bold: '700' },
     radii: { md: 4 },
     spacing: { sm: 8, md: 12, xl: 24 },

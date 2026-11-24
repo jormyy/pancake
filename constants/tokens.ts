@@ -292,15 +292,14 @@ export const radii = {
 
 // ── Typography ──────────────────────────────────────────────────
 
-const TYPE_SCALE = [10, 11, 12, 12, 13, 16, 17, 18, 20, 24, 28, 32] as const
+const TYPE_SCALE = [10, 11, 12, 13, 14, 16, 17, 18, 20, 24, 28, 32] as const
 
 export const fontSize = {
     '2xs': TYPE_SCALE[0],
     xs: TYPE_SCALE[1],
-    '2sm': TYPE_SCALE[2],
-    sm: TYPE_SCALE[3],
-    md: TYPE_SCALE[4],
-    '2md': 14,
+    sm: TYPE_SCALE[2],
+    md: TYPE_SCALE[3],
+    '2md': TYPE_SCALE[4],
     lg: TYPE_SCALE[5],
     '2lg': TYPE_SCALE[6],
     xl: TYPE_SCALE[7],
@@ -347,6 +346,8 @@ export const tracking = {
     tight: 0.3,
     normal: 0.4,
     label: 0.5,
+    table: 0.6,
+    caps: 0.8,
     wide: 1,
 } as const
 
@@ -362,19 +363,34 @@ export const fontWeight = {
 
 const tabularNums: TextStyle['fontVariant'] = ['tabular-nums']
 
-// Text roles. Screens pick a role instead of a raw size so the hierarchy reads
-// the same everywhere: hero number > page title > row title > body > meta > label.
+const step = (size: number, leading: number) => ({ fontSize: size, lineHeight: leading })
+
+export const typeScale = {
+    micro: step(fontSize['2xs'], unit(3)),
+    caption: step(fontSize.xs, halfUnit(7)),
+    small: step(fontSize.sm, halfUnit(7)),
+    row: step(fontSize.md, unit(4)),
+    body: step(fontSize.md, halfUnit(9)),
+    number: step(fontSize['2md'], halfUnit(9)),
+    title: step(fontSize.lg, unit(5)),
+    heading: step(fontSize.xl, unit(6)),
+    headline: step(fontSize['2xl'], unit(6)),
+    score: step(fontSize['3xl'], unit(7)),
+    display: step(fontSize['4xl'], unit(8)),
+    hero: step(fontSize['5xl'], unit(9)),
+} as const satisfies Record<string, TextStyle>
+
 export const textStyles = {
-    hero: { fontFamily: fontFamily.display, fontSize: fontSize['5xl'], lineHeight: 36, fontWeight: fontWeight.black, fontVariant: tabularNums },
-    compactScore: { fontFamily: fontFamily.display, fontSize: fontSize['3xl'], lineHeight: unit(7), fontWeight: fontWeight.black, fontVariant: tabularNums },
-    pageTitle: { fontFamily: fontFamily.display, fontSize: fontSize.xl, lineHeight: 24, fontWeight: fontWeight.bold, color: colors.textPrimary },
-    rowTitle: { fontSize: fontSize.md, lineHeight: 16, fontWeight: fontWeight.semibold, color: colors.textPrimary },
-    body: { fontSize: fontSize.md, lineHeight: 18, color: colors.textSecondary },
-    meta: { fontSize: fontSize['2sm'], lineHeight: 14, color: colors.textMuted },
-    sectionLabel: { fontSize: fontSize.xs, lineHeight: 14, fontWeight: fontWeight.extrabold, letterSpacing: 0.8, textTransform: 'uppercase' as const, color: colors.textMuted },
-    stat: { fontSize: fontSize['2sm'], fontVariant: tabularNums, color: colors.textSecondary },
-    tableHeader: { fontSize: fontSize['2xs'], lineHeight: 12, fontWeight: fontWeight.extrabold, letterSpacing: 0.6, textTransform: 'uppercase' as const, color: colors.textMuted },
-    tableCell: { fontSize: fontSize.sm, fontVariant: tabularNums, color: colors.textSecondary },
+    hero: { fontFamily: fontFamily.display, ...typeScale.hero, fontWeight: fontWeight.black, fontVariant: tabularNums },
+    compactScore: { fontFamily: fontFamily.display, ...typeScale.score, fontWeight: fontWeight.black, fontVariant: tabularNums },
+    pageTitle: { fontFamily: fontFamily.display, ...typeScale.heading, fontWeight: fontWeight.bold, color: colors.textPrimary },
+    rowTitle: { ...typeScale.row, fontWeight: fontWeight.semibold, color: colors.textPrimary },
+    body: { ...typeScale.body, color: colors.textSecondary },
+    meta: { ...typeScale.small, color: colors.textMuted },
+    sectionLabel: { ...typeScale.caption, fontWeight: fontWeight.extrabold, letterSpacing: tracking.caps, textTransform: 'uppercase' as const, color: colors.textMuted },
+    stat: { ...typeScale.small, fontVariant: tabularNums, color: colors.textSecondary },
+    tableHeader: { ...typeScale.micro, fontWeight: fontWeight.extrabold, letterSpacing: tracking.table, textTransform: 'uppercase' as const, color: colors.textMuted },
+    tableCell: { ...typeScale.small, fontVariant: tabularNums, color: colors.textSecondary },
 } satisfies Record<string, TextStyle>
 
 // Data tables (roster, players, standings, rankings, trades). One spec so
@@ -599,6 +615,7 @@ export const layout = {
         tabHeight: halfUnit(27),
         leagueHeight: unit(17),
         crestSize: halfUnit(17),
+        statusNoticeBottom: { compact: unit(18), regular: unit(36) },
     },
     auth: { maxWidth: unit(112), markSize: foundation.minTouch, heroMarkSize: unit(24) },
     gameCard: { width: unit(24), compactWidth: unit(22), scoreWidth: unit(6) },

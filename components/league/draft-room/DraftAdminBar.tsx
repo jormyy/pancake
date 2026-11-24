@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native'
 import { MotionPressable } from '@/components/Motion'
-import { colors, controlSize, fontSize, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
+import { colors, controlSize, fontWeight, radii, spacing, textStyles, typeScale } from '@/constants/tokens'
 
 export function DraftAdminBar({
     isPaused,
@@ -94,7 +94,7 @@ const styles = StyleSheet.create({
     adminBtnReset: { backgroundColor: colors.bgCard, borderColor: colors.border },
     adminBtnPause: { backgroundColor: colors.primaryLight, borderColor: colors.primaryBorder },
     adminBtnStop: { backgroundColor: colors.dangerLight, borderColor: colors.danger },
-    adminBtnResetText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.textSecondary },
-    adminBtnPauseText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.primaryDark },
-    adminBtnStopText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.dangerDark },
+    adminBtnResetText: { ...typeScale.small, fontWeight: fontWeight.bold, color: colors.textSecondary },
+    adminBtnPauseText: { ...typeScale.small, fontWeight: fontWeight.bold, color: colors.primaryDark },
+    adminBtnStopText: { ...typeScale.small, fontWeight: fontWeight.bold, color: colors.dangerDark },
 })

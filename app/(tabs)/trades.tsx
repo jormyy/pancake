@@ -12,7 +12,7 @@ import { useLeagueContext } from '@/contexts/league-context'
 import { NoLeagueState } from '@/components/NoLeagueState'
 import { isTradingClosed } from '@/lib/league'
 import { type Trade } from '@/lib/trades'
-import { colors, controlSize, fontSize, layout, spacing, textStyles } from '@/constants/tokens'
+import { colors, controlSize, layout, spacing, textStyles, typeScale } from '@/constants/tokens'
 import { SegmentedControl, type SegmentOption } from '@/components/ui/SegmentedControl'
 import { Button, ErrorBanner, Page, PageHeader, usePageMetrics } from '@/components/ui'
 import { TradeDetailsPanel } from '@/components/trades/TradeDetailsPanel'
@@ -380,7 +380,7 @@ function TradeTabs({ options, tab, setTab }: { options: SegmentOption<TradeTabKe
 }
 
 const styles = StyleSheet.create({
-    freshness: { color: colors.textSecondary, fontSize: fontSize.sm, paddingHorizontal: spacing.xl, paddingVertical: spacing.sm },
+    freshness: { ...typeScale.small, color: colors.textSecondary, paddingHorizontal: spacing.xl, paddingVertical: spacing.sm },
     tabOptions: { flexWrap: 'nowrap' },
     cardGap: { height: spacing.md },
     tradeDetails: { padding: spacing.lg, paddingBottom: spacing['3xl'] },

@@ -13,7 +13,7 @@ import {
 import { ScreenFrame } from '@/components/ui/ScreenFrame'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useLeagueContext } from '@/contexts/league-context'
-import { breakpoints, colors, fontSize, fontWeight, layout, radii, spacing, table, textStyles, lineHeight } from '@/constants/tokens'
+import { breakpoints, colors, fontWeight, layout, radii, spacing, table, textStyles, typeScale } from '@/constants/tokens'
 import { LoadingState, usePageMetrics } from '@/components/ui'
 import { MotionPressable } from '@/components/Motion'
 import { DraftAdminBar } from '@/components/league/draft-room/DraftAdminBar'
@@ -252,7 +252,7 @@ const styles = StyleSheet.create({
     myPickDivider: { borderTopWidth: 1, borderTopColor: colors.separator },
     myPickName: { ...textStyles.rowTitle, flex: 1, minWidth: 0 },
     myPickMeta: { ...textStyles.meta },
-    myPickPrice: { fontSize: fontSize.md, fontWeight: fontWeight.extrabold, color: colors.textPrimary, fontVariant: ['tabular-nums'] as const },
+    myPickPrice: { ...typeScale.row, fontWeight: fontWeight.extrabold, color: colors.textPrimary, fontVariant: ['tabular-nums'] as const },
 
     // Single column on phones; block card + activity left, budgets/history
     // right once `isDesktop` flips the outer wrapper to a row.
@@ -264,7 +264,7 @@ const styles = StyleSheet.create({
     columnMainDesktop: { flex: 3, minWidth: 0 },
 
     budgetStat: { alignItems: 'flex-end', justifyContent: 'center', paddingHorizontal: spacing.xs },
-    budgetValue: { fontSize: fontSize.lg, fontWeight: fontWeight.extrabold, color: colors.primaryDark },
+    budgetValue: { ...typeScale.title, fontWeight: fontWeight.extrabold, color: colors.primaryDark },
     budgetLabel: { ...textStyles.meta },
     refreshWarning: {
         paddingHorizontal: spacing.xl,
@@ -274,7 +274,7 @@ const styles = StyleSheet.create({
         borderBottomColor: colors.danger,
         alignItems: 'center',
     },
-    refreshWarningText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.dangerDark },
+    refreshWarningText: { ...typeScale.small, fontWeight: fontWeight.semibold, color: colors.dangerDark },
 
     nominateButton: {
         marginTop: spacing.xs,
@@ -286,9 +286,9 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
-    nominateButtonText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.md },
+    nominateButtonText: { ...typeScale.row, color: colors.textWhite, fontWeight: fontWeight.bold },
 
     draftEndedContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: spacing['4xl'], gap: spacing.lg },
-    draftEndedTitle: { fontSize: fontSize['2xl'], fontWeight: fontWeight.extrabold, color: colors.textPrimary },
-    draftEndedSub: { fontSize: fontSize.md, color: colors.textMuted, textAlign: 'center', lineHeight: lineHeight.control },
+    draftEndedTitle: { ...typeScale.headline, fontWeight: fontWeight.extrabold, color: colors.textPrimary },
+    draftEndedSub: { ...typeScale.body, color: colors.textMuted, textAlign: 'center' },
 })

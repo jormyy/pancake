@@ -1,5 +1,5 @@
 import { StyleSheet } from 'react-native'
-import { colors, componentTokens, controlSize, fontFamily, fontSize, fontWeight, layout, radii, spacing, table, textStyles } from '@/constants/tokens'
+import { colors, componentTokens, controlSize, fontFamily, fontWeight, layout, radii, spacing, table, textStyles, typeScale } from '@/constants/tokens'
 
 export const playerListStyles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgScreen },
@@ -7,13 +7,13 @@ export const playerListStyles = StyleSheet.create({
     filterCountDot: {
         minWidth: 20,
         height: 20,
-        paddingHorizontal: 6,
+        paddingHorizontal: spacing.sm,
         borderRadius: radii.full,
         backgroundColor: colors.primary,
         alignItems: 'center',
         justifyContent: 'center',
     },
-    filterCountDotText: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.textWhite },
+    filterCountDotText: { ...typeScale.caption, fontWeight: fontWeight.bold, color: colors.textWhite },
     sortDirButton: {
         minHeight: controlSize.minTouch,
         alignSelf: 'flex-end',
@@ -25,7 +25,7 @@ export const playerListStyles = StyleSheet.create({
         paddingHorizontal: spacing.lg,
     },
     sortDirText: {
-        fontSize: fontSize.sm,
+        ...typeScale.small,
         fontWeight: fontWeight.bold,
         color: colors.textSecondary,
     },

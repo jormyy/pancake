@@ -42,7 +42,7 @@ import { blockedActionProps } from '@/lib/a11y'
 import { useAddLimitGate } from '@/hooks/use-add-limit-gate'
 import { useRosterHoldCheck } from '@/hooks/use-roster-hold-check'
 import { RosterHoldWarning } from '@/components/roster/RosterHoldWarning'
-import { colors, controlSize, fontFamily, fontSize, fontWeight, layout, radii, spacing, table, textStyles, uiColors } from '@/constants/tokens'
+import { colors, controlSize, fontFamily, fontWeight, layout, radii, spacing, table, textStyles, uiColors, typeScale } from '@/constants/tokens'
 import { LoadingState, PageHeader, usePageMetrics } from '@/components/ui'
 import { Card } from '@/components/ui/Card'
 import { SectionBand } from '@/components/ui/SectionBand'
@@ -642,7 +642,7 @@ const styles = StyleSheet.create({
         gap: spacing.xs,
     },
     limitBody: { ...textStyles.body },
-    limitMeta: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: uiColors.brandText },
+    limitMeta: { ...typeScale.caption, fontWeight: fontWeight.bold, color: uiColors.brandText },
 
     claimCard: { gap: spacing.lg },
     claimPlayerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
@@ -664,7 +664,7 @@ const styles = StyleSheet.create({
         borderColor: colors.border,
         backgroundColor: colors.bgInput,
     },
-    bidCurrency: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: colors.textMuted },
+    bidCurrency: { ...typeScale.title, fontWeight: fontWeight.bold, color: colors.textMuted },
     bidInput: { width: 64, minHeight: controlSize.field.md, fontSize: controlSize.field.fontSize, fontWeight: fontWeight.bold, color: colors.textPrimary, textAlign: 'right' },
     bidBalance: { ...textStyles.meta },
 
@@ -705,7 +705,7 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: uiColors.successBorder,
     },
-    spaceNoteText: { fontSize: fontSize.md, color: uiColors.successText, fontWeight: fontWeight.semibold, textAlign: 'center' },
+    spaceNoteText: { ...typeScale.row, color: uiColors.successText, fontWeight: fontWeight.semibold, textAlign: 'center' },
 
     footer: {
         paddingTop: spacing.md,
@@ -739,7 +739,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     submitButtonDisabled: { opacity: 0.55 },
-    submitButtonText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.md },
+    submitButtonText: { ...typeScale.row, color: colors.textWhite, fontWeight: fontWeight.bold },
 
     blockCard: {
         padding: spacing.xl,
@@ -751,7 +751,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         gap: spacing.md,
     },
-    blockTitle: { fontFamily: fontFamily.display, fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: colors.textPrimary, textAlign: 'center' },
+    blockTitle: { ...typeScale.heading, fontFamily: fontFamily.display, fontWeight: fontWeight.bold, color: colors.textPrimary, textAlign: 'center' },
     blockSub: { ...textStyles.body, textAlign: 'center' },
     blockPlayerRow: {
         alignSelf: 'stretch',
@@ -763,7 +763,7 @@ const styles = StyleSheet.create({
         borderTopColor: colors.separator,
     },
     blockPlayerName: { ...textStyles.rowTitle, flex: 1, minWidth: 0 },
-    blockPlayerStatus: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.dangerDark },
+    blockPlayerStatus: { ...typeScale.small, fontWeight: fontWeight.bold, color: colors.dangerDark },
     blockButton: {
         height: controlSize.button.lg.height,
         backgroundColor: colors.primary,
@@ -772,5 +772,5 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
-    blockButtonText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.lg },
+    blockButtonText: { ...typeScale.title, color: colors.textWhite, fontWeight: fontWeight.bold },
 })

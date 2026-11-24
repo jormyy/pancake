@@ -1,0 +1,1960 @@
+{
+  "schemaVersion": 1,
+  "rule": "Every reachable route, tab, sheet, menu, form, dialog, toast, banner and shell piece of the web PWA has one entry. scripts/check-design-system.mjs fails when a route file or a file that opens a surface is missing here, or when a raw design value appears outside the exceptions below.",
+  "roles": [
+    "signedOut",
+    "noLeague",
+    "manager",
+    "commissioner"
+  ],
+  "states": [
+    "default",
+    "loading",
+    "empty",
+    "error",
+    "offline",
+    "locked",
+    "live",
+    "readOnly",
+    "saving",
+    "validation",
+    "keyboard",
+    "unreachable"
+  ],
+  "surfaces": [
+    {
+      "id": "shell.boot",
+      "kind": "shell",
+      "entry": "Cold launch before the app script mounts",
+      "roles": [
+        "signedOut",
+        "noLeague",
+        "manager",
+        "commissioner"
+      ],
+      "goal": "Paint the real chrome instantly",
+      "primaryAction": "None",
+      "sources": [
+        "app/+html.tsx",
+        "constants/boot-shell.ts",
+        "hooks/use-boot-shell-handoff.ts"
+      ],
+      "primitives": [
+        "WebAppShell"
+      ],
+      "states": [
+        "loading"
+      ]
+    },
+    {
+      "id": "shell.pwa-update",
+      "kind": "banner",
+      "entry": "A newer release is installed while the app is open",
+      "roles": [
+        "signedOut",
+        "noLeague",
+        "manager",
+        "commissioner"
+      ],
+      "goal": "Load the new version",
+      "primaryAction": "Reload",
+      "sources": [
+        "app/+html.tsx"
+      ],
+      "primitives": [
+        "Button"
+      ],
+      "states": [
+        "default"
+      ]
+    },
+    {
+      "id": "shell.topbar",
+      "kind": "shell",
+      "entry": "Any primary tab on a phone",
+      "roles": [
+        "noLeague",
+        "manager",
+        "commissioner"
+      ],
+      "goal": "Show the league and open the menu",
+      "primaryAction": "Open menu",
+      "sources": [
+        "components/navigation/WebTabShell.tsx",
+        "components/navigation/webTabShellStyles.ts"
+      ],
+      "primitives": [
+        "WebAppShell"
+      ],
+      "states": [
+        "default"
+      ]
+    },
+    {
+      "id": "shell.status-cap",
+      "kind": "shell",
+      "entry": "Any page with a back button on a phone",
+      "roles": [
+        "noLeague",
+        "manager",
+        "commissioner"
+      ],
+      "goal": "Keep the status bar area solid",
+      "primaryAction": "None",
+      "sources": [
+        "components/navigation/WebTabShell.tsx",
+        "constants/navigation.ts"
+      ],
+      "primitives": [
+        "WebAppShell"
+      ],
+      "states": [
+        "default"
+      ]
+    },
+    {
+      "id": "shell.bottom-nav",
+      "kind": "shell",
+      "entry": "Any primary tab on a phone",
+      "roles": [
+        "noLeague",
+        "manager",
+        "commissioner"
+      ],
+      "goal": "Switch sections",
+      "primaryAction": "Tap a section",
+      "sources": [
+        "components/navigation/WebTabShell.tsx"
+      ],
+      "primitives": [
+        "WebAppShell"
+      ],
+      "states": [
+        "default"
+      ]
+    },
+    {
+      "id": "shell.sidebar",
+      "kind": "shell",
+      "entry": "Any page at desktop width",
+      "roles": [
+        "noLeague",
+        "manager",
+        "commissioner"
+      ],
+      "goal": "Switch sections and leagues",
+      "primaryAction": "Tap a section",
+      "sources": [
+        "components/navigation/WebTabShell.tsx"
+      ],
+      "primitives": [
+        "WebAppShell"
+      ],
+      "states": [
+        "default"
+      ]
+    },
+    {
+      "id": "shell.menu-sheet",
+      "kind": "sheet",
+      "entry": "Top bar menu button",
+      "roles": [
+        "manager",
+        "commissioner"
+      ],
+      "goal": "Reach settings, invite and profile",
+      "primaryAction": "Open a menu item",
+      "sources": [
+        "components/navigation/WebTabShell.tsx",
+        "lib/invite-share.ts"
+      ],
+      "primitives": [
+        "Sheet"
+      ],
+      "states": [
+        "default"
+      ]
+    },
+    {
+      "id": "shell.league-switcher",
+      "kind": "menu",
+      "entry": "League name in the top bar or sidebar",
+      "roles": [
+        "noLeague",
+        "manager",
+        "commissioner"
+      ],
+      "goal": "Change league, join or create one",
+      "primaryAction": "Pick a league",
+      "sources": [
+        "components/navigation/WebTabShell.tsx"
+      ],
+      "primitives": [
+        "Sheet"
+      ],
+      "states": [
+        "default"
+      ]
+    },
+    {
+      "id": "shell.league-access",
+      "kind": "banner",
+      "entry": "League membership could not be confirmed",
+      "roles": [
+        "manager",
+        "commissioner"
+      ],
+      "goal": "Explain lost access and retry",
+      "primaryAction": "Retry",
+      "sources": [
+        "components/LeagueAccessNotice.tsx"
+      ],
+      "primitives": [
+        "ErrorBanner"
+      ],
+      "states": [
+        "error"
+      ]
+    },
+    {
+      "id": "shell.offline-mutation",
+      "kind": "banner",
+      "entry": "A change is waiting for the connection",
+      "roles": [
+        "manager",
+        "commissioner"
+      ],
+      "goal": "Say a change is queued",
+      "primaryAction": "None",
+      "sources": [
+        "components/OfflineMutationNotice.tsx",
+        "components/PendingMutationBadge.tsx"
+      ],
+      "primitives": [
+        "Badge"
+      ],
+      "states": [
+        "offline"
+      ]
+    },
+    {
+      "id": "shell.toast",
+      "kind": "toast",
+      "entry": "Any action result",
+      "roles": [
+        "signedOut",
+        "noLeague",
+        "manager",
+        "commissioner"
+      ],
+      "goal": "Confirm or explain an action result",
+      "primaryAction": "Dismiss",
+      "sources": [
+        "components/ui/feedback.tsx",
+        "lib/alert.ts"
+      ],
+      "primitives": [
+        "FeedbackProvider"
+      ],
+      "states": [
+        "default",
+        "error"
+      ]
+    },
+    {
+      "id": "shell.confirm",
+      "kind": "dialog",
+      "entry": "Any consequential action",
+      "roles": [
+        "signedOut",
+        "noLeague",
+        "manager",
+        "commissioner"
+      ],
+      "goal": "Confirm a consequential change",
+      "primaryAction": "Confirm",
+      "sources": [
+        "components/ui/feedback.tsx",
+        "lib/alert.ts"
+      ],
+      "primitives": [
+        "FeedbackProvider",
+        "Button"
+      ],
+      "states": [
+        "default"
+      ]
+    },
+    {
+      "id": "shell.route-error",
+      "kind": "state",
+      "entry": "A screen throws while rendering",
+      "roles": [
+        "signedOut",
+        "noLeague",
+        "manager",
+        "commissioner"
+      ],
+      "goal": "Recover from a crash",
+      "primaryAction": "Try again",
+      "sources": [
+        "components/navigation/RouteErrorBoundary.tsx",
+        "components/ScreenErrorFallback.tsx"
+      ],
+      "primitives": [
+        "EmptyState"
+      ],
+      "states": [
+        "error"
+      ]
+    },
+    {
+      "id": "shell.not-found",
+      "kind": "route",
+      "entry": "Unknown URL",
+      "roles": [
+        "noLeague",
+        "manager",
+        "commissioner"
+      ],
+      "goal": "Get back home",
+      "primaryAction": "Back to Home",
+      "sources": [
+        "app/+not-found.tsx"
+      ],
+      "primitives": [
+        "Page",
+        "PageHeader",
+        "EmptyState"
+      ],
+      "states": [
+        "empty"
+      ]
+    },
+    {
+      "id": "auth.sign-in",
+      "kind": "route",
+      "entry": "Launch while signed out",
+      "roles": [
+        "signedOut"
+      ],
+      "goal": "Sign in",
+      "primaryAction": "Sign in",
+      "sources": [
+        "app/(auth)/sign-in.tsx",
+        "components/auth/AuthForms.tsx",
+        "components/auth/AuthScaffold.tsx",
+        "components/auth/AuthHero.tsx",
+        "components/auth/AuthBrandMark.tsx",
+        "components/auth/AuthDocumentForm.tsx",
+        "components/auth/authScaffoldCss.ts",
+        "components/auth/AuthHydrationFrame.tsx"
+      ],
+      "primitives": [
+        "Input",
+        "Button"
+      ],
+      "states": [
+        "default",
+        "validation",
+        "error",
+        "saving",
+        "keyboard"
+      ]
+    },
+    {
+      "id": "auth.sign-up",
+      "kind": "route",
+      "entry": "Sign-in page, Create account link",
+      "roles": [
+        "signedOut"
+      ],
+      "goal": "Create an account",
+      "primaryAction": "Create account",
+      "sources": [
+        "app/(auth)/sign-up.tsx",
+        "components/auth/AuthForms.tsx",
+        "components/auth/AuthScaffold.tsx"
+      ],
+      "primitives": [
+        "Input",
+        "Button"
+      ],
+      "states": [
+        "default",
+        "validation",
+        "error",
+        "saving",
+        "keyboard"
+      ]
+    },
+    {
+      "id": "home.no-league",
+      "kind": "state",
+      "entry": "Signed in with no league",
+      "roles": [
+        "noLeague"
+      ],
+      "goal": "Join or create a league",
+      "primaryAction": "Join with invite code",
+      "sources": [
+        "components/NoLeagueState.tsx",
+        "components/ui/PromptFrame.tsx"
+      ],
+      "primitives": [
+        "PromptFrame",
+        "Button"
+      ],
+      "states": [
+        "default",
+        "loading"
+      ]
+    },
+    {
+      "id": "league.create",
+      "kind": "route",
+      "entry": "No-league page or league switcher, Create league",
+      "roles": [
+        "noLeague",
+        "manager",
+        "commissioner"
+      ],
+      "goal": "Create a league",
+      "primaryAction": "Create league",
+      "sources": [
+        "app/(modals)/create-league.tsx"
+      ],
+      "primitives": [
+        "ModalScreen",
+        "Input",
+        "Button"
+      ],
+      "states": [
+        "default",
+        "validation",
+        "saving",
+        "keyboard"
+      ]
+    },
+    {
+      "id": "league.join",
+      "kind": "route",
+      "entry": "No-league page or league switcher, Join with invite code",
+      "roles": [
+        "noLeague",
+        "manager",
+        "commissioner"
+      ],
+      "goal": "Join a league",
+      "primaryAction": "Join league",
+      "sources": [
+        "app/(modals)/join-league.tsx"
+      ],
+      "primitives": [
+        "ModalScreen",
+        "Input",
+        "Button"
+      ],
+      "states": [
+        "default",
+        "validation",
+        "saving",
+        "keyboard"
+      ]
+    },
+    {
+      "id": "home.matchup",
+      "kind": "route",
+      "entry": "Home tab",
+      "roles": [
+        "manager",
+        "commissioner"
+      ],
+      "goal": "See who is winning this week",
+      "primaryAction": "Pick a day",
+      "sources": [
+        "app/(tabs)/index.tsx",
+        "components/ScoreCard.tsx",
+        "components/MatchupLineupView.tsx",
+        "components/MatchupRow.tsx",
+        "components/DaySelector.tsx",
+        "components/OtherMatchups.tsx",
+        "components/MatchupForecastSummary.tsx",
+        "components/LineupPinTag.tsx",
+        "components/InjuryTag.tsx",
+        "components/Badge.tsx",
+        "components/PosTag.tsx",
+        "components/TeamLogo.tsx"
+      ],
+      "primitives": [
+        "Page",
+        "DeferredContent",
+        "ErrorBanner",
+        "EmptyState"
+      ],
+      "states": [
+        "loading",
+        "error",
+        "live",
+        "offline"
+      ]
+    },
+    {
+      "id": "home.draft-live",
+      "kind": "state",
+      "entry": "Home tab while the startup auction runs",
+      "roles": [
+        "manager",
+        "commissioner"
+      ],
+      "goal": "Go to the live draft",
+      "primaryAction": "Go to Draft Room",
+      "sources": [
+        "app/(tabs)/index.tsx",
+        "components/EmptyState.tsx"
+      ],
+      "primitives": [
+        "EmptyState"
+      ],
+      "states": [
+        "live"
+      ]
+    },
+    {
+      "id": "home.week-off",
+      "kind": "state",
+      "entry": "Home tab in a week with no matchup",
+      "roles": [
+        "manager",
+        "commissioner"
+      ],
+      "goal": "Explain the off week",
+      "primaryAction": "Browse players",
+      "sources": [
+        "components/WeekOffNotice.tsx"
+      ],
+      "primitives": [
+        "EmptyState"
+      ],
+      "states": [
+        "empty",
+        "loading"
+      ]
+    },
+    {
+      "id": "home.score-breakdown",
+      "kind": "sheet",
+      "entry": "Matchup row score",
+      "roles": [
+        "manager",
+        "commissioner"
+      ],
+      "goal": "See how a slot scored",
+      "primaryAction": "Close",
+      "sources": [
+        "components/ScoreBreakdownSheet.tsx"
+      ],
+      "primitives": [
+        "Sheet"
+      ],
+      "states": [
+        "default",
+        "live"
+      ]
+    },
+    {
+      "id": "home.player-preview",
+      "kind": "sheet",
+      "entry": "Matchup row player name",
+      "roles": [
+        "manager",
+        "commissioner"
+      ],
+      "goal": "Glance at a player",
+      "primaryAction": "Open player page",
+      "sources": [
+        "components/player/MatchupPlayerSheet.tsx",
+        "components/player/PlayerPreviewSheet.tsx"
+      ],
+      "primitives": [
+        "Sheet",
+        "Button"
+      ],
+      "states": [
+        "default",
+        "loading"
+      ]
+    },
+    {
+      "id": "matchup.other",
+      "kind": "route",
+      "entry": "Other matchups strip or schedule row",
+      "roles": [
+        "manager",
+        "commissioner"
+      ],
+      "goal": "Watch another matchup",
+      "primaryAction": "Pick a day",
+      "sources": [
+        "app/(modals)/matchup.tsx"
+      ],
+      "primitives": [
+        "Page",
+        "PageHeader",
+        "ErrorBanner"
+      ],
+      "states": [
+        "loading",
+        "error",
+        "live"
+      ]
+    },
+    {
+      "id": "roster.main",
+      "kind": "route",
+      "entry": "Roster tab",
+      "roles": [
+        "manager",
+        "commissioner"
+      ],
+      "goal": "Manage my players",
+      "primaryAction": "Edit lineup",
+      "sources": [
+        "app/(tabs)/roster.tsx",
+        "components/roster/RosterItems.tsx",
+        "components/roster/ClaimsPill.tsx",
+        "components/roster/LockedAssetNotice.tsx",
+        "components/waivers/WaiversSection.tsx",
+        "hooks/use-roster-legality.ts",
+        "hooks/use-lineup-actions.ts"
+      ],
+      "primitives": [
+        "Page",
+        "SectionBand",
+        "PlayerRow",
+        "StatCell",
+        "ErrorBanner",
+        "EmptyState"
+      ],
+      "states": [
+        "loading",
+        "empty",
+        "error",
+        "locked",
+        "offline"
+      ]
+    },
+    {
+      "id": "roster.player-sheet",
+      "kind": "sheet",
+      "entry": "Roster row",
+      "roles": [
+        "manager",
+        "commissioner"
+      ],
+      "goal": "Act on one player",
+      "primaryAction": "Move or drop",
+      "sources": [
+        "components/roster/RosterPlayerSheet.tsx"
+      ],
+      "primitives": [
+        "Sheet",
+        "Button"
+      ],
+      "states": [
+        "default",
+        "locked"
+      ]
+    },
+    {
+      "id": "roster.drop-confirm",
+      "kind": "dialog",
+      "entry": "Roster row Drop",
+      "roles": [
+        "manager",
+        "commissioner"
+      ],
+      "goal": "Confirm a drop",
+      "primaryAction": "Drop",
+      "sources": [
+        "app/(tabs)/roster.tsx"
+      ],
+      "primitives": [
+        "FeedbackProvider"
+      ],
+      "states": [
+        "default"
+      ]
+    },
+    {
+      "id": "roster.activation-confirm",
+      "kind": "dialog",
+      "entry": "Activate from IR or Taxi",
+      "roles": [
+        "manager",
+        "commissioner"
+      ],
+      "goal": "Confirm an activation",
+      "primaryAction": "Activate",
+      "sources": [
+        "lib/roster-activation-confirm.ts",
+        "components/ActivationOverflowModal.tsx",
+        "hooks/use-lineup-actions.ts"
+      ],
+      "primitives": [
+        "FeedbackProvider",
+        "Sheet"
+      ],
+      "states": [
+        "default"
+      ]
+    },
+    {
+      "id": "roster.ir-resolution",
+      "kind": "sheet",
+      "entry": "Adding a player when IR rules block it",
+      "roles": [
+        "manager",
+        "commissioner"
+      ],
+      "goal": "Resolve an illegal IR state",
+      "primaryAction": "Swap with injured player",
+      "sources": [
+        "components/IRResolutionModal.tsx"
+      ],
+      "primitives": [
+        "Sheet",
+        "Button"
+      ],
+      "states": [
+        "default"
+      ]
+    },
+    {
+      "id": "roster.drop-picker",
+      "kind": "sheet",
+      "entry": "Adding a player to a full roster",
+      "roles": [
+        "manager",
+        "commissioner"
+      ],
+      "goal": "Pick who to drop",
+      "primaryAction": "Drop and add",
+      "sources": [
+        "components/DropPlayerPickerModal.tsx",
+        "components/TaxiAcquisitionChoice.tsx"
+      ],
+      "primitives": [
+        "Sheet",
+        "PlayerRow",
+        "Button"
+      ],
+      "states": [
+        "default",
+        "saving"
+      ]
+    },
+    {
+      "id": "roster.trim-banner",
+      "kind": "banner",
+      "entry": "Roster over the limit",
+      "roles": [
+        "manager",
+        "commissioner"
+      ],
+      "goal": "Show how many to cut",
+      "primaryAction": "Drop a player",
+      "sources": [
+        "components/roster/RosterTrimBanner.tsx"
+      ],
+      "primitives": [
+        "Card"
+      ],
+      "states": [
+        "default"
+      ]
+    },
+    {
+      "id": "roster.hold-warning",
+      "kind": "banner",
+      "entry": "Roster space is held by an accepted trade",
+      "roles": [
+        "manager",
+        "commissioner"
+      ],
+      "goal": "Explain the hold",
+      "primaryAction": "Withdraw acceptance",
+      "sources": [
+        "components/roster/RosterHoldWarning.tsx",
+        "hooks/use-roster-hold-check.ts"
+      ],
+      "primitives": [
+        "Card",
+        "Button"
+      ],
+      "states": [
+        "default"
+      ]
+    },
+    {
+      "id": "roster.team",
+      "kind": "route",
+      "entry": "Standings row or trade team name",
+      "roles": [
+        "manager",
+        "commissioner"
+      ],
+      "goal": "Look at another team",
+      "primaryAction": "Propose trade",
+      "sources": [
+        "app/(modals)/team-roster.tsx"
+      ],
+      "primitives": [
+        "Page",
+        "PageHeader",
+        "PlayerRow",
+        "ErrorBanner",
+        "EmptyState"
+      ],
+      "states": [
+        "loading",
+        "empty",
+        "error",
+        "readOnly"
+      ]
+    },
+    {
+      "id": "roster.timeline",
+      "kind": "route",
+      "entry": "Roster claim row, timeline link",
+      "roles": [
+        "manager",
+        "commissioner"
+      ],
+      "goal": "See a team's history",
+      "primaryAction": "Filter events",
+      "sources": [
+        "app/(modals)/timeline.tsx",
+        "components/timeline/TimelineScreen.tsx",
+        "components/timeline/TeamTimelineScreen.tsx"
+      ],
+      "primitives": [
+        "Page",
+        "PageHeader",
+        "Button"
+      ],
+      "states": [
+        "loading",
+        "error",
+        "empty"
+      ]
+    },
+    {
+      "id": "lineup.editor",
+      "kind": "route",
+      "entry": "Roster, Edit lineup",
+      "roles": [
+        "manager",
+        "commissioner"
+      ],
+      "goal": "Set who starts",
+      "primaryAction": "Start, Auto or Bench a player",
+      "sources": [
+        "app/(modals)/lineup.tsx",
+        "components/LineupPinControl.tsx",
+        "components/ui/LineupControls.tsx",
+        "components/lineup/IrNotices.tsx",
+        "hooks/use-lineup-actions.ts"
+      ],
+      "primitives": [
+        "Page",
+        "PageHeader",
+        "SectionBand",
+        "DaySelector",
+        "LineupControls"
+      ],
+      "states": [
+        "loading",
+        "error",
+        "locked",
+        "live",
+        "readOnly",
+        "saving"
+      ]
+    },
+    {
+      "id": "players.search",
+      "kind": "tab",
+      "entry": "Players tab, Players section",
+      "roles": [
+        "manager",
+        "commissioner"
+      ],
+      "goal": "Find a player to add",
+      "primaryAction": "Claim or add",
+      "sources": [
+        "app/(tabs)/players.tsx",
+        "components/PlayerSearchItem.tsx",
+        "components/player/PlayerEligibilityTags.tsx",
+        "components/player/PlayerRowContent.tsx",
+        "hooks/use-add-limit-gate.ts",
+        "hooks/use-quick-add.ts"
+      ],
+      "primitives": [
+        "Page",
+        "PageHeader",
+        "SegmentedControl",
+        "Input",
+        "PlayerRow",
+        "EmptyState"
+      ],
+      "states": [
+        "loading",
+        "empty",
+        "error",
+        "offline",
+        "keyboard"
+      ]
+    },
+    {
+      "id": "players.filters",
+      "kind": "menu",
+      "entry": "Players filter selects, or Filters sheet on a phone",
+      "roles": [
+        "manager",
+        "commissioner"
+      ],
+      "goal": "Narrow the player list",
+      "primaryAction": "Pick a filter",
+      "sources": [
+        "app/(tabs)/players.tsx"
+      ],
+      "primitives": [
+        "FilterSelect",
+        "MultiSelect",
+        "Sheet"
+      ],
+      "states": [
+        "default"
+      ]
+    },
+    {
+      "id": "players.waivers",
+      "kind": "tab",
+      "entry": "Players tab, Waivers section",
+      "roles": [
+        "manager",
+        "commissioner"
+      ],
+      "goal": "Review pending claims",
+      "primaryAction": "Edit claim",
+      "sources": [
+        "app/(tabs)/players.tsx",
+        "components/waivers/WaiversSection.tsx"
+      ],
+      "primitives": [
+        "SegmentedControl",
+        "PlayerRow",
+        "EmptyState"
+      ],
+      "states": [
+        "loading",
+        "empty",
+        "error"
+      ]
+    },
+    {
+      "id": "players.rankings",
+      "kind": "tab",
+      "entry": "Players tab, Rankings section",
+      "roles": [
+        "manager",
+        "commissioner"
+      ],
+      "goal": "Compare dynasty values",
+      "primaryAction": "Switch ranking view",
+      "sources": [
+        "components/dynasty/DynastyHub.tsx"
+      ],
+      "primitives": [
+        "SegmentedControl",
+        "Input",
+        "Card",
+        "EmptyState"
+      ],
+      "states": [
+        "loading",
+        "empty",
+        "error",
+        "keyboard"
+      ]
+    },
+    {
+      "id": "players.news",
+      "kind": "tab",
+      "entry": "Players tab, News section",
+      "roles": [
+        "manager",
+        "commissioner"
+      ],
+      "goal": "Read player news",
+      "primaryAction": "Switch to My players",
+      "sources": [
+        "components/dynasty/DynastyHub.tsx",
+        "components/dynasty/NewsRow.tsx",
+        "components/dynasty/news-cache.ts"
+      ],
+      "primitives": [
+        "SegmentedControl",
+        "EmptyState"
+      ],
+      "states": [
+        "loading",
+        "empty",
+        "error"
+      ]
+    },
+    {
+      "id": "players.dynasty-redirect",
+      "kind": "redirect",
+      "entry": "Old /dynasty links",
+      "roles": [
+        "manager",
+        "commissioner"
+      ],
+      "goal": "Land on Rankings",
+      "primaryAction": "None",
+      "sources": [
+        "app/(tabs)/dynasty.tsx"
+      ],
+      "primitives": [],
+      "states": [
+        "unreachable"
+      ],
+      "unreachable": "Renders only <Redirect href=\"/players?section=rankings\" />; no UI of its own."
+    },
+    {
+      "id": "claim.form",
+      "kind": "route",
+      "entry": "Player row or profile, Claim",
+      "roles": [
+        "manager",
+        "commissioner"
+      ],
+      "goal": "Place a waiver claim",
+      "primaryAction": "Submit claim",
+      "sources": [
+        "app/(modals)/claim-player.tsx"
+      ],
+      "primitives": [
+        "Page",
+        "PageHeader",
+        "Input",
+        "Button",
+        "PlayerRow",
+        "ErrorBanner",
+        "EmptyState"
+      ],
+      "states": [
+        "loading",
+        "validation",
+        "keyboard",
+        "saving",
+        "error"
+      ]
+    },
+    {
+      "id": "claim.waiver-confirm",
+      "kind": "dialog",
+      "entry": "Add on a player who is on waivers",
+      "roles": [
+        "manager",
+        "commissioner"
+      ],
+      "goal": "Confirm a waiver claim",
+      "primaryAction": "Claim",
+      "sources": [
+        "lib/pickup.ts"
+      ],
+      "primitives": [
+        "FeedbackProvider"
+      ],
+      "states": [
+        "default"
+      ]
+    },
+    {
+      "id": "player.profile",
+      "kind": "route",
+      "entry": "Any player name",
+      "roles": [
+        "manager",
+        "commissioner"
+      ],
+      "goal": "Decide whether to add a player",
+      "primaryAction": "Claim or add",
+      "sources": [
+        "app/player/[id].tsx",
+        "components/player/PlayerHeader.tsx",
+        "components/player/StatsOverview.tsx",
+        "components/player/NextProjectionCard.tsx",
+        "components/player/GameLogTable.tsx",
+        "components/player/TransactionHistory.tsx",
+        "components/player/PlayerSection.tsx",
+        "components/player/PlayerDetailsLine.tsx",
+        "components/player/PlayerAvatar.tsx",
+        "components/Avatar.tsx",
+        "hooks/use-quick-add.ts"
+      ],
+      "primitives": [
+        "Page",
+        "Button",
+        "StatCell"
+      ],
+      "states": [
+        "loading",
+        "error",
+        "offline",
+        "live",
+        "locked"
+      ]
+    },
+    {
+      "id": "player.season-menu",
+      "kind": "menu",
+      "entry": "Player profile season picker",
+      "roles": [
+        "manager",
+        "commissioner"
+      ],
+      "goal": "Switch season",
+      "primaryAction": "Pick a season",
+      "sources": [
+        "components/player/SeasonSelector.web.tsx"
+      ],
+      "primitives": [
+        "FilterSelect"
+      ],
+      "states": [
+        "default"
+      ]
+    },
+    {
+      "id": "player.season-menu-native",
+      "kind": "menu",
+      "entry": "Native app season picker",
+      "roles": [
+        "manager",
+        "commissioner"
+      ],
+      "goal": "Switch season",
+      "primaryAction": "Pick a season",
+      "sources": [
+        "components/player/SeasonSelector.tsx"
+      ],
+      "primitives": [
+        "FilterSelect"
+      ],
+      "states": [
+        "unreachable"
+      ],
+      "unreachable": "The web bundle resolves SeasonSelector.web.tsx, so this native file never ships in the PWA."
+    },
+    {
+      "id": "player.drop-confirm",
+      "kind": "dialog",
+      "entry": "Player profile Drop",
+      "roles": [
+        "manager",
+        "commissioner"
+      ],
+      "goal": "Confirm a drop",
+      "primaryAction": "Drop",
+      "sources": [
+        "app/player/[id].tsx"
+      ],
+      "primitives": [
+        "FeedbackProvider"
+      ],
+      "states": [
+        "default"
+      ]
+    },
+    {
+      "id": "trades.offers",
+      "kind": "tab",
+      "entry": "Trades tab, Offers",
+      "roles": [
+        "manager",
+        "commissioner"
+      ],
+      "goal": "Answer trade offers",
+      "primaryAction": "Open an offer",
+      "sources": [
+        "app/(tabs)/trades.tsx",
+        "components/trades/TradeListRow.tsx",
+        "components/trades/TradeCard.tsx",
+        "components/trades/TradePickLabel.tsx",
+        "components/trades/TradePlayerLink.tsx",
+        "components/trades/acceptance-summary.ts"
+      ],
+      "primitives": [
+        "Page",
+        "PageHeader",
+        "SegmentedControl",
+        "Card",
+        "ErrorBanner"
+      ],
+      "states": [
+        "loading",
+        "empty",
+        "error",
+        "offline"
+      ]
+    },
+    {
+      "id": "trades.block",
+      "kind": "tab",
+      "entry": "Trades tab, Block",
+      "roles": [
+        "manager",
+        "commissioner"
+      ],
+      "goal": "List players I would trade",
+      "primaryAction": "Edit block note",
+      "sources": [
+        "app/(tabs)/trades.tsx",
+        "components/trades/TradeBlockNoteEditor.tsx"
+      ],
+      "primitives": [
+        "SegmentedControl",
+        "Input",
+        "PlayerRow"
+      ],
+      "states": [
+        "loading",
+        "empty",
+        "error",
+        "keyboard"
+      ]
+    },
+    {
+      "id": "trades.history",
+      "kind": "tab",
+      "entry": "Trades tab, History",
+      "roles": [
+        "manager",
+        "commissioner"
+      ],
+      "goal": "Review past trades",
+      "primaryAction": "Open a trade",
+      "sources": [
+        "app/(tabs)/trades.tsx"
+      ],
+      "primitives": [
+        "SegmentedControl",
+        "Card"
+      ],
+      "states": [
+        "loading",
+        "empty",
+        "error"
+      ]
+    },
+    {
+      "id": "trades.analyzer",
+      "kind": "tab",
+      "entry": "Trades tab, Analyzer",
+      "roles": [
+        "manager",
+        "commissioner"
+      ],
+      "goal": "Judge a trade's value",
+      "primaryAction": "Add assets",
+      "sources": [
+        "components/trades/TradeAnalyzer.tsx",
+        "components/trades/TradeAnalysisSummary.tsx",
+        "components/trades/SavedTradeEstimate.tsx"
+      ],
+      "primitives": [
+        "SegmentedControl",
+        "Card"
+      ],
+      "states": [
+        "loading",
+        "empty"
+      ]
+    },
+    {
+      "id": "trades.detail",
+      "kind": "route",
+      "entry": "Offer row",
+      "roles": [
+        "manager",
+        "commissioner"
+      ],
+      "goal": "Accept or reject an offer",
+      "primaryAction": "Accept",
+      "sources": [
+        "app/(tabs)/trades.tsx",
+        "components/trades/TradeDetailsPanel.tsx",
+        "components/trades/ParticipantTradePanel.tsx",
+        "components/trades/MultiTeamTradeOverview.tsx",
+        "components/trades/TradeRosterPlanEditor.tsx",
+        "components/trades/TradeLegalityScreen.tsx",
+        "components/trades/TradeReviewCancellation.tsx"
+      ],
+      "primitives": [
+        "Page",
+        "PageHeader",
+        "Button",
+        "Card",
+        "Input"
+      ],
+      "states": [
+        "loading",
+        "error",
+        "locked",
+        "saving",
+        "readOnly"
+      ]
+    },
+    {
+      "id": "trades.roster-plan",
+      "kind": "sheet",
+      "entry": "Accepting an offer that overfills the roster",
+      "roles": [
+        "manager",
+        "commissioner"
+      ],
+      "goal": "Choose who to drop for the trade",
+      "primaryAction": "Save plan",
+      "sources": [
+        "components/trades/PendingTradeRosterPlan.tsx"
+      ],
+      "primitives": [
+        "Sheet",
+        "Button"
+      ],
+      "states": [
+        "default"
+      ]
+    },
+    {
+      "id": "trades.action-confirm",
+      "kind": "dialog",
+      "entry": "Accept, Reject, Withdraw, Veto or Cancel",
+      "roles": [
+        "manager",
+        "commissioner"
+      ],
+      "goal": "Confirm a trade decision",
+      "primaryAction": "Confirm",
+      "sources": [
+        "hooks/use-trade-actions.ts",
+        "components/trades/TradeReviewCancellation.tsx"
+      ],
+      "primitives": [
+        "FeedbackProvider"
+      ],
+      "states": [
+        "default"
+      ]
+    },
+    {
+      "id": "trades.propose",
+      "kind": "route",
+      "entry": "Team roster or Trades, Propose trade",
+      "roles": [
+        "manager",
+        "commissioner"
+      ],
+      "goal": "Build and send an offer",
+      "primaryAction": "Send offer",
+      "sources": [
+        "app/(modals)/propose-trade.tsx",
+        "components/trades/MultiTeamTradeBuilder.tsx",
+        "components/trades/TradeAssetColumn.tsx"
+      ],
+      "primitives": [
+        "Page",
+        "PageHeader",
+        "Button",
+        "Input",
+        "Card",
+        "EmptyState",
+        "ErrorBanner"
+      ],
+      "states": [
+        "loading",
+        "empty",
+        "error",
+        "validation",
+        "saving",
+        "keyboard"
+      ]
+    },
+    {
+      "id": "trades.discard-confirm",
+      "kind": "dialog",
+      "entry": "Back from a trade in progress",
+      "roles": [
+        "manager",
+        "commissioner"
+      ],
+      "goal": "Confirm discarding the offer",
+      "primaryAction": "Discard",
+      "sources": [
+        "app/(modals)/propose-trade.tsx"
+      ],
+      "primitives": [
+        "FeedbackProvider"
+      ],
+      "states": [
+        "default"
+      ]
+    },
+    {
+      "id": "league.standings",
+      "kind": "tab",
+      "entry": "League tab, Standings",
+      "roles": [
+        "manager",
+        "commissioner"
+      ],
+      "goal": "See the table",
+      "primaryAction": "Open a team",
+      "sources": [
+        "app/(tabs)/league.tsx",
+        "hooks/use-league-screen-state.ts",
+        "lib/league/tabs.ts",
+        "components/league/LeagueStandings.tsx",
+        "components/league/leagueTableStyles.ts"
+      ],
+      "primitives": [
+        "Page",
+        "PageHeader",
+        "SegmentedControl",
+        "ListHeader",
+        "Card",
+        "EmptyState",
+        "ErrorBanner"
+      ],
+      "states": [
+        "loading",
+        "empty",
+        "error",
+        "offline"
+      ]
+    },
+    {
+      "id": "league.activity",
+      "kind": "tab",
+      "entry": "League tab, Activity",
+      "roles": [
+        "manager",
+        "commissioner"
+      ],
+      "goal": "See recent moves",
+      "primaryAction": "Load more",
+      "sources": [
+        "components/league/LeagueActivityFeed.tsx",
+        "components/league/CompletedTradeActivityCard.tsx"
+      ],
+      "primitives": [
+        "Card",
+        "Badge",
+        "EmptyState"
+      ],
+      "states": [
+        "loading",
+        "empty",
+        "error"
+      ]
+    },
+    {
+      "id": "league.picks",
+      "kind": "tab",
+      "entry": "League tab, Picks",
+      "roles": [
+        "manager",
+        "commissioner"
+      ],
+      "goal": "See who owns which picks",
+      "primaryAction": "Filter Mine, All or Traded",
+      "sources": [
+        "components/league/LeaguePicksBank.tsx"
+      ],
+      "primitives": [
+        "SegmentedControl",
+        "SectionBand",
+        "EmptyState"
+      ],
+      "states": [
+        "loading",
+        "empty",
+        "locked"
+      ]
+    },
+    {
+      "id": "league.schedule",
+      "kind": "tab",
+      "entry": "League tab, Schedule",
+      "roles": [
+        "manager",
+        "commissioner"
+      ],
+      "goal": "See my weeks and results",
+      "primaryAction": "Open a week's matchup",
+      "sources": [
+        "components/league/LeagueSchedule.tsx"
+      ],
+      "primitives": [
+        "Card",
+        "ListHeader",
+        "EmptyState"
+      ],
+      "states": [
+        "empty",
+        "live"
+      ]
+    },
+    {
+      "id": "league.history",
+      "kind": "tab",
+      "entry": "League tab, History",
+      "roles": [
+        "manager",
+        "commissioner"
+      ],
+      "goal": "See past seasons",
+      "primaryAction": "Pick a season",
+      "sources": [
+        "components/league/LeagueHistory.tsx"
+      ],
+      "primitives": [
+        "Card",
+        "EmptyState"
+      ],
+      "states": [
+        "empty"
+      ]
+    },
+    {
+      "id": "league.draft",
+      "kind": "tab",
+      "entry": "League tab, Draft",
+      "roles": [
+        "manager",
+        "commissioner"
+      ],
+      "goal": "Join or set up drafts",
+      "primaryAction": "Open draft room",
+      "sources": [
+        "components/league/DraftActiveState.tsx",
+        "components/league/DraftSetupPanels.tsx",
+        "components/league/DraftChips.tsx",
+        "components/league/MockRoomsPanel.tsx",
+        "components/league/draftPanelStyles.ts",
+        "hooks/use-league-draft-controller.ts",
+        "hooks/use-mock-rooms-controller.ts"
+      ],
+      "primitives": [
+        "Card",
+        "Button",
+        "Input"
+      ],
+      "states": [
+        "loading",
+        "live",
+        "empty",
+        "keyboard"
+      ]
+    },
+    {
+      "id": "league.draft-start-confirm",
+      "kind": "dialog",
+      "entry": "Commissioner starts an auction or rookie draft",
+      "roles": [
+        "commissioner"
+      ],
+      "goal": "Confirm starting a draft",
+      "primaryAction": "Start",
+      "sources": [
+        "hooks/use-league-draft-controller.ts"
+      ],
+      "primitives": [
+        "FeedbackProvider"
+      ],
+      "states": [
+        "default"
+      ]
+    },
+    {
+      "id": "league.playoffs",
+      "kind": "tab",
+      "entry": "League tab, Playoffs",
+      "roles": [
+        "manager",
+        "commissioner"
+      ],
+      "goal": "Follow the bracket",
+      "primaryAction": "Open a matchup",
+      "sources": [
+        "components/league/LeaguePlayoffs.tsx"
+      ],
+      "primitives": [
+        "Card",
+        "EmptyState",
+        "ErrorBanner"
+      ],
+      "states": [
+        "loading",
+        "empty",
+        "error",
+        "live"
+      ]
+    },
+    {
+      "id": "league.bracket-redirect",
+      "kind": "redirect",
+      "entry": "Old /bracket links",
+      "roles": [
+        "manager",
+        "commissioner"
+      ],
+      "goal": "Land on Playoffs",
+      "primaryAction": "None",
+      "sources": [
+        "app/(modals)/bracket.tsx"
+      ],
+      "primitives": [],
+      "states": [
+        "unreachable"
+      ],
+      "unreachable": "Renders only <Redirect href=\"/league?tab=bracket\" />; no UI of its own."
+    },
+    {
+      "id": "league.settings",
+      "kind": "tab",
+      "entry": "League tab, Settings, or menu League settings",
+      "roles": [
+        "manager",
+        "commissioner"
+      ],
+      "goal": "Read rules, share invite",
+      "primaryAction": "Share invite code",
+      "sources": [
+        "components/league/SettingsPanel.tsx",
+        "lib/invite-share.ts"
+      ],
+      "primitives": [
+        "Card",
+        "Button"
+      ],
+      "states": [
+        "default"
+      ]
+    },
+    {
+      "id": "draft.launcher",
+      "kind": "route",
+      "entry": "League Draft or Home draft notice",
+      "roles": [
+        "manager",
+        "commissioner"
+      ],
+      "goal": "Open the right draft room",
+      "primaryAction": "Open draft room",
+      "sources": [
+        "app/(tabs)/draft.tsx",
+        "hooks/use-draft-room-launcher.ts"
+      ],
+      "primitives": [
+        "Page",
+        "PageHeader",
+        "EmptyState",
+        "ErrorBanner"
+      ],
+      "states": [
+        "loading",
+        "empty",
+        "error"
+      ]
+    },
+    {
+      "id": "draft.auction-room",
+      "kind": "route",
+      "entry": "Draft launcher, auction",
+      "roles": [
+        "manager",
+        "commissioner"
+      ],
+      "goal": "Nominate and bid",
+      "primaryAction": "Bid",
+      "sources": [
+        "app/(modals)/draft-room.tsx",
+        "components/league/draft-room/AuctionDraftSidePanel.tsx",
+        "components/league/draft-room/AuctionIdlePanel.tsx",
+        "components/league/draft-room/AuctionLivePanel.tsx",
+        "components/league/draft-room/DraftAdminBar.tsx",
+        "components/league/draft-room/DraftNotFoundState.tsx",
+        "components/league/draft-room/DraftScreenHeader.tsx",
+        "components/league/draft-room/useDraftActivity.ts",
+        "hooks/useAuctionDraftRoomController.ts"
+      ],
+      "primitives": [
+        "PageHeader",
+        "SegmentedControl",
+        "Input",
+        "Button",
+        "ErrorBanner"
+      ],
+      "states": [
+        "loading",
+        "live",
+        "empty",
+        "error",
+        "keyboard"
+      ]
+    },
+    {
+      "id": "draft.rookie-room",
+      "kind": "route",
+      "entry": "Draft launcher, rookie draft",
+      "roles": [
+        "manager",
+        "commissioner"
+      ],
+      "goal": "Make my pick",
+      "primaryAction": "Draft player",
+      "sources": [
+        "app/(modals)/rookie-draft-room.tsx",
+        "components/league/draft-room/RookiePickRow.tsx"
+      ],
+      "primitives": [
+        "PageHeader",
+        "Sheet",
+        "Input",
+        "Button",
+        "ErrorBanner"
+      ],
+      "states": [
+        "loading",
+        "live",
+        "error",
+        "keyboard"
+      ]
+    },
+    {
+      "id": "draft.admin-confirm",
+      "kind": "dialog",
+      "entry": "Commissioner stops or resets a draft",
+      "roles": [
+        "commissioner"
+      ],
+      "goal": "Confirm a draft reset or stop",
+      "primaryAction": "Confirm",
+      "sources": [
+        "components/league/draft-room/useDraftAdminControls.ts"
+      ],
+      "primitives": [
+        "FeedbackProvider"
+      ],
+      "states": [
+        "default"
+      ]
+    },
+    {
+      "id": "profile.main",
+      "kind": "route",
+      "entry": "Menu, Profile",
+      "roles": [
+        "noLeague",
+        "manager",
+        "commissioner"
+      ],
+      "goal": "Edit my team and app look",
+      "primaryAction": "Save team name",
+      "sources": [
+        "app/(tabs)/profile.tsx"
+      ],
+      "primitives": [
+        "Page",
+        "PageHeader",
+        "SegmentedControl",
+        "Input",
+        "Button",
+        "ErrorBanner"
+      ],
+      "states": [
+        "loading",
+        "saving",
+        "validation",
+        "keyboard",
+        "error"
+      ]
+    },
+    {
+      "id": "profile.sign-out-confirm",
+      "kind": "dialog",
+      "entry": "Profile, Sign out",
+      "roles": [
+        "noLeague",
+        "manager",
+        "commissioner"
+      ],
+      "goal": "Confirm sign-out",
+      "primaryAction": "Sign out",
+      "sources": [
+        "app/(tabs)/profile.tsx"
+      ],
+      "primitives": [
+        "FeedbackProvider"
+      ],
+      "states": [
+        "default"
+      ]
+    },
+    {
+      "id": "settings.notifications",
+      "kind": "route",
+      "entry": "Menu, Notification settings",
+      "roles": [
+        "manager",
+        "commissioner"
+      ],
+      "goal": "Choose alerts",
+      "primaryAction": "Toggle an alert",
+      "sources": [
+        "app/(modals)/notification-settings.tsx",
+        "components/settings/NotificationSettings.tsx",
+        "components/settings/SettingsGroup.tsx",
+        "components/settings/NotificationSwitchKeyboard.ts",
+        "components/WebPushSettings.tsx"
+      ],
+      "primitives": [
+        "ModalScreen",
+        "Button",
+        "ErrorBanner"
+      ],
+      "states": [
+        "loading",
+        "error",
+        "saving"
+      ]
+    },
+    {
+      "id": "settings.announcement",
+      "kind": "form",
+      "entry": "Notification settings, commissioner announcement",
+      "roles": [
+        "commissioner"
+      ],
+      "goal": "Message the league",
+      "primaryAction": "Send announcement",
+      "sources": [
+        "components/settings/NotificationAnnouncementComposer.tsx"
+      ],
+      "primitives": [
+        "Input",
+        "Button"
+      ],
+      "states": [
+        "default",
+        "validation",
+        "keyboard",
+        "saving"
+      ]
+    },
+    {
+      "id": "settings.change-password",
+      "kind": "route",
+      "entry": "Profile, Change password",
+      "roles": [
+        "noLeague",
+        "manager",
+        "commissioner"
+      ],
+      "goal": "Change my password",
+      "primaryAction": "Update password",
+      "sources": [
+        "app/(modals)/change-password.tsx"
+      ],
+      "primitives": [
+        "ModalScreen",
+        "Input",
+        "Button"
+      ],
+      "states": [
+        "default",
+        "validation",
+        "keyboard",
+        "saving",
+        "error"
+      ]
+    },
+    {
+      "id": "commissioner.settings",
+      "kind": "route",
+      "entry": "Menu, Commissioner tools",
+      "roles": [
+        "commissioner"
+      ],
+      "goal": "Change league rules",
+      "primaryAction": "Save settings",
+      "sources": [
+        "app/(modals)/commissioner-settings.tsx",
+        "components/commissioner/FuturePickYearsSetting.tsx",
+        "components/commissioner/settings-styles.ts",
+        "hooks/use-commissioner-settings-controller.ts",
+        "hooks/use-commissioner-settings-resource.ts",
+        "hooks/use-commissioner-overrides.ts",
+        "hooks/use-commissioner-admin-actions.ts"
+      ],
+      "primitives": [
+        "ModalScreen",
+        "Input",
+        "Button",
+        "Card",
+        "ErrorBanner",
+        "EmptyState"
+      ],
+      "states": [
+        "loading",
+        "error",
+        "validation",
+        "keyboard",
+        "saving",
+        "readOnly"
+      ]
+    },
+    {
+      "id": "commissioner.admin-confirm",
+      "kind": "dialog",
+      "entry": "Commissioner reset schedule, advance season or archive",
+      "roles": [
+        "commissioner"
+      ],
+      "goal": "Confirm a league-wide change",
+      "primaryAction": "Continue",
+      "sources": [
+        "hooks/use-commissioner-admin-actions.ts"
+      ],
+      "primitives": [
+        "FeedbackProvider"
+      ],
+      "states": [
+        "default"
+      ]
+    }
+  ],
+  "exceptions": [
+    {
+      "file": "components/ui/Badge.tsx",
+      "property": "fontSize",
+      "value": "9",
+      "reason": "Compact eligibility tags (DTD, O, OUT, IR) sit one step below the 10px game line in Matchup and Roster rows; tests/components/player-eligibility-tags.test.ts pins it."
+    }
+  ]
+}

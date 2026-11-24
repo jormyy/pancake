@@ -1,5 +1,5 @@
 import { StyleSheet, Text, View } from 'react-native'
-import { colors, fontSize, fontWeight, lineHeight, palette, radii, spacing, tracking } from '@/constants/tokens'
+import { colors, fontWeight, palette, radii, spacing, typeScale } from '@/constants/tokens'
 
 /** Out, injured reserve, and day-to-day show as a tag on the headshot rather than a badge beside the name. */
 export function injuryTagKind(status: string | null | undefined): 'out' | 'ir' | 'dtd' | null {
@@ -37,6 +37,6 @@ const LARGE_AVATAR = 48
 
 const styles = StyleSheet.create({
     anchor: { position: 'absolute', left: spacing.none, right: spacing.none, bottom: -spacing.xs, alignItems: 'center' },
-    tag: { fontSize: fontSize['2xs'], lineHeight: fontSize['2xs'] + spacing.xxs, fontWeight: fontWeight.extrabold, color: colors.textWhite, paddingHorizontal: spacing.xxs, borderRadius: radii.sm, overflow: 'hidden', letterSpacing: tracking.tight },
-    tagLarge: { fontSize: fontSize.xs, lineHeight: lineHeight.meta, paddingHorizontal: spacing.xs },
+    tag: { ...typeScale.micro, fontWeight: fontWeight.extrabold, color: colors.textWhite, paddingHorizontal: spacing.xxs, borderRadius: radii.sm, overflow: 'hidden' },
+    tagLarge: { ...typeScale.caption, paddingHorizontal: spacing.xs },
 })

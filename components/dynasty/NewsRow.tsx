@@ -1,6 +1,6 @@
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native'
 import { PlayerRowContent } from '@/components/player/PlayerRowContent'
-import { colors, fontSize, fontWeight, spacing, textStyles } from '@/constants/tokens'
+import { colors, fontWeight, spacing, textStyles, typeScale } from '@/constants/tokens'
 import type { DynastyNewsItem } from '@/lib/dynasty'
 
 export function NewsRow({ item, dateLabel }: { item: DynastyNewsItem; dateLabel: string }) {
@@ -33,8 +33,8 @@ export function NewsRow({ item, dateLabel }: { item: DynastyNewsItem; dateLabel:
 const styles = StyleSheet.create({
     newsRow: { paddingVertical: spacing.md, paddingHorizontal: spacing.md, gap: spacing.xs },
     newsTopLine: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing.lg },
-    newsSource: { ...textStyles.meta, flex: 1, minWidth: 0, fontSize: fontSize.xs, fontWeight: fontWeight.extrabold, color: colors.primaryDark, textTransform: 'uppercase' },
-    newsDate: { ...textStyles.meta, flexShrink: 0, fontSize: fontSize.xs, fontWeight: fontWeight.semibold, color: colors.textMuted },
+    newsSource: { ...textStyles.meta, ...typeScale.caption, flex: 1, minWidth: 0, fontWeight: fontWeight.extrabold, color: colors.primaryDark, textTransform: 'uppercase' },
+    newsDate: { ...textStyles.meta, ...typeScale.caption, flexShrink: 0, fontWeight: fontWeight.semibold, color: colors.textMuted },
     newsTitle: { ...textStyles.rowTitle },
     newsSummary: { ...textStyles.body },
     newsPlayerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },

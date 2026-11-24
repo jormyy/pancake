@@ -7,7 +7,7 @@ import { View, Text, StyleSheet } from 'react-native'
 import type { ReactNode } from 'react'
 import type { PlayerRosterStatus } from '@/lib/roster'
 import { blockedActionProps } from '@/lib/a11y'
-import { colors, componentTokens, controlSize, fontSize, radii, spacing, textStyles } from '@/constants/tokens'
+import { colors, componentTokens, controlSize, radii, spacing, textStyles, typeScale } from '@/constants/tokens'
 import { playerAgeDecimal } from '@/lib/player-context'
 import { PlayerAvatar } from './PlayerAvatar'
 import { getEligiblePositions } from '@/lib/players'
@@ -113,7 +113,7 @@ const styles = StyleSheet.create({
     metaRow: { flexDirection: 'row', flexWrap: 'nowrap', alignItems: 'center', gap: spacing.xs, minHeight: textStyles.body.lineHeight },
     summary: { ...componentTokens.playerRow.metadata, color: colors.textSecondary, flexShrink: 1, minWidth: 0 },
     summaryRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.xs, minHeight: textStyles.body.lineHeight },
-    rosterStatus: { ...textStyles.meta, fontSize: fontSize.xs, maxWidth: spacing['6xl'] * 2 + spacing.xl, flexShrink: 1, backgroundColor: colors.bgMuted, borderRadius: radii.sm, paddingHorizontal: spacing.xs },
+    rosterStatus: { ...textStyles.meta, ...typeScale.caption, maxWidth: spacing['6xl'] * 2 + spacing.xl, flexShrink: 1, backgroundColor: colors.bgMuted, borderRadius: radii.sm, paddingHorizontal: spacing.xs },
     actionWrap: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, width: controlSize.minTouch * 2 + spacing['3xl'], minWidth: controlSize.minTouch * 2 + spacing['3xl'], minHeight: controlSize.minTouch, flexShrink: 0, justifyContent: 'flex-end' },
     placeholder: { height: controlSize.button.inline.height, width: controlSize.minTouch, backgroundColor: colors.bgMuted, borderRadius: radii.md },
 })

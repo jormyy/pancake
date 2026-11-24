@@ -2,7 +2,7 @@ import { Platform, ScrollView, StyleSheet, Text, Pressable, View } from 'react-n
 import type { LeagueWeekMatchup } from '@/lib/scoring'
 import { formatPoints } from '@/lib/format'
 import { orderedMatchups } from '@/lib/matchup-navigation'
-import { borderWidth, colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { borderWidth, colors, fontWeight, radii, spacing, typeScale } from '@/constants/tokens'
 
 export function OtherMatchups({ matchups, currentMatchupId, onOpen }: { matchups: LeagueWeekMatchup[]; currentMatchupId?: string; onOpen: (id: string) => void }) {
     const others = orderedMatchups(matchups)
@@ -29,11 +29,11 @@ export function OtherMatchups({ matchups, currentMatchupId, onOpen }: { matchups
 
 const styles = StyleSheet.create({
     strip: { marginVertical: spacing.md, gap: spacing.sm },
-    heading: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.textMuted },
+    heading: { ...typeScale.small, fontWeight: fontWeight.bold, color: colors.textMuted },
     entries: { gap: spacing.sm },
     entry: { width: 220, padding: spacing.md, gap: spacing.sm, backgroundColor: colors.bgCard, borderRadius: radii.lg, borderWidth: borderWidth.thin, borderColor: colors.border },
     selected: { borderWidth: borderWidth.strong, borderColor: colors.primary },
     team: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-    name: { flex: 1, fontSize: fontSize.sm, color: colors.textPrimary },
-    score: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.textPrimary },
+    name: { ...typeScale.small, flex: 1, color: colors.textPrimary },
+    score: { ...typeScale.small, fontWeight: fontWeight.bold, color: colors.textPrimary },
 })

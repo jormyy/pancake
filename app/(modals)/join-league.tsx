@@ -13,7 +13,7 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '@/hooks/use-auth'
 import { useLeagueContext } from '@/contexts/league-context'
 import { joinLeague } from '@/lib/league'
-import { colors, fontSize, fontWeight, layout, spacing, textStyles } from '@/constants/tokens'
+import { colors, fontWeight, layout, spacing, textStyles, typeScale } from '@/constants/tokens'
 import { Button, Input, usePageMetrics } from '@/components/ui'
 import { ModalScreen } from '@/components/ui/ModalScreen'
 import { getErrorMessage } from '@/lib/shared/errors'
@@ -130,7 +130,7 @@ const styles = StyleSheet.create({
     compactFormRow: { flexDirection: 'row', gap: spacing.md },
     compactField: { flex: 1, minWidth: 0 },
     codeInput: {
-        fontSize: fontSize.xl,
+        ...typeScale.heading,
         fontWeight: fontWeight.bold,
         textAlign: 'center',
     },

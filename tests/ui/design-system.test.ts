@@ -1,4 +1,4 @@
-import { designSystemViolations, scanDesignSystem } from '../../scripts/check-design-system.mjs'
+import { designSystemViolations, inventoryViolations, readInventory, scanDesignSystem } from '../../scripts/check-design-system.mjs'
 import { readFileSync } from 'node:fs'
 import { runInNewContext } from 'node:vm'
 import { ModuleKind, transpileModule } from 'typescript'
@@ -160,15 +160,44 @@ it.each([
     'const style = { paddingBottom: inset + 16 }',
     'const style = { fontSize: compact ? 12 : 16 }',
     '<Text fontSize={16} />',
+    "import { fontSize } from '@/constants/tokens'",
+    "import { lineHeight as leading } from '@/constants/tokens'",
     'const css = `padding: 12px 8px; border-radius: 4px; font-size: 16px`',
 ])('rejects a raw design literal: %s', source => {
     expect(scanDesignSystem(source, 'components/Fixture.tsx').length).toBeGreaterThan(0)
 })
 it('accepts shared tokens, runtime sizes and structural numbers', () => {
-    expect(scanDesignSystem('const style = { padding: spacing.md, margin: spacing.lg * 2, fontSize: fontSize.lg, borderRadius: radii.md, color: colors.primary, flex: 1, opacity: 0.5, top: insets.top }')).toEqual([])
+    expect(scanDesignSystem('const style = { padding: spacing.md, margin: spacing.lg * 2, fontSize: typeScale.title.fontSize, borderRadius: radii.md, color: colors.primary, flex: 1, opacity: 0.5, top: insets.top }')).toEqual([])
     expect(scanDesignSystem('const styles = { left: { flex: 1, minWidth: 0 }, right: { flex: 1 } }')).toEqual([])
-    expect(scanDesignSystem('const style = { padding: 16 }', 'components/ui/Fixture.tsx')).toEqual([])
+    expect(scanDesignSystem('const style = { padding: 16 }', 'components/ui/Fixture.tsx')).toHaveLength(1)
     expect(scanDesignSystem('const style = { padding: 16 }', 'constants/tokens.ts')).toEqual([])
+})
+
+it('lists every route and overlay as an inventoried surface', () => {
+    expect(inventoryViolations()).toEqual([])
+})
+it.each([
+    ['app/(tabs)/roster.tsx', 'roster.main'],
+    ['components/IRResolutionModal.tsx', 'roster.ir-resolution'],
+])('flags %s once its surface leaves the inventory', (file, id) => {
+    const inventory = readInventory()
+    const surfaces = inventory.surfaces.filter((surface: { id: string }) => surface.id !== id)
+        .map((surface: { sources: string[] }) => ({ ...surface, sources: surface.sources.filter(source => source !== file) }))
+    expect(inventoryViolations(process.cwd(), { ...inventory, surfaces })).toContain(`${file}: opens a screen, overlay, form, dialog or toast but no surface in tests/ui/ui-inventory.json lists it`)
+})
+it('rejects malformed surfaces', () => {
+    const inventory = readInventory()
+    const [first] = inventory.surfaces
+    const problems = inventoryViolations(process.cwd(), { ...inventory, surfaces: [...inventory.surfaces, { ...first, kind: 'popup', roles: ['guest'], primitives: ['NotAComponent'], states: ['unreachable'] }] })
+    expect(problems).toEqual(expect.arrayContaining([
+        `${first.id}: duplicate id`, `${first.id}: unknown kind popup`, `${first.id}: unknown role guest`,
+        `${first.id}: an unreachable surface needs its reason, and only then`, `${first.id}: NotAComponent is not a shared component export`,
+    ]))
+})
+it('reports exceptions without a reason or without a matching literal', () => {
+    const inventory = readInventory()
+    const exceptions = [...inventory.exceptions, { file: 'components/Fixture.tsx', property: 'padding', value: '16', reason: 'fixture' }, { file: 'components/Fixture.tsx', property: 'margin', value: '8', reason: '' }]
+    expect(designSystemViolations(process.cwd(), { ...inventory, exceptions }).map((item: { value: string }) => item.value)).toEqual(['16 is a stale exception', '8 has no reason'])
 })
 
 it('separates section bars from their first content row with a spacing token', async () => {

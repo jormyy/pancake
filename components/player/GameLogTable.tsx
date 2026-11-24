@@ -2,7 +2,7 @@ import { formatPoints } from '@/lib/format-points'
 import { ListHeader } from '@/components/ui/ListHeader'
 import { View, Text, ScrollView, Pressable, StyleSheet, Platform } from 'react-native'
 import { memo, useEffect, useRef } from 'react'
-import { colors, controlSize, fontSize, fontWeight, radii, spacing, table, textStyles } from '@/constants/tokens'
+import { colors, controlSize, fontWeight, radii, spacing, table, textStyles, typeScale } from '@/constants/tokens'
 import type { GameLogEntry } from '@/lib/players'
 import { useEdgeFade } from '@/components/ui/useEdgeFade'
 
@@ -206,10 +206,10 @@ const styles = StyleSheet.create({
     fptsCell: { ...textStyles.tableCell, width: controlSize.field.md, textAlign: 'center', color: colors.textPlaceholder },
     fptsValue: { color: colors.primaryDark, fontWeight: fontWeight.bold },
 
-    compactDateCell: { width: controlSize.minTouch, fontSize: fontSize['2sm'] },
-    compactOppCell: { width: controlSize.minTouch, flexGrow: 0, fontSize: fontSize['2sm'] },
-    compactFptsCell: { width: table.statColWidth, fontSize: fontSize['2sm'] },
-    compactNumCell: { ...textStyles.tableCell, flex: 1, minWidth: 0, textAlign: 'center', fontSize: fontSize['2sm'] },
+    compactDateCell: { ...typeScale.small, width: controlSize.minTouch },
+    compactOppCell: { ...typeScale.small, width: controlSize.minTouch, flexGrow: 0 },
+    compactFptsCell: { ...typeScale.small, width: table.statColWidth },
+    compactNumCell: { ...textStyles.tableCell, ...typeScale.small, flex: 1, minWidth: 0, textAlign: 'center' },
     colHdr: { ...textStyles.tableHeader },
     dnpText: { color: colors.textPlaceholder },
 
@@ -225,5 +225,5 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
-    loadMoreText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textSecondary },
+    loadMoreText: { ...typeScale.small, fontWeight: fontWeight.semibold, color: colors.textSecondary },
 })

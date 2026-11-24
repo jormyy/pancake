@@ -19,7 +19,7 @@ import {
     type TradeCardActions,
     type TradeCardContext,
 } from '@/components/trades/TradeCard'
-import { colors, fontSize, fontWeight, foundation, radii, spacing, textStyles } from '@/constants/tokens'
+import { colors, fontWeight, foundation, radii, spacing, textStyles, typeScale } from '@/constants/tokens'
 
 /**
  * The whole trade: every asset with its season context, the multi-team routing,
@@ -130,5 +130,5 @@ const styles = StyleSheet.create({
         minHeight: foundation.minTouch,
         justifyContent: 'center',
     },
-    analyzeText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.primaryDark },
+    analyzeText: { ...typeScale.small, fontWeight: fontWeight.bold, color: colors.primaryDark },
 })

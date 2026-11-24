@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet } from 'react-native'
 import { Button } from '@/components/ui/Button'
-import { colors, fontSize, fontWeight, spacing } from '@/constants/tokens'
+import { colors, fontWeight, spacing, typeScale } from '@/constants/tokens'
 
 export function DraftNotFoundState({ onBack }: { onBack: () => void }) {
     return (
@@ -14,6 +14,6 @@ export function DraftNotFoundState({ onBack }: { onBack: () => void }) {
 
 const styles = StyleSheet.create({
     container: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: spacing['4xl'], gap: spacing.lg },
-    title: { fontSize: fontSize['2xl'], fontWeight: fontWeight.extrabold, color: colors.textPrimary, textAlign: 'center' },
-    description: { fontSize: fontSize.md, color: colors.textMuted, textAlign: 'center' },
+    title: { ...typeScale.headline, fontWeight: fontWeight.extrabold, color: colors.textPrimary, textAlign: 'center' },
+    description: { ...typeScale.body, color: colors.textMuted, textAlign: 'center' },
 })

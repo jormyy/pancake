@@ -18,7 +18,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useLeagueContext } from '@/contexts/league-context'
 import { type RookieProspect } from '@/lib/rookieDraft'
 import { draftYearForSeason, leagueSeasonYear } from '@/lib/picks'
-import { breakpoints, colors, controlSize, fontSize, fontWeight, layout, radii, scrim, spacing, table, textStyles, uiColors, lineHeight } from '@/constants/tokens'
+import { breakpoints, colors, controlSize, fontWeight, layout, radii, scrim, spacing, table, textStyles, uiColors, typeScale } from '@/constants/tokens'
 import { MotionPressable } from '@/components/Motion'
 import { showSuccess } from '@/lib/alert'
 import { countLabel } from '@/lib/format'
@@ -519,10 +519,10 @@ const styles = StyleSheet.create({
         borderLeftColor: colors.borderLight,
     },
     bannerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-    bannerTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.extrabold, color: colors.textPrimary },
-    bannerClock: { fontSize: fontSize.lg, fontWeight: fontWeight.extrabold, color: colors.textMuted, width: table.statColWidth, textAlign: 'right', fontVariant: ['tabular-nums'] },
+    bannerTitle: { ...typeScale.title, fontWeight: fontWeight.extrabold, color: colors.textPrimary },
+    bannerClock: { ...typeScale.title, fontWeight: fontWeight.extrabold, color: colors.textMuted, width: table.statColWidth, textAlign: 'right', fontVariant: ['tabular-nums'] },
     bannerClockUrgent: { color: colors.dangerDark },
-    bannerSub: { fontSize: fontSize.md, color: colors.textSecondary },
+    bannerSub: { ...typeScale.body, color: colors.textSecondary },
     bannerMe: { color: colors.primaryDark, fontWeight: fontWeight.bold },
 
     tabs: { flexDirection: 'row', gap: spacing.xs },
@@ -534,7 +534,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     tabActive: { backgroundColor: colors.primaryLight },
-    tabText: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textMuted },
+    tabText: { ...typeScale.row, fontWeight: fontWeight.semibold, color: colors.textMuted },
     tabTextActive: { color: colors.primaryDark, fontWeight: fontWeight.bold },
 
     searchContainer: {
@@ -569,7 +569,7 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: uiColors.dangerBorder,
     },
-    pickErrorText: { color: colors.dangerDark, fontSize: fontSize.sm, fontWeight: fontWeight.semibold },
+    pickErrorText: { ...typeScale.small, color: colors.dangerDark, fontWeight: fontWeight.semibold },
 
     resultRow: {
         minHeight: table.rowHeight,
@@ -582,7 +582,7 @@ const styles = StyleSheet.create({
     resultNameRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
     resultName: { ...textStyles.rowTitle, flexShrink: 1 },
     resultTeam: { ...textStyles.meta },
-    pickBtn: { fontSize: fontSize.md, fontWeight: fontWeight.bold, color: colors.primaryDark },
+    pickBtn: { ...typeScale.row, fontWeight: fontWeight.bold, color: colors.primaryDark },
 
 
     separator: { height: 1, backgroundColor: colors.separator },
@@ -602,8 +602,8 @@ const styles = StyleSheet.create({
 
 
 
-    pickedName: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textPrimary },
-    pickedTeam: { fontSize: fontSize.xs, color: colors.textMuted },
+    pickedName: { ...typeScale.small, fontWeight: fontWeight.semibold, color: colors.textPrimary },
+    pickedTeam: { ...typeScale.caption, color: colors.textMuted },
 
 
 
@@ -626,14 +626,13 @@ const styles = StyleSheet.create({
         gap: spacing.md,
     },
     overflowTitle: {
-        fontSize: fontSize.xl,
+        ...typeScale.heading,
         fontWeight: fontWeight.extrabold,
         color: colors.textPrimary,
     },
     overflowBody: {
-        fontSize: fontSize.md,
+        ...typeScale.body,
         color: colors.textSecondary,
-        lineHeight: lineHeight.roomy,
     },
     overflowBtn: {
         minHeight: controlSize.minTouch,
@@ -643,12 +642,12 @@ const styles = StyleSheet.create({
         marginTop: spacing.sm,
     },
     overflowExitText: {
+        ...typeScale.row,
         color: colors.primaryDark,
-        fontSize: fontSize.md,
         fontWeight: fontWeight.bold,
     },
     overflowDropLabel: {
-        fontSize: fontSize.sm,
+        ...typeScale.small,
         fontWeight: fontWeight.semibold,
         color: colors.textMuted,
         marginTop: spacing.md,
@@ -666,12 +665,12 @@ const styles = StyleSheet.create({
     },
     overflowDropInfo: { flex: 1, minWidth: 0 },
     overflowDropName: {
-        fontSize: fontSize.md,
+        ...typeScale.row,
         fontWeight: fontWeight.semibold,
         color: uiColors.dangerText,
     },
     overflowDropPos: {
-        fontSize: fontSize.xs,
+        ...typeScale.caption,
         color: colors.textMuted,
     },
 })

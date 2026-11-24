@@ -30,7 +30,7 @@ import { formatAvgPoints, playerHeadshotUrl } from '@/lib/format'
 import { getEligiblePositions } from '@/lib/players'
 import { API_URL } from '@/lib/shared/api'
 import { getLeagueMembers } from '@/lib/league'
-import { colors, fontSize, fontWeight, controlSize, layout, radii, spacing, table, textStyles, lineHeight } from '@/constants/tokens'
+import { colors, fontWeight, controlSize, layout, radii, spacing, table, textStyles, typeScale } from '@/constants/tokens'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 
 type DynastySection = 'rankings' | 'news'
@@ -332,7 +332,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         gap: spacing.xxs,
     },
-    rankMovementText: { ...textStyles.meta, fontSize: fontSize.xs },
+    rankMovementText: { ...textStyles.meta, ...typeScale.caption },
     rankMain: { flex: 1, minWidth: 0, gap: spacing.xxs },
     rankHeadline: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.sm },
     playerName: { ...textStyles.rowTitle, flex: 1, minWidth: 0 },
@@ -362,15 +362,14 @@ const styles = StyleSheet.create({
         padding: spacing['4xl'],
     },
     errorTitle: {
-        fontSize: fontSize.lg,
+        ...typeScale.title,
         fontWeight: fontWeight.extrabold,
         color: colors.textPrimary,
     },
     errorText: {
+        ...typeScale.small,
         maxWidth: 520,
         textAlign: 'center',
-        fontSize: fontSize.sm,
-        lineHeight: lineHeight.control,
         color: colors.textMuted,
     },
     retryButton: {
@@ -383,7 +382,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: spacing.xl,
         backgroundColor: colors.primary,
     },
-    retryButtonText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.textWhite },
+    retryButtonText: { ...typeScale.small, fontWeight: fontWeight.bold, color: colors.textWhite },
     footerRetry: {
         minHeight: 54,
         flexDirection: 'row',
@@ -391,5 +390,5 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         gap: spacing.sm,
     },
-    footerRetryText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.primaryDark },
+    footerRetryText: { ...typeScale.small, fontWeight: fontWeight.bold, color: colors.primaryDark },
 })

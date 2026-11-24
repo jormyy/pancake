@@ -13,7 +13,7 @@ import { readPlayerHeader } from '@/components/player/navigation'
 import { TransactionHistory } from '@/components/player/TransactionHistory'
 import { PlayerSection } from '@/components/player/PlayerSection'
 import { NextProjectionCard } from '@/components/player/NextProjectionCard'
-import { breakpoints, colors, fontSize, fontWeight, layout, spacing, textStyles } from '@/constants/tokens'
+import { breakpoints, colors, fontWeight, layout, spacing, textStyles, typeScale } from '@/constants/tokens'
 import { BackButton, Page, usePageMetrics } from '@/components/ui'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useOnlineStatus } from '@/hooks/use-online-status'
@@ -373,5 +373,5 @@ const styles = StyleSheet.create({
     sideColumn: { width: SIDE_COLUMN_WIDTH, flexShrink: 0, gap: spacing.md },
     mainColumn: { flex: 1, minWidth: 0, gap: spacing.md },
     errorText: { ...textStyles.body, textAlign: 'center', marginTop: spacing['5xl'], color: colors.textMuted },
-    warningText: { color: colors.dangerDark, fontSize: fontSize.sm, fontWeight: fontWeight.semibold },
+    warningText: { ...typeScale.small, color: colors.dangerDark, fontWeight: fontWeight.semibold },
 })

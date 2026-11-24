@@ -3,7 +3,7 @@ import { Animated, Modal, Platform, Pressable, StyleSheet, Text, View, useWindow
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { useReducedMotion } from '@/components/Motion'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { breakpoints, colors, elevation, fontSize, fontWeight, radii, scrim, spacing } from '@/constants/tokens'
+import { breakpoints, colors, elevation, fontWeight, radii, scrim, spacing, typeScale } from '@/constants/tokens'
 import { Button } from './Button'
 import { focusableDialogElements, trapDialogTabFocus, type DialogKeyboardEvent } from './dialogFocus'
 import { scheduleWebFocusRecovery } from './webFocus'
@@ -280,8 +280,8 @@ const styles = StyleSheet.create({
     toastHost: {
         position: Platform.OS === 'web' ? ('fixed' as 'absolute') : 'absolute',
         pointerEvents: 'box-none',
-        left: 0,
-        right: 0,
+        left: spacing.none,
+        right: spacing.none,
         alignItems: 'center',
         gap: spacing.md,
         zIndex: 9999,
@@ -303,9 +303,9 @@ const styles = StyleSheet.create({
         backgroundColor: colors.bgCard,
         ...(elevation('lg') as object),
     },
-    toastBody: { flex: 1, gap: 1 },
-    toastTitle: { fontSize: fontSize.md, fontWeight: fontWeight.bold, color: colors.textPrimary },
-    toastMessage: { fontSize: fontSize.sm, color: colors.textSecondary, lineHeight: 18 },
+    toastBody: { flex: 1, gap: spacing.xxs },
+    toastTitle: { ...typeScale.row, fontWeight: fontWeight.bold, color: colors.textPrimary },
+    toastMessage: { ...typeScale.small, color: colors.textSecondary },
 
     dialogScrim: {
         flex: 1,
@@ -326,13 +326,13 @@ const styles = StyleSheet.create({
         ...(Platform.OS === 'web' ? ({ outlineStyle: 'none' } as object) : {}),
         ...(elevation('xl') as object),
     },
-    dialogScrimBottom: { justifyContent: 'flex-end', padding: 0 },
+    dialogScrimBottom: { justifyContent: 'flex-end', padding: spacing.none },
     dialogBottom: {
         maxWidth: undefined,
         paddingTop: spacing.sm,
         paddingHorizontal: spacing.xl,
-        borderBottomLeftRadius: 0,
-        borderBottomRightRadius: 0,
+        borderBottomLeftRadius: radii.none,
+        borderBottomRightRadius: radii.none,
         borderTopLeftRadius: radii['3xl'],
         borderTopRightRadius: radii['3xl'],
     },
@@ -344,8 +344,8 @@ const styles = StyleSheet.create({
         backgroundColor: colors.border,
         marginBottom: spacing.md,
     },
-    dialogTitle: { fontSize: fontSize.xl, fontWeight: fontWeight.extrabold, color: colors.textPrimary },
-    dialogMessage: { fontSize: fontSize.md, color: colors.textSecondary, lineHeight: 21 },
+    dialogTitle: { ...typeScale.heading, fontWeight: fontWeight.extrabold, color: colors.textPrimary },
+    dialogMessage: { ...typeScale.body, color: colors.textSecondary },
     dialogActions: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.md },
     dialogBtn: { flex: 1 },
 })

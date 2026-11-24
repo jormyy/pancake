@@ -1,7 +1,7 @@
 import { ComponentProps, ReactNode } from 'react'
 import { Pressable, StyleSheet, Text, View, type AccessibilityState, type StyleProp, type ViewStyle, type TextStyle } from 'react-native'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
-import { colors, controlSize, elevation, fontFamily, fontWeight, motion, radii } from '@/constants/tokens'
+import { colors, controlSize, elevation, fontFamily, fontWeight, motion, radii, tracking } from '@/constants/tokens'
 
 type IconName = ComponentProps<typeof MaterialIcons>['name']
 type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'danger' | 'ghost'
@@ -118,11 +118,11 @@ const styles = StyleSheet.create({
     } as ViewStyle,
     fullWidth: { width: '100%' },
     inlineTarget: { minHeight: controlSize.minTouch, minWidth: controlSize.minTouch, alignItems: 'center', justifyContent: 'center' },
-    inlineLabel: { lineHeight: controlSize.icon.sm, fontWeight: fontWeight.semibold, fontFamily: fontFamily.control, letterSpacing: 0 },
+    inlineLabel: { lineHeight: controlSize.icon.sm, fontWeight: fontWeight.semibold, fontFamily: fontFamily.control, letterSpacing: tracking.none },
     label: {
         fontWeight: fontWeight.bold,
         fontFamily: fontFamily.displayMedium,
-        letterSpacing: 0.1,
+        letterSpacing: tracking.none,
     },
     pressed: { opacity: motion.pressedOpacity },
     disabled: { opacity: 0.5 },
