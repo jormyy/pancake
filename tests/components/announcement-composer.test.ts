@@ -6,6 +6,8 @@ import { NotificationAnnouncementComposer } from '@/components/settings/Notifica
 
 const publish = vi.hoisted(() => vi.fn(async () => {}))
 vi.mock('react-native', () => ({ Platform: { OS: 'web' }, View: 'View', Text: 'Text', TextInput: 'TextInput', Pressable: 'Pressable', StyleSheet: { create: (value: unknown) => value } }))
+vi.mock('@/components/ui/Input', () => ({ Input: 'Input' }))
+vi.mock('@/components/ui/Button', () => ({ Button: 'Button' }))
 vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => ({ current: { id: 'member' }, currentLeague: { id: 'league' }, membershipValidated: true, isCommissioner: true }) }))
 vi.mock('@/hooks/use-auth', () => ({ useAuth: () => ({ user: { id: 'commissioner' } }) }))
 vi.mock('@/lib/notification-preferences', () => ({ publishLeagueAnnouncement: publish }))
@@ -15,8 +17,10 @@ it('explains in-app delivery and optional commissioner push after publishing', a
     let screen!: ReactTestRenderer
     try {
         await act(async () => { screen = create(React.createElement(NotificationAnnouncementComposer)) })
-        await act(async () => screen.root.findByType('TextInput' as React.ElementType).props.onChangeText('Draft tonight.'))
-        await act(async () => screen.root.findByType('Pressable' as React.ElementType).props.onPress())
+        await act(async () => screen.root.findByType('Input' as React.ElementType).props.onChangeText('Draft tonight.'))
+        const action = screen.root.findByType('Button' as React.ElementType)
+        expect(action.props.accessibilityLabel).toBe('Publish announcement')
+        await act(async () => action.props.onPress())
         expect(publish).toHaveBeenCalledWith('league', 'Draft tonight.', expect.any(String))
         const text = screen.root.findAllByType('Text' as React.ElementType).map(node => node.props.children).join(' ')
         expect(text).toContain('Members see this in the app.')
@@ -30,11 +34,11 @@ it('holds automatic updates while text is unsent and releases after clearing or 
     try {
         await act(async () => { screen = create(React.createElement(NotificationAnnouncementComposer)) })
         expect(isPwaUpdateHeld()).toBe(false)
-        await act(async () => screen.root.findByType('TextInput' as React.ElementType).props.onChangeText('Keep this draft.'))
+        await act(async () => screen.root.findByType('Input' as React.ElementType).props.onChangeText('Keep this draft.'))
         expect(isPwaUpdateHeld()).toBe(true)
-        await act(async () => screen.root.findByType('TextInput' as React.ElementType).props.onChangeText(''))
+        await act(async () => screen.root.findByType('Input' as React.ElementType).props.onChangeText(''))
         expect(isPwaUpdateHeld()).toBe(false)
-        await act(async () => screen.root.findByType('TextInput' as React.ElementType).props.onChangeText('Another draft.'))
+        await act(async () => screen.root.findByType('Input' as React.ElementType).props.onChangeText('Another draft.'))
         expect(isPwaUpdateHeld()).toBe(true)
         await act(async () => screen.unmount())
         expect(isPwaUpdateHeld()).toBe(false)

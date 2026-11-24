@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
+import { StyleSheet, Text, View } from 'react-native'
+import { Button } from '@/components/ui/Button'
+import { Input } from '@/components/ui/Input'
 import { useLeagueContext } from '@/contexts/league-context'
 import { sessionGeneration } from '@/lib/session-cache-registry'
 import { useAuth } from '@/hooks/use-auth'
 import { publishLeagueAnnouncement } from '@/lib/notification-preferences'
 import { holdPwaUpdate } from '@/lib/pwa-update-guard'
-import { colors, radii, spacing, textStyles, typeScale, controlSize } from '@/constants/tokens'
+import { spacing, textStyles } from '@/constants/tokens'
 
 export function NotificationAnnouncementComposer() {
     const { current, currentLeague, membershipValidated, isCommissioner } = useLeagueContext()
@@ -36,12 +38,10 @@ export function NotificationAnnouncementComposer() {
     }
     return <View style={styles.group}>
         <View style={styles.row}>
-            <TextInput aria-label="League announcement" accessibilityLabel="League announcement" placeholder="League announcement" placeholderTextColor={colors.textMuted}
-                value={body} onChangeText={change} editable={!busy} maxLength={500} style={styles.input} />
-            <Pressable role="button" aria-label="Publish announcement" disabled={busy || !body.trim()} onPress={() => void publish()}
-                accessibilityState={{ disabled: busy || !body.trim(), busy }} style={[styles.action, (busy || !body.trim()) && styles.disabled]}>
-                <Text style={styles.actionText}>{busy ? 'Sending…' : 'Publish'}</Text>
-            </Pressable>
+            <Input aria-label="League announcement" accessibilityLabel="League announcement" placeholder="League announcement"
+                value={body} onChangeText={change} editable={!busy} maxLength={500} containerStyle={styles.field} />
+            <Button title={busy ? 'Sending…' : 'Publish'} accessibilityLabel="Publish announcement" loading={busy}
+                disabled={busy || !body.trim()} onPress={() => void publish()} />
         </View>
         {owned && state.status ? <Text role="status" style={textStyles.meta}>{state.status}</Text> : null}
         {owned && state.status === 'Published' ? <Text style={textStyles.meta}>Members see this in the app. Only members who turned on Commissioner messages also get a push.</Text> : null}
@@ -51,8 +51,5 @@ export function NotificationAnnouncementComposer() {
 const styles = StyleSheet.create({
     group: { gap: spacing.xs, marginBottom: spacing.md },
     row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-    input: { ...typeScale.title, flex: 1, minWidth: 0, minHeight: controlSize.minTouch, borderWidth: 1, borderColor: colors.border, borderRadius: radii.md, paddingHorizontal: spacing.sm, color: colors.textPrimary },
-    action: { minHeight: controlSize.minTouch, paddingHorizontal: spacing.md, justifyContent: 'center', borderRadius: radii.md, backgroundColor: colors.primary },
-    actionText: { color: colors.textWhite, fontWeight: '600' },
-    disabled: { opacity: 0.5 },
+    field: { flex: 1, minWidth: 0 },
 })

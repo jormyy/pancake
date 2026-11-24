@@ -8,7 +8,8 @@ import { setSessionOwner } from '@/lib/session-cache-registry'
 vi.mock('react-native', () => ({ View: 'View', Text: 'Text', Pressable: 'Pressable' }))
 vi.mock('@/hooks/use-auth', () => ({ useAuth: () => ({ user: { id: 'account' } }) }))
 vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => ({ currentLeague: { id: 'league' } }) }))
-vi.mock('@/constants/tokens', () => ({ textStyles: { meta: {}, body: {} }, spacing: { sm: 8 } }))
+vi.mock('@/constants/tokens', () => ({ textStyles: { meta: {}, body: {} }, spacing: { xs: 4, sm: 8 } }))
+vi.mock('@/components/ui/Button', () => ({ Button: 'Button' }))
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 afterEach(() => vi.unstubAllGlobals())
 it('announces an action queued after the notice mounts', async () => {
