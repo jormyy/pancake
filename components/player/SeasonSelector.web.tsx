@@ -17,7 +17,8 @@ export function SeasonSelector({ seasons, selectedSeason, onSelect }: Props) {
                 value={selectedSeason}
                 onChange={event => onSelect(Number(event.currentTarget.value))}
                 style={{
-                    ...typeScale.title,
+                    fontSize: typeScale.title.fontSize,
+                    lineHeight: `${typeScale.title.lineHeight}px`,
                     minHeight: controlSize.minTouch,
                     height: controlSize.minTouch,
                     width: '100%',

@@ -71,6 +71,13 @@ describe('season dropdown', () => {
         expect(screen.root.findByType('select').props.style.fontSize).toBeGreaterThanOrEqual(16)
     })
 
+    it('gives the DOM select a pixel line height so its value stays inside the box', async () => {
+        await render(React.createElement(WebSeasonSelector, { seasons: [2027, 2026], selectedSeason: 2027, onSelect: vi.fn() }))
+        const style = screen.root.findByType('select').props.style
+        expect(style.lineHeight).toMatch(/^\d+px$/)
+        expect(parseFloat(style.lineHeight)).toBeLessThan(style.height)
+    })
+
     it('uses the shared picker on native platforms', async () => {
         const onSelect = vi.fn()
         await render(React.createElement(SeasonSelector, { seasons: [2027, 2026], selectedSeason: 2027, onSelect }))
