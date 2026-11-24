@@ -5,11 +5,12 @@ import { PendingTradeRosterPlan } from '@/components/trades/PendingTradeRosterPl
 import { trade } from '../../helpers/fixtures'
 import type { TradeRosterPreview } from '@/lib/trades'
 
-const reads = vi.hoisted(() => ({ roster: vi.fn(), preview: vi.fn(), focused: true }))
+const reads = vi.hoisted(() => ({ roster: vi.fn(), preview: vi.fn(), accept: vi.fn(), focused: true }))
 vi.mock('@react-navigation/native', () => ({ useIsFocused: () => reads.focused }))
 vi.mock('@/lib/supabase', () => ({ supabase: {} }))
 vi.mock('@/lib/roster', () => ({ getRoster: reads.roster }))
 vi.mock('@/lib/trade-legality', () => ({ previewTradeLegality: reads.preview }))
+vi.mock('@/lib/trades', async importOriginal => ({ ...await importOriginal<object>(), acceptTrade: reads.accept }))
 vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => ({ currentLeague: { id: 'league', ir_slots: 2, taxi_slots: 3 } }) }))
 vi.mock('react-native', () => ({ Text: 'Text', Pressable: 'Pressable', View: 'View', Modal: 'Modal', ScrollView: 'ScrollView', Platform: { OS: 'web' }, StyleSheet: { create: (value: unknown) => value } }))
 vi.mock('react-native-safe-area-context', () => ({ SafeAreaView: 'SafeAreaView' }))
@@ -90,4 +91,20 @@ it('hides review while stats has focus and restores the chosen plan', async () =
     await act(async () => screen.update(render(offer)))
     expect(screen.root.findByType('Modal' as React.ElementType).props.visible).toBe(true)
     expect(screen.root.findByType('TradeRosterPlanEditor' as React.ElementType).props.value).toEqual(plan)
+})
+
+it('keeps the server refusal on screen when the same offer refreshes', async () => {
+    const offer = trade()
+    await act(async () => { screen = create(render(offer)) })
+    await settle()
+    const refusal = 'Trades are locked from the trade deadline until the champion is finalized.'
+    reads.accept.mockRejectedValueOnce(new Error(refusal))
+    await act(async () => screen.root.findByProps({ testID: 'trade-confirm-accept' }).props.onPress())
+    await settle()
+    const banner = () => screen.root.findAllByType('ErrorBanner' as React.ElementType).map(node => node.props.message)
+    expect(banner()).toEqual([refusal])
+    await act(async () => screen.update(render({ ...offer, notes: 'Background update' })))
+    await settle()
+    expect(banner()).toEqual([refusal])
+    expect(confirmDisabled()).toBe(true)
 })
