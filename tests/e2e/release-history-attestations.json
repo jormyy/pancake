@@ -3816,6 +3816,13 @@
       "statementCount": 14,
       "statementsSha256": "99962bad76a9be24d60fef272a59fb046d1e6eeab3cc740372dcae507f5275dd",
       "sha256": "b8609ae876c2cec8d60fbdd11219eb006785337321cbd2d7d1996ad334e37c82"
+    },
+    {
+      "name": "one_player_game_lock",
+      "version": "20261223140000",
+      "statementCount": 16,
+      "statementsSha256": "6298278b3661be3bbfe5ae8a8722405df196f9ade52fd56e9fcd6a90da7a30c8",
+      "sha256": "1aec167944383b4835399d2cdfb32e0fba973a1f86274edaab40e4de641405fe"
     }
   ]
 }

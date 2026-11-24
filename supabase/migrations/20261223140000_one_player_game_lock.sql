@@ -245,7 +245,6 @@ DECLARE
   v_ir_after int;
   v_active_after int;
   v_user_id uuid;
-  v_lock_id uuid;
   v_plan jsonb;
   v_move jsonb;
   v_kind text;
@@ -275,7 +274,7 @@ DECLARE
   v_problems_after text[];
   v_transient text;
 BEGIN
-  PERFORM pg_advisory_xact_lock(hashtext(p_league_id::text), hashtext(p_member_id::text));
+  PERFORM private.lock_roster_scope(p_league_id, ARRAY[p_member_id], '{}');
 
   SELECT enabled INTO v_enabled
     FROM lineup_optimizer_settings
@@ -311,16 +310,13 @@ BEGIN
   v_roster_size := COALESCE(v_league.roster_size, 20);
   v_ir_slots := COALESCE(v_league.ir_slots, 2);
 
-  FOR v_lock_id IN
-    SELECT DISTINCT player_id
+  PERFORM private.lock_roster_scope(p_league_id, '{}', ARRAY(
+    SELECT player_id
       FROM roster_players
      WHERE league_id = p_league_id
        AND league_season_id = p_league_season_id
        AND member_id = p_member_id
-     ORDER BY player_id
-  LOOP
-    PERFORM pg_advisory_xact_lock(hashtext(p_league_id::text), hashtext(v_lock_id::text));
-  END LOOP;
+  ));
 
   SELECT enabled INTO v_enabled
     FROM lineup_optimizer_settings
@@ -381,7 +377,7 @@ BEGIN
       v_candidate_roster_id := (v_move->>'designateRosterPlayerId')::uuid;
       v_candidate_player_id := (v_move->>'designatePlayerId')::uuid;
       BEGIN
-        PERFORM private.assert_asset_unlocked(p_league_id, p_league_season_id, p_member_id, v_candidate_player_id);
+        PERFORM private.assert_roster_action_allowed('to_ir', p_league_id, p_league_season_id, p_member_id, v_candidate_player_id);
         PERFORM private.toggle_ir_for_activation(v_candidate_roster_id, true, v_user_id, NULL);
         PERFORM private.assert_accepted_trade_capacity(p_league_id, p_league_season_id, p_member_id);
         v_moves := v_moves || jsonb_build_object('kind', 'designate', 'designatePlayerId', v_candidate_player_id);
@@ -397,8 +393,8 @@ BEGIN
       v_occupant_player_id := (v_move->>'activatePlayerId')::uuid;
       IF v_swap_kind = 'incumbent' THEN
         BEGIN
-          PERFORM private.assert_asset_unlocked(p_league_id, p_league_season_id, p_member_id, v_candidate_player_id);
-          PERFORM private.assert_asset_unlocked(p_league_id, p_league_season_id, p_member_id, v_occupant_player_id);
+          PERFORM private.assert_roster_action_allowed('to_ir', p_league_id, p_league_season_id, p_member_id, v_candidate_player_id);
+          PERFORM private.assert_roster_action_allowed('from_ir', p_league_id, p_league_season_id, p_member_id, v_occupant_player_id);
           SELECT p.injury_status, private.ir_reliable_return(p.injury_expected_return, v_today)
             INTO v_candidate_status, v_candidate_return
             FROM roster_players rp
@@ -457,8 +453,8 @@ BEGIN
         END;
       ELSE
         BEGIN
-          PERFORM private.assert_asset_unlocked(p_league_id, p_league_season_id, p_member_id, v_candidate_player_id);
-          PERFORM private.assert_asset_unlocked(p_league_id, p_league_season_id, p_member_id, v_occupant_player_id);
+          PERFORM private.assert_roster_action_allowed('to_ir', p_league_id, p_league_season_id, p_member_id, v_candidate_player_id);
+          PERFORM private.assert_roster_action_allowed('from_ir', p_league_id, p_league_season_id, p_member_id, v_occupant_player_id);
           SELECT p.injury_status, rp.is_on_ir
             INTO v_occupant_status, v_occupant_on_ir
             FROM roster_players rp
@@ -485,7 +481,7 @@ BEGIN
       v_occupant_roster_id := (v_move->>'activateRosterPlayerId')::uuid;
       v_occupant_player_id := (v_move->>'activatePlayerId')::uuid;
       BEGIN
-        PERFORM private.assert_asset_unlocked(p_league_id, p_league_season_id, p_member_id, v_occupant_player_id);
+        PERFORM private.assert_roster_action_allowed('from_ir', p_league_id, p_league_season_id, p_member_id, v_occupant_player_id);
         SELECT p.injury_status, rp.is_on_ir
           INTO v_occupant_status, v_occupant_on_ir
           FROM roster_players rp
