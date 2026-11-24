@@ -26,8 +26,6 @@ DECLARE
   v_error_code text;
   v_error_message text;
 BEGIN
-  -- A batch retains league rows after each completion. Take every selected
-  -- team's and player's locks before the first completion takes those rows.
   SELECT COALESCE(array_agg(due.id), ARRAY[]::uuid[]) INTO v_trade_ids
   FROM (
     SELECT trade.id
@@ -46,28 +44,10 @@ BEGIN
   ) AS due;
 
   FOR v_asset IN
-    SELECT DISTINCT trade.league_id, member.member_id
-      FROM public.trades AS trade
-      CROSS JOIN LATERAL (
-        SELECT trade.proposer_member_id AS member_id
-        UNION SELECT trade.recipient_member_id
-        UNION SELECT participant.member_id FROM public.trade_participants AS participant
-          WHERE participant.trade_id = trade.id
-      ) AS member
-     WHERE trade.id = ANY(v_trade_ids)
-     ORDER BY trade.league_id, member.member_id
+    SELECT key.league_id, key.id FROM private.trade_lock_keys(v_trade_ids) AS key
+     ORDER BY key.league_id, key.kind, key.id
   LOOP
-    PERFORM pg_advisory_xact_lock(hashtext(v_asset.league_id::text), hashtext(v_asset.member_id::text));
-  END LOOP;
-
-  FOR v_asset IN
-    SELECT DISTINCT trade.league_id, item.player_id
-      FROM public.trades AS trade
-      JOIN public.trade_items AS item ON item.trade_id = trade.id
-     WHERE trade.id = ANY(v_trade_ids) AND item.player_id IS NOT NULL
-     ORDER BY trade.league_id, item.player_id
-  LOOP
-    PERFORM pg_advisory_xact_lock(hashtext(v_asset.league_id::text), hashtext(v_asset.player_id::text));
+    PERFORM pg_advisory_xact_lock(hashtext(v_asset.league_id::text), hashtext(v_asset.id::text));
   END LOOP;
 
   FOR v_trade IN
@@ -93,10 +73,7 @@ BEGIN
         v_trade.id,
         v_trade.proposer_member_id,
         v_trade.recipient_member_id,
-        CASE
-          WHEN cardinality(v_trade.participant_member_ids) > 0 THEN v_trade.participant_member_ids
-          ELSE ARRAY[v_trade.proposer_member_id, v_trade.recipient_member_id]
-        END,
+        v_trade.participant_member_ids,
         CASE WHEN EXISTS(SELECT 1 FROM trades WHERE id=v_trade.id AND jsonb_array_length(legality_issues)>0) THEN 'deferred' ELSE 'completed' END::text,
         NULL::text,
         NULL::text;
@@ -112,15 +89,11 @@ BEGIN
           v_trade.id,
           v_trade.proposer_member_id,
           v_trade.recipient_member_id,
-          CASE
-            WHEN cardinality(v_trade.participant_member_ids) > 0 THEN v_trade.participant_member_ids
-            ELSE ARRAY[v_trade.proposer_member_id, v_trade.recipient_member_id]
-          END,
+          v_trade.participant_member_ids,
           'deferred'::text,
           v_error_code,
           v_error_message;
       WHEN SQLSTATE 'PA011' THEN
-        -- Deferred, not failed: the trade stays accepted and settles once the game slate ends.
         v_error_code := SQLSTATE;
         v_error_message := SQLERRM;
 
@@ -129,10 +102,7 @@ BEGIN
           v_trade.id,
           v_trade.proposer_member_id,
           v_trade.recipient_member_id,
-          CASE
-            WHEN cardinality(v_trade.participant_member_ids) > 0 THEN v_trade.participant_member_ids
-            ELSE ARRAY[v_trade.proposer_member_id, v_trade.recipient_member_id]
-          END,
+          v_trade.participant_member_ids,
           'deferred'::text,
           v_error_code,
           v_error_message;
@@ -145,10 +115,7 @@ BEGIN
           v_trade.id,
           v_trade.proposer_member_id,
           v_trade.recipient_member_id,
-          CASE
-            WHEN cardinality(v_trade.participant_member_ids) > 0 THEN v_trade.participant_member_ids
-            ELSE ARRAY[v_trade.proposer_member_id, v_trade.recipient_member_id]
-          END,
+          v_trade.participant_member_ids,
           'failed_retryable'::text,
           v_error_code,
           v_error_message;

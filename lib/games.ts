@@ -5,8 +5,8 @@ export type NBAGameRow = {
     away_team: string
     home_score: number
     away_score: number
-    status: string        // 'Scheduled' | 'InProgress' | 'Final'
-    game_status_text: string | null  // 'Q3 5:23' | 'Halftime' | 'Final'
+    status: string
+    game_status_text: string | null
     game_date: string
     game_time?: string | null
 }

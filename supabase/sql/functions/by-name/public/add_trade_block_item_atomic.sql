@@ -131,6 +131,7 @@ BEGIN
     p_league_id,
     v_season_id,
     'trade_block_updated',
+    'league',
     'Trade block updated',
     NULL,
     p_member_id,

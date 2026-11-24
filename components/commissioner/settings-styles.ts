@@ -78,12 +78,11 @@ export const styles = StyleSheet.create({
         borderBottomColor: colors.separator,
     },
 
-    // 16px keeps iOS Safari from zooming the page when a field is focused.
     scoreInput: {
         width: 72,
         minHeight: controlSize.field.md,
         textAlign: 'right',
-        fontSize: fontSize.lg,
+        fontSize: controlSize.field.fontSize,
         fontWeight: fontWeight.semibold,
         color: colors.primaryDark,
         padding: spacing.none,

@@ -167,7 +167,7 @@ DO $$
 DECLARE sequence_value bigint;
 BEGIN
   SELECT last_value INTO sequence_value FROM private.work_items_id_seq;
-  PERFORM private.enqueue_scheduled_work('2000-01-01 00:01:00+00');
+  PERFORM private.enqueue_scheduled_work('2000-01-01 06:01:00+00');
   PERFORM pg_temp.check_rules(NOT EXISTS(SELECT 1 FROM io_writes),'idle scheduling creates no work, events, or invocations');
   PERFORM pg_temp.check_rules((SELECT last_value=sequence_value FROM private.work_items_id_seq),'idle scheduling does not advance work sequence');
   PERFORM private.flush_player_stats_hints();

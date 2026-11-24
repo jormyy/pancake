@@ -105,7 +105,7 @@ BEGIN
   PERFORM pg_temp.check_rules(NOT pg_temp.scheduled('2026-06-20 10:30 UTC','daily-stat-corrections'),'corrections require a recent final regular-season game');
   INSERT INTO public.nba_games(nba_game_id,season_year,week_number,game_date,home_team,away_team,status)
     VALUES('002queuecorrection',9541,1,'2026-06-19','QX','QY','Final');
-  PERFORM pg_temp.check_rules(pg_temp.scheduled('2026-06-20 10:30 UTC','daily-stat-corrections'),'corrections enqueue at the first eligible quarter-hour');
+  PERFORM pg_temp.check_rules(pg_temp.scheduled('2026-06-20 10:45 UTC','daily-stat-corrections'),'corrections enqueue at the next quarter-hour');
 END;
 $$;
 SELECT count(*) AS passed_checks FROM rules_checks;

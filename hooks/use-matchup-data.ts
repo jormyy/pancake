@@ -13,6 +13,7 @@ import type { MatchupForecastDisplay } from '@/types/matchup-forecast'
 import { endOfLeagueDayUTC, resolveLeagueTimezone, todayLeague } from '@/lib/timezone'
 import { usePublicLiveSnapshot } from '@/hooks/use-public-live-snapshot'
 import { liveScoreView } from '@/lib/live-score-view'
+import { onLifecycle } from '@/lib/lifecycle'
 
 type HomePayload = HomeView & { forecast: MatchupForecastDisplay | null; announcements: LeagueAnnouncement[]; todaysGames: NBAGameRow[]; liveStats: Record<string, LiveStatLine>; startedTeams: string[]; teamMatchups: Record<string, { opponent: string; isHome: boolean }> }
 
@@ -26,20 +27,10 @@ export function useMatchupData(current: { id: string; team_name?: string | null;
         const update = () => setDay(todayLeague(timezone))
         update()
         const timer = setTimeout(update, Math.max(1, Date.parse(endOfLeagueDayUTC(day, timezone)) - Date.now() + 1))
-        if (typeof window !== 'undefined') {
-            window.addEventListener('focus', update)
-            window.addEventListener('pageshow', update)
-            window.addEventListener('online', update)
-        }
-        if (typeof document !== 'undefined') document.addEventListener('visibilitychange', update)
+        const stop = onLifecycle(['focus', 'online', 'visible', 'hidden'], update)
         return () => {
             clearTimeout(timer)
-            if (typeof window !== 'undefined') {
-                window.removeEventListener('focus', update)
-                window.removeEventListener('pageshow', update)
-                window.removeEventListener('online', update)
-            }
-            if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', update)
+            stop()
         }
     }, [day, timezone, setDay])
     const identity = JSON.stringify([user?.id, league?.id, current?.id, timezone, day, matchupId, initialDate])

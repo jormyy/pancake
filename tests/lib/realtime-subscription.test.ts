@@ -348,7 +348,7 @@ describe('realtime subscriptions', () => {
         await disposeTableChangeSubscription(channel, [debounced])
         vi.runAllTimers()
         expect(refresh).toHaveBeenCalledTimes(1)
-        expect(realtime.removeChannel).toHaveBeenCalledWith(channel)
+        expect(realtime.removeChannel).toHaveBeenCalledWith(realtime.channel)
     })
 
     it('surfaces asynchronous channel removal failures', async () => {
@@ -356,9 +356,9 @@ describe('realtime subscriptions', () => {
         realtime.removeChannel.mockRejectedValueOnce(error)
         const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
 
-        reportRealtimeCleanup('test', unsubscribeFromTableChanges(realtime.channel as never))
-        await Promise.resolve()
-        await Promise.resolve()
+        const channel = subscribeToTableChanges('removal-failure', { mode: 'fallback', watches: [], onChange: vi.fn() })
+        reportRealtimeCleanup('test', unsubscribeFromTableChanges(channel))
+        await new Promise(done => setTimeout(done))
 
         expect(consoleError).toHaveBeenCalledWith(
             'Could not clean up test realtime subscription.',

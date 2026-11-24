@@ -29,6 +29,7 @@ import {
 } from './soak-backend-support.mjs'
 import { validateAppliedMigrationDelta } from './release-soak-migration-plan.mjs'
 import { WebSocket } from 'ws'
+import { toETDate } from '@pancake/core'
 
 const WebSocketTransport = /** @type {any} */ (WebSocket)
 
@@ -634,7 +635,7 @@ export const runInvariants = async (supabase, leagueId, scenarios = {}) => {
     }
   }
 
-  const today = now.toISOString().slice(0, 10)
+  const today = toETDate(now)
   for (const claim of waiverClaims) {
     if (claim.status === 'pending' && claim.process_date < today) {
       failures.push(`I7: waiver_claim ${claim.id} is pending past process_date`)

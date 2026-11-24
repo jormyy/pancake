@@ -8,7 +8,7 @@ DECLARE v_today date:=(p_now AT TIME ZONE 'America/New_York')::date;
   v_first_tipoff timestamptz; v_last_tipoff timestamptz; v_key text;
 BEGIN
   SELECT min(game_time),max(game_time) INTO v_first_tipoff,v_last_tipoff FROM public.nba_games
-    WHERE game_date=v_today AND status NOT IN ('Cancelled','Postponed');
+    WHERE game_date=v_today AND private.lineup_game_available(status,game_status_text);
   IF v_first_tipoff IS NULL THEN
     IF (p_now AT TIME ZONE 'America/New_York')::time<time '08:00' THEN RETURN; END IF;
     v_key:=v_today::text;

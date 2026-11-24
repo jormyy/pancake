@@ -15,6 +15,7 @@ import { PlayerHeader } from '@/components/player/PlayerHeader'
 import { showAlert } from '@/lib/alert'
 import { rosterPlayer, headerPlayer } from '../helpers/fixtures'
 import type { AssetLock } from '@/lib/locked-assets'
+import { storedDraftYear } from '@/lib/picks'
 
 const data = vi.hoisted(() => ({ locks: [] as AssetLock[] }))
 vi.mock('@/hooks/use-auth', () => ({ useAuth: () => ({ user: { id: 'user' } }) }))
@@ -29,7 +30,7 @@ vi.mock('@/hooks/use-web-viewport', () => ({ useWebViewport: () => ({ viewportWi
 const trade: AssetLock = { assetKind: 'player', assetId: 'player-a', sourceKind: 'trade', sourceId: 'private-id', reason: 'Locked by trade private-id. Resolve the trade to change this asset.' }
 const pickLock: AssetLock = { ...trade, assetKind: 'pick', assetId: 'pick' }
 const locked = rosterPlayer({ assetLocks: [trade, { ...trade, sourceId: 'another-id' }] })
-const pick = { kind: 'pick' as const, pickId: 'pick', seasonYear: 2028, round: 1, originalTeamName: 'Team', assetLocks: [pickLock] }
+const pick = { kind: 'pick' as const, pickId: 'pick', seasonYear: storedDraftYear(2028), round: 1, originalTeamName: 'Team', assetLocks: [pickLock] }
 const noop = vi.fn()
 let screen: ReactTestRenderer
 const render = async (node: React.ReactElement) => { await act(async () => { screen = create(node) }) }
@@ -40,13 +41,13 @@ const check = (count = 1) => {
 }
 afterEach(async () => { await act(async () => screen?.unmount()); vi.clearAllMocks(); data.locks = [] })
 
-it('keeps one muted lock immediately after Yr even when the badge line wraps', async () => {
-    await render(React.createElement(PlayerRow, { name: 'Player', yearsExp: 2, locks: locked.assetLocks }))
-    const year = screen.root.findByType(Badge)
-    const icon = screen.root.findByType(LockedAssetNotice)
-    expect(year.props.label).toBe('Yr 3')
-    expect(year.parent).toBe(icon.parent)
-    expect(year.parent!.children).toEqual([year, icon])
+it('keeps one muted lock on the second line after the player details', async () => {
+    await render(React.createElement(PlayerRow, { name: 'Player', team: 'LAL', positions: ['PG'], jerseyNumber: '3', yearsExp: 2, locks: locked.assetLocks }))
+    const line = screen.root.findByProps({ testID: 'player-meta-line' })
+    const icon = line.findByType(LockedAssetNotice)
+    expect(line.findAllByType(Badge)).toHaveLength(0)
+    expect(line.findAllByType('Text' as React.ElementType)[0].props.children).toBe('LAL · PG · #3')
+    expect(icon.parent).toBe(line)
     check()
 })
 
@@ -79,7 +80,7 @@ it('preserves trade player and pick disabled states with independently pressable
 })
 
 it('shows the league pick lock after its label', async () => {
-    await render(React.createElement(PicksBankList, { picks: [{ id: 'pick', seasonYear: 2028, round: 1, isUsed: false, originalOwnerMemberId: 'me', currentOwnerMemberId: 'me', originalTeamName: 'Team', currentTeamName: 'Team' }], myMemberId: 'me', locks: [pickLock] }))
+    await render(React.createElement(PicksBankList, { picks: [{ id: 'pick', seasonYear: storedDraftYear(2028), round: 1, isUsed: false, originalOwnerMemberId: 'me', currentOwnerMemberId: 'me', originalTeamName: 'Team', currentTeamName: 'Team' }], myMemberId: 'me', locks: [pickLock] }))
     check()
     const icon = screen.root.findByType(LockedAssetNotice)
     expect((icon.parent!.children[0] as import('react-test-renderer').ReactTestInstance).props.children).toBe('2028 R1')

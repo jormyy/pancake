@@ -14,9 +14,7 @@ type Variant = 'solid' | 'soft'
 type Props = {
     label: string | number | undefined
     accessibilityLabel?: string
-    /** Background color (solid) or tint color (soft — 13% opacity bg) */
     color?: string
-    /** Text color override (defaults to white for solid, color for soft) */
     textColor?: string
     variant?: Variant
     inline?: boolean
@@ -26,7 +24,6 @@ type Props = {
     maxWidth?: number
 }
 
-/** Small pill badge for status, injury, role, etc. */
 export function Badge({
     label,
     accessibilityLabel,

@@ -1,6 +1,7 @@
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2.98.0'
 import type { Database } from '../_shared/database.ts'
 import type { OptimizerSetting } from './settings.ts'
+import { fetchAllPages } from '../_shared/fetchAllPages.ts'
 
 type ProjectionRow = Pick<Database['public']['Functions']['get_league_projection_rows']['Returns'][number],
   'player_id' | 'projection_fantasy_points' | 'projection_source' | 'projection_source_label' | 'projection_view'>
@@ -16,16 +17,12 @@ export function createScheduledProjectionLoader(client: SupabaseClient<Database>
     const members = settings.filter(row => row.league_id === setting.league_id
       && row.league_season_id === setting.league_season_id).map(row => row.member_id)
     for (let memberOffset = 0; memberOffset < members.length; memberOffset += 100) {
-      for (let offset = 0; ; offset += PAGE_SIZE) {
-        const { data, error } = await client.from('roster_players').select('player_id')
-          .eq('league_id', setting.league_id).eq('league_season_id', setting.league_season_id)
-          .in('member_id', members.slice(memberOffset, memberOffset + 100))
-          .eq('is_on_ir', false).eq('is_on_taxi', false)
-          .order('player_id').range(offset, offset + PAGE_SIZE - 1)
-        if (error) throw error
-        ids.push(...data.map(row => row.player_id))
-        if (data.length < PAGE_SIZE) break
-      }
+      const rows = await fetchAllPages((from, to) => client.from('roster_players').select('player_id')
+        .eq('league_id', setting.league_id).eq('league_season_id', setting.league_season_id)
+        .in('member_id', members.slice(memberOffset, memberOffset + 100))
+        .eq('is_on_ir', false).eq('is_on_taxi', false)
+        .order('player_id').range(from, to))
+      ids.push(...rows.map(row => row.player_id))
     }
     return ids
   }

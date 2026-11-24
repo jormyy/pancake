@@ -59,7 +59,7 @@ node --test scripts/bench/game-night/*.test.mjs
 
 Cleanup accepts only matching owned project metadata.
 The unit tests above need no Docker; measurement and SQL commands do.
-See [live scores](../../../docs/live-scores.md) for the production contract, separate rollback paths, hosted settings, and labeled lab results.
+See [live scores](../../../docs/operations.md#live-scores) for the production contract, rollback, and hosted settings.
 
 The synthetic league and feed both use Eastern dates. A replay waits if its 45-minute preparation, timed window, and settlement allowance would cross midnight. The paired series reserves four hours on one Eastern date before its first stack starts. The waits change no job rates.
 

@@ -3,20 +3,20 @@ import { readAssetLocks } from '@/lib/locked-assets'
 import { useLeagueTimezone } from '@/hooks/use-league-timezone'
 import { PendingMutationBadge } from '@/components/PendingMutationBadge'
 import { SectionBand } from '@/components/ui/SectionBand'
-import { pickLabel, draftYear } from '@/lib/picks'
+import { pickLabel } from '@/lib/picks'
 import { useUnsentFormUpdate } from '@/hooks/use-unsent-form-update'
 import { isTaxiEligible } from '@pancake/core'
 import { PlayerEligibilityContext } from '@/contexts/player-eligibility-context'
 import { PlayerRowContent } from '@/components/player/PlayerRowContent'
 import { memo, useContext, useEffect, useState, type ReactNode } from 'react'
 import { View, Text, StyleSheet, TextInput, Switch } from 'react-native'
-import { colors, componentTokens, controlSize, fontSize, fontWeight, radii, spacing, table, textStyles, uiColors, tracking } from '@/constants/tokens'
+import { alpha, colors, componentTokens, controlSize, fontSize, fontWeight, radii, spacing, table, textStyles, tracking } from '@/constants/tokens'
+import { slotColor } from '@/constants/positions'
 import { isIREligible, RosterPlayer } from '@/lib/roster'
 import { getEligiblePositions } from '@/lib/players'
 import { TradePickItem } from '@/lib/trades'
 import { scheduledClaimLabel, scheduledClaimRunAt, WaiverClaim } from '@/lib/waivers'
-import { formatPoints, formatStat } from '@/lib/format'
-import { rosterSlotLabel } from '@/lib/roster-slots'
+import { formatAvgPoints, formatStat } from '@/lib/format'
 import { rosterLocation } from '@/lib/roster-capacity'
 
 
@@ -27,35 +27,25 @@ const ROSTER_TAG_HEIGHT = 22
 export const ROSTER_SLOT_TAG_WIDTH = controlSize.minTouch
 export const rosterActionDisabledStyle = { opacity: 0.5 }
 
-/**
- * Fixed-width lineup role for a roster row: a filled tag for a starting slot,
- * a dashed outline for BENCH, and the reserve tones for IR and TAXI.
- * Solid theme tokens only: alpha() tints of themed colors do not render on web.
- */
+/** Fixed-width lineup role for a roster row (PG, BE, TX…), tinted like the Matchup slot chips. Section headers spell out Bench and Taxi. */
 export function RosterSlotTag({ slotType }: { slotType: string }) {
-    const tone = slotType === 'BE' ? styles.slotTagBench
-        : slotType === 'IR' ? styles.slotTagIR
-        : slotType === 'TX' ? styles.slotTagTaxi
-        : styles.slotTagStarter
-    const textTone = slotType === 'BE' ? styles.slotTagTextBench
-        : slotType === 'IR' ? styles.slotTagTextIR
-        : slotType === 'TX' ? styles.slotTagTextTaxi
-        : styles.slotTagTextStarter
+    const color = slotColor(slotType)
+    // Starter and IR labels are heavier than bench and taxi, as in Matchup.
+    const strong = slotType !== 'BE' && slotType !== 'TX'
     return (
-        <View style={[styles.slotTag, tone]}>
-            <Text style={[styles.slotTagText, textTone]}>{rosterSlotLabel(slotType)}</Text>
+        <View style={[styles.slotTag, { backgroundColor: alpha(color, 0.13) }]}>
+            <Text style={[styles.slotTagText, strong && styles.slotTagTextStrong, { color }]}>{slotType}</Text>
         </View>
     )
 }
 
-/** Band at the top of a roster section card: label left, optional detail right. */
 export function RosterSectionBand({ label, detail, tone = 'default' }: { label: string; detail?: ReactNode; tone?: 'default' | 'taxi' | 'starters' }) {
     return <SectionBand label={label} detail={detail} tone={tone} />
 }
 
 function PlayerStats({ avgFpts, avgMinutes }: { avgFpts?: number; avgMinutes?: number | null }) {
     return <Text style={styles.averages}>
-        <Text style={styles.fantasyPoints}>{formatPoints(avgFpts ?? 0)} FP</Text>
+        <Text style={styles.fantasyPoints}>{formatAvgPoints(avgFpts ?? 0)} FP</Text>
         {' · '}
         {`${formatStat(avgMinutes ?? 0)} mins`}
     </Text>
@@ -232,7 +222,7 @@ export const RosterPickItem = memo(function RosterPickItem({
         <View><MotionView style={styles.row} preset="rise">
             <View style={styles.pickCircle}>
                 <Text style={styles.pickCircleText}>
-                    &apos;{String(draftYear(pick.seasonYear)).slice(2)}
+                    &apos;{String(pick.seasonYear).slice(2)}
                 </Text>
             </View>
             <View style={styles.info}>
@@ -392,17 +382,9 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         borderRadius: radii.xs,
         borderCurve: 'continuous' as const,
-        borderWidth: 1,
     },
-    slotTagStarter: { backgroundColor: colors.primaryLight, borderColor: colors.primaryBorder },
-    slotTagBench: { borderColor: colors.border, borderStyle: 'dashed' as const },
-    slotTagIR: { backgroundColor: colors.dangerLight, borderColor: uiColors.dangerBorder },
-    slotTagTaxi: { backgroundColor: colors.infoLight, borderColor: colors.info },
     slotTagText: { fontSize: fontSize['2xs'], fontWeight: fontWeight.extrabold, letterSpacing: tracking.tight },
-    slotTagTextStarter: { color: colors.primaryDark },
-    slotTagTextBench: { color: colors.textSecondary },
-    slotTagTextIR: { color: colors.dangerDark },
-    slotTagTextTaxi: { color: colors.info },
+    slotTagTextStrong: { fontWeight: fontWeight.black },
 
     row: {
         flexDirection: 'row',
@@ -466,7 +448,6 @@ const styles = StyleSheet.create({
     claimRow: { paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, gap: spacing.sm },
     claimTop: { flexDirection: 'row', alignItems: 'center', minHeight: controlSize.minTouch, gap: spacing.md },
     claimEditRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-    // 16px text keeps iOS Safari from zooming the page when the field focuses.
     claimBidInput: {
         width: 64,
         minHeight: controlSize.minTouch,
@@ -475,7 +456,7 @@ const styles = StyleSheet.create({
         borderRadius: radii.md,
         borderCurve: 'continuous' as const,
         paddingHorizontal: spacing.sm,
-        fontSize: fontSize.lg,
+        fontSize: controlSize.field.fontSize,
         fontWeight: fontWeight.bold,
         color: colors.textPrimary,
         backgroundColor: colors.bgInput,

@@ -11,6 +11,7 @@ import { combineNavigationPhases, hasRequestTimingEvidence, measureJavaScriptDel
 import { createDisposableLeagueFromSeedUsers } from './soak-fixtures.mjs'
 import { resolveReleaseProvenance } from './release-provenance.mjs'
 import { validateBrowserMutationLoad } from './performance-budgets.mjs'
+import { toETDate } from '@pancake/core'
 
 const ROOT = process.cwd()
 const STATE_PATH = path.join(ROOT, 'tests/e2e-state.json')
@@ -82,8 +83,8 @@ const ensurePerfSeasonWeek = async (supabase, seasonYear, resourceOwner) => {
   const { error } = await supabase.from('season_weeks').upsert({
     season_year: seasonYear,
     week_number: 1,
-    week_start: start.toISOString().slice(0, 10),
-    week_end: end.toISOString().slice(0, 10),
+    week_start: toETDate(start),
+    week_end: toETDate(end),
   }, { onConflict: 'season_year,week_number' })
   if (error) throw new Error(`D.X.4 perf season week upsert failed: ${error.message}`)
   resourceOwner.register(`perf season week ${seasonYear}`, async () => {

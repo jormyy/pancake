@@ -29,7 +29,6 @@ export function showAlert(title: string, message?: string, variant: 'info' | 'su
     }
 }
 
-/** Success toast convenience. */
 export function showSuccess(title: string, message?: string) {
     showAlert(title, message, 'success')
 }

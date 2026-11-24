@@ -56,7 +56,6 @@ export type TradeCardContext = {
     isCommissioner?: boolean
 }
 
-/** Everything a card or detail view needs to describe a trade and its actions. */
 export function tradeCardModel({ trade, myMemberId, tab, holdReady = false, tradeVetoMode = 'member_vote', isCommissioner = false, timezone }: TradeCardContext) {
     const isProposer = trade.proposerMemberId === myMemberId
     const isRecipient = trade.recipientMemberId === myMemberId

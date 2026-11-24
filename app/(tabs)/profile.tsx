@@ -18,7 +18,7 @@ import { updateProfile, uploadAvatar, signOut } from '@/lib/auth'
 import { updateTeamName } from '@/lib/league'
 import { useProfileResource } from '@/hooks/use-profile-resource'
 import { useLeagueContext } from '@/contexts/league-context'
-import { colors, controlSize, fontSize, layout, radii, spacing, textStyles } from '@/constants/tokens'
+import { colors, controlSize, layout, radii, spacing, textStyles } from '@/constants/tokens'
 import { Avatar } from '@/components/Avatar'
 import { SettingsGroup, SettingsRow } from '@/components/settings/SettingsGroup'
 import { Button, ErrorBanner, Page, PageHeader, SegmentedControl, usePageMetrics } from '@/components/ui'
@@ -74,7 +74,6 @@ export default function ProfileScreen() {
         if (!editing) setDisplayName(profileLoaded ? profile?.display_name ?? '' : '')
     }, [editing, profile?.display_name, profileLoaded])
 
-    // Sync team name from context whenever it changes
     useEffect(() => {
         setTeamDraft({ owner: teamOwner, value: current?.team_name ?? '' })
     }, [current?.team_name, teamOwner])
@@ -348,11 +347,10 @@ const styles = StyleSheet.create({
         borderWidth: 2,
         borderColor: colors.bgScreen,
     },
-    // 16px keeps iOS Safari from zooming the page when the field is focused.
     input: {
         flex: 1.4,
         minWidth: 0,
-        fontSize: fontSize.lg,
+        fontSize: controlSize.field.fontSize,
         color: colors.textPrimary,
         textAlign: 'right',
         borderBottomWidth: 1.5,

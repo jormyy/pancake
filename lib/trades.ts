@@ -1,3 +1,4 @@
+import { draftYearForSeason, lastFutureDraftYear, leagueSeasonYear, storedDraftYear, type DraftYear } from '@/lib/picks'
 import { getTradePlayerValues } from '@/lib/trade-player-values'
 import { readAssetLocks, type AssetLock } from '@/lib/locked-assets'
 import type { Json } from '@/types/database'
@@ -63,7 +64,7 @@ type TradePlayerItem = {
 export type TradePickItem = {
     kind: 'pick'
     pickId: string
-    seasonYear: number
+    seasonYear: DraftYear
     round: number
     originalTeamName: string
     fromMemberId?: string | null
@@ -299,8 +300,9 @@ export async function getPicksForMembers(
         .select('future_pick_years, league_seasons!league_seasons_league_id_fkey!inner(season_year)')
         .eq('id', leagueId).eq('league_seasons.is_current', true).single()
     if (leagueError) throw leagueError
-    const seasonYear = league.league_seasons[0]?.season_year
-    if (seasonYear == null) return picks
+    const currentSeason = league.league_seasons[0]?.season_year
+    if (currentSeason == null) return picks
+    const season = leagueSeasonYear(currentSeason)
     const { data, error } = await supabase
         .from('draft_picks')
         .select(`
@@ -313,28 +315,29 @@ export async function getPicksForMembers(
         .in('current_owner_id', uniqueMemberIds)
         .eq('league_id', leagueId)
         .eq('is_used', false)
-        .gte('season_year', seasonYear - 1)
-        .lte('season_year', seasonYear + league.future_pick_years - 1)
+        .gte('season_year', draftYearForSeason(season))
+        .lte('season_year', lastFutureDraftYear(season, league.future_pick_years))
         .order('season_year', { ascending: true })
         .order('round', { ascending: true })
 
     if (error) throw error
 
-    const unavailableSeasons = new Set<number>()
+    const unavailableDraftYears = new Set<DraftYear>()
     if (options.tradeableOnly) {
         const { data: drafts, error: draftError } = await supabase.from('drafts')
             .select('league_seasons!inner(season_year)')
             .eq('league_id', leagueId).eq('draft_type', 'snake').eq('is_mock', false)
             .in('status', ['in_progress', 'paused'])
         if (draftError) throw draftError
-        for (const draft of drafts ?? []) unavailableSeasons.add(draft.league_seasons.season_year - 1)
+        for (const draft of drafts ?? []) unavailableDraftYears.add(draftYearForSeason(leagueSeasonYear(draft.league_seasons.season_year)))
     }
     for (const row of (data ?? []) as MemberTradePickQueryRow[]) {
-        if (unavailableSeasons.has(row.season_year)) continue
+        const draftYear = storedDraftYear(row.season_year)
+        if (unavailableDraftYears.has(draftYear)) continue
         picks[row.current_owner_id]?.push({
             kind: 'pick',
             pickId: row.id,
-            seasonYear: row.season_year,
+            seasonYear: draftYear,
             round: row.round,
             originalTeamName: row.original_owner?.team_name ?? 'Unknown',
         })
@@ -585,7 +588,7 @@ function mapTradeRow(row: TradeQueryRow, memberId: string): Trade {
             tradeItem = {
                 kind: 'pick',
                 pickId: item.pick_id,
-                seasonYear: item.draft_picks?.season_year,
+                seasonYear: storedDraftYear(item.draft_picks.season_year),
                 round: item.draft_picks?.round,
                 originalTeamName: item.draft_picks?.original_owner?.team_name ?? 'Unknown',
                 fromMemberId,

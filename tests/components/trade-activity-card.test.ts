@@ -7,6 +7,7 @@ import { ActivityFeed } from '@/components/league/LeagueActivityFeed'
 import { tradePlayerDetailRoute } from '@/components/player/navigation'
 import { playerHeadshotUrl } from '@/lib/format'
 import type { TransactionRow } from '@/lib/transactions'
+import { storedDraftYear } from '@/lib/picks'
 
 
 const navigation = vi.hoisted(() => ({ push: vi.fn() }))
@@ -25,7 +26,7 @@ vi.mock('@/components/EmptyState', () => ({ EmptyState: 'EmptyState' }))
 vi.mock('@shopify/flash-list', () => ({ FlashList: 'FlashList' }))
 vi.mock('@/components/ui', () => ({ usePageMetrics: () => ({ padX: 16 }) }))
 vi.mock('@/hooks/use-league-timezone', () => ({ useLeagueTimezone: () => 'UTC' }))
-vi.mock('@/hooks/use-player-age', () => ({ usePlayerAge: () => null }))
+vi.mock('@/hooks/use-jersey-number', () => ({ useJerseyNumber: () => null }))
 vi.mock('@/components/trades/SavedTradeEstimate', () => ({ SavedTradeEstimate: () => null }))
 
 const item: TransactionRow = {
@@ -39,11 +40,11 @@ const item: TransactionRow = {
         { kind: 'player', playerId: 'high', playerName: 'High', tradeValue: 900, nbaId: '456', position: 'C', nbaTeam: 'DEN', eligiblePositions: ['C'], fromMemberId: 'b', toMemberId: 'a', fromTeamName: 'Foxes', toTeamName: 'Owls' },
     ],
     tradePicks: [
-        { kind: 'pick', pickId: 'r2', seasonYear: 2027, round: 2, originalTeamName: 'Foxes', fromMemberId: 'b', toMemberId: 'a', fromTeamName: 'Foxes', toTeamName: 'Owls' },
-        { kind: 'pick', pickId: 'r1-later', seasonYear: 2029, round: 1, originalTeamName: 'Foxes', fromMemberId: 'b', toMemberId: 'a', fromTeamName: 'Foxes', toTeamName: 'Owls' },
-        { kind: 'pick', pickId: 'r1', seasonYear: 2028, round: 1, originalTeamName: 'Foxes', fromMemberId: 'b', toMemberId: 'a', fromTeamName: 'Foxes', toTeamName: 'Owls' },
-        { kind: 'pick', pickId: 'earliest', seasonYear: 2027, round: 1, originalTeamName: 'Foxes', fromMemberId: 'b', toMemberId: 'a', fromTeamName: 'Foxes', toTeamName: 'Owls' },
-        { kind: 'pick', pickId: 'other', seasonYear: 2028, round: 1, originalTeamName: 'Owls', fromMemberId: 'a', toMemberId: 'b', fromTeamName: 'Owls', toTeamName: 'Foxes' },
+        { kind: 'pick', pickId: 'r2', seasonYear: storedDraftYear(2027), round: 2, originalTeamName: 'Foxes', fromMemberId: 'b', toMemberId: 'a', fromTeamName: 'Foxes', toTeamName: 'Owls' },
+        { kind: 'pick', pickId: 'r1-later', seasonYear: storedDraftYear(2029), round: 1, originalTeamName: 'Foxes', fromMemberId: 'b', toMemberId: 'a', fromTeamName: 'Foxes', toTeamName: 'Owls' },
+        { kind: 'pick', pickId: 'r1', seasonYear: storedDraftYear(2028), round: 1, originalTeamName: 'Foxes', fromMemberId: 'b', toMemberId: 'a', fromTeamName: 'Foxes', toTeamName: 'Owls' },
+        { kind: 'pick', pickId: 'earliest', seasonYear: storedDraftYear(2027), round: 1, originalTeamName: 'Foxes', fromMemberId: 'b', toMemberId: 'a', fromTeamName: 'Foxes', toTeamName: 'Owls' },
+        { kind: 'pick', pickId: 'other', seasonYear: storedDraftYear(2028), round: 1, originalTeamName: 'Owls', fromMemberId: 'a', toMemberId: 'b', fromTeamName: 'Owls', toTeamName: 'Foxes' },
     ],
 }
 const trees: ReactTestRenderer[] = []
@@ -97,7 +98,7 @@ it('shows a three-team trade with players first and picks ordered by year then r
         { ...item.tradePlayers![0], playerId: 'third', playerName: 'Third', fromMemberId: 'a', toMemberId: 'c', fromTeamName: 'Owls', toTeamName: 'Bears' },
     ], tradePicks: [
         ...item.tradePicks!,
-        { kind: 'pick', pickId: 'bears-pick', seasonYear: 2028, round: 1, originalTeamName: 'Bears', fromMemberId: 'c', toMemberId: 'a', fromTeamName: 'Bears', toTeamName: 'Owls' },
+        { kind: 'pick', pickId: 'bears-pick', seasonYear: storedDraftYear(2028), round: 1, originalTeamName: 'Bears', fromMemberId: 'c', toMemberId: 'a', fromTeamName: 'Bears', toTeamName: 'Owls' },
     ] }, 'a')
     const labels = row.root.findAllByType('Text' as React.ElementType).map(node => node.props.accessibilityLabel).filter(Boolean)
     expect(labels).toContain('2028 Round 1 (orig. Bears)')

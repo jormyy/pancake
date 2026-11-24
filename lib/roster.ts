@@ -97,12 +97,6 @@ export async function addFreeAgent(
     toTaxi = false,
 ): Promise<void> {
     return withPwaMutation('addFreeAgent', async () => {
-        // Atomic: validate caller ownership, waiver hold, roster-cap, and insert
-        // both the roster_players row and the roster_transactions audit row in a
-        // single SECURITY DEFINER RPC. The prior client-side INSERT had a race
-        // window between drop_player_atomic's commit and another tab's
-        // getPlayerRosterContext refresh, letting a second user scoop a player off
-        // waivers and breaking queued waiver_claims.
         const args = {
             p_member_id: memberId,
             p_league_id: leagueId,
@@ -122,11 +116,6 @@ export async function addFreeAgent(
 export async function dropPlayer(rosterPlayerId: string, expectedLeagueSeasonId?: string, rookieDraftId?: string): Promise<void> {
     return withPwaMutation('dropPlayer', async () => {
         assertMutationOnline()
-        // Atomic: delete roster row, insert 48h waiver_wire_log, insert
-        // roster_transactions audit row — all in a single Postgres transaction.
-        // Prior implementation issued 3 serial writes with no rollback, so a
-        // failure between steps could remove the player from the roster without
-        // ever placing them on waivers.
         const { error } = await supabase.rpc('drop_player_atomic', {
             p_roster_player_id: rosterPlayerId,
             ...(expectedLeagueSeasonId ? { p_expected_league_season_id: expectedLeagueSeasonId } : {}),

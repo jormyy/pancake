@@ -13,7 +13,6 @@ DECLARE
   v_current_season league_seasons%ROWTYPE;
   v_new_season_id uuid;
   v_new_year int;
-  v_far_year int;
   v_previous_flag text;
 BEGIN
   SELECT *
@@ -42,14 +41,10 @@ BEGIN
     RAISE EXCEPTION 'No active season found for this league';
   END IF;
 
-  v_new_year := GREATEST(
-    v_current_season.season_year + 1,
-    public.current_season_year_et(now())
-  );
-  v_far_year := v_new_year + v_league.future_pick_years - 1;
+  v_new_year := private.season_year_after(v_current_season.season_year, now());
 
   UPDATE draft_picks SET is_used=true,used_at=now()
-    WHERE league_id=p_league_id AND season_year<v_new_year-1 AND NOT is_used;
+    WHERE league_id=p_league_id AND season_year<private.draft_year_for_season(v_new_year) AND NOT is_used;
 
   IF EXISTS (
     SELECT 1
@@ -150,24 +145,7 @@ BEGIN
     AND previous.member_id=current.member_id AND previous.player_id=current.player_id
   WHERE current.league_season_id=v_new_season_id AND previous.is_on_taxi AND NOT current.is_on_taxi;
 
-  INSERT INTO draft_picks (
-    league_id,
-    season_year,
-    round,
-    original_owner_id,
-    current_owner_id
-  )
-  SELECT
-    p_league_id,
-    year_value,
-    round_value,
-    lm.id,
-    lm.id
-  FROM league_members lm
-  CROSS JOIN generate_series(v_new_year-1,v_far_year) AS year_value
-  CROSS JOIN unnest(ARRAY[1, 2, 3]) AS round_value
-  WHERE lm.league_id = p_league_id
-  ON CONFLICT (league_id, season_year, round, original_owner_id) DO NOTHING;
+  PERFORM private.reconcile_future_picks(p_league_id);
 
   INSERT INTO waiver_priorities (
     league_id,

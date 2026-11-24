@@ -1,6 +1,5 @@
 import { supabase } from '../lib/supabase'
-
-const PAGE_SIZE = 1000
+import { fetchAllPages } from '../lib/fetchAllPages'
 
 export type SeasonWeekBounds = {
     week_number: number
@@ -10,18 +9,6 @@ export type SeasonWeekBounds = {
 
 type LeagueMemberId = {
     id: string
-}
-
-export async function fetchAllPages<T>(queryFactory: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>): Promise<T[]> {
-    const rows: T[] = []
-    for (let from = 0; ; from += PAGE_SIZE) {
-        const { data, error } = await queryFactory(from, from + PAGE_SIZE - 1)
-        if (error) throw error
-        const page = data ?? []
-        rows.push(...page)
-        if (page.length < PAGE_SIZE) break
-    }
-    return rows
 }
 
 export function dateFromETDate(dateKey: string): Date {

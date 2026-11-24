@@ -215,7 +215,6 @@ export async function uploadAvatar(userId: string, asset: AvatarAsset): Promise<
 
         const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path)
 
-        // Append cache-buster so the new image shows immediately
         const bustUrl = `${publicUrl}?t=${Date.now()}`
         await updateProfile(userId, { avatar_url: bustUrl })
         return bustUrl

@@ -32,8 +32,8 @@ export async function prepare(stack, slate, label) {
   if (stack.qualityEnabled) await prepareActions(stack)
   for (let batch = 0; batch < 100; batch++) {
     if (Number(await stack.sql('SELECT pg_database_size(current_database())')) >= 263000000) break
-    await stack.sql(`INSERT INTO public.league_activity(league_id,league_season_id,actor_member_id,event_type,title,body,created_at)
-      SELECT game_night.id(1),game_night.id(2),game_night.id(201),'game-night-fixture','Synthetic historical event '||n,
+    await stack.sql(`INSERT INTO public.league_activity(league_id,league_season_id,actor_member_id,event_type,visibility,title,body,created_at)
+      SELECT game_night.id(1),game_night.id(2),game_night.id(201),'game-night-fixture','league','Synthetic historical event '||n,
       (SELECT string_agg(md5(n::text||':'||k::text),'') FROM generate_series(1,40)k),now()-interval '180 days'-n*interval '1 minute'
       FROM generate_series(${batch * 1000 + 1},${batch * 1000 + 1000})n;`)
   }

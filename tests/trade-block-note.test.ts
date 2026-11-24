@@ -5,13 +5,14 @@ import { expect, it, vi } from 'vitest'
 import { TradeBlockNoteEditor } from '@/components/trades/TradeBlockNoteEditor'
 import { isPwaUpdateHeld } from '@/lib/pwa-update-guard'
 import type { TradeBlockItem } from '@/lib/trades'
+import { storedDraftYear } from '@/lib/picks'
 
 vi.mock('@/components/ui/Button', () => ({ Button: 'Button' }))
 
 it('retains a failed note edit and closes only after a successful save', async () => {
     vi.stubGlobal('window', new EventTarget())
     const item: TradeBlockItem = { id: 'listing', memberId: 'member', teamName: 'Team', updatedAt: '', note: null,
-        asset: { kind: 'pick', pickId: 'pick', seasonYear: 2028, round: 1, originalTeamName: 'Team' } }
+        asset: { kind: 'pick', pickId: 'pick', seasonYear: storedDraftYear(2028), round: 1, originalTeamName: 'Team' } }
     const onSave = vi.fn().mockResolvedValueOnce(false).mockResolvedValueOnce(true)
     let renderer!: ReturnType<typeof create>
     await act(async () => { renderer = create(React.createElement(TradeBlockNoteEditor, { item, label: '2028 pick', disabled: false, onSave })) })

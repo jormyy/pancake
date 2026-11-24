@@ -20,14 +20,15 @@ vi.mock('@/hooks/use-league-timezone', () => ({ useLeagueTimezone: () => 'Americ
 vi.mock('react-native', () => ({ Image: 'Image', View: 'View', Text: 'Text', Pressable: 'Pressable', Platform: { OS: 'web' }, StyleSheet: { create: (value: unknown) => value } }))
 vi.mock('@/components/Avatar', () => ({ Avatar: 'Avatar' }))
 vi.mock('@/components/Motion', () => ({ MotionView: 'View', MotionPressable: 'Pressable' }))
-const ageQueries = vi.hoisted(() => ({ read: vi.fn() }))
-vi.mock('@/lib/supabase', () => ({ supabase: { from: () => ({ select: () => ({ in: ageQueries.read }) }) } }))
+const jerseyQueries = vi.hoisted(() => ({ read: vi.fn() }))
+vi.mock('@/lib/supabase', () => ({ supabase: { from: () => ({ select: () => ({ in: jerseyQueries.read }) }) } }))
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
 vi.mock('@/components/ui/Sheet', () => ({ Sheet: ({ children }: React.PropsWithChildren) => React.createElement('View', null, children) }))
 
 vi.mock('expo-router', () => ({ useRouter: () => ({ push: vi.fn() }) }))
 
+const details = (screen: ReactTestRenderer) => screen.root.findAllByProps({ testID: 'player-meta-line' }).map(row => row.findAllByType('Text' as React.ElementType).map(node => node.props.children).join(''))
 const labels = (screen: ReactTestRenderer) => screen.root.findAllByType(Badge).map(node => node.props.label)
 const render = async (child: React.ReactNode, slots = 2) => {
     let screen!: ReactTestRenderer
@@ -35,16 +36,16 @@ const render = async (child: React.ReactNode, slots = 2) => {
     return screen
 }
 
-it.each([[0, null, 2, ['R', 'T:—']], [0, 65, 2, ['R', 'T:65']], [2, 0, 2, ['T:0']], [2, 64, 2, ['T:64']], [0, 90, 0, ['R']], [null, null, 2, []], [1, 65, 2, []]] as const)('tags experience %s and games %s with %s slots', async (years, games, slots, expected) => {
+it.each([[0, null, 2], [0, 65, 2], [2, 0, 2], [2, 64, 2], [0, 90, 0], [null, null, 2], [1, 65, 2]] as const)('keeps player rows free of status badges for experience %s and games %s with %s slots', async (years, games, slots) => {
     const screen = await render(React.createElement(PlayerSearchItem, {
         item: playerRow({ years_exp: years, career_regular_season_games: games }),
         currentMemberId: 'member', ownedMap: new Map(), waiverIds: new Set<string>(), isAdding: false, onAdd: () => {}, onPress: () => {},
     }), slots)
-    expect(labels(screen)).toEqual([...expected, ...(years == null ? [] : [`Yr ${years + 1}`])])
+    expect(screen.root.findByProps({ testID: 'player-meta-line' }).findAllByType(Badge)).toHaveLength(0)
     await act(async () => screen.unmount())
 })
 
-it('places the same eligibility badges in the header, roster and trade asset rows', async () => {
+it('shows no eligibility badges on the player page header, roster or trade rows', async () => {
     const source = rosterPlayer().players
     const child = React.createElement(React.Fragment, null,
         React.createElement(PlayerHeader, { player: { ...source, years_exp: 0, career_regular_season_games: null, jersey_number: null, dynasty_rank: null, headshot_url: null }, rosterStatus: null, leagueActive: true }),
@@ -52,26 +53,29 @@ it('places the same eligibility badges in the header, roster and trade asset row
         React.createElement(AssetList, { items: [{ kind: 'player', playerId: 'trade', playerName: 'Trade', nbaTeam: 'BOS', position: 'PG', yearsExp: 0 }], label: 'Assets' }),
     )
     const screen = await render(child)
-    expect(labels(screen).filter(label => label.startsWith('T:'))).toHaveLength(3)
-    expect(labels(screen).filter(label => label === 'R')).toHaveLength(2)
-    expect(labels(screen)).not.toContain('IR')
+    expect(labels(screen).filter(label => label.startsWith('T:') || label === 'R')).toHaveLength(0)
     await act(async () => screen.unmount())
 })
 
-it('keeps names separate from accessible abbreviated status tags', async () => {
-    const screen = await render(React.createElement(PlayerSearchItem, {
-        item: playerRow({ display_name: 'A very long player name', years_exp: 0, injury_status: 'Out' }),
-        currentMemberId: 'member', ownedMap: new Map(), waiverIds: new Set<string>(), isAdding: false, onAdd: () => {}, onPress: () => {},
+it('shows team, roles, and jersey number on the second line, and injuries on the headshot', async () => {
+    const screen = await render(React.createElement(PlayerRowContent, {
+        name: 'A very long player name', team: 'LAL', positions: ['PG', 'SG'], jerseyNumber: '15', yearsExp: 0, careerGames: 3, birthdate: '2001-10-29', injuryStatus: 'Out',
     }))
-    expect(labels(screen)).toEqual(['R', 'T:—', 'Yr 1'])
-    const tags = screen.root.findAllByType(Badge)
-    expect(tags.map(tag => tag.props.accessibilityLabel)).toEqual(['Rookie', 'Taxi eligible, career games unknown', undefined])
-    const name = screen.root.findByProps({ testID: 'player-name-line' })
-    expect(name.findAllByType(Badge)).toHaveLength(0)
+    expect(details(screen)).toEqual(['LAL · PG, SG · #15'])
     const metadata = screen.root.findByProps({ testID: 'player-meta-line' })
-    expect(metadata.findAllByType(Badge)).toHaveLength(3)
-    // Out is a tag on the headshot, not a badge in the metadata line.
+    expect(metadata.findAllByType(Badge)).toHaveLength(0)
+    expect(metadata.findAllByProps({ testID: 'team-logo' })).toHaveLength(1)
+    expect(screen.root.findByProps({ testID: 'player-name-line' }).props.children).toBe('A very long player name')
     expect(screen.root.findByProps({ testID: 'player-row-avatar' }).findByProps({ testID: 'injury-tag' }).props.accessibilityLabel).toBe('Out')
+    await act(async () => screen.unmount())
+})
+
+it('skips unknown parts of the second line', async () => {
+    const screen = await render(React.createElement(React.Fragment, null,
+        React.createElement(PlayerRowContent, { name: 'No team', positions: ['C'], jerseyNumber: null }),
+        React.createElement(PlayerRowContent, { name: 'No number', team: 'BOS', positions: [], jerseyNumber: null }),
+    ))
+    expect(details(screen)).toEqual(['C', 'BOS'])
     await act(async () => screen.unmount())
 })
 
@@ -88,13 +92,16 @@ it.each([['Out', 'OUT', 'Out', palette.red600], ['OUT', 'OUT', 'Out', palette.re
     await act(async () => screen.unmount())
 })
 
-it.each([['IR', 'IR', 'Injured reserve']])('labels injury %s as %s', async (status, text, accessibilityLabel) => {
+it.each([['IR', 'IR', 'Injured reserve', palette.red600], ['ir', 'IR', 'Injured reserve', palette.red600]])('marks injury %s with a %s tag on the header headshot', async (status, text, label, color) => {
     const screen = await render(React.createElement(PlayerHeader, {
         player: { ...rosterPlayer().players, injury_status: status, years_exp: 2, career_regular_season_games: 100, jersey_number: null, dynasty_rank: null, headshot_url: null },
         rosterStatus: null, leagueActive: true,
     }))
-    const injury = screen.root.findAllByType(Badge).find(tag => tag.props.label === text)
-    expect(injury?.props.accessibilityLabel).toBe(accessibilityLabel)
+    expect(labels(screen)).not.toContain('IR')
+    const tag = screen.root.findByProps({ testID: 'injury-tag' })
+    expect(tag.props.children).toBe(text)
+    expect(tag.props.accessibilityLabel).toBe(label)
+    expect(Object.assign({}, ...[tag.props.style].flat().filter(Boolean))).toMatchObject({ backgroundColor: color })
     await act(async () => screen.unmount())
 })
 
@@ -108,7 +115,7 @@ it('keeps every desktop statistic inside the third player line', async () => {
     await act(async () => screen.unmount())
 })
 
-it.each([64, 65, null])('keeps a taxi occupant career count visible across roster, preview and detail: %s', async games => {
+it.each([64, 65, null])('leaves taxi career counts off roster rows, the preview and the header: %s', async games => {
     const source = { ...rosterPlayer().players, years_exp: 2, career_regular_season_games: games }
     const child = React.createElement(React.Fragment, null,
         React.createElement(ReadOnlyRosterPlayerItem, { item: rosterPlayer({ is_on_taxi: true, players: source }), onPress: () => {} }),
@@ -116,42 +123,24 @@ it.each([64, 65, null])('keeps a taxi occupant career count visible across roste
         React.createElement(RosterPlayerSheet, { player: rosterPlayer({ is_on_taxi: true, players: source }), actions: [], onClose: () => {} }),
     )
     const screen = await render(child)
-    const taxi = screen.root.findAllByType(Badge).filter(tag => tag.props.label.startsWith('T:'))
-    expect(taxi.map(tag => tag.props.label)).toEqual(Array(3).fill(`T:${games ?? '—'}`))
-    for (const tag of taxi) expect(tag.props.accessibilityLabel).toContain(games === 65 ? 'no longer eligible' : games === null ? 'eligibility unknown' : 'Taxi eligible')
-    expect(labels(screen)).not.toContain('GP')
+    expect(labels(screen).filter(label => label.startsWith('T:'))).toHaveLength(0)
     await act(async () => screen.unmount())
 })
 
-it.each(['Day-To-Day', 'day-to-day', 'DTD', 'dtd', 'GTD', ' gtd ', 'Out', 'OUT'])('renders no badge for %s, which shows as a headshot tag', async status => {
+it.each(['Day-To-Day', 'day-to-day', 'DTD', 'dtd', 'GTD', ' gtd ', 'Out', 'OUT', 'IR', 'ir'])('renders no badge for %s, which shows as a headshot tag', async status => {
     const screen = await render(React.createElement(InjuryBadge, { status }))
     expect(screen.root.findAllByType(Badge)).toHaveLength(0)
     await act(async () => screen.unmount())
 })
 
 
-it('uses the same smaller token for every compact status badge', async () => {
-    const screen = await render(React.createElement(PlayerSearchItem, {
-        item: playerRow({ years_exp: 0, career_regular_season_games: 1, injury_status: 'IR' }),
-        currentMemberId: 'member', ownedMap: new Map(), waiverIds: new Set<string>(), isAdding: false, onAdd: () => {}, onPress: () => {},
-    }))
-    const badges = screen.root.findAllByType(Badge).filter(node => ['IR', 'R', 'T:1'].includes(node.props.label))
-    expect(badges).toHaveLength(3)
-    expect(badges.map(node => node.props.size)).toEqual(['compact', 'compact', 'compact'])
+it('shows the same second line in the roster sheet, without age or experience', async () => {
+    const source = rosterPlayer()
+    source.players.birthdate = '2001-10-29'
+    const screen = await render(React.createElement(RosterPlayerSheet, { player: source, actions: [], onClose: () => {} }))
+    expect(labels(screen)).toEqual([])
+    expect(details(screen)[0]).not.toMatch(/Yr|\b24\b/)
     await act(async () => screen.unmount())
-})
-
-it('places known age immediately before experience in the roster sheet', async () => {
-    vi.useFakeTimers()
-    vi.setSystemTime(new Date('2026-10-28T12:00:00Z'))
-    try {
-        const source = rosterPlayer()
-        source.players.birthdate = '2001-10-29'
-        const screen = await render(React.createElement(RosterPlayerSheet, { player: source, actions: [], onClose: () => {} }))
-        const values = labels(screen)
-        expect(values.slice(-2)).toEqual(['24', 'Yr 3'])
-        await act(async () => screen.unmount())
-    } finally { vi.useRealTimers() }
 })
 
 
@@ -168,13 +157,11 @@ it.each(['DTD', 'O', 'OUT', 'IR', 'R', 'T:1'])('renders %s below the game-line s
 })
 
 
-it('places age before experience in trade cards, listings and routed trade rows', async () => {
+it('loads jersey numbers for trade cards, listings and routed trade rows', async () => {
     const { TradeBlockListingRow } = await import('@/components/trades/TradeListRow')
     const item: Extract<TradeItem, { kind: 'player' }> = { kind: 'player', playerId: 'trade', playerName: 'Trade player', nbaTeam: 'BOS', position: 'PG', yearsExp: 2, fromMemberId: 'me', toMemberId: 'other' }
-    ageQueries.read.mockResolvedValue({ data: [{ id: 'trade', birthdate: '2001-10-29' }], error: null })
-    vi.useFakeTimers()
-    vi.setSystemTime(new Date('2026-10-28T12:00:00Z'))
-    setSessionOwner('age-surface-test')
+    jerseyQueries.read.mockResolvedValue({ data: [{ id: 'trade', jersey_number: '7' }], error: null })
+    setSessionOwner('jersey-surface-test')
     clearSessionCaches()
     try {
         const flow = tradeFlowItem(item, 0)!
@@ -186,14 +173,11 @@ it('places age before experience in trade cards, listings and routed trade rows'
             }),
             React.createElement(PlayerRowContent, flow.player!),
         ))
-        const rows = screen.root.findAllByProps({ testID: 'player-meta-line' })
-        expect(rows).toHaveLength(3)
-        expect(rows.map(row => row.findAllByType(Badge).map(badge => badge.props.label).slice(-2))).toEqual(Array(3).fill(['24', 'Yr 3']))
-        expect(ageQueries.read).toHaveBeenCalledWith('id', ['trade'])
+        expect(details(screen).map(line => line.startsWith('BOS · PG · #7'))).toEqual([true, true, true])
+        expect(jerseyQueries.read).toHaveBeenCalledWith('id', ['trade'])
         await act(async () => screen.unmount())
     } finally {
         setSessionOwner(null)
         clearSessionCaches()
-        vi.useRealTimers()
     }
 })

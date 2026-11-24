@@ -21,7 +21,6 @@ const STATUS_COPY: Partial<Record<WebPushStatus, string>> = {
     denied: 'Notifications are blocked. Allow them for Pancake in your device or browser settings, then reopen the app.',
 }
 
-/** Web-only "this device" push control for the Profile notifications card. */
 export function WebPushSettings({ onStatusChange }: { onStatusChange?: (status: WebPushStatus) => void }) {
     const [status, setStatus] = useState<WebPushStatus | null>(null)
     const [busy, setBusy] = useState(false)

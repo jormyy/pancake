@@ -1,10 +1,11 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.nextLiveRecovery = nextLiveRecovery;
+const phase_1 = require("./phase");
 function nextLiveRecovery(games, now, publicLive) {
     const interval = publicLive ? 600000 : 20000;
-    const scheduled = games.filter(game => game.status === 'Scheduled' && !/postpon|cancel|suspend/i.test(game.game_status_text ?? ''));
-    if (games.some(game => game.status === 'InProgress') || scheduled.some(game => {
+    const scheduled = games.filter(game => (0, phase_1.gamePhase)(game) === 'upcoming');
+    if (games.some(game => ['live', 'finalPending'].includes((0, phase_1.gamePhase)(game))) || scheduled.some(game => {
         const time = Date.parse(game.game_time ?? '');
         return Number.isFinite(time) && time <= now && now - time < 6 * 60 * 60_000;
     }))

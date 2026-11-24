@@ -6,6 +6,7 @@ import { readFile, rm, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import path from 'node:path'
 import { createClient } from '@supabase/supabase-js'
+import { todayET } from '@pancake/core'
 
 const lane = path.join(homedir(), 'pancake-t_4ba51e0d/lanes/fable-a2')
 assert.equal(process.cwd(), path.join(lane, 'repo'))
@@ -150,7 +151,7 @@ try {
         const direct = name.startsWith('add-') ? ['add_free_agent_atomic',{p_member_id:user.member,p_league_id:league,p_player_id:p,p_to_ir:name==='add-ir',p_to_taxi:name==='add-taxi'}]
           : name==='drop' ? ['drop_player_atomic',{p_roster_player_id:user.roster}]
           : name==='drop-and-add' ? ['drop_and_add_free_agent_atomic',{p_roster_player_id:user.roster,p_member_id:user.member,p_league_id:league,p_player_id:p}]
-          : name.startsWith('activate-') ? [name.includes('lineup')?'activate_roster_player_with_lineup_atomic':'activate_roster_player_with_overflow_atomic',{...activation,...(name.includes('lineup')?{p_member_id:user.member,p_league_id:league,p_league_season_id:season,p_game_date:new Date().toISOString().slice(0,10),p_week_number:1,p_slot_type:'PG'}:{})}]
+          : name.startsWith('activate-') ? [name.includes('lineup')?'activate_roster_player_with_lineup_atomic':'activate_roster_player_with_overflow_atomic',{...activation,...(name.includes('lineup')?{p_member_id:user.member,p_league_id:league,p_league_season_id:season,p_game_date:todayET(),p_week_number:1,p_slot_type:'PG'}:{})}]
           : name==='commissioner-faab' ? ['commissioner_adjust_faab_balance_atomic',{p_league_id:league,p_member_id:user.member,p_balance:85}]
           : name==='commissioner-weekly-add' ? ['commissioner_override_weekly_add_count_atomic',{p_league_id:league,p_member_id:user.member,p_add_count:2}]
           : name==='invite-join' ? ['join_league_by_invite_code',{p_invite_code:'ABCDEF0123456789',p_team_name:'Joined HTTP'}] : null

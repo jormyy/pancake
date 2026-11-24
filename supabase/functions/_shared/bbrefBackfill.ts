@@ -15,14 +15,13 @@ import {
   loadBackfillTerminalGameKeys,
   markBackfillGameCompleted,
   markBackfillGameFailed,
-  mustSupabase,
+  mustFetchAllPages,
   syncBackfillLedgerProgress,
   updateBackfillJob,
 } from './backfillJobs.ts'
 import { loadNamePlayerResolver, resolveNamedPlayer } from './playerResolver.ts'
 
 const BBREF_CHUNK = 40
-const PAGE_SIZE = 1000
 
 type DbGame = {
   id: string
@@ -176,26 +175,15 @@ function buildSeasonWeeks(gameRecords: GameRecord[], seasonYear: number) {
 }
 
 async function loadSeasonGames(seasonYear: number): Promise<DbGame[]> {
-  const games: DbGame[] = []
-  let page = 0
-  while (true) {
-    const rows = await mustSupabase(
-      'load BBRef season games',
-      supabase
-        .from('nba_games')
-        .select('id, nba_game_id, bbref_home_team, bbref_away_team, week_number')
-        .eq('season_year', seasonYear)
-        .not('bbref_home_team', 'is', null)
-        .not('bbref_away_team', 'is', null)
-        .order('game_date', { ascending: true })
-        .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1),
-    )
-    if (!rows?.length) break
-    games.push(...rows as DbGame[])
-    if (rows.length < PAGE_SIZE) break
-    page++
-  }
-  return games
+  return await mustFetchAllPages('load BBRef season games', (from, to) => supabase
+    .from('nba_games')
+    .select('id, nba_game_id, bbref_home_team, bbref_away_team, week_number')
+    .eq('season_year', seasonYear)
+    .not('bbref_home_team', 'is', null)
+    .not('bbref_away_team', 'is', null)
+    .order('game_date', { ascending: true })
+    .order('id')
+    .range(from, to)) as DbGame[]
 }
 
 async function upsertBBRefStats(

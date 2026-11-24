@@ -1,8 +1,6 @@
 import { StyleSheet } from 'react-native'
 import { colors, componentTokens, controlSize, fontFamily, fontSize, fontWeight, layout, radii, spacing, table, textStyles } from '@/constants/tokens'
 
-// Shared chrome for the Players screen: stat-table header, search input, and
-// sort control.
 export const playerListStyles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgScreen },
     contentWrap: { flex: 1, width: '100%', maxWidth: layout.contentMaxWidth, alignSelf: 'center' },

@@ -24,7 +24,7 @@ WITH context AS MATERIALIZED (
     g.live_scoreboard_elapsed_seconds,g.live_stats_elapsed_seconds
   FROM context c JOIN public.nba_games g ON g.season_year=c.season_year
     AND g.game_date BETWEEN GREATEST(c.week_start,c.today) AND c.week_end
-  WHERE public.is_regular_season_game_id(g.nba_game_id)
+  WHERE public.is_regular_season_game_id(g.nba_game_id) AND private.lineup_game_available(g.status,g.game_status_text)
 ), history AS (
   SELECT h.player_id,h.scores FROM context c CROSS JOIN roster r
   JOIN private.forecast_player_history h ON h.league_id=c.league_id AND h.season_year=c.season_year AND h.player_id=r.player_id
@@ -38,7 +38,7 @@ WITH context AS MATERIALIZED (
   CROSS JOIN LATERAL jsonb_array_elements(p.rows) WITH ORDINALITY item(value,ordinality)
   LEFT JOIN private.forecast_season_points a ON a.league_id=c.league_id AND a.season_year=c.season_year
     AND a.player_id=(item.value->>'player_id')::uuid
-  WHERE p.game_date IN (SELECT DISTINCT game_date FROM games WHERE status NOT IN('Final','Postponed','Cancelled'))
+  WHERE p.game_date IN (SELECT DISTINCT game_date FROM games WHERE status<>'Final')
 )
 SELECT jsonb_build_object(
   'matchupId',c.id,'observedAt',c.observed_at,'today',c.today,'weekEnd',c.week_end,'isFinalized',c.is_finalized,

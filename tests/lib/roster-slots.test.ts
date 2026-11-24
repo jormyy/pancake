@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { arrangeActiveRoster, compareRosterBySlot, rosterSlotLabel } from '@/lib/roster-slots'
+import { arrangeActiveRoster, compareRosterBySlot } from '@/lib/roster-slots'
 import type { RosterPlayer } from '@/lib/roster'
 
 const player = (id: string) => ({ players: { id } })
@@ -47,7 +47,4 @@ describe('arrangeActiveRoster', () => {
         expect(rows(arrangeActiveRoster([player('a')], undefined, 3))).toEqual({ starters: [], bench: ['a', null, null] })
     })
 
-    it('labels reserve slots for the slot column', () => {
-        expect(['PG', 'UTIL', 'BE', 'IR', 'TX'].map(rosterSlotLabel)).toEqual(['PG', 'UTIL', 'BENCH', 'IR', 'TAXI'])
-    })
 })

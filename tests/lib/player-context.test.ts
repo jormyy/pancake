@@ -5,6 +5,7 @@ import {
 } from '@/lib/player-context'
 
 vi.mock('@/lib/format', () => ({
+    formatAvgPoints: (value: number | null | undefined) => value == null ? '-' : value.toFixed(1),
     formatPoints: (value: number | null | undefined) => value == null ? '-' : String(Math.round(value)),
     formatStat: (value: number | null | undefined) => value == null ? '-' : value.toFixed(1),
 }))
@@ -21,11 +22,11 @@ describe('player context helpers', () => {
             avgFantasyPoints: 42.345,
             avgMinutesPlayed: 31,
             yearsExp: 3,
-        })).toBe('42 FP · 31.0 mins')
+        })).toBe('42.3 FP · 31.0 mins')
     })
 
     it('keeps partial and empty stats readable', () => {
-        expect(playerSeasonContextText({ avgFantasyPoints: 0, avgMinutesPlayed: null, yearsExp: 0 })).toBe('0 FP · 0.0 mins')
-        expect(playerSeasonContextText({ avgFantasyPoints: null, avgMinutesPlayed: null, yearsExp: null })).toBe('0 FP · 0.0 mins')
+        expect(playerSeasonContextText({ avgFantasyPoints: 0, avgMinutesPlayed: null, yearsExp: 0 })).toBe('0.0 FP · 0.0 mins')
+        expect(playerSeasonContextText({ avgFantasyPoints: null, avgMinutesPlayed: null, yearsExp: null })).toBe('0.0 FP · 0.0 mins')
     })
 })

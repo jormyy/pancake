@@ -2,12 +2,13 @@ import { supabase } from '../lib/supabase'
 import { runBounded } from '../lib/runBounded'
 import { getWeekNumberForDate, roundFantasyPoints } from '../lib/scoring'
 import { isRegularSeasonGameId } from '../lib/nba'
+import { gamePhase } from '../lib/gamePhase'
 import { syncStatsForDates } from './stats'
 import { toETDate } from '../lib/utils/date'
 import type { Json } from '../types/database'
 import { calcWeekMaxPossiblePointsByMember, calcWeekPointsByMember } from './scoreLineups'
+import { fetchAllPages } from '../lib/fetchAllPages'
 import {
-    fetchAllPages,
     loadLeagueMemberIds,
     loadSeasonWeekBounds,
     weekNumberForGameDate,
@@ -842,7 +843,7 @@ async function syncStatsForCompletedWeeks(
                     if (game.game_date < today) {
                         // Age limits correction polling only after a successful stats sync.
                         // Missing initial box scores still need recovery in longer rounds.
-                        return game.status !== 'Final' || game.stats_synced_at == null || game.game_date >= settledBefore
+                        return gamePhase(game) !== 'settled' || game.game_date >= settledBefore
                     }
                     return game.status !== 'Scheduled' && game.status !== 'InProgress'
                 })

@@ -39,7 +39,7 @@ Deno.test('a renewal error counts as a lost lease', async () => {
 
 Deno.test('a renewal that lands after stop() is not reported as a loss', async () => {
   let lostCount = 0
-  const pending: Array<(held: boolean) => void> = []
+  const pending: ((held: boolean) => void)[] = []
   const beat = startLeaseHeartbeat(() => new Promise<boolean>((resolve) => { pending.push(resolve) }), 5, () => { lostCount += 1 })
   await sleep(30)
   beat.stop()

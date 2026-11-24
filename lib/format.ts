@@ -1,5 +1,4 @@
 import { compactPlayerName } from '@/lib/compact-player-name'
-/** Shared formatting utilities — consolidated from multiple screens */
 
 import { API_URL } from '@/lib/shared/api'
 
@@ -39,9 +38,8 @@ export function yearShort(year: number): string {
     return `'${String(year).slice(2)}`
 }
 
-export { formatPoints, formatStat } from '@/lib/format-points'
+export { formatAvgPoints, formatPoints, formatStat } from '@/lib/format-points'
 
-/** "3 picks", "1 pick" — count with pluralized noun */
 export function countLabel(count: number, noun: string): string {
     return `${count} ${noun}${count === 1 ? '' : 's'}`
 }

@@ -1240,6 +1240,7 @@ export type Database = {
           related_trade_id: string | null
           target_member_id: string | null
           title: string
+          visibility: Database["public"]["Enums"]["activity_visibility"]
         }
         Insert: {
           actor_member_id?: string | null
@@ -1255,6 +1256,7 @@ export type Database = {
           related_trade_id?: string | null
           target_member_id?: string | null
           title: string
+          visibility: Database["public"]["Enums"]["activity_visibility"]
         }
         Update: {
           actor_member_id?: string | null
@@ -1270,6 +1272,7 @@ export type Database = {
           related_trade_id?: string | null
           target_member_id?: string | null
           title?: string
+          visibility?: Database["public"]["Enums"]["activity_visibility"]
         }
         Relationships: [
           {
@@ -7953,6 +7956,7 @@ export type Database = {
       }
     }
     Enums: {
+      activity_visibility: "league" | "parties"
       draft_status:
         | "pending"
         | "in_progress"
@@ -8134,6 +8138,7 @@ export const Constants = {
   },
   public: {
     Enums: {
+      activity_visibility: ["league", "parties"],
       draft_status: [
         "pending",
         "in_progress",

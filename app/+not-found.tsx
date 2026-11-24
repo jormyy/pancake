@@ -3,7 +3,6 @@ import { EmptyState } from '@/components/EmptyState'
 import { Page, PageHeader } from '@/components/ui'
 import { useGoBack } from '@/components/ui/useGoBack'
 
-/** Branded catch-all for unknown routes (replaces Expo Router's default Unmatched Route screen). */
 export default function NotFoundScreen() {
     const router = useRouter()
     const goBack = useGoBack('/')

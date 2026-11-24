@@ -80,7 +80,7 @@ BEGIN
     END IF;
     v_future_pick_years := (p_settings->>'future_pick_years')::int;
     IF v_future_pick_years < v_league.future_pick_years THEN
-      SELECT max(pick.season_year-season.season_year+1) INTO v_required_pick_years
+      SELECT max(pick.season_year-private.draft_year_for_season(season.season_year)) INTO v_required_pick_years
       FROM public.draft_picks pick JOIN public.league_seasons season ON season.league_id=pick.league_id AND season.is_current
       WHERE pick.league_id=p_league_id AND (
         pick.current_owner_id<>pick.original_owner_id

@@ -1,6 +1,6 @@
 const SUFFIX_RE = /\s+(jr\.?|sr\.?|ii|iii|iv|v)$/i
+const COMBINING_DIACRITICS = /[\u0300-\u036f]/g
 
-// Sentinel for name-keyed lookup maps where one name maps to multiple players.
 export const AMBIGUOUS = '__ambiguous__'
 
 export function setUnique(map: Map<string, string>, key: string, value: string): void {
@@ -11,7 +11,7 @@ export function setUnique(map: Map<string, string>, key: string, value: string):
 
 export function normalizeName(name: string): string {
   const key = name
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // strip diacritics
+    .normalize('NFD').replace(COMBINING_DIACRITICS, '')
     .toLowerCase()
     .replace(SUFFIX_RE, '')
     .replace(/[.'\u2019\-]/g, '')
