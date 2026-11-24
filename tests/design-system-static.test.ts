@@ -42,7 +42,7 @@ describe('theme variables', () => {
         const pairs = new Set(Object.values(typeScale).map(({ fontSize, lineHeight }) => `${fontSize}/${lineHeight}`))
 
         for (const size of Object.values(controlSize.button)) expect(pairs).toContain(`${size.font}/${size.line}`)
-        for (const label of [componentTokens.segmentedControl.pillLabel, componentTokens.segmentedControl.tabLabel, componentTokens.badge.label, componentTokens.badge.countLabel, componentTokens.statCell.summary]) {
+        for (const label of [componentTokens.segmentedControl.pillLabel, componentTokens.segmentedControl.tabLabel, componentTokens.badge.label, componentTokens.badge.countLabel, componentTokens.badge.position.label, componentTokens.statCell.summary]) {
             expect(pairs).toContain(`${label.fontSize}/${label.lineHeight}`)
         }
     })

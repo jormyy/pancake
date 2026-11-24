@@ -692,7 +692,7 @@ export const componentTokens = {
         outlinedCompact: { paddingVertical: spacing.xxs },
         scoreLetterSpacing: textStyles.tableHeader.letterSpacing,
         ownership: { minHeight: controlSize.badge.height, paddingHorizontal: spacing.sm, paddingVertical: 0, borderRadius: radii.sm, width: 90, maxCompactWidth: 96 },
-        position: { minHeight: controlSize.badge.height, paddingHorizontal: spacing.xxs, paddingVertical: 0, borderRadius: radii.xs, label: { fontSize: fontSize['2xs'], lineHeight: textStyles.meta.lineHeight, fontWeight: fontWeight.extrabold, letterSpacing: 0.3 } },
+        position: { minHeight: controlSize.badge.height, paddingHorizontal: spacing.xxs, paddingVertical: 0, borderRadius: radii.xs, label: { ...typeScale.micro, fontWeight: fontWeight.extrabold, letterSpacing: 0.3 } },
         inline: { minHeight: controlSize.badge.height, paddingHorizontal: spacing.xxs, paddingVertical: 0 },
         count: { minWidth: 18, minHeight: 18, paddingVertical: 0, paddingHorizontal: spacing.xs, borderRadius: radii.full },
         tintOpacity: 0.13,
