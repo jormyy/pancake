@@ -27,6 +27,7 @@ export function MatchupLineupView({
     playingTeams,
     liveStats,
     liveTeams,
+    onCourt,
     scoringSettings,
     teamMatchups,
     timezone,
@@ -46,6 +47,7 @@ export function MatchupLineupView({
     playingTeams: Set<string>
     liveStats: Map<string, LiveStatLine>
     liveTeams: Set<string>
+    onCourt?: Set<string>
     scoringSettings: Record<string, number>
     teamMatchups: Map<string, MatchupGame>
     timezone?: string
@@ -164,6 +166,7 @@ export function MatchupLineupView({
                                         playingTeams={playingTeams}
                                         liveStats={liveStats}
                                         liveTeams={liveTeams}
+                                        onCourt={onCourt}
                                         scoringSettings={scoringSettings}
                                         teamMatchups={teamMatchups}
                                         timezone={timezone}

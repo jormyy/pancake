@@ -20,6 +20,7 @@ export type PublicLiveGame = {
     clock?: string
     home: { team: string; score: number; players: LiveLine[] }
     away: { team: string; score: number; players: LiveLine[] }
+    onCourt?: string[]
 }
 
 export type LiveSnapshot = { version: 1; mode: 'public' | 'database'; date: string; capturedAt: number; games: PublicLiveGame[] }
@@ -61,6 +62,7 @@ export function overlayLiveScores(saved: readonly SavedLiveMatchup[], snapshot: 
     const usable = snapshot?.version === 1 && Number.isFinite(snapshot.capturedAt)
         && snapshot.capturedAt <= now + 5000 && now - snapshot.capturedAt <= 120000
     const stats: Record<string, PublicLiveStats> = {}
+    const onCourt = new Set<string>()
     const matchups = saved.map(matchup => {
         let homePoints = matchup.homePoints, awayPoints = matchup.awayPoints
         let stale = !matchup.finalized && mode === 'public' && (!usable || matchup.ready === false)
@@ -82,6 +84,8 @@ export function overlayLiveScores(saved: readonly SavedLiveMatchup[], snapshot: 
             if (resolved.has(resolvedKey)) continue
             resolved.add(resolvedKey)
             if (game.status === 'Scheduled') continue
+            const courtId = game.source === 'espn' ? player.espnId : player.nbaId
+            if (game.status === 'InProgress' && courtId && Array.isArray(game.onCourt) && game.onCourt.includes(courtId)) onCourt.add(player.playerId)
             if (!Number.isFinite(game.updatedAt) || game.updatedAt > now + 5000) { stale = true; continue }
             if (game.updatedAt <= player.savedAt) continue
             const providerId = game.source === 'espn' ? player.espnId : player.nbaId
@@ -101,6 +105,6 @@ export function overlayLiveScores(saved: readonly SavedLiveMatchup[], snapshot: 
             homePoints: stale ? matchup.homePoints : roundFantasyPoints(homePoints),
             awayPoints: stale ? matchup.awayPoints : roundFantasyPoints(awayPoints), stale }
     })
-    return { mode, matchups, stats, stale: matchups.some(matchup => matchup.stale),
+    return { mode, matchups, stats, onCourt: [...onCourt], stale: matchups.some(matchup => matchup.stale),
         live: usable && mode === 'public' && snapshot.games.some(game => game.status === 'InProgress') }
 }

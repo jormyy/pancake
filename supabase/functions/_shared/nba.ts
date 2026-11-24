@@ -211,6 +211,7 @@ export interface NBABoxScorePlayer {
   personId: number
   name: string
   played?: string | number | null
+  oncourt?: string | number | null
   statistics: {
     assists: number
     blocks: number

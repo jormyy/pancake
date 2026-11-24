@@ -510,7 +510,7 @@ function parseEspnSummary(summary, event) {
         freeThrowsMade: ftm,
         freeThrowsAttempted: fta
       };
-      return { espnId: id, team, player: { personId: 0, name: row.athlete.displayName, played: 1, statistics } };
+      return { espnId: id, team, player: { personId: 0, name: row.athlete.displayName, played: 1, oncourt: row.active === true ? "1" : "0", statistics } };
     });
     if (!result.length || result.reduce((sum, row) => sum + row.player.statistics.points, 0) !== (team === game.homeTeam.teamTricode ? game.homeTeam.score : game.awayTeam.score))
       throw new Error(`ESPN ${event.id}: incomplete team points`);
@@ -613,6 +613,7 @@ function compactBox(box, board, event, observedAt, ids) {
     return { team: side.teamTricode, score: side.score, players };
   });
   const identities = sides.flatMap((side) => side.players.map((player) => player[0]));
+  const onCourt = box.gameStatus === 3 ? [] : [box.homeTeam, box.awayTeam].flatMap((side) => side.players.filter((player) => String(player.oncourt) === "1").map((player) => ids?.get(player) ?? String(player.personId === 196295686 ? 1641794 : player.personId)));
   if (new Set(identities).size !== identities.length)
     throw new Error("Provider player appears on both sides");
   return {
@@ -626,7 +627,8 @@ function compactBox(box, board, event, observedAt, ids) {
     period: box.period,
     clock: box.gameClock,
     home: sides[0],
-    away: sides[1]
+    away: sides[1],
+    ...onCourt.length ? { onCourt } : {}
   };
 }
 function nbaIsCurrent(box, event, observedAt) {

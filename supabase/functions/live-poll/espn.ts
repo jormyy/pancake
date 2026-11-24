@@ -13,7 +13,7 @@ export type EspnEvent = { id: string; date: string; season?: { type: number; yea
 export type EspnSummary = {
   header: { id: string; season: { type: number; year: number }; competitions: Competition[] }
   meta?: { lastUpdatedAt?: string }
-  boxscore?: { players: { team: { abbreviation: string }; statistics: { names: string[]; athletes: { athlete: { id: string; displayName: string }; didNotPlay: boolean; stats: string[] }[] }[] }[] }
+  boxscore?: { players: { team: { abbreviation: string }; statistics: { names: string[]; athletes: { athlete: { id: string; displayName: string }; active?: boolean; didNotPlay: boolean; stats: string[] }[] }[] }[] }
 }
 export type EspnPlayer = { espnId: string; player: NBABoxScorePlayer; team: string }
 
@@ -182,7 +182,7 @@ export function parseEspnSummary(summary: EspnSummary, event: EspnEvent): { game
         turnovers: count('TO'), foulsPersonal: count('PF'), plusMinusPoints: count('+/-', true),
         fieldGoalsMade: fgm, fieldGoalsAttempted: fga, threePointersMade: tpm, threePointersAttempted: tpa, freeThrowsMade: ftm, freeThrowsAttempted: fta,
       }
-      return { espnId: id, team, player: { personId: 0, name: row.athlete.displayName, played: 1, statistics } }
+      return { espnId: id, team, player: { personId: 0, name: row.athlete.displayName, played: 1, oncourt: row.active === true ? '1' : '0', statistics } }
     })
     if (!result.length || result.reduce((sum, row) => sum + row.player.statistics.points, 0) !== (team === game.homeTeam.teamTricode ? game.homeTeam.score : game.awayTeam.score)) throw new Error(`ESPN ${event.id}: incomplete team points`)
     return result

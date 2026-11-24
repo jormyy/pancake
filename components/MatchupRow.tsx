@@ -5,7 +5,7 @@ import { LineupPlayer } from '@/lib/lineup'
 import { LiveStatLine } from '@/lib/games'
 import { computeLiveFantasyPoints } from '@/lib/scoring'
 import { slotColor } from '@/constants/positions'
-import { alpha, borderWidth, colors, componentTokens, controlSize, fontSize, fontWeight, radii, spacing, textStyles, uiColors, tracking } from '@/constants/tokens'
+import { alpha, borderWidth, palette, colors, componentTokens, controlSize, fontSize, fontWeight, radii, spacing, textStyles, uiColors, tracking } from '@/constants/tokens'
 import { PosTag } from '@/components/PosTag'
 import { TeamLogo } from '@/components/TeamLogo'
 import { InjuryTag } from '@/components/InjuryTag'
@@ -351,6 +351,7 @@ type MatchupRowProps = {
     playingTeams: Set<string>
     liveStats: Map<string, LiveStatLine>
     liveTeams: Set<string>
+    onCourt?: Set<string>
     scoringSettings: Record<string, number>
     teamMatchups: Map<string, MatchupGame>
     timezone?: string
@@ -372,6 +373,7 @@ function MatchupRowImpl({
     playingTeams,
     liveStats,
     liveTeams,
+    onCourt,
     scoringSettings,
     teamMatchups,
     timezone,
@@ -395,6 +397,8 @@ function MatchupRowImpl({
     const oppIsLive = !reserveSlot && oppPlayer?.nbaTeam ? liveTeams.has(oppPlayer.nbaTeam) : false
     const myIsFinal = !reserveSlot && myPlayer?.nbaTeam ? teamMatchups.get(myPlayer.nbaTeam)?.status === 'Final' : false
     const oppIsFinal = !reserveSlot && oppPlayer?.nbaTeam ? teamMatchups.get(oppPlayer.nbaTeam)?.status === 'Final' : false
+    const myOnCourt = myIsLive && myPlayer ? onCourt?.has(myPlayer.playerId) === true : false
+    const oppOnCourt = oppIsLive && oppPlayer ? onCourt?.has(oppPlayer.playerId) === true : false
     const myFpts = myStats && !myStats.didNotPlay ? computeLiveFantasyPoints(myStats, scoringSettings) : null
     const oppFpts = oppStats && !oppStats.didNotPlay ? computeLiveFantasyPoints(oppStats, scoringSettings) : null
     const openDetails = onOpenDetails && (myPlayer || oppPlayer)
@@ -410,7 +414,7 @@ function MatchupRowImpl({
                     dense && styles.matchupRowDense,
                 ]}
             >
-            <View style={[styles.rowSideLeft, compact && styles.rowSideLeftCompact]}>
+            <View style={[styles.rowSideLeft, compact && styles.rowSideLeftCompact, myOnCourt && styles.onCourtLeft]}>
                 <PlayerSide
                     side="left"
                     player={myPlayer}
@@ -447,7 +451,7 @@ function MatchupRowImpl({
                 </Text>
             </View>
 
-            <View style={[styles.rowSideRight, compact && styles.rowSideRightCompact]}>
+            <View style={[styles.rowSideRight, compact && styles.rowSideRightCompact, oppOnCourt && styles.onCourtRight]}>
                 <PlayerSide
                     side="right"
                     player={oppPlayer}
@@ -503,6 +507,8 @@ const styles = StyleSheet.create({
     rowSideLeft: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', paddingLeft: spacing.sm },
     rowSideRight: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', paddingRight: spacing.sm },
     // Scores sit on the outer edges, so they get a little more room than the centre.
+    onCourtLeft: { backgroundColor: alpha(palette.amber400, 0.16), borderLeftWidth: 4, borderLeftColor: palette.amber400 },
+    onCourtRight: { backgroundColor: alpha(palette.amber400, 0.16), borderRightWidth: 4, borderRightColor: palette.amber400 },
     rowSideLeftCompact: { paddingLeft: spacing.xs, paddingRight: spacing.xxs },
     rowSideRightCompact: { paddingLeft: spacing.xxs, paddingRight: spacing.xs },
     // Sized to the score itself (three digits) so names get the spare width.
