@@ -11,6 +11,7 @@ function overlayLiveScores(saved, snapshot, settings, now) {
     const usable = snapshot?.version === 1 && Number.isFinite(snapshot.capturedAt)
         && snapshot.capturedAt <= now + 5000 && now - snapshot.capturedAt <= 120000;
     const stats = {};
+    const onCourt = new Set();
     const matchups = saved.map(matchup => {
         let homePoints = matchup.homePoints, awayPoints = matchup.awayPoints;
         let stale = !matchup.finalized && mode === 'public' && (!usable || matchup.ready === false);
@@ -43,6 +44,9 @@ function overlayLiveScores(saved, snapshot, settings, now) {
                 resolved.add(resolvedKey);
                 if (game.status === 'Scheduled')
                     continue;
+                const courtId = game.source === 'espn' ? player.espnId : player.nbaId;
+                if (game.status === 'InProgress' && courtId && Array.isArray(game.onCourt) && game.onCourt.includes(courtId))
+                    onCourt.add(player.playerId);
                 if (!Number.isFinite(game.updatedAt) || game.updatedAt > now + 5000) {
                     stale = true;
                     continue;
@@ -76,6 +80,6 @@ function overlayLiveScores(saved, snapshot, settings, now) {
             homePoints: stale ? matchup.homePoints : (0, formula_1.roundFantasyPoints)(homePoints),
             awayPoints: stale ? matchup.awayPoints : (0, formula_1.roundFantasyPoints)(awayPoints), stale };
     });
-    return { mode, matchups, stats, stale: matchups.some(matchup => matchup.stale),
+    return { mode, matchups, stats, onCourt: [...onCourt], stale: matchups.some(matchup => matchup.stale),
         live: usable && mode === 'public' && snapshot.games.some(game => game.status === 'InProgress') };
 }
