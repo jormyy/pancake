@@ -2,6 +2,7 @@ import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { expect, it, vi } from 'vitest'
 import LeagueScreen from '@/app/(tabs)/league'
+vi.mock('@/components/ScreenErrorFallback', () => ({ ScreenErrorFallback: () => null }))
 vi.mock('expo-router', () => ({ useLocalSearchParams: () => ({ tab: 'history' }), useRouter: () => ({ dismissTo: vi.fn() }) }))
 vi.mock('@/components/navigation/LeagueHome', () => ({ LeagueHome: 'LeagueHome' }))
 
