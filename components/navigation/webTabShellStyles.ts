@@ -304,6 +304,16 @@ export const styles = StyleSheet.create({
         paddingTop: `env(safe-area-inset-top, ${spacing.none}px)`,
     } as unknown as WebOnlyViewStyle,
 
+    statusBarCap: {
+        position: 'fixed',
+        top: spacing.none,
+        left: spacing.none,
+        right: spacing.none,
+        zIndex: 50,
+        height: `env(safe-area-inset-top, ${spacing.none}px)`,
+        backgroundColor: colors.bgScreen,
+    } as unknown as WebOnlyViewStyle,
+
     mobileTopbar: {
         position: 'fixed',
         top: spacing.none,
@@ -319,11 +329,8 @@ export const styles = StyleSheet.create({
         paddingLeft: `calc(${spacing.lg}px + env(safe-area-inset-left, ${spacing.none}px))`,
         paddingRight: `calc(${spacing.lg}px + env(safe-area-inset-right, ${spacing.none}px))`,
         backgroundColor: colors.bgCard,
-        backdropFilter: 'blur(2${spacing.none}px) saturate(180%)',
-        WebkitBackdropFilter: 'blur(2${spacing.none}px) saturate(180%)',
         borderBottomWidth: 1,
         borderBottomColor: colors.borderLight,
-        boxShadow: shadows.sm,
     } as unknown as WebOnlyViewStyle,
     mobileLeagueWrap: {
         flex: 1,

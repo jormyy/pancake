@@ -530,7 +530,7 @@ export function WebAppShell({ children, chrome = true }: PropsWithChildren<{ chr
     // routes render chrome-less.
     return (
         <View style={chrome ? [styles.root, compact ? styles.rootCompact : styles.rootDesktop] : styles.flex1}>
-            {chrome ? (compact ? (backHeader ? null : <MobileTopBar onMenuPress={() => setMenuOpen(true)} />) : <WebSidebar />) : null}
+            {chrome ? (compact ? (backHeader ? <View style={styles.statusBarCap} /> : <MobileTopBar onMenuPress={() => setMenuOpen(true)} />) : <WebSidebar />) : null}
             <View key="route-content" style={chrome ? [styles.content, compact && styles.contentCompact, compact && backHeader && styles.contentWithBackHeader] : styles.flex1} role={chrome ? 'main' : undefined}>{children}</View>
             {chrome && compact ? (
                 <>
