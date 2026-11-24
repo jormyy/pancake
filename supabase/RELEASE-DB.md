@@ -57,6 +57,9 @@ It makes `private.reconcile_future_picks` the only pick writer, adds the year co
 It moves every game-started check onto `private.player_game_started`, adds the `b_game_lock_roster_status` trigger on `roster_players`, and adds the `roster_players.locked_until_slate_end` field that the IR and taxi pre-checks read.
 A frontend that ships first shows an error on every IR and taxi change, because the field does not exist yet.
 The migration changes no lock result: the trigger rejects only a same-team IR or taxi change that the existing RPC checks already reject.
+`20261224000000_lineup_refill_after_roster_change.sql` follows it, for 811 migrations.
+A roster change on a team with Auto Lineup on adds the team to `private.lineup_refill_requests` and queues one `lineup-refill` job.
+Each job re-picks every upcoming day for one team. Deploy `lineup-optimizer` first, because an older worker reads the `roster_refill` mode as a scheduled run.
 Database, then Edge, then merge the frontend.
 
 1. **Migrations.** Apply all five through the guarded dry run and push. They change no roster, lineup, dispatch, or notice. `floor_activated_at` and `ir_activated_at` stay NULL, so the floor defers and the league-wide Auto IR admission stays off. The shared `pre-tipoff` fingerprint keeps its old body, so applying the migrations reopens no open window. After activation, the official league and the other leagues never reopen each other's completed windows.

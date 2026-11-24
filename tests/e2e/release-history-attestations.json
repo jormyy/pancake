@@ -3823,6 +3823,13 @@
       "statementCount": 16,
       "statementsSha256": "6298278b3661be3bbfe5ae8a8722405df196f9ade52fd56e9fcd6a90da7a30c8",
       "sha256": "1aec167944383b4835399d2cdfb32e0fba973a1f86274edaab40e4de641405fe"
+    },
+    {
+      "name": "lineup_refill_after_roster_change",
+      "version": "20261224000000",
+      "statementCount": 19,
+      "statementsSha256": "eaf03279e91f4644c162d5fc748463458283c71b6041d8dc8383f0dd65512722",
+      "sha256": "ebdae4e8406fba471bd219c6ed2a7cf75b896d2c0bee7f4561c9a09beb8cb812"
     }
   ]
 }
