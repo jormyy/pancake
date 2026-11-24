@@ -26,7 +26,7 @@ Preconditions:
 - **Sweep.** For each inventory ID, open its entry at every width. Require no horizontal overflow, no tappable control under 44px, no top gradient over content, and the header below the top inset in standalone.
 - **Type.** Read computed font size and line height of visible text. Every pair must be a `typeScale` step.
 - **Numbers.** Scores and counts are whole numbers; averages show one decimal.
-- **Long names and larger text.** Use the long-name fixture team or player and 200% text zoom on Roster, Matchup, Schedule and the player page. Names truncate with an ellipsis and scores stay in their columns.
+- **Long names and larger text.** The fixture has no long names. In the page only, replace visible team and player name text with a 40-character name, then set root text to 200% on Roster, Matchup, Schedule and the player page. Names truncate or wrap without horizontal overflow, and scores stay in their columns. Reload before the next check.
 - **Keyboard.** Focus each input in standalone mode and require the field and its action to stay visible.
 - **Journeys.** Start from `/` signed in as user 0 and count taps, including confirmations:
   - Lineup: Roster, Edit lineup and pins, the Player008 pin trigger on phones, Pin E2E Player008 to start. Require Player008 in a starter slot.
