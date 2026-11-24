@@ -1321,7 +1321,7 @@
     },
     {
       "id": "trades.roster-plan",
-      "kind": "sheet",
+      "kind": "route",
       "entry": "Accepting an offer that overfills the roster",
       "roles": [
         "manager",
@@ -1330,14 +1330,18 @@
       "goal": "Choose who to drop for the trade",
       "primaryAction": "Save plan",
       "sources": [
-        "components/trades/PendingTradeRosterPlan.tsx"
+        "components/trades/PendingTradeRosterPlan.tsx",
+        "components/trades/TradeLegalityScreen.tsx",
+        "components/trades/TradeRosterPlanEditor.tsx"
       ],
       "primitives": [
-        "Sheet",
-        "Button"
+        "PageHeader",
+        "ErrorBanner"
       ],
       "states": [
-        "default"
+        "loading",
+        "error",
+        "saving"
       ]
     },
     {

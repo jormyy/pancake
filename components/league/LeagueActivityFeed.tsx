@@ -208,7 +208,7 @@ const styles = StyleSheet.create({
     meTag: { color: colors.textMuted, fontWeight: fontWeight.regular },
     activityFooterAction: {
         minHeight: 44,
-        padding: spacing['2xl'],
+        padding: spacing['3xl'],
         alignItems: 'center',
         justifyContent: 'center',
     },

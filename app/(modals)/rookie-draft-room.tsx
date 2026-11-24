@@ -7,9 +7,7 @@ import {
     TextInput,
     StyleSheet,
     KeyboardAvoidingView,
-    Modal,
     Platform,
-    ScrollView,
     useWindowDimensions,
 } from 'react-native'
 import { FlashList } from '@shopify/flash-list'
@@ -18,8 +16,10 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useLeagueContext } from '@/contexts/league-context'
 import { type RookieProspect } from '@/lib/rookieDraft'
 import { draftYearForSeason, leagueSeasonYear } from '@/lib/picks'
-import { breakpoints, colors, controlSize, fontWeight, layout, radii, scrim, spacing, table, textStyles, uiColors, typeScale } from '@/constants/tokens'
+import { breakpoints, colors, controlSize, fontWeight, layout, radii, spacing, table, textStyles, uiColors, typeScale } from '@/constants/tokens'
 import { MotionPressable } from '@/components/Motion'
+import { Sheet } from '@/components/ui/Sheet'
+import { Button } from '@/components/ui/Button'
 import { showSuccess } from '@/lib/alert'
 import { countLabel } from '@/lib/format'
 
@@ -148,83 +148,75 @@ export default function RookieDraftRoomScreen() {
         <>
             <Stack.Screen options={{ title: draftTitle, presentation: 'modal', headerShown: false }} />
 
-            <Modal visible={!!rosterOverflow} transparent animationType="slide"
-                onRequestClose={() => { if (!resolvingOverflow) navigateBackToDraftList() }}>
-                <View style={styles.overflowOverlay}>
-                    <View style={styles.overflowCard}>
-                        <Text style={styles.overflowTitle}>Roster Full</Text>
-                        <Text style={styles.overflowBody}>
-                            You drafted{' '}
-                            <Text style={{ fontWeight: fontWeight.bold }}>{rosterOverflow?.newPlayerName}</Text>
-                            {' '}but your active roster is over capacity. Drop a player before setting lineups or adding players.
-                        </Text>
-                        <MotionPressable style={styles.overflowBtn} accessibilityRole="button"
-                            accessibilityLabel="Back to League" disabled={resolvingOverflow}
-                            onPress={() => navigateBackToDraftList()}>
-                            <Text style={styles.overflowExitText}>Back to League</Text>
-                        </MotionPressable>
-                        {rosterForDrop.length > 0 && (
-                            <>
-                                <Text style={styles.overflowDropLabel}>Drop a player:</Text>
-                                <ScrollView style={styles.overflowDropList} showsVerticalScrollIndicator>
-                                    {rosterForDrop.map((rp) => (
-                                        <MotionPressable
-                                            key={rp.id}
-                                            style={styles.overflowDropRow}
-                                            onPress={() => resolveByDrop(rp.id)}
-                                            disabled={resolvingOverflow || !actionsReady}
-                                        >
-                                            <PlayerRowContent name={rp.players?.display_name ?? 'Player'} nbaId={rp.players?.nba_id} team={rp.players?.nba_team}
-                                                positions={rp.players?.position ? [rp.players.position] : []}
-                                                birthdate={rp.players?.birthdate} yearsExp={rp.players?.years_exp} careerGames={rp.players?.career_regular_season_games} injuryStatus={rp.players?.injury_status} />
-                                        </MotionPressable>
-                                    ))}
-                                </ScrollView>
-                            </>
-                        )}
-                    </View>
+            <Sheet visible={!!rosterOverflow} title="Roster Full"
+                onClose={() => { if (!resolvingOverflow) navigateBackToDraftList() }}>
+                <View style={styles.overflowCard}>
+                    <Text style={styles.overflowBody}>
+                        You drafted{' '}
+                        <Text style={{ fontWeight: fontWeight.bold }}>{rosterOverflow?.newPlayerName}</Text>
+                        {' '}but your active roster is over capacity. Drop a player before setting lineups or adding players.
+                    </Text>
+                    <Button variant="secondary" title="Back to League" accessibilityLabel="Back to League"
+                        disabled={resolvingOverflow} onPress={() => navigateBackToDraftList()} />
+                    {rosterForDrop.length > 0 && (
+                        <>
+                            <Text style={styles.overflowDropLabel}>Drop a player:</Text>
+                            <View>
+                                {rosterForDrop.map((rp) => (
+                                    <MotionPressable
+                                        key={rp.id}
+                                        accessibilityRole="button"
+                                        accessibilityLabel={`Drop ${rp.players?.display_name ?? 'Player'}`}
+                                        style={styles.overflowDropRow}
+                                        onPress={() => resolveByDrop(rp.id)}
+                                        disabled={resolvingOverflow || !actionsReady}
+                                    >
+                                        <PlayerRowContent name={rp.players?.display_name ?? 'Player'} nbaId={rp.players?.nba_id} team={rp.players?.nba_team}
+                                            positions={rp.players?.position ? [rp.players.position] : []}
+                                            birthdate={rp.players?.birthdate} yearsExp={rp.players?.years_exp} careerGames={rp.players?.career_regular_season_games} injuryStatus={rp.players?.injury_status} />
+                                    </MotionPressable>
+                                ))}
+                            </View>
+                        </>
+                    )}
                 </View>
-            </Modal>
+            </Sheet>
 
-            <Modal visible={!!trimOverflow || trimAwaitingLimits} transparent animationType="slide"
-                onRequestClose={() => { if (!trimmingId) navigateBackToDraftList() }}>
-                <View style={styles.overflowOverlay}>
-                    <View style={styles.overflowCard}>
-                        <Text style={styles.overflowTitle}>Trim Your Roster</Text>
-                        {trimOverflow ? (
-                            <Text style={styles.overflowBody}>
-                                Your active roster is{' '}
-                                <Text style={{ fontWeight: fontWeight.bold }}>{trimOverflow.excess} over</Text>
-                                {' '}the limit. Drop {countLabel(trimOverflow.excess, 'player')} before setting lineups or adding players.
-                            </Text>
-                        ) : (
-                            <Text style={styles.overflowBody} accessibilityLiveRegion="polite">
-                                Roster settings are loading. Drop choices return once the league limit is known.
-                            </Text>
-                        )}
-                        <MotionPressable style={styles.overflowBtn} accessibilityRole="button"
-                            accessibilityLabel="Back to League" disabled={!!trimmingId}
-                            onPress={() => navigateBackToDraftList()}>
-                            <Text style={styles.overflowExitText}>Back to League</Text>
-                        </MotionPressable>
-                        {trimOverflow ? <Text style={styles.overflowDropLabel}>Select a player to drop:</Text> : null}
-                        <ScrollView style={styles.overflowDropList} showsVerticalScrollIndicator>
-                            {trimOverflow?.dropList.map((rp) => (
-                                <MotionPressable
-                                    key={rp.id}
-                                    style={styles.overflowDropRow}
-                                    onPress={() => handleTrimDrop(rp.id)}
-                                    disabled={!!trimmingId || !actionsReady}
-                                >
-                                    <PlayerRowContent name={rp.players?.display_name ?? 'Player'} nbaId={rp.players?.nba_id} team={rp.players?.nba_team}
-                                                positions={rp.players?.position ? [rp.players.position] : []}
-                                                birthdate={rp.players?.birthdate} yearsExp={rp.players?.years_exp} careerGames={rp.players?.career_regular_season_games} injuryStatus={rp.players?.injury_status} />
-                                </MotionPressable>
-                            ))}
-                        </ScrollView>
+            <Sheet visible={!!trimOverflow || trimAwaitingLimits} title="Trim Your Roster"
+                onClose={() => { if (!trimmingId) navigateBackToDraftList() }}>
+                <View style={styles.overflowCard}>
+                    {trimOverflow ? (
+                        <Text style={styles.overflowBody}>
+                            Your active roster is{' '}
+                            <Text style={{ fontWeight: fontWeight.bold }}>{trimOverflow.excess} over</Text>
+                            {' '}the limit. Drop {countLabel(trimOverflow.excess, 'player')} before setting lineups or adding players.
+                        </Text>
+                    ) : (
+                        <Text style={styles.overflowBody} accessibilityLiveRegion="polite">
+                            Roster settings are loading. Drop choices return once the league limit is known.
+                        </Text>
+                    )}
+                    <Button variant="secondary" title="Back to League" accessibilityLabel="Back to League"
+                        disabled={!!trimmingId} onPress={() => navigateBackToDraftList()} />
+                    {trimOverflow ? <Text style={styles.overflowDropLabel}>Select a player to drop:</Text> : null}
+                    <View>
+                        {trimOverflow?.dropList.map((rp) => (
+                            <MotionPressable
+                                key={rp.id}
+                                accessibilityRole="button"
+                                accessibilityLabel={`Drop ${rp.players?.display_name ?? 'Player'}`}
+                                style={styles.overflowDropRow}
+                                onPress={() => handleTrimDrop(rp.id)}
+                                disabled={!!trimmingId || !actionsReady}
+                            >
+                                <PlayerRowContent name={rp.players?.display_name ?? 'Player'} nbaId={rp.players?.nba_id} team={rp.players?.nba_team}
+                                            positions={rp.players?.position ? [rp.players.position] : []}
+                                            birthdate={rp.players?.birthdate} yearsExp={rp.players?.years_exp} careerGames={rp.players?.career_regular_season_games} injuryStatus={rp.players?.injury_status} />
+                            </MotionPressable>
+                        ))}
                     </View>
                 </View>
-            </Modal>
+            </Sheet>
 
             <ScreenFrame style={styles.container} edges={['bottom']}>
                 <DraftScreenHeader title={draftTitle} onBack={() => navigateBackToDraftList()}>
@@ -604,56 +596,16 @@ const styles = StyleSheet.create({
 
     pickedName: { ...typeScale.small, fontWeight: fontWeight.semibold, color: colors.textPrimary },
     pickedTeam: { ...typeScale.caption, color: colors.textMuted },
-
-
-
-
-    overflowOverlay: {
-        flex: 1,
-        backgroundColor: scrim,
-        justifyContent: 'flex-end',
-        alignItems: 'center',
-    },
-    // Width-capped so the sheet does not span a wide monitor.
-    overflowCard: {
-        width: '100%',
-        maxWidth: 560,
-        backgroundColor: colors.bgCard,
-        borderTopLeftRadius: radii['2xl'],
-        borderTopRightRadius: radii['2xl'],
-        padding: spacing['2xl'],
-        paddingBottom: spacing['5xl'],
-        gap: spacing.md,
-    },
-    overflowTitle: {
-        ...typeScale.heading,
-        fontWeight: fontWeight.extrabold,
-        color: colors.textPrimary,
-    },
+    overflowCard: { gap: spacing.md },
     overflowBody: {
         ...typeScale.body,
         color: colors.textSecondary,
-    },
-    overflowBtn: {
-        minHeight: controlSize.minTouch,
-        justifyContent: 'center',
-        borderRadius: radii.md,
-        alignItems: 'center',
-        marginTop: spacing.sm,
-    },
-    overflowExitText: {
-        ...typeScale.row,
-        color: colors.primaryDark,
-        fontWeight: fontWeight.bold,
     },
     overflowDropLabel: {
         ...typeScale.small,
         fontWeight: fontWeight.semibold,
         color: colors.textMuted,
         marginTop: spacing.md,
-    },
-    overflowDropList: {
-        maxHeight: 220,
     },
     overflowDropRow: {
         minHeight: table.rowHeight,

@@ -261,7 +261,6 @@ export const spacing = {
     md: unit(2),
     lg: unit(3),
     xl: unit(4),
-    '2xl': unit(5),
     '3xl': unit(5),
     '4xl': unit(6),
     '5xl': unit(8),

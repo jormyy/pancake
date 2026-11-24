@@ -244,7 +244,7 @@ const styles = StyleSheet.create({
     // fills the canvas instead of a narrow centered strip.
     scrollContentDesktop: {
         maxWidth: layout.contentMaxWidth,
-        paddingTop: spacing['2xl'],
+        paddingTop: spacing['3xl'],
     },
     myPicks: { gap: spacing.sm },
     myPicksCard: { backgroundColor: colors.bgCard, borderRadius: radii.lg, borderCurve: 'continuous' as const, borderWidth: 1, borderColor: colors.borderLight, paddingHorizontal: spacing.lg },
@@ -279,7 +279,7 @@ const styles = StyleSheet.create({
     nominateButton: {
         marginTop: spacing.xs,
         height: 48,
-        paddingHorizontal: spacing['2xl'],
+        paddingHorizontal: spacing['3xl'],
         backgroundColor: colors.primary,
         borderRadius: radii.md,
         borderCurve: 'continuous' as const,

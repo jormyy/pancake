@@ -217,7 +217,7 @@ const styles = StyleSheet.create({
         padding: spacing['3xl'],
         gap: spacing.xl,
     },
-    compactSuccessContainer: { flexDirection: 'row', paddingVertical: spacing.md, gap: spacing['2xl'] },
+    compactSuccessContainer: { flexDirection: 'row', paddingVertical: spacing.md, gap: spacing['3xl'] },
     successCopy: { width: '100%', maxWidth: 420, gap: spacing.md, alignItems: 'center' },
     compactSuccessCopy: { flex: 1 },
     successActions: { width: '100%', maxWidth: 420, gap: spacing.md },

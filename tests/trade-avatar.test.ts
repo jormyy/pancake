@@ -9,7 +9,6 @@ import { rosterPlayer } from './helpers/fixtures'
 vi.mock('@/components/trades/PendingTradeRosterPlan', () => ({ PendingTradeRosterPlan: () => null }))
 
 vi.mock('expo-router', () => ({ useRouter: () => ({ push: vi.fn() }) }))
-vi.mock('@/components/SectionHeader', () => ({ SectionHeader: 'SectionHeader' }))
 vi.mock('@/components/trades/MultiTeamTradeOverview', () => ({ MultiTeamTradeOverview: () => null }))
 vi.mock('@/lib/format', () => ({ playerHeadshotUrl: () => '/player-headshot', yearShort: String }))
 vi.mock('@/lib/player-context', () => ({ playerEligiblePositions: () => [], playerSeasonContextText: () => '' }))

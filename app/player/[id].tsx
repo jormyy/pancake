@@ -365,7 +365,7 @@ export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFa
 
 const styles = StyleSheet.create({
     newsItem: { paddingVertical: spacing.md, gap: spacing.xs },
-    scroll: { width: '100%', maxWidth: layout.contentMaxWidth, alignSelf: 'center', paddingTop: spacing.sm, paddingBottom: spacing['2xl'], gap: spacing.md },
+    scroll: { width: '100%', maxWidth: layout.contentMaxWidth, alignSelf: 'center', paddingTop: spacing.sm, paddingBottom: spacing['3xl'], gap: spacing.md },
     body: { gap: spacing.md },
     initialSlot: { flex: 1, minHeight: 0 },
     columns: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing['3xl'] },

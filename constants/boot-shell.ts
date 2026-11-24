@@ -88,7 +88,7 @@ ${themeVariablesCss()}
   display:flex;flex-direction:column;
   background-color:${brand.surface};background-image:${webBackgrounds.sidebar};
   border-right:1px solid ${brand.divider};padding-bottom:${spacing.lg}px;}
-.pbs-side-scroll{flex:1;min-height:0;overflow-y:auto;padding:${spacing['2xl']}px ${spacing.xl}px 0;
+.pbs-side-scroll{flex:1;min-height:0;overflow-y:auto;padding:${spacing['3xl']}px ${spacing.xl}px 0;
   display:flex;flex-direction:column;gap:${spacing.md}px;}
 .pbs-brand{display:flex;align-items:center;gap:${spacing.lg}px;padding:${spacing.sm}px ${spacing.md}px ${spacing.xl}px;}
 .pbs-brand img{width:${controlSize.minTouch}px;height:${controlSize.minTouch}px;object-fit:contain;}

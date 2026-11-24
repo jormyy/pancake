@@ -51,6 +51,7 @@ vi.mock('@/components/PosTag', () => ({ PosTag: 'PosTag' }))
 vi.mock('@/components/ui/ErrorBanner', () => ({ ErrorBanner: 'ErrorBanner' }))
 vi.mock('@/components/ui/LoadingState', () => ({ LoadingState: 'LoadingState' }))
 vi.mock('@/components/ui/Button', () => ({ Button: 'Button' }))
+vi.mock('@/components/ui/Sheet', () => ({ Sheet: 'Sheet' }))
 vi.mock('@/components/ui', () => ({ LoadingState: 'LoadingState', usePageMetrics: () => ({ padX: 16 }) }))
 vi.mock('@/components/league/draft-room/AuctionDraftSidePanel', () => ({ AuctionDraftSidePanel: 'AuctionDraftSidePanel' }))
 vi.mock('@/components/league/draft-room/AuctionIdlePanel', () => ({ AuctionIdlePanel: 'AuctionIdlePanel' }))
@@ -101,18 +102,18 @@ it.each(['overflow', 'trim'] as const)('leaves the %s dialog without changing th
     if (kind === 'overflow') mocks.overflow = { newPlayerName: 'Drafted Rookie' }
     else mocks.trimOverflow = { excess: 1, dropList: [] }
     await act(async () => { screen = create(React.createElement(RookieDraftRoomScreen)) })
-    const dialog = screen.root.findAllByType('Modal' as React.ElementType).find((node) => node.props.visible)
+    const dialog = screen.root.findAllByType('Sheet' as React.ElementType).find((node) => node.props.visible)
     expect(dialog).toBeDefined()
-    const exit = dialog!.findAllByType('MotionPressable' as React.ElementType).filter((node) => node.props.accessibilityLabel === 'Back to League')
+    const exit = dialog!.findAllByType('Button' as React.ElementType).filter((node) => node.props.accessibilityLabel === 'Back to League')
     expect(exit).toHaveLength(1)
     await act(async () => exit[0].props.onPress())
     expect(mocks.dismissTo).toHaveBeenCalledWith('/league?tab=draft')
-    await act(async () => dialog!.props.onRequestClose())
+    await act(async () => dialog!.props.onClose())
     expect(mocks.dismissTo).toHaveBeenCalledTimes(2)
     expect(mocks.drop).not.toHaveBeenCalled()
     expect(mocks.trim).not.toHaveBeenCalled()
     await act(async () => { screen.update(React.createElement(RookieDraftRoomScreen)) })
-    expect(screen.root.findAllByType('Modal' as React.ElementType).filter((node) => node.props.visible)).toHaveLength(1)
+    expect(screen.root.findAllByType('Sheet' as React.ElementType).filter((node) => node.props.visible)).toHaveLength(1)
 })
 
 it.each([['rookie', RookieDraftRoomScreen], ['auction', DraftRoomScreen]] as const)('waits for the initial read, then offers a way back from a missing room: %s', async (_name, Room) => {
@@ -192,9 +193,10 @@ it.each([false, true])("titles a rookie room with the draft calendar year, mock 
 it('keeps the trim dialog open with a loading notice and no drop choices while roster settings load', async () => {
     mocks.trimAwaitingLimits = true
     await act(async () => { screen = create(React.createElement(RookieDraftRoomScreen)) })
-    const dialog = screen.root.findAllByType('Modal' as React.ElementType).find((node) => node.props.visible)
+    const dialog = screen.root.findAllByType('Sheet' as React.ElementType).find((node) => node.props.visible)
     expect(dialog).toBeDefined()
     expect(dialog!.findAll((node) => node.props.children === 'Roster settings are loading. Drop choices return once the league limit is known.')).toHaveLength(1)
     expect(dialog!.findAll((node) => node.props.children === 'Select a player to drop:')).toHaveLength(0)
-    expect(dialog!.findAllByType('MotionPressable' as React.ElementType).map((node) => node.props.accessibilityLabel)).toEqual(['Back to League'])
+    expect(dialog!.findAllByType('MotionPressable' as React.ElementType)).toHaveLength(0)
+    expect(dialog!.findAllByType('Button' as React.ElementType).map((node) => node.props.accessibilityLabel)).toEqual(['Back to League'])
 })

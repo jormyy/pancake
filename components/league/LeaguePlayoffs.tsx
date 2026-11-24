@@ -306,7 +306,7 @@ const styles = StyleSheet.create({
         borderCurve: 'continuous' as const,
         borderWidth: 1,
         borderColor: uiColors.warningBorder,
-        padding: spacing['2xl'],
+        padding: spacing['3xl'],
         alignItems: 'center',
         gap: spacing.xs,
     },

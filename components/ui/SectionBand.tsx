@@ -8,11 +8,15 @@ type Props = ComponentProps<typeof View> & {
     tone?: keyof typeof componentTokens.sectionBand.tones
     variant?: 'standard' | 'matchup' | 'action' | 'plain'
     labelStyle?: StyleProp<TextStyle>
+    decorative?: boolean
 }
 
-export function SectionBand({ label, detail, tone = 'default', variant = 'standard', labelStyle, style, ...props }: Props) {
+export function SectionBand({ label, detail, tone = 'default', variant = 'standard', labelStyle, decorative = false, style, ...props }: Props) {
     const colors = componentTokens.sectionBand.tones[tone]
-    return <View role="heading" aria-level={2} accessibilityRole="header" accessibilityLabel={label} {...props}
+    const semantics = decorative
+        ? { role: 'presentation' as const, 'aria-hidden': true, accessibilityElementsHidden: true, importantForAccessibility: 'no-hide-descendants' as const }
+        : { role: 'heading' as const, 'aria-level': 2, accessibilityRole: 'header' as const, accessibilityLabel: label }
+    return <View {...semantics} {...props}
         style={[styles.band, { backgroundColor: colors.backgroundColor }, variant === 'matchup' && styles.matchup, variant === 'action' && [styles.matchup, styles.action], variant === 'plain' && styles.plain, style]}>
         <Text style={[styles.label, { color: colors.color }, labelStyle]}>{label}</Text>
         {detail != null ? <View style={styles.detail}>{detail}</View> : null}

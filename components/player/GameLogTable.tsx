@@ -218,7 +218,7 @@ const styles = StyleSheet.create({
         alignSelf: 'center',
         minHeight: table.rowHeightCompact,
         minWidth: controlSize.minTouch * 2 + spacing['4xl'],
-        paddingHorizontal: spacing['2xl'],
+        paddingHorizontal: spacing['3xl'],
         borderRadius: radii.lg,
         borderCurve: 'continuous' as const,
         backgroundColor: colors.bgMuted,

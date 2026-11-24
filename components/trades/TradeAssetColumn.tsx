@@ -278,7 +278,7 @@ const styles = StyleSheet.create({
         borderBottomWidth: 1,
         borderBottomColor: colors.separator,
     },
-    playerAction: { width: controlSize.minTouch + spacing['2xl'], flexShrink: 0, minWidth: controlSize.minTouch, minHeight: controlSize.minTouch, paddingHorizontal: spacing.sm, alignItems: 'center', justifyContent: 'center', borderRadius: radii.md, borderWidth: 1, borderColor: colors.primaryBorder },
+    playerAction: { width: controlSize.minTouch + spacing['3xl'], flexShrink: 0, minWidth: controlSize.minTouch, minHeight: controlSize.minTouch, paddingHorizontal: spacing.sm, alignItems: 'center', justifyContent: 'center', borderRadius: radii.md, borderWidth: 1, borderColor: colors.primaryBorder },
     playerActionDisabled: { opacity: 0.5 },
     playerActionText: { ...typeScale.small, fontWeight: fontWeight.semibold, color: colors.primaryDark },
     playerRowSelected: { backgroundColor: colors.primaryLight },

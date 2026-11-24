@@ -163,7 +163,7 @@ const styles = StyleSheet.create({
     bidLeader: { ...typeScale.small, color: colors.textMuted },
     bidLeaderLeading: { color: colors.successDark, fontWeight: fontWeight.bold, backgroundColor: colors.successLight,
         paddingHorizontal: spacing.md, paddingVertical: spacing.xxs, borderRadius: radii.full, overflow: 'hidden', alignSelf: 'flex-start' },
-    countdown: { width: controlSize.button.lg.height + spacing['2xl'], height: controlSize.button.lg.height + spacing.md,
+    countdown: { width: controlSize.button.lg.height + spacing['3xl'], height: controlSize.button.lg.height + spacing.md,
         flexShrink: 0, paddingHorizontal: spacing.sm, borderRadius: radii.full, borderCurve: 'continuous', backgroundColor: colors.bgMuted,
         borderWidth: 2, borderColor: colors.bgMuted,
         justifyContent: 'center', alignItems: 'center' },

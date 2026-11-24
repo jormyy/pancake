@@ -7,11 +7,11 @@ import { ScreenStatusScrollView as ScrollView } from '@/components/ui/ScreenStat
 import { View, Text, StyleSheet } from 'react-native'
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { LeaguePickItem } from '@/lib/rookieDraft'
+import { SectionBand } from '@/components/ui/SectionBand'
 import { colors, fontWeight, layout, spacing, srOnly, table, textStyles, typeScale } from '@/constants/tokens'
 import { countLabel } from '@/lib/format'
 import { ItemSeparator } from '@/components/ItemSeparator'
 import { EmptyState } from '@/components/EmptyState'
-import { SectionHeader } from '@/components/SectionHeader'
 import { SegmentedControl, type SegmentOption } from '@/components/ui/SegmentedControl'
 import { tableStyles } from '@/components/league/leagueTableStyles'
 import { useWebViewport } from '@/hooks/use-web-viewport'
@@ -57,7 +57,7 @@ type PicksBankItem =
     | { type: 'pick'; pick: LeaguePickItem; id: string }
 
 function PicksBankYearHeader({ year }: { year: number }) {
-    return <SectionHeader label={String(year)} decorative />
+    return <SectionBand label={String(year)} decorative />
 }
 
 function pickRowLabel(pick: LeaguePickItem, isMine: boolean) {

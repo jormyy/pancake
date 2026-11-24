@@ -40,7 +40,7 @@ export const styles = StyleSheet.create({
     },
     sidebarScrollContent: {
         paddingHorizontal: spacing.xl,
-        paddingTop: spacing['2xl'],
+        paddingTop: spacing['3xl'],
         gap: spacing.md,
     },
     brandRow: {
