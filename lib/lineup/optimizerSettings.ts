@@ -16,15 +16,3 @@ export async function setLineupOptimizerEnabled(
         if (error) throw error
     })
 }
-
-/** Whether the team's lineup is kept updated automatically; on unless the team turned it off. */
-export async function getLineupOptimizerEnabled(memberId: string, seasonId: string): Promise<boolean> {
-    const { data, error } = await supabase
-        .from('lineup_optimizer_settings')
-        .select('enabled')
-        .eq('member_id', memberId)
-        .eq('league_season_id', seasonId)
-        .maybeSingle()
-    if (error) throw error
-    return data?.enabled ?? true
-}
