@@ -6,6 +6,8 @@ import TimelineRoute from '@/app/(modals)/timeline'
 const state = vi.hoisted(() => ({ failed: false, loads: 0 }))
 vi.mock('react-native', () => ({ Text: 'Text', View: 'View', Platform: { OS: 'web' }, StyleSheet: { create: (value: unknown) => value } }))
 vi.mock('@/components/ui/Button', () => ({ Button: 'Button' }))
+vi.mock('@/components/ui/ModalScreen', () => ({ ModalScreen: 'ModalScreen' }))
+vi.mock('@/components/ui/useGoBack', () => ({ useGoBack: () => vi.fn() }))
 vi.mock('react', async importOriginal => {
     const react = await importOriginal<typeof import('react')>()
     return { ...react, lazy: (load: Parameters<typeof react.lazy>[0]) => react.lazy(async () => {
@@ -23,6 +25,7 @@ it('renders the loaded timeline screen', async () => {
     state.failed = false
     await act(async () => { screen = create(React.createElement(TimelineRoute)) })
     expect(screen.root.findByType('TimelineScreen' as React.ElementType).props.children).toBe('Season events')
+    expect(screen.root.findByType('ModalScreen' as React.ElementType).props.title).toBe('Timeline')
 })
 
 it('shows a retry after a failed import and loads the screen on retry', async () => {
@@ -31,6 +34,7 @@ it('shows a retry after a failed import and loads the screen on retry', async ()
     state.loads = 0
     await act(async () => { screen = create(React.createElement(TimelineRoute)) })
     expect(screen.root.findByProps({ accessibilityRole: 'alert' }).props.children).toContain('could not load')
+    expect(screen.root.findAllByType('ModalScreen' as React.ElementType)).toHaveLength(1)
     state.failed = false
     await act(async () => screen.root.findByProps({ title: 'Retry timeline' }).props.onPress())
     expect(screen.root.findByType('TimelineScreen' as React.ElementType).props.children).toBe('Season events')
