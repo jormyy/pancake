@@ -29,7 +29,7 @@ Preconditions:
 - Require the active league and current matchup. History requires a completed Pancake season with final standings and statistics.
 
 - **Standings.** Select League and snapshot `League sections`. Select Standings and require all seeded teams. Select the opponent and compare its roster.
-- **Schedule.** Select Schedule. Open the current week’s matchup and require both teams, date range, scores, and day controls.
+- **Schedule.** Select Schedule. Require the current week in view with a Now badge, and outcome plus both scores in fixed right-aligned columns with whole numbers. Open the current week’s matchup and require both teams, date range, scores, and day controls.
 - **Past scores.** Select Schedule, then a completed week. Scroll to Other matchups and swipe through every team. Compare totals with stored matchups. Open another team's card. Return to Schedule and repeat with a different completed week.
 - **Activity.** Select Activity. Read the visible events and exercise Load more when present. Compare their order and contents with stored transactions.
 - **Settings.** Select Settings. Require rules, invite code, and waiver order. Open commissioner controls as the owner, change one reversible setting, save, reopen, and compare stored league settings.
