@@ -9,7 +9,7 @@ import { useRouter } from 'expo-router'
 import type { DynastyTradeAnalysis } from '@pancake/core'
 import { MultiTeamTradeBuilder } from '@/components/trades/MultiTeamTradeBuilder'
 import { TradeAnalysisSummary } from '@/components/trades/TradeAnalysisSummary'
-import { borderWidth, colors, componentTokens, controlSize, fontSize, fontWeight, foundation, layout, radii, spacing, textStyles } from '@/constants/tokens'
+import { borderWidth, colors, componentTokens, controlSize, fontWeight, foundation, layout, radii, spacing, textStyles, typeScale } from '@/constants/tokens'
 import { usePageMetrics } from '@/components/ui/Page'
 import { Button } from '@/components/ui/Button'
 import { useLeagueContext } from '@/contexts/league-context'
@@ -359,7 +359,7 @@ const styles = StyleSheet.create({
     analysisActions: { flexDirection: 'row', justifyContent: 'space-between', padding: spacing.lg, gap: spacing.md },
     intro: { paddingHorizontal: spacing.lg, gap: spacing.xs },
     copy: { ...textStyles.body },
-    offline: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.warningDark },
+    offline: { ...typeScale.small, fontWeight: fontWeight.bold, color: colors.warningDark },
     modeRow: { flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.xl, paddingTop: spacing.lg },
     modeButton: { minHeight: controlSize.minTouch, minWidth: componentTokens.tradeAnalyzer.teamTabWidth, paddingHorizontal: spacing.lg, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bgMuted, borderRadius: radii.md, borderWidth: borderWidth.thin, borderColor: colors.borderLight },
     modeButtonActive: { backgroundColor: colors.primary, borderColor: colors.primary },
@@ -368,12 +368,12 @@ const styles = StyleSheet.create({
     teamChip: { minHeight: foundation.minTouch, flexShrink: 0, justifyContent: 'center', paddingHorizontal: spacing.lg, backgroundColor: colors.bgMuted, borderRadius: radii.full },
     emptyPrompt: { ...textStyles.meta, padding: spacing.lg },
     teamChipActive: { backgroundColor: colors.primary },
-    teamChipText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.textSecondary },
+    teamChipText: { ...typeScale.small, fontWeight: fontWeight.bold, color: colors.textSecondary },
     teamChipTextActive: { color: colors.textWhite },
     makeOffer: { minHeight: foundation.minTouch, paddingHorizontal: spacing.lg, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary, borderRadius: radii.md },
-    makeOfferText: { color: colors.textWhite, fontSize: fontSize.md, fontWeight: fontWeight.bold },
+    makeOfferText: { ...typeScale.row, color: colors.textWhite, fontWeight: fontWeight.bold },
     disabled: { opacity: 0.45 },
     offerHelp: { ...textStyles.meta, textAlign: 'center' },
     cancel: { minHeight: controlSize.button.md.height, minWidth: componentTokens.tradeAnalyzer.teamTabWidth, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bgMuted, borderRadius: radii.md },
-    cancelText: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textSecondary },
+    cancelText: { ...typeScale.row, fontWeight: fontWeight.semibold, color: colors.textSecondary },
 })

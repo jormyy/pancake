@@ -11,7 +11,7 @@ import {
 import { AuthBrandMark } from '@/components/auth/AuthBrandMark'
 import { authWebAttributes } from '@/components/auth/authScaffoldCss'
 import { AuthHero, type AuthHeroContent } from '@/components/auth/AuthHero'
-import { breakpoints, colors, layout, radii, shadows, spacing, textStyles, webBackgrounds, type WebOnlyViewStyle } from '@/constants/tokens'
+import { breakpoints, colors, layout, radii, shadows, spacing, textStyles, type WebOnlyViewStyle } from '@/constants/tokens'
 
 type AuthScaffoldProps = {
     title: string
@@ -32,7 +32,7 @@ export function AuthScaffold({
 
     return (
         <KeyboardAvoidingView
-            style={[styles.container, Platform.OS === 'web' && styles.containerWeb]}
+            style={styles.container}
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
             <View style={styles.shell} {...authWebAttributes('authShell')}>
@@ -74,9 +74,6 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: colors.bgScreen,
     },
-    containerWeb: {
-        backgroundImage: webBackgrounds.authScreen,
-    } as WebOnlyViewStyle,
     shell: { flex: 1 },
     // Stretch so the scroll area spans the panel; the scroll content centers the card.
     formPanel: {

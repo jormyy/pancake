@@ -12,7 +12,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { View, Text, StyleSheet } from 'react-native'
 
 
-import { colors, componentTokens, controlSize, fontSize, fontWeight, radii, spacing, textStyles, uiColors } from '@/constants/tokens'
+import { colors, componentTokens, controlSize, fontWeight, radii, spacing, textStyles, uiColors, typeScale } from '@/constants/tokens'
 import { yearShort } from '@/lib/format'
 import { getEligiblePositions } from '@/lib/players'
 import { playerSeasonContextText } from '@/lib/player-context'
@@ -250,7 +250,7 @@ const styles = StyleSheet.create({
     flex1: { flex: 1, minWidth: 0 },
     columnTitle: { ...textStyles.sectionLabel, color: colors.textPrimary },
     columnTitleReceive: { color: colors.primaryDark },
-    columnSubtitle: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: spacing.xxs, fontWeight: fontWeight.semibold },
+    columnSubtitle: { ...typeScale.caption, color: colors.textMuted, marginTop: spacing.xxs, fontWeight: fontWeight.semibold },
     columnCount: {
         minWidth: 22,
         height: 22,
@@ -261,7 +261,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     columnCountReceive: { backgroundColor: colors.primary },
-    columnCountText: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.onAccent },
+    columnCountText: { ...typeScale.caption, fontWeight: fontWeight.bold, color: colors.onAccent },
     subSectionLabel: {
         ...textStyles.sectionLabel,
         paddingHorizontal: spacing.xl,
@@ -278,9 +278,9 @@ const styles = StyleSheet.create({
         borderBottomWidth: 1,
         borderBottomColor: colors.separator,
     },
-    playerAction: { width: controlSize.minTouch + spacing['2xl'], flexShrink: 0, minWidth: controlSize.minTouch, minHeight: controlSize.minTouch, paddingHorizontal: spacing.sm, alignItems: 'center', justifyContent: 'center', borderRadius: radii.md, borderWidth: 1, borderColor: colors.primaryBorder },
+    playerAction: { width: controlSize.minTouch + spacing['3xl'], flexShrink: 0, minWidth: controlSize.minTouch, minHeight: controlSize.minTouch, paddingHorizontal: spacing.sm, alignItems: 'center', justifyContent: 'center', borderRadius: radii.md, borderWidth: 1, borderColor: colors.primaryBorder },
     playerActionDisabled: { opacity: 0.5 },
-    playerActionText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.primaryDark },
+    playerActionText: { ...typeScale.small, fontWeight: fontWeight.semibold, color: colors.primaryDark },
     playerRowSelected: { backgroundColor: colors.primaryLight },
     pickCircle: {
         width: controlSize.avatar.md,
@@ -292,14 +292,14 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     pickCircleSelected: { backgroundColor: colors.primary },
-    pickCircleText: { color: colors.onAccent, fontWeight: fontWeight.bold, fontSize: fontSize['2sm'] },
+    pickCircleText: { ...typeScale.small, color: colors.onAccent, fontWeight: fontWeight.bold },
     playerInfo: { flex: 1, minWidth: 0, gap: spacing.xxs },
     playerName: { ...textStyles.rowTitle },
     playerNameSelected: { color: colors.primaryDark },
     playerMetaRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.xs },
     playerMeta: { ...textStyles.meta },
-    playerContext: { fontSize: fontSize.xs, color: colors.primaryDark, fontWeight: fontWeight.semibold },
-    routeMeta: { fontSize: fontSize.xs, color: colors.textSecondary, fontWeight: fontWeight.semibold },
+    playerContext: { ...typeScale.caption, color: colors.primaryDark, fontWeight: fontWeight.semibold },
+    routeMeta: { ...typeScale.caption, color: colors.textSecondary, fontWeight: fontWeight.semibold },
     removeBadge: {
         width: 24,
         height: 24,
@@ -310,9 +310,9 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     emptyRowText: {
+        ...typeScale.body,
         paddingHorizontal: spacing.xl,
         paddingVertical: spacing.lg,
         color: colors.textPlaceholder,
-        fontSize: fontSize.md,
     },
 })

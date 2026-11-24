@@ -2,7 +2,7 @@ import { Platform, StyleSheet, Text, View } from 'react-native'
 import { AuthBrandMark } from '@/components/auth/AuthBrandMark'
 import { authWebAttributes } from '@/components/auth/authScaffoldCss'
 import { MotionView } from '@/components/Motion'
-import { brand, fontFamily, fontSize, fontWeight, radii, spacing, webBackgrounds, type WebOnlyViewStyle, lineHeight } from '@/constants/tokens'
+import { brand, fontFamily, fontWeight, radii, spacing, webBackgrounds, type WebOnlyViewStyle, typeScale } from '@/constants/tokens'
 
 export type AuthHeroContent = {
     title: string
@@ -60,17 +60,15 @@ const styles = StyleSheet.create({
         maxWidth: 640,
     },
     title: {
+        ...typeScale.hero,
         color: brand.on,
-        fontSize: fontSize['5xl'],
-        lineHeight: lineHeight.display,
         fontFamily: fontFamily.display,
         fontWeight: fontWeight.black,
     },
     copy: {
+        ...typeScale.title,
         marginTop: spacing.lg,
         color: brand.onMuted,
-        fontSize: fontSize.lg,
-        lineHeight: lineHeight.title,
         maxWidth: 560,
     },
     proofGrid: {
@@ -90,9 +88,8 @@ const styles = StyleSheet.create({
         backgroundColor: brand.overlay,
     },
     proofText: {
+        ...typeScale.row,
         color: brand.onStrong,
-        fontSize: fontSize.md,
-        lineHeight: lineHeight.control,
         fontWeight: fontWeight.semibold,
     },
 })

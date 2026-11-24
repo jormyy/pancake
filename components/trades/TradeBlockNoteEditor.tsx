@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useUnsentFormUpdate } from '@/hooks/use-unsent-form-update'
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
 import { Button } from '@/components/ui/Button'
-import { colors, fontSize, foundation, radii, spacing, textStyles } from '@/constants/tokens'
+import { colors, foundation, radii, spacing, textStyles, typeScale } from '@/constants/tokens'
 import type { TradeBlockItem } from '@/lib/trades'
 
 export function TradeBlockNoteEditor({ item, label, disabled, onSave }: {
@@ -36,6 +36,6 @@ export function TradeBlockNoteEditor({ item, label, disabled, onSave }: {
 const styles = StyleSheet.create({
     edit: { minHeight: foundation.minTouch, justifyContent: 'center' },
     editor: { width: '100%', minWidth: 0, gap: spacing.sm, paddingVertical: spacing.sm },
-    input: { ...textStyles.body, fontSize: fontSize.lg, width: '100%', minWidth: 0, backgroundColor: colors.bgInput, borderRadius: radii.md, padding: spacing.md, minHeight: foundation.minTouch },
+    input: { ...textStyles.body, ...typeScale.title, width: '100%', minWidth: 0, backgroundColor: colors.bgInput, borderRadius: radii.md, padding: spacing.md, minHeight: foundation.minTouch },
     actions: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', gap: spacing.sm },
 })

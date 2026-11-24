@@ -7,7 +7,7 @@ import { Card } from '@/components/ui/Card'
 import { ListHeader } from '@/components/ui/ListHeader'
 import { usePageMetrics } from '@/components/ui'
 import { ScreenStatusScrollView } from '@/components/ui/ScreenStatusOverlay'
-import { colors, layout, spacing, textStyles } from '@/constants/tokens'
+import { colors, layout, spacing, textStyles, table } from '@/constants/tokens'
 import type { HistoryStanding, SeasonHistory } from '@/lib/league-history'
 
 function seasonLabel(year: number) {
@@ -131,7 +131,7 @@ const styles = StyleSheet.create({
     champion: { backgroundColor: colors.primaryLight },
     rank: { width: 20, textAlign: 'center' },
     team: { flex: 1, minWidth: 0, gap: spacing.xs },
-    record: { width: 44, textAlign: 'right' },
+    record: { width: table.statColWidth, textAlign: 'right' },
     points: { width: 52, textAlign: 'right' },
     seasonRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
     seasonCopy: { flex: 1, minWidth: 0, gap: spacing.sm },

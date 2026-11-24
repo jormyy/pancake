@@ -4,7 +4,7 @@ import { useMemo } from 'react'
 import { ScrollView, StyleSheet, Text, View } from 'react-native'
 
 import { Button } from '@/components/ui/Button'
-import { colors, fontSize, fontWeight, spacing, table, textStyles, tints, uiColors } from '@/constants/tokens'
+import { colors, fontWeight, spacing, table, textStyles, tints, uiColors, typeScale } from '@/constants/tokens'
 
 import { isIREligible, type RosterPlayer } from '@/lib/roster'
 import { rosterLocation } from '@/lib/roster-capacity'
@@ -99,7 +99,7 @@ const styles = StyleSheet.create({
         paddingVertical: spacing.xs,
     },
     identity: { flex: 1, minWidth: 0 },
-    name: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.textPrimary },
-    meta: { fontSize: fontSize.xs, color: colors.textMuted },
+    name: { ...typeScale.small, fontWeight: fontWeight.bold, color: colors.textPrimary },
+    meta: { ...typeScale.caption, color: colors.textMuted },
     actions: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', gap: spacing.xs },
 })

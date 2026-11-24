@@ -1,6 +1,6 @@
 import { View, Text, Pressable, StyleSheet, useWindowDimensions } from 'react-native'
 import type { Draft } from '@/lib/draft'
-import { controlSize, colors, fontSize, fontWeight, radii, spacing, lineHeight } from '@/constants/tokens'
+import { controlSize, colors, fontWeight, radii, spacing, typeScale } from '@/constants/tokens'
 import { panelStyles } from '@/components/league/draftPanelStyles'
 
 const OPEN_DRAFT_STATUSES = new Set(['pending', 'in_progress', 'paused'])
@@ -138,7 +138,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
-    errorNoticeText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.dangerDark },
+    errorNoticeText: { ...typeScale.small, fontWeight: fontWeight.semibold, color: colors.dangerDark },
     activeDraftCompactRow: {
         flexDirection: 'row',
         alignItems: 'stretch',
@@ -150,16 +150,15 @@ const styles = StyleSheet.create({
         gap: spacing.none,
     },
     activeDraftCompactTitle: {
+        ...typeScale.small,
         alignSelf: 'center',
         minWidth: 70,
         maxWidth: 96,
-        fontSize: fontSize.sm,
-        lineHeight: lineHeight.body,
     },
     activeDraftCompactButton: {
         flex: 1,
         minWidth: 0,
     },
     syncWrap: { gap: spacing.xs, marginTop: spacing.md },
-    syncHint: { fontSize: fontSize['2sm'], color: colors.textMuted, paddingHorizontal: spacing.xs },
+    syncHint: { ...typeScale.small, color: colors.textMuted, paddingHorizontal: spacing.xs },
 })

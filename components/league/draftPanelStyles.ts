@@ -1,5 +1,5 @@
 import { StyleSheet } from 'react-native'
-import { controlSize, colors, fontSize, fontWeight, layout, radii, spacing, textStyles } from '@/constants/tokens'
+import { controlSize, colors, fontWeight, layout, radii, spacing, textStyles, typeScale } from '@/constants/tokens'
 
 export const panelStyles = StyleSheet.create({
     draftButton: {
@@ -11,7 +11,7 @@ export const panelStyles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
-    draftButtonText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.md },
+    draftButtonText: { ...typeScale.row, color: colors.textWhite, fontWeight: fontWeight.bold },
     secondaryDraftButton: {
         backgroundColor: colors.bgSubtle,
         borderRadius: radii.lg,
@@ -23,7 +23,7 @@ export const panelStyles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
-    secondaryDraftButtonText: { color: colors.textSecondary, fontWeight: fontWeight.bold, fontSize: fontSize.md },
+    secondaryDraftButtonText: { ...typeScale.row, color: colors.textSecondary, fontWeight: fontWeight.bold },
     // Left-aligned readable column under the page tabs. Panels add the page's
     // side padding from usePageMetrics().
     panelScroll: {
@@ -49,7 +49,7 @@ export const panelStyles = StyleSheet.create({
         gap: spacing.sm,
     },
     panelTitle: {
-        fontSize: fontSize.lg,
+        ...typeScale.title,
         fontWeight: fontWeight.bold,
         color: colors.textPrimary,
     },

@@ -19,7 +19,6 @@ import {
     Pressable,
     StyleSheet,
     TextInput,
-    Switch,
     ScrollView,
     Platform,
     useWindowDimensions,
@@ -42,8 +41,9 @@ import { blockedActionProps } from '@/lib/a11y'
 import { useAddLimitGate } from '@/hooks/use-add-limit-gate'
 import { useRosterHoldCheck } from '@/hooks/use-roster-hold-check'
 import { RosterHoldWarning } from '@/components/roster/RosterHoldWarning'
-import { colors, controlSize, fontFamily, fontSize, fontWeight, layout, radii, spacing, table, textStyles, uiColors } from '@/constants/tokens'
+import { colors, controlSize, fontFamily, fontWeight, layout, radii, spacing, table, textStyles, uiColors, typeScale } from '@/constants/tokens'
 import { LoadingState, PageHeader, usePageMetrics } from '@/components/ui'
+import { SwitchRow } from '@/components/ui/SwitchRow'
 import { Card } from '@/components/ui/Card'
 import { SectionBand } from '@/components/ui/SectionBand'
 import { showAlert, showSuccess } from '@/lib/alert'
@@ -395,22 +395,21 @@ export default function ClaimPlayerScreen() {
     function renderIRChoice() {
         return <>
         {irEligible ? (
-            <View style={styles.irChoice}>
+            <SwitchRow accessibilityLabel="Place on IR" value={toIr} disabled={submitting}
+                onValueChange={value => { setIRChoice({ owner: ownerKey, value }); if (value) { setTaxiChoice({ owner: ownerKey, value: false }); if (selectedDrop && rosterLocation(selectedDrop) === 'active') setSelectedDrop(null) } }}>
                 <View style={styles.claimPlayerCopy}>
                     <Text style={styles.bidLabel}>Place on IR</Text>
                     <Text style={styles.claimMeta}>{inactiveDrop ? 'The claim fails if IR becomes unavailable or the pickup loses eligibility.' : 'Needs active roster space if IR becomes unavailable.'}</Text>
                 </View>
-                <Switch value={toIr} onValueChange={value => { setIRChoice({ owner: ownerKey, value }); if (value) { setTaxiChoice({ owner: ownerKey, value: false }); if (selectedDrop && rosterLocation(selectedDrop) === 'active') setSelectedDrop(null) } }}
-                    accessibilityLabel="Place on IR" disabled={submitting} />
-            </View>
+            </SwitchRow>
         ) : null}
-        {taxiEligible ? <View style={styles.irChoice}>
+        {taxiEligible ? <SwitchRow accessibilityLabel="Place on taxi" value={toTaxi} disabled={submitting}
+            onValueChange={value => { setTaxiChoice({ owner: ownerKey, value }); if (value) { setIRChoice({ owner: ownerKey, value: false }); if (selectedDrop && rosterLocation(selectedDrop) === 'active') setSelectedDrop(null) } }}>
             <View style={styles.claimPlayerCopy}>
                 <Text style={styles.bidLabel}>Place on taxi</Text>
                 <Text style={styles.claimMeta}>{inactiveDrop ? 'The claim fails if Taxi becomes unavailable or the pickup loses eligibility.' : 'Needs active roster space if taxi becomes unavailable.'}</Text>
             </View>
-            <Switch value={toTaxi} onValueChange={value => { setTaxiChoice({ owner: ownerKey, value }); if (value) { setIRChoice({ owner: ownerKey, value: false }); if (selectedDrop && rosterLocation(selectedDrop) === 'active') setSelectedDrop(null) } }} accessibilityLabel="Place on taxi" disabled={submitting} />
-        </View> : null}
+        </SwitchRow> : null}
         </>
     }
 
@@ -547,12 +546,12 @@ export default function ClaimPlayerScreen() {
                 <View style={{ flex: 1 }} aria-busy={loading} accessibilityState={{ busy: loading }}>
                 {renderScreenHeader()}
                 {loadError ? (
-                    <Pressable onPress={() => setLoadAttempt(value => value + 1)} accessibilityRole="button" accessibilityLabel="Retry waiver claim load" style={{ padding: spacing.lg }}>
+                    <Pressable onPress={() => setLoadAttempt(value => value + 1)} accessibilityRole="button" accessibilityLabel="Retry waiver claim load" style={styles.loadRetry}>
                         <Text accessibilityRole="alert" style={{ color: colors.danger }}>{loadError} Tap to retry.</Text>
                     </Pressable>
                 ) : null}
                 {balanceUnknown && !loading ? (
-                    <Pressable onPress={refreshTransactionState} accessibilityRole="button" accessibilityLabel="Retry FAAB balance" style={{ padding: spacing.lg }}>
+                    <Pressable onPress={refreshTransactionState} accessibilityRole="button" accessibilityLabel="Retry FAAB balance" style={styles.loadRetry}>
                         <Text accessibilityRole="alert" style={{ color: colors.danger }}>Could not load your FAAB balance. Tap to retry.</Text>
                     </Pressable>
                 ) : null}
@@ -612,6 +611,7 @@ const NARROW_HEADER = 360
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgScreen },
+    loadRetry: { minHeight: controlSize.minTouch, justifyContent: 'center', padding: spacing.lg },
     bodyScroll: { flex: 1 },
     bodyContent: {
         width: '100%',
@@ -642,7 +642,7 @@ const styles = StyleSheet.create({
         gap: spacing.xs,
     },
     limitBody: { ...textStyles.body },
-    limitMeta: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: uiColors.brandText },
+    limitMeta: { ...typeScale.caption, fontWeight: fontWeight.bold, color: uiColors.brandText },
 
     claimCard: { gap: spacing.lg },
     claimPlayerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
@@ -650,7 +650,6 @@ const styles = StyleSheet.create({
     claimName: { ...textStyles.rowTitle },
     claimMeta: { ...textStyles.meta },
     claimFacts: { ...textStyles.meta, color: colors.textSecondary },
-    irChoice: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
     bidRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
     bidLabel: { ...textStyles.rowTitle, flex: 1 },
     bidField: {
@@ -664,7 +663,7 @@ const styles = StyleSheet.create({
         borderColor: colors.border,
         backgroundColor: colors.bgInput,
     },
-    bidCurrency: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: colors.textMuted },
+    bidCurrency: { ...typeScale.title, fontWeight: fontWeight.bold, color: colors.textMuted },
     bidInput: { width: 64, minHeight: controlSize.field.md, fontSize: controlSize.field.fontSize, fontWeight: fontWeight.bold, color: colors.textPrimary, textAlign: 'right' },
     bidBalance: { ...textStyles.meta },
 
@@ -705,7 +704,7 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: uiColors.successBorder,
     },
-    spaceNoteText: { fontSize: fontSize.md, color: uiColors.successText, fontWeight: fontWeight.semibold, textAlign: 'center' },
+    spaceNoteText: { ...typeScale.row, color: uiColors.successText, fontWeight: fontWeight.semibold, textAlign: 'center' },
 
     footer: {
         paddingTop: spacing.md,
@@ -739,7 +738,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     submitButtonDisabled: { opacity: 0.55 },
-    submitButtonText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.md },
+    submitButtonText: { ...typeScale.row, color: colors.textWhite, fontWeight: fontWeight.bold },
 
     blockCard: {
         padding: spacing.xl,
@@ -751,7 +750,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         gap: spacing.md,
     },
-    blockTitle: { fontFamily: fontFamily.display, fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: colors.textPrimary, textAlign: 'center' },
+    blockTitle: { ...typeScale.heading, fontFamily: fontFamily.display, fontWeight: fontWeight.bold, color: colors.textPrimary, textAlign: 'center' },
     blockSub: { ...textStyles.body, textAlign: 'center' },
     blockPlayerRow: {
         alignSelf: 'stretch',
@@ -763,7 +762,7 @@ const styles = StyleSheet.create({
         borderTopColor: colors.separator,
     },
     blockPlayerName: { ...textStyles.rowTitle, flex: 1, minWidth: 0 },
-    blockPlayerStatus: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.dangerDark },
+    blockPlayerStatus: { ...typeScale.small, fontWeight: fontWeight.bold, color: colors.dangerDark },
     blockButton: {
         height: controlSize.button.lg.height,
         backgroundColor: colors.primary,
@@ -772,5 +771,5 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
-    blockButtonText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.lg },
+    blockButtonText: { ...typeScale.title, color: colors.textWhite, fontWeight: fontWeight.bold },
 })

@@ -6,7 +6,7 @@ import { FlashList } from '@shopify/flash-list'
 
 import { MotionView } from '@/components/Motion'
 import { SegmentedControl } from '@/components/ui'
-import { colors, fontSize, fontWeight, radii, spacing, table, textStyles } from '@/constants/tokens'
+import { colors, fontWeight, radii, spacing, table, textStyles, typeScale } from '@/constants/tokens'
 import { draftEventTime, draftPlayerMeta } from '@/lib/draft-display'
 
 import type { DraftBudget, DraftNomination } from '@/lib/draft'
@@ -131,15 +131,15 @@ const styles = StyleSheet.create({
     budgetRow: { flexDirection: 'row', alignItems: 'center', minHeight: table.rowHeightCompact, gap: spacing.md },
     divider: { borderTopWidth: 1, borderTopColor: colors.separator },
     budgetTeam: { ...textStyles.rowTitle, flex: 1 },
-    budgetAmount: { fontSize: fontSize.lg, fontWeight: fontWeight.extrabold, color: colors.textPrimary, fontVariant: ['tabular-nums'] as const },
+    budgetAmount: { ...typeScale.title, fontWeight: fontWeight.extrabold, color: colors.textPrimary, fontVariant: ['tabular-nums'] as const },
     budgetWon: { ...textStyles.meta, fontWeight: fontWeight.semibold },
     meAccent: { color: colors.primaryDark },
     historyRow: { flexDirection: 'row', alignItems: 'center', minHeight: table.rowHeight, gap: spacing.md },
     flex1: { flex: 1, minWidth: 0 },
     historyPlayer: { ...textStyles.rowTitle },
     historyMeta: { ...textStyles.meta },
-    historyPrice: { fontSize: fontSize.md, fontWeight: fontWeight.extrabold, color: colors.textPrimary, fontVariant: ['tabular-nums'] as const },
-    historyNoBid: { fontSize: fontSize['2sm'], fontWeight: fontWeight.bold, color: colors.textPlaceholder, backgroundColor: colors.bgMuted, paddingHorizontal: spacing.md, paddingVertical: spacing.xxs, borderRadius: radii.sm, borderCurve: 'continuous' },
+    historyPrice: { ...typeScale.row, fontWeight: fontWeight.extrabold, color: colors.textPrimary, fontVariant: ['tabular-nums'] as const },
+    historyNoBid: { ...typeScale.small, fontWeight: fontWeight.bold, color: colors.textPlaceholder, backgroundColor: colors.bgMuted, paddingHorizontal: spacing.md, paddingVertical: spacing.xxs, borderRadius: radii.sm, borderCurve: 'continuous' },
     empty: { alignItems: 'center', paddingVertical: spacing['3xl'] },
     emptyText: { ...textStyles.meta, color: colors.textPlaceholder },
 })

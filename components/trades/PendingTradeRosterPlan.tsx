@@ -32,7 +32,9 @@ export function PendingTradeRosterPlan({ trade, memberId, onCancel, onConfirmed 
     const preview = result?.owner === owner ? result.teams : []
     const [roster, setRoster] = useState<RosterPlayer[]>([])
     const [stats, setStats] = useState<RosterStatsMaps>()
-    const [error, setError] = useState<string | null>(null)
+    const [previewError, setPreviewError] = useState<string | null>(null)
+    const [submitError, setSubmitError] = useState<string | null>(null)
+    const error = submitError ?? previewError
     const [attempt, setAttempt] = useState(0)
     const [saving, setSaving] = useState(false)
     const serializedPlan = JSON.stringify(plan)
@@ -42,7 +44,7 @@ export function PendingTradeRosterPlan({ trade, memberId, onCancel, onConfirmed 
         if (!leagueId) return
         let cancelled = false
         void getRoster(memberId, leagueId).then(rows => { if (!cancelled) setRoster(rows) })
-            .catch(error => { if (!cancelled) setError(getErrorMessage(error)) })
+            .catch(error => { if (!cancelled) setPreviewError(getErrorMessage(error)) })
         return () => { cancelled = true }
     }, [leagueId, memberId])
     useEffect(() => {
@@ -50,11 +52,11 @@ export function PendingTradeRosterPlan({ trade, memberId, onCancel, onConfirmed 
         let cancelled = false
         const timer = setTimeout(() => {
             void previewTradeLegality({ leagueId, tradeId: trade.id, plans: { [memberId]: JSON.parse(serializedPlan) } }).then(teams => {
-                if (!cancelled) { setResult({ owner, key: requestKey, teams }); setError(null) }
-            }).catch(error => { if (!cancelled) { setError(getErrorMessage(error)) } })
+                if (!cancelled) { setResult({ owner, key: requestKey, teams }); setPreviewError(null) }
+            }).catch(error => { if (!cancelled) setPreviewError(getErrorMessage(error)) })
         }, 150)
         return () => { cancelled = true; clearTimeout(timer) }
-    }, [leagueId, memberId, serializedPlan, trade, attempt, owner, requestKey])
+    }, [leagueId, memberId, serializedPlan, trade.id, attempt, owner, requestKey])
     const incoming = useMemo(() => trade.routedItems.filter(item => item.toMemberId === memberId), [trade, memberId])
     useEffect(() => {
         if (!leagueId) return
@@ -75,7 +77,7 @@ export function PendingTradeRosterPlan({ trade, memberId, onCancel, onConfirmed 
             else await acceptTrade(trade.id, memberId, plan)
             onConfirmed()
         } catch (error) {
-            setError(getErrorMessage(error))
+            setSubmitError(getErrorMessage(error))
             const teams = await previewTradeLegality({ leagueId, tradeId: trade.id, plans: { [memberId]: plan } }).catch(() => null)
             if (teams) setResult({ owner, key: requestKey, teams })
         } finally { setSaving(false) }
@@ -83,8 +85,8 @@ export function PendingTradeRosterPlan({ trade, memberId, onCancel, onConfirmed 
     return <Modal visible={focused} animationType="slide" onRequestClose={onCancel}>
         <SafeAreaView style={styles.root}>
             <TradeLegalityScreen scrollPosition={scrollPosition} trade={trade} memberId={memberId} teams={preview} loading={loading} saving={saving}
-                error={error} onRetry={() => setAttempt(value => value + 1)} onClose={onCancel} onSubmit={confirm} mode="accept"
-                editor={{ incoming, avgMap: stats?.avgMap, avgStatsMap: stats?.avgStatsMap, roster: roster.filter(row => !offered.has(row.players.id)), value: plan, onChange: setPlan,
+                error={error} onRetry={() => { setSubmitError(null); setAttempt(value => value + 1) }} onClose={onCancel} onSubmit={confirm} mode="accept"
+                editor={{ incoming, avgMap: stats?.avgMap, avgStatsMap: stats?.avgStatsMap, roster: roster.filter(row => !offered.has(row.players.id)), value: plan, onChange: next => { setSubmitError(null); setPlan(next) },
                     allowIR: limits ? limits.irSlots > 0 : false, allowTaxi: limits ? limits.taxiSlots > 0 : false,
                     unavailableMoves: own?.unavailableMoves, unavailableDestinations: own?.unavailableDestinations }} />
         </SafeAreaView>

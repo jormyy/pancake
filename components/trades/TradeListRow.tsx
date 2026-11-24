@@ -10,7 +10,7 @@ import { useRouter } from 'expo-router'
 import { TradeCard } from '@/components/trades/TradeCard'
 import { TradeBlockNoteEditor } from '@/components/trades/TradeBlockNoteEditor'
 import type { TradeTabKey } from '@/lib/trade-ui-model'
-import { colors, componentTokens, controlSize, fontSize, table, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
+import { colors, componentTokens, controlSize, table, fontWeight, radii, spacing, textStyles, typeScale } from '@/constants/tokens'
 import { playerEligiblePositions, playerSeasonContextText } from '@/lib/player-context'
 import type { RosterPlayer } from '@/lib/roster'
 import type { Trade, TradeBlockItem, TradePickItem } from '@/lib/trades'
@@ -237,14 +237,14 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
-    pickBadgeText: { fontSize: fontSize.xs, fontWeight: fontWeight.extrabold, color: colors.textSecondary },
+    pickBadgeText: { ...typeScale.caption, fontWeight: fontWeight.extrabold, color: colors.textSecondary },
     blockInfo: { flex: 1, minWidth: 0, gap: spacing.xxs },
     blockTitle: { ...textStyles.rowTitle },
     blockMetaRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.xs },
     blockMeta: { ...textStyles.meta },
-    blockContext: { fontSize: fontSize.xs, color: colors.primaryDark, fontWeight: fontWeight.semibold },
+    blockContext: { ...typeScale.caption, color: colors.primaryDark, fontWeight: fontWeight.semibold },
     blockNote: { ...textStyles.meta, fontStyle: 'italic', color: colors.textSecondary },
     blockAction: { minWidth: controlSize.minTouch, minHeight: controlSize.minTouch, alignItems: 'center', justifyContent: 'center', borderRadius: radii.md, borderCurve: 'continuous', borderWidth: 1, borderColor: colors.primaryBorder, paddingHorizontal: spacing.md },
     blockActionDisabled: { borderColor: colors.borderLight, backgroundColor: colors.bgMuted },
-    blockActionText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.primaryDark },
+    blockActionText: { ...typeScale.small, fontWeight: fontWeight.bold, color: colors.primaryDark },
 })

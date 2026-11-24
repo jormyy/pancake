@@ -6,7 +6,7 @@ import type { TradePickItem } from '@/lib/trades'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { useMemo } from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
-import { colors, controlSize, fontSize, fontWeight, radii, spacing, uiColors } from '@/constants/tokens'
+import { colors, controlSize, fontWeight, radii, spacing, uiColors, typeScale } from '@/constants/tokens'
 
 type TradeFlowParticipant = {
     memberId: string
@@ -181,13 +181,13 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     teamInitialText: {
-        fontSize: fontSize.md,
+        ...typeScale.row,
         fontWeight: fontWeight.bold,
         color: colors.textPrimary,
     },
     teamTitleBlock: { minWidth: 0, flex: 1 },
     teamName: {
-        fontSize: fontSize.md,
+        ...typeScale.row,
         fontWeight: fontWeight.bold,
         color: colors.textPrimary,
     },
@@ -202,7 +202,7 @@ const styles = StyleSheet.create({
     },
     statusComplete: { backgroundColor: uiColors.successSurface },
     statusText: {
-        fontSize: fontSize.xs,
+        ...typeScale.caption,
         fontWeight: fontWeight.semibold,
         color: colors.textMuted,
     },
@@ -217,18 +217,18 @@ const styles = StyleSheet.create({
     },
     assetCopy: { minWidth: 0, flex: 1 },
     assetLabel: {
-        fontSize: fontSize.sm,
+        ...typeScale.small,
         fontWeight: fontWeight.semibold,
         color: colors.textPrimary,
     },
     assetSource: {
+        ...typeScale.caption,
         marginTop: spacing.xxs,
-        fontSize: fontSize.xs,
         color: colors.textMuted,
     },
     empty: {
+        ...typeScale.small,
         paddingVertical: spacing.sm,
-        fontSize: fontSize.sm,
         color: colors.textMuted,
     },
 

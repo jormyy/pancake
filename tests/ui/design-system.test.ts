@@ -1,4 +1,4 @@
-import { designSystemViolations, scanDesignSystem } from '../../scripts/check-design-system.mjs'
+import { EXCEPTIONS, designSystemViolations, scanDesignSystem } from '../../scripts/check-design-system.mjs'
 import { readFileSync } from 'node:fs'
 import { runInNewContext } from 'node:vm'
 import { ModuleKind, transpileModule } from 'typescript'
@@ -160,15 +160,25 @@ it.each([
     'const style = { paddingBottom: inset + 16 }',
     'const style = { fontSize: compact ? 12 : 16 }',
     '<Text fontSize={16} />',
+    "import { fontSize } from '@/constants/tokens'",
+    "import { lineHeight as leading } from '@/constants/tokens'",
     'const css = `padding: 12px 8px; border-radius: 4px; font-size: 16px`',
+    'const style = { minHeight: 44 }',
+    'const style = { width: wide ? 60 : 44 }',
 ])('rejects a raw design literal: %s', source => {
     expect(scanDesignSystem(source, 'components/Fixture.tsx').length).toBeGreaterThan(0)
 })
 it('accepts shared tokens, runtime sizes and structural numbers', () => {
-    expect(scanDesignSystem('const style = { padding: spacing.md, margin: spacing.lg * 2, fontSize: fontSize.lg, borderRadius: radii.md, color: colors.primary, flex: 1, opacity: 0.5, top: insets.top }')).toEqual([])
+    expect(scanDesignSystem('const style = { padding: spacing.md, margin: spacing.lg * 2, fontSize: typeScale.title.fontSize, borderRadius: radii.md, color: colors.primary, flex: 1, opacity: 0.5, top: insets.top }')).toEqual([])
     expect(scanDesignSystem('const styles = { left: { flex: 1, minWidth: 0 }, right: { flex: 1 } }')).toEqual([])
-    expect(scanDesignSystem('const style = { padding: 16 }', 'components/ui/Fixture.tsx')).toEqual([])
+    expect(scanDesignSystem('const style = { minHeight: controlSize.minTouch, width: 80, height: 40 }')).toEqual([])
+    expect(scanDesignSystem('const style = { padding: 16 }', 'components/ui/Fixture.tsx')).toHaveLength(1)
     expect(scanDesignSystem('const style = { padding: 16 }', 'constants/tokens.ts')).toEqual([])
+})
+
+it('reports an exception that no longer matches a literal', () => {
+    const exceptions = [...EXCEPTIONS, { file: 'components/Fixture.tsx', property: 'padding', value: '16', reason: 'fixture' }]
+    expect(designSystemViolations(process.cwd(), exceptions).map((item: { value: string }) => item.value)).toEqual(['16 is a stale exception'])
 })
 
 it('separates section bars from their first content row with a spacing token', async () => {

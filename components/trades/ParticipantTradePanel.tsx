@@ -3,7 +3,7 @@ import { TradePlayerLink } from '@/components/trades/TradePlayerLink'
 import { pickLabel } from '@/lib/picks'
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
 import { TradeAssetColumn } from '@/components/trades/TradeAssetColumn'
-import { colors, fontSize, fontWeight, radii, spacing, textStyles, uiColors } from '@/constants/tokens'
+import { colors, fontWeight, radii, spacing, textStyles, uiColors, typeScale, controlSize } from '@/constants/tokens'
 import { canUpdateTradeFaabInput, MAX_TRADE_FAAB_DIGITS, validateTradeFaabInput } from '@/lib/multi-team-trade-state'
 import type { TradeParticipantView } from '@/lib/trade-ui-model'
 
@@ -232,10 +232,10 @@ const styles = StyleSheet.create({
     panelColumn: { flexGrow: 1, flexShrink: 0, flexBasis: 260, minWidth: 260, maxWidth: 440 },
     panelStacked: { width: '100%' },
     routePicker: { paddingHorizontal: spacing.xl, paddingTop: spacing.lg, gap: spacing.xs },
-    routePickerLabel: { ...textStyles.sectionLabel, fontSize: fontSize['2xs'] },
+    routePickerLabel: { ...textStyles.sectionLabel, ...typeScale.micro },
     routeOptions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
     routeOption: {
-        minHeight: 44,
+        minHeight: controlSize.minTouch,
         maxWidth: 180,
         borderWidth: 1,
         borderColor: uiColors.borderNeutral,
@@ -246,25 +246,25 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     routeOptionActive: { borderColor: colors.primary, backgroundColor: colors.primary },
-    routeOptionText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textSecondary },
+    routeOptionText: { ...typeScale.small, fontWeight: fontWeight.semibold, color: colors.textSecondary },
     routeOptionTextActive: { color: colors.textWhite },
     selectedRoutes: { paddingHorizontal: spacing.xl, paddingTop: spacing.md, paddingBottom: spacing.sm, gap: spacing.sm },
     selectedRouteRow: { gap: spacing.xs },
-    selectedRouteName: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textPrimary },
+    selectedRouteName: { ...typeScale.small, fontWeight: fontWeight.semibold, color: colors.textPrimary },
     faabRow: { marginHorizontal: spacing.xl, marginBottom: spacing.lg, gap: spacing.sm },
     faabDestinationRow: { gap: spacing.xs, maxWidth: 220 },
-    termLabel: { ...textStyles.sectionLabel, fontSize: fontSize['2xs'] },
+    termLabel: { ...textStyles.sectionLabel, ...typeScale.micro },
     termInput: {
-        minHeight: 44,
+        ...typeScale.title,
+        minHeight: controlSize.minTouch,
         borderWidth: 1,
         borderColor: uiColors.borderNeutral,
         borderRadius: radii.md,
         borderCurve: 'continuous' as const,
         paddingHorizontal: spacing.md,
-        fontSize: fontSize.lg,
         fontWeight: fontWeight.bold,
         color: colors.textPrimary,
     },
     termInputInvalid: { borderColor: colors.danger },
-    faabError: { color: colors.dangerDark, fontSize: fontSize.sm, fontWeight: fontWeight.semibold },
+    faabError: { ...typeScale.small, color: colors.dangerDark, fontWeight: fontWeight.semibold },
 })

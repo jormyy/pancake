@@ -1,7 +1,7 @@
 import { Platform, StyleSheet, Text, View } from 'react-native'
 import { useLeagueContext } from '@/contexts/league-context'
 import { ErrorBanner } from '@/components/ui'
-import { colors, fontSize, layout, spacing, type WebOnlyViewStyle } from '@/constants/tokens'
+import { colors, layout, spacing, type WebOnlyViewStyle, typeScale } from '@/constants/tokens'
 
 export function LeagueAccessNotice() {
     const { memberships, membershipError, online, refresh } = useLeagueContext()
@@ -21,5 +21,5 @@ const styles = StyleSheet.create({
     overlay: { position: 'absolute', bottom: spacing.sm, left: spacing.lg, right: spacing.lg, zIndex: 1000, alignItems: 'center' },
     webOverlay: { position: 'fixed', bottom: `calc(${layout.shell.bottomBarHeight + spacing.md}px + env(safe-area-inset-bottom, ${spacing.none}px))` } as unknown as WebOnlyViewStyle,
     notice: { paddingHorizontal: spacing.xl, paddingVertical: spacing.sm, backgroundColor: colors.bgSubtle },
-    text: { fontSize: fontSize.sm, color: colors.textMuted, textAlign: 'center' },
+    text: { ...typeScale.small, color: colors.textMuted, textAlign: 'center' },
 })

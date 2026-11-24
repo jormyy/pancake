@@ -27,6 +27,7 @@ Preconditions:
 - **Identity.** Run `BROWSER click '[aria-label="Open E2E Player001"]'` from Roster, then choose `View E2E Player001 player page`. Require the same name, team, and position.
 - **Stats.** Snapshot the season and statistics controls. Select another available season, then return. Require the matching period and values rather than a stale previous season.
 - **Games and news.** Expand recent games, league history, and news from their visible controls. Require each game row’s date, opponent, and statistics.
+- **Decision bar.** Above the statistics, require the availability line (Free agent, On waivers, On your roster, or the owning team), the next game or no-game note, and the main action in one card. FP/G stays the first highlighted statistic.
 - **Actions.** On a free player, choose Claim and require the same player in Waiver Claim. On a rostered player, inspect only the actions legal for the current manager.
 - **Deep link.** Copy the observed player URL, reopen it, and require the same player page after reload.
 - **Widths.** Capture statistics and actions at both widths; check the final table column and bottom action.

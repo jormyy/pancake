@@ -32,7 +32,7 @@ import { TradePickItem } from '@/lib/trades'
 
 import { cancelWaiverClaim, claimEditChangesRosterCapacity, editWaiverClaim, reorderWaiverClaim, WaiverClaim, type WaiverClaimEdit } from '@/lib/waivers'
 import { EMPTY_AVG_MAP, EMPTY_STATS_MAP, RosterAverage } from '@/lib/roster-stats'
-import { colors, controlSize, fontSize, fontWeight, layout, radii, spacing, table, textStyles } from '@/constants/tokens'
+import { colors, controlSize, fontWeight, layout, radii, spacing, table, textStyles, typeScale } from '@/constants/tokens'
 import { EmptyState } from '@/components/EmptyState'
 import { NoLeagueState } from '@/components/NoLeagueState'
 import { Button, ErrorBanner, Page, PageHeader, usePageMetrics } from '@/components/ui'
@@ -1000,7 +1000,7 @@ const styles = StyleSheet.create({
         backgroundColor: colors.primaryLight,
     },
     tableActionTextDisabled: { color: colors.textDisabled },
-    tableActionText: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.primaryDark },
+    tableActionText: { ...typeScale.caption, fontWeight: fontWeight.bold, color: colors.primaryDark },
     moreButton: {
         width: controlSize.minTouch,
         height: controlSize.minTouch,

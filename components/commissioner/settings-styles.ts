@@ -1,7 +1,8 @@
 import { StyleSheet } from 'react-native'
-import { colors, controlSize, fontSize, fontWeight, layout, radii, spacing, textStyles, lineHeight } from '@/constants/tokens'
+import { colors, controlSize, fontWeight, layout, radii, spacing, textStyles, typeScale } from '@/constants/tokens'
 
 export const styles = StyleSheet.create({
+    loadingFrame: { flex: 1 },
     // Screens add the page's side padding from usePageMetrics().
     scroll: {
         paddingTop: spacing.xl,
@@ -14,7 +15,7 @@ export const styles = StyleSheet.create({
     scrollCompact: { paddingTop: spacing.md, gap: spacing.sm, paddingBottom: spacing['5xl'] },
 
     headerSave: {
-        minHeight: 44,
+        minHeight: controlSize.minTouch,
         paddingHorizontal: spacing.lg,
         borderRadius: radii.md,
         borderCurve: 'continuous' as const,
@@ -23,7 +24,7 @@ export const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     headerSaveDisabled: { opacity: 0.5 },
-    headerSaveText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.md },
+    headerSaveText: { ...typeScale.row, color: colors.textWhite, fontWeight: fontWeight.bold },
 
     lifecycleCard: {
         backgroundColor: colors.bgCard,
@@ -69,7 +70,7 @@ export const styles = StyleSheet.create({
     row: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.xs },
     rowStacked: { flexDirection: 'column', alignItems: 'stretch', gap: spacing.sm },
     rowBorder: { borderBottomWidth: 1, borderBottomColor: colors.separator },
-    rowLabel: { flex: 1, fontSize: fontSize.md, color: colors.textPrimary },
+    rowLabel: { ...typeScale.body, flex: 1, color: colors.textPrimary },
     settingHint: {
         ...textStyles.meta,
         paddingHorizontal: spacing.lg,
@@ -94,7 +95,7 @@ export const styles = StyleSheet.create({
     segmentRowCompact: { width: '100%' },
     segmentButton: {
         minWidth: 76,
-        minHeight: 44,
+        minHeight: controlSize.minTouch,
         alignItems: 'center',
         justifyContent: 'center',
         borderWidth: 1,
@@ -109,7 +110,7 @@ export const styles = StyleSheet.create({
         borderColor: colors.primary,
         backgroundColor: colors.primary,
     },
-    segmentButtonText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.textSecondary },
+    segmentButtonText: { ...typeScale.small, fontWeight: fontWeight.bold, color: colors.textSecondary },
     segmentButtonTextActive: { color: colors.textWhite },
     memberChipRow: {
         flexDirection: 'row',
@@ -119,7 +120,7 @@ export const styles = StyleSheet.create({
         paddingBottom: spacing.sm,
     },
     memberChip: {
-        minHeight: 44,
+        minHeight: controlSize.minTouch,
         justifyContent: 'center',
         borderRadius: radii.md,
         borderCurve: 'continuous' as const,
@@ -127,7 +128,7 @@ export const styles = StyleSheet.create({
         paddingHorizontal: spacing.md,
     },
     memberChipActive: { backgroundColor: colors.primary },
-    memberChipText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.textSecondary },
+    memberChipText: { ...typeScale.small, fontWeight: fontWeight.bold, color: colors.textSecondary },
     memberChipTextActive: { color: colors.textWhite },
     overrideRow: {
         flexDirection: 'row',
@@ -137,19 +138,19 @@ export const styles = StyleSheet.create({
         paddingVertical: spacing.sm,
     },
     overrideInput: {
+        ...typeScale.title,
         flex: 1,
-        minHeight: 44,
+        minHeight: controlSize.minTouch,
         borderWidth: 1,
         borderColor: colors.borderLight,
         borderRadius: radii.md,
         borderCurve: 'continuous' as const,
         paddingHorizontal: spacing.md,
-        fontSize: fontSize.lg,
         color: colors.textPrimary,
     },
     overrideButton: {
         minWidth: 92,
-        minHeight: 44,
+        minHeight: controlSize.minTouch,
         alignItems: 'center',
         justifyContent: 'center',
         borderRadius: radii.md,
@@ -157,21 +158,21 @@ export const styles = StyleSheet.create({
         backgroundColor: colors.primary,
         paddingHorizontal: spacing.md,
     },
-    overrideButtonText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.textWhite },
+    overrideButtonText: { ...typeScale.small, fontWeight: fontWeight.bold, color: colors.textWhite },
 
     stepper: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg },
     stepBtn: {
-        width: 44,
-        height: 44,
+        width: controlSize.minTouch,
+        height: controlSize.minTouch,
         borderRadius: radii.md,
         borderCurve: 'continuous' as const,
         backgroundColor: colors.bgMuted,
         justifyContent: 'center',
         alignItems: 'center',
     },
-    stepBtnText: { fontSize: fontSize.xl, color: colors.textPrimary, lineHeight: lineHeight.title },
+    stepBtnText: { ...typeScale.heading, color: colors.textPrimary },
     stepValue: {
-        fontSize: fontSize.lg,
+        ...typeScale.title,
         fontWeight: fontWeight.bold,
         color: colors.textPrimary,
         minWidth: 20,
@@ -184,7 +185,7 @@ export const styles = StyleSheet.create({
         borderCurve: 'continuous' as const,
         borderWidth: 1,
         borderColor: colors.primary,
-        minHeight: 44,
+        minHeight: controlSize.minTouch,
         justifyContent: 'center',
         alignItems: 'center',
         paddingHorizontal: spacing.lg,
@@ -193,7 +194,7 @@ export const styles = StyleSheet.create({
         flexGrow: 1,
         flexBasis: 184,
     },
-    actionButtonText: { color: colors.primaryDark, fontWeight: fontWeight.bold, fontSize: fontSize.md },
+    actionButtonText: { ...typeScale.row, color: colors.primaryDark, fontWeight: fontWeight.bold },
     actionWrap: { gap: spacing.xs },
     actionDescription: { ...textStyles.meta, paddingHorizontal: spacing.xs },
 })

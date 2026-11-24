@@ -1,5 +1,5 @@
 import { StyleSheet } from 'react-native'
-import { brand, colors, controlSize, fontFamily, fontSize, fontWeight, layout, motion, radii, shadows, spacing, textStyles, webBackgrounds, webOverlays, type WebOnlyViewStyle, tracking } from '@/constants/tokens'
+import { brand, colors, controlSize, fontFamily, fontWeight, layout, motion, radii, shadows, spacing, webBackgrounds, webOverlays, type WebOnlyViewStyle, typeScale } from '@/constants/tokens'
 
 const MOBILE_TOPBAR_HEIGHT = layout.shell.topbarHeight
 const MOBILE_BOTTOMBAR_HEIGHT = layout.shell.bottomBarHeight
@@ -9,8 +9,7 @@ export const styles = StyleSheet.create({
         flex: 1,
         minHeight: '100%',
         backgroundColor: colors.bgScreen,
-        backgroundImage: webBackgrounds.appRoot,
-    } as WebOnlyViewStyle,
+    },
     rootDesktop: {
         flexDirection: 'row',
     },
@@ -41,7 +40,7 @@ export const styles = StyleSheet.create({
     },
     sidebarScrollContent: {
         paddingHorizontal: spacing.xl,
-        paddingTop: spacing['2xl'],
+        paddingTop: spacing['3xl'],
         gap: spacing.md,
     },
     brandRow: {
@@ -61,11 +60,10 @@ export const styles = StyleSheet.create({
         height: controlSize.minTouch,
     },
     brandTitle: {
-        fontSize: fontSize.xl,
+        ...typeScale.heading,
         fontFamily: fontFamily.display,
         fontWeight: fontWeight.extrabold,
         color: brand.on,
-        letterSpacing: tracking.none,
     },
 
     leagueSwitchWrap: {
@@ -91,16 +89,14 @@ export const styles = StyleSheet.create({
         backgroundColor: brand.overlayHover,
     },
     leagueName: {
+        ...typeScale.row,
         color: brand.onStrong,
         fontWeight: fontWeight.bold,
-        fontSize: fontSize.md,
         fontFamily: fontFamily.displayMedium,
-        lineHeight: textStyles.rowTitle.lineHeight,
     },
     leagueMeta: {
+        ...typeScale.caption,
         color: brand.onSubtle,
-        fontSize: fontSize.xs,
-        lineHeight: textStyles.sectionLabel.lineHeight,
     },
     commissionerSlot: { height: controlSize.minTouch },
     // Light variant for the mobile top bar (web is light-themed). Kept at the
@@ -122,14 +118,13 @@ export const styles = StyleSheet.create({
         backgroundColor: colors.bgSubtle,
     },
     leagueNameLight: {
+        ...typeScale.title,
         color: colors.textPrimary,
         fontWeight: fontWeight.bold,
-        fontSize: fontSize.lg,
-        lineHeight: textStyles.body.lineHeight,
     },
     leagueMetaLight: {
+        ...typeScale.caption,
         color: colors.textMuted,
-        fontSize: fontSize.xs,
     },
     // Full-screen layer for the open league menu; its backdrop catches outside taps.
     leagueMenuLayer: {
@@ -165,13 +160,13 @@ export const styles = StyleSheet.create({
         backgroundColor: colors.bgSubtle,
     },
     leagueMenuName: {
+        ...typeScale.small,
         color: colors.textPrimary,
-        fontSize: fontSize.sm,
         fontWeight: fontWeight.bold,
     },
     leagueMenuMeta: {
+        ...typeScale.caption,
         color: colors.textMuted,
-        fontSize: fontSize.xs,
     },
 
     navGroup: {
@@ -214,9 +209,9 @@ export const styles = StyleSheet.create({
         opacity: motion.pressedOpacity,
     },
     sideNavText: {
+        ...typeScale.row,
         flex: 1,
         color: brand.onStrong,
-        fontSize: fontSize.md,
         fontWeight: fontWeight.semibold,
     },
     sideNavTextActive: {
@@ -237,7 +232,7 @@ export const styles = StyleSheet.create({
         backgroundColor: webOverlays.navBadgeActive,
     },
     navBadgeText: {
-        fontSize: fontSize['2xs'],
+        ...typeScale.micro,
         fontWeight: fontWeight.bold,
         color: colors.textWhite,
     },
@@ -277,21 +272,20 @@ export const styles = StyleSheet.create({
         color: brand.on,
     },
     userName: {
+        ...typeScale.small,
         color: brand.onStrong,
-        fontSize: fontSize.sm,
         fontWeight: fontWeight.bold,
     },
     userMeta: {
+        ...typeScale.caption,
         color: brand.onSubtle,
-        fontSize: fontSize.xs,
     },
 
     content: {
         flex: 1,
         minWidth: 0,
         backgroundColor: colors.bgScreen,
-        backgroundImage: webBackgrounds.appContent,
-    } as WebOnlyViewStyle,
+    },
     // The document opts into viewport-fit=cover, so the fixed bars must pad by
     // the safe-area insets or standalone-PWA launches put the top bar under the
     // notch and the bottom tabs under the home indicator.
@@ -373,8 +367,8 @@ export const styles = StyleSheet.create({
         textDecorationLine: 'none',
     } as WebOnlyViewStyle,
     bottomNavText: {
+        ...typeScale.micro,
         width: '100%',
-        fontSize: fontSize['2xs'],
         fontWeight: fontWeight.bold,
         color: colors.textMuted,
         textAlign: 'center',
@@ -398,9 +392,9 @@ export const styles = StyleSheet.create({
         color: colors.primaryDark,
     },
     sheetItemText: {
+        ...typeScale.row,
         flex: 1,
         color: colors.textPrimary,
-        fontSize: fontSize.md,
         fontWeight: fontWeight.bold,
     },
 })

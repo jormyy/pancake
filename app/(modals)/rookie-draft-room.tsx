@@ -7,9 +7,7 @@ import {
     TextInput,
     StyleSheet,
     KeyboardAvoidingView,
-    Modal,
     Platform,
-    ScrollView,
     useWindowDimensions,
 } from 'react-native'
 import { FlashList } from '@shopify/flash-list'
@@ -18,8 +16,10 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useLeagueContext } from '@/contexts/league-context'
 import { type RookieProspect } from '@/lib/rookieDraft'
 import { draftYearForSeason, leagueSeasonYear } from '@/lib/picks'
-import { breakpoints, colors, controlSize, fontSize, fontWeight, layout, radii, scrim, spacing, table, textStyles, uiColors, lineHeight } from '@/constants/tokens'
+import { breakpoints, colors, controlSize, fontWeight, layout, radii, spacing, table, textStyles, uiColors, typeScale } from '@/constants/tokens'
 import { MotionPressable } from '@/components/Motion'
+import { Sheet } from '@/components/ui/Sheet'
+import { Button } from '@/components/ui/Button'
 import { showSuccess } from '@/lib/alert'
 import { countLabel } from '@/lib/format'
 
@@ -148,83 +148,75 @@ export default function RookieDraftRoomScreen() {
         <>
             <Stack.Screen options={{ title: draftTitle, presentation: 'modal', headerShown: false }} />
 
-            <Modal visible={!!rosterOverflow} transparent animationType="slide"
-                onRequestClose={() => { if (!resolvingOverflow) navigateBackToDraftList() }}>
-                <View style={styles.overflowOverlay}>
-                    <View style={styles.overflowCard}>
-                        <Text style={styles.overflowTitle}>Roster Full</Text>
-                        <Text style={styles.overflowBody}>
-                            You drafted{' '}
-                            <Text style={{ fontWeight: fontWeight.bold }}>{rosterOverflow?.newPlayerName}</Text>
-                            {' '}but your active roster is over capacity. Drop a player before setting lineups or adding players.
-                        </Text>
-                        <MotionPressable style={styles.overflowBtn} accessibilityRole="button"
-                            accessibilityLabel="Back to League" disabled={resolvingOverflow}
-                            onPress={() => navigateBackToDraftList()}>
-                            <Text style={styles.overflowExitText}>Back to League</Text>
-                        </MotionPressable>
-                        {rosterForDrop.length > 0 && (
-                            <>
-                                <Text style={styles.overflowDropLabel}>Drop a player:</Text>
-                                <ScrollView style={styles.overflowDropList} showsVerticalScrollIndicator>
-                                    {rosterForDrop.map((rp) => (
-                                        <MotionPressable
-                                            key={rp.id}
-                                            style={styles.overflowDropRow}
-                                            onPress={() => resolveByDrop(rp.id)}
-                                            disabled={resolvingOverflow || !actionsReady}
-                                        >
-                                            <PlayerRowContent name={rp.players?.display_name ?? 'Player'} nbaId={rp.players?.nba_id} team={rp.players?.nba_team}
-                                                positions={rp.players?.position ? [rp.players.position] : []}
-                                                birthdate={rp.players?.birthdate} yearsExp={rp.players?.years_exp} careerGames={rp.players?.career_regular_season_games} injuryStatus={rp.players?.injury_status} />
-                                        </MotionPressable>
-                                    ))}
-                                </ScrollView>
-                            </>
-                        )}
-                    </View>
+            <Sheet visible={!!rosterOverflow} title="Roster Full"
+                onClose={() => { if (!resolvingOverflow) navigateBackToDraftList() }}>
+                <View style={styles.overflowCard}>
+                    <Text style={styles.overflowBody}>
+                        You drafted{' '}
+                        <Text style={{ fontWeight: fontWeight.bold }}>{rosterOverflow?.newPlayerName}</Text>
+                        {' '}but your active roster is over capacity. Drop a player before setting lineups or adding players.
+                    </Text>
+                    <Button variant="secondary" title="Back to League" accessibilityLabel="Back to League"
+                        disabled={resolvingOverflow} onPress={() => navigateBackToDraftList()} />
+                    {rosterForDrop.length > 0 && (
+                        <>
+                            <Text style={styles.overflowDropLabel}>Drop a player:</Text>
+                            <View>
+                                {rosterForDrop.map((rp) => (
+                                    <MotionPressable
+                                        key={rp.id}
+                                        accessibilityRole="button"
+                                        accessibilityLabel={`Drop ${rp.players?.display_name ?? 'Player'}`}
+                                        style={styles.overflowDropRow}
+                                        onPress={() => resolveByDrop(rp.id)}
+                                        disabled={resolvingOverflow || !actionsReady}
+                                    >
+                                        <PlayerRowContent name={rp.players?.display_name ?? 'Player'} nbaId={rp.players?.nba_id} team={rp.players?.nba_team}
+                                            positions={rp.players?.position ? [rp.players.position] : []}
+                                            birthdate={rp.players?.birthdate} yearsExp={rp.players?.years_exp} careerGames={rp.players?.career_regular_season_games} injuryStatus={rp.players?.injury_status} />
+                                    </MotionPressable>
+                                ))}
+                            </View>
+                        </>
+                    )}
                 </View>
-            </Modal>
+            </Sheet>
 
-            <Modal visible={!!trimOverflow || trimAwaitingLimits} transparent animationType="slide"
-                onRequestClose={() => { if (!trimmingId) navigateBackToDraftList() }}>
-                <View style={styles.overflowOverlay}>
-                    <View style={styles.overflowCard}>
-                        <Text style={styles.overflowTitle}>Trim Your Roster</Text>
-                        {trimOverflow ? (
-                            <Text style={styles.overflowBody}>
-                                Your active roster is{' '}
-                                <Text style={{ fontWeight: fontWeight.bold }}>{trimOverflow.excess} over</Text>
-                                {' '}the limit. Drop {countLabel(trimOverflow.excess, 'player')} before setting lineups or adding players.
-                            </Text>
-                        ) : (
-                            <Text style={styles.overflowBody} accessibilityLiveRegion="polite">
-                                Roster settings are loading. Drop choices return once the league limit is known.
-                            </Text>
-                        )}
-                        <MotionPressable style={styles.overflowBtn} accessibilityRole="button"
-                            accessibilityLabel="Back to League" disabled={!!trimmingId}
-                            onPress={() => navigateBackToDraftList()}>
-                            <Text style={styles.overflowExitText}>Back to League</Text>
-                        </MotionPressable>
-                        {trimOverflow ? <Text style={styles.overflowDropLabel}>Select a player to drop:</Text> : null}
-                        <ScrollView style={styles.overflowDropList} showsVerticalScrollIndicator>
-                            {trimOverflow?.dropList.map((rp) => (
-                                <MotionPressable
-                                    key={rp.id}
-                                    style={styles.overflowDropRow}
-                                    onPress={() => handleTrimDrop(rp.id)}
-                                    disabled={!!trimmingId || !actionsReady}
-                                >
-                                    <PlayerRowContent name={rp.players?.display_name ?? 'Player'} nbaId={rp.players?.nba_id} team={rp.players?.nba_team}
-                                                positions={rp.players?.position ? [rp.players.position] : []}
-                                                birthdate={rp.players?.birthdate} yearsExp={rp.players?.years_exp} careerGames={rp.players?.career_regular_season_games} injuryStatus={rp.players?.injury_status} />
-                                </MotionPressable>
-                            ))}
-                        </ScrollView>
+            <Sheet visible={!!trimOverflow || trimAwaitingLimits} title="Trim Your Roster"
+                onClose={() => { if (!trimmingId) navigateBackToDraftList() }}>
+                <View style={styles.overflowCard}>
+                    {trimOverflow ? (
+                        <Text style={styles.overflowBody}>
+                            Your active roster is{' '}
+                            <Text style={{ fontWeight: fontWeight.bold }}>{trimOverflow.excess} over</Text>
+                            {' '}the limit. Drop {countLabel(trimOverflow.excess, 'player')} before setting lineups or adding players.
+                        </Text>
+                    ) : (
+                        <Text style={styles.overflowBody} accessibilityLiveRegion="polite">
+                            Roster settings are loading. Drop choices return once the league limit is known.
+                        </Text>
+                    )}
+                    <Button variant="secondary" title="Back to League" accessibilityLabel="Back to League"
+                        disabled={!!trimmingId} onPress={() => navigateBackToDraftList()} />
+                    {trimOverflow ? <Text style={styles.overflowDropLabel}>Select a player to drop:</Text> : null}
+                    <View>
+                        {trimOverflow?.dropList.map((rp) => (
+                            <MotionPressable
+                                key={rp.id}
+                                accessibilityRole="button"
+                                accessibilityLabel={`Drop ${rp.players?.display_name ?? 'Player'}`}
+                                style={styles.overflowDropRow}
+                                onPress={() => handleTrimDrop(rp.id)}
+                                disabled={!!trimmingId || !actionsReady}
+                            >
+                                <PlayerRowContent name={rp.players?.display_name ?? 'Player'} nbaId={rp.players?.nba_id} team={rp.players?.nba_team}
+                                            positions={rp.players?.position ? [rp.players.position] : []}
+                                            birthdate={rp.players?.birthdate} yearsExp={rp.players?.years_exp} careerGames={rp.players?.career_regular_season_games} injuryStatus={rp.players?.injury_status} />
+                            </MotionPressable>
+                        ))}
                     </View>
                 </View>
-            </Modal>
+            </Sheet>
 
             <ScreenFrame style={styles.container} edges={['bottom']}>
                 <DraftScreenHeader title={draftTitle} onBack={() => navigateBackToDraftList()}>
@@ -519,10 +511,10 @@ const styles = StyleSheet.create({
         borderLeftColor: colors.borderLight,
     },
     bannerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-    bannerTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.extrabold, color: colors.textPrimary },
-    bannerClock: { fontSize: fontSize.lg, fontWeight: fontWeight.extrabold, color: colors.textMuted, width: table.statColWidth, textAlign: 'right', fontVariant: ['tabular-nums'] },
+    bannerTitle: { ...typeScale.title, fontWeight: fontWeight.extrabold, color: colors.textPrimary },
+    bannerClock: { ...typeScale.title, fontWeight: fontWeight.extrabold, color: colors.textMuted, width: table.statColWidth, textAlign: 'right', fontVariant: ['tabular-nums'] },
     bannerClockUrgent: { color: colors.dangerDark },
-    bannerSub: { fontSize: fontSize.md, color: colors.textSecondary },
+    bannerSub: { ...typeScale.body, color: colors.textSecondary },
     bannerMe: { color: colors.primaryDark, fontWeight: fontWeight.bold },
 
     tabs: { flexDirection: 'row', gap: spacing.xs },
@@ -534,7 +526,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     tabActive: { backgroundColor: colors.primaryLight },
-    tabText: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textMuted },
+    tabText: { ...typeScale.row, fontWeight: fontWeight.semibold, color: colors.textMuted },
     tabTextActive: { color: colors.primaryDark, fontWeight: fontWeight.bold },
 
     searchContainer: {
@@ -569,7 +561,7 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: uiColors.dangerBorder,
     },
-    pickErrorText: { color: colors.dangerDark, fontSize: fontSize.sm, fontWeight: fontWeight.semibold },
+    pickErrorText: { ...typeScale.small, color: colors.dangerDark, fontWeight: fontWeight.semibold },
 
     resultRow: {
         minHeight: table.rowHeight,
@@ -582,7 +574,7 @@ const styles = StyleSheet.create({
     resultNameRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
     resultName: { ...textStyles.rowTitle, flexShrink: 1 },
     resultTeam: { ...textStyles.meta },
-    pickBtn: { fontSize: fontSize.md, fontWeight: fontWeight.bold, color: colors.primaryDark },
+    pickBtn: { ...typeScale.row, fontWeight: fontWeight.bold, color: colors.primaryDark },
 
 
     separator: { height: 1, backgroundColor: colors.separator },
@@ -602,59 +594,18 @@ const styles = StyleSheet.create({
 
 
 
-    pickedName: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textPrimary },
-    pickedTeam: { fontSize: fontSize.xs, color: colors.textMuted },
-
-
-
-
-    overflowOverlay: {
-        flex: 1,
-        backgroundColor: scrim,
-        justifyContent: 'flex-end',
-        alignItems: 'center',
-    },
-    // Width-capped so the sheet does not span a wide monitor.
-    overflowCard: {
-        width: '100%',
-        maxWidth: 560,
-        backgroundColor: colors.bgCard,
-        borderTopLeftRadius: radii['2xl'],
-        borderTopRightRadius: radii['2xl'],
-        padding: spacing['2xl'],
-        paddingBottom: spacing['5xl'],
-        gap: spacing.md,
-    },
-    overflowTitle: {
-        fontSize: fontSize.xl,
-        fontWeight: fontWeight.extrabold,
-        color: colors.textPrimary,
-    },
+    pickedName: { ...typeScale.small, fontWeight: fontWeight.semibold, color: colors.textPrimary },
+    pickedTeam: { ...typeScale.caption, color: colors.textMuted },
+    overflowCard: { gap: spacing.md },
     overflowBody: {
-        fontSize: fontSize.md,
+        ...typeScale.body,
         color: colors.textSecondary,
-        lineHeight: lineHeight.roomy,
-    },
-    overflowBtn: {
-        minHeight: controlSize.minTouch,
-        justifyContent: 'center',
-        borderRadius: radii.md,
-        alignItems: 'center',
-        marginTop: spacing.sm,
-    },
-    overflowExitText: {
-        color: colors.primaryDark,
-        fontSize: fontSize.md,
-        fontWeight: fontWeight.bold,
     },
     overflowDropLabel: {
-        fontSize: fontSize.sm,
+        ...typeScale.small,
         fontWeight: fontWeight.semibold,
         color: colors.textMuted,
         marginTop: spacing.md,
-    },
-    overflowDropList: {
-        maxHeight: 220,
     },
     overflowDropRow: {
         minHeight: table.rowHeight,
@@ -666,12 +617,12 @@ const styles = StyleSheet.create({
     },
     overflowDropInfo: { flex: 1, minWidth: 0 },
     overflowDropName: {
-        fontSize: fontSize.md,
+        ...typeScale.row,
         fontWeight: fontWeight.semibold,
         color: uiColors.dangerText,
     },
     overflowDropPos: {
-        fontSize: fontSize.xs,
+        ...typeScale.caption,
         color: colors.textMuted,
     },
 })

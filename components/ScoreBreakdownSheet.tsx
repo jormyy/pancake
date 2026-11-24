@@ -3,7 +3,7 @@ import { ListHeader } from '@/components/ui/ListHeader'
 import { StyleSheet, Text, View } from 'react-native'
 import { Sheet } from '@/components/ui/Sheet'
 import { Avatar } from '@/components/Avatar'
-import { borderWidth, colors, controlSize, fontSize, fontWeight, radii, spacing, table, textStyles } from '@/constants/tokens'
+import { borderWidth, colors, controlSize, fontWeight, radii, spacing, table, textStyles, typeScale } from '@/constants/tokens'
 import type { LiveStatLine } from '@/lib/games'
 import type { LineupPlayer } from '@/lib/lineup'
 import { formatPoints, playerHeadshotUrl, shortName } from '@/lib/format'
@@ -157,12 +157,12 @@ const styles = StyleSheet.create({
         borderBottomWidth: borderWidth.thin,
         borderBottomColor: colors.separator,
     },
-    headCell: { ...textStyles.sectionLabel, fontSize: fontSize['2xs'], textAlign: 'center' },
-    cell: { fontSize: fontSize.md, color: colors.textSecondary, textAlign: 'center', fontVariant: ['tabular-nums'] as const },
+    headCell: { ...textStyles.sectionLabel, ...typeScale.micro, textAlign: 'center' },
+    cell: { ...typeScale.body, color: colors.textSecondary, textAlign: 'center', fontVariant: ['tabular-nums'] as const },
     numCell: { width: table.statColWidth },
     pointsCell: { fontWeight: fontWeight.bold, color: colors.textPrimary },
     negative: { color: colors.dangerDark },
     labelCell: { flex: 1, minWidth: 0, alignItems: 'center' },
-    label: { fontSize: fontSize['2sm'], fontWeight: fontWeight.semibold, color: colors.textPrimary },
-    weight: { fontSize: fontSize['2xs'], color: colors.textMuted },
+    label: { ...typeScale.small, fontWeight: fontWeight.semibold, color: colors.textPrimary },
+    weight: { ...typeScale.micro, color: colors.textMuted },
 })

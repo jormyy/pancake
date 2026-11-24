@@ -151,7 +151,7 @@ describe('player decision summary', () => {
         { status: { status: 'mine' as const, rosterPlayerId: 'roster' }, label: 'On your roster', injury: null, action: 'Drop Player A' },
         { status: { status: 'on_waivers' as const, logId: 'waiver', clearsAt: '2099-01-01' }, label: 'On waivers', injury: null, action: 'Claim Player A' },
         { status: { status: 'free_agent' as const }, label: 'Free agent', injury: 'OUT', action: 'Add Player A' },
-    ])('aligns $label and its action with the name, including injury $injury', async ({ status, label, injury, action }) => {
+    ])('shows $label beside its full-size action in the decision bar, including injury $injury', async ({ status, label, injury, action }) => {
         const onAdd = vi.fn()
         await render(React.createElement(PlayerHeader, {
             player: headerPlayer({ injury_status: injury }), rosterStatus: status, leagueActive: true,
@@ -159,12 +159,10 @@ describe('player decision summary', () => {
             action: { label: status.status === 'on_waivers' ? 'Claim' : status.status === 'mine' ? 'Lineup' : 'Add',
                 onPress: onAdd, disabled: false, busy: false, blockedReason: status.status === 'free_agent' ? 'Add limit reached' : null },
         }))
-        const name = screen.root.findAllByType(type('Text')).find(node => node.props.children === 'Player A')!
-        const roster = screen.root.findAllByType(type('Text')).find(node => node.props.children === label)!
-        expect(roster.parent?.props.testID).toBe('player-summary-line')
-        const styles = Object.assign({}, ...[roster.parent?.props.style].flat(Infinity).filter(Boolean))
-        expect(styles.alignItems).toBe('center')
-        const buttons = name.parent!.findAllByType(type('Pressable')).filter(node => node.props.accessibilityLabel === action)
+        const bar = screen.root.findByProps({ testID: 'player-decision-bar' })
+        expect(bar.findByProps({ testID: 'player-availability' }).props.children).toBe(label)
+        expect(Object.assign({}, ...[bar.props.style].flat(Infinity).filter(Boolean)).alignItems).toBe('center')
+        const buttons = bar.findAllByType(type('Pressable')).filter(node => node.props.accessibilityLabel === action)
         expect(buttons).toHaveLength(1)
         const button = buttons[0]
         if (status.status === 'free_agent') {
@@ -276,12 +274,12 @@ it.each([false, true])('keeps minutes and game paging with compact=%s', async co
     expect(screen.root.findByType(type('Pressable')).props.disabled).toBe(true)
 })
 
-it('shows the owning team on the third header line for your player', async () => {
+it('shows the owning team as the availability for your player', async () => {
     await render(React.createElement(PlayerHeader, {
         player: headerPlayer(), rosterStatus: { status: 'mine', rosterPlayerId: 'roster' },
         ownTeamName: 'Maple Hoops', leagueActive: true,
     }))
-    expect(screen.root.findByProps({ testID: 'player-summary-line' }).findAllByType(type('Text')).map(node => node.props.children)).toContain('Maple Hoops')
+    expect(screen.root.findByProps({ testID: 'player-availability' }).props.children).toBe('Maple Hoops')
 })
 
 it('keeps the projection space when the late card arrives or disappears', async () => {

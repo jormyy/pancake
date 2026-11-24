@@ -31,9 +31,9 @@ export function TradeLegalityScreen({ trade, memberId, teams, loading, saving, e
     return <View style={styles.root} testID="trade-legality-screen">
         <PageHeader title="Review trade" onBack={onClose} backLabel="Close trade review"
             actions={<Pressable onPress={onSubmit} disabled={!ready} style={[styles.submit, !ready && styles.disabled]}
-                accessibilityRole="button" accessibilityLabel={action} accessibilityState={{ disabled: !ready, busy: saving }}
+                accessibilityRole="button" accessibilityLabel={action} accessibilityState={{ disabled: !ready, busy: saving }} aria-busy={saving}
                 testID={mode === 'propose' ? 'trade-confirm-submit' : 'trade-confirm-accept'}>
-                <Text style={[textStyles.rowTitle, { color: ready ? colors.textWhite : colors.textDisabled }]}>{action}</Text>
+                <Text style={[textStyles.rowTitle, { color: ready ? colors.textWhite : colors.textDisabled }]}>{saving ? `${mode === 'propose' ? 'Sending' : 'Accepting'}…` : action}</Text>
             </Pressable>} />
         <ScrollView ref={scrollRef} contentContainerStyle={styles.content} scrollEventThrottle={16}
             onScroll={event => { if (scrollPosition) scrollPosition.current = event.nativeEvent.contentOffset.y }}

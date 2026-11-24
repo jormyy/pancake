@@ -4,7 +4,7 @@ import { View, Text, Pressable, StyleSheet } from 'react-native'
 import { useRef, useState } from 'react'
 import { getPlayerTransactionHistory } from '@/lib/players'
 import type { TransactionHistoryEntry } from '@/lib/players'
-import { colors, fontSize, fontWeight, spacing, radii, table, textStyles } from '@/constants/tokens'
+import { colors, fontWeight, spacing, radii, table, textStyles, typeScale } from '@/constants/tokens'
 
 const PAGE_SIZE = 20
 
@@ -121,5 +121,5 @@ const styles = StyleSheet.create({
         borderRadius: radii.md,
         borderCurve: 'continuous' as const,
     },
-    loadMoreText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.primaryDark },
+    loadMoreText: { ...typeScale.small, fontWeight: fontWeight.semibold, color: colors.primaryDark },
 })

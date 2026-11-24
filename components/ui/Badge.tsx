@@ -4,7 +4,7 @@ import { colors, componentTokens, radii, spacing, textStyles } from '@/constants
 export const compactBadgeTokens = {
     minHeight: textStyles.tableHeader.lineHeight,
     paddingHorizontal: spacing.xxs,
-    paddingVertical: 0,
+    paddingVertical: spacing.none,
     fontSize: 9,
     lineHeight: textStyles.tableHeader.lineHeight,
 }
@@ -79,7 +79,7 @@ const styles = StyleSheet.create({
     compact: { minHeight: compactBadgeTokens.minHeight, paddingHorizontal: compactBadgeTokens.paddingHorizontal, paddingVertical: compactBadgeTokens.paddingVertical, justifyContent: 'center', alignItems: 'center', flexShrink: 0 },
     compactText: { fontSize: compactBadgeTokens.fontSize, lineHeight: compactBadgeTokens.lineHeight },
     inline: { ...componentTokens.badge.inline, justifyContent: 'center', flexShrink: 0 },
-    inlineCircle: { minWidth: componentTokens.badge.inline.minHeight, paddingHorizontal: 0, borderRadius: radii.full, alignItems: 'center' },
+    inlineCircle: { minWidth: componentTokens.badge.inline.minHeight, paddingHorizontal: spacing.none, borderRadius: radii.full, alignItems: 'center' },
     ownership: { minHeight: componentTokens.badge.ownership.minHeight, paddingHorizontal: componentTokens.badge.ownership.paddingHorizontal, paddingVertical: componentTokens.badge.ownership.paddingVertical, borderRadius: componentTokens.badge.ownership.borderRadius, justifyContent: 'center', alignItems: 'center', flexShrink: 0 },
     count: { ...componentTokens.badge.count, justifyContent: 'center', alignItems: 'center' },
     countText: { ...componentTokens.badge.countLabel },

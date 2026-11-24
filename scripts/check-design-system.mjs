@@ -10,9 +10,12 @@ const cssMetric = /\b(padding(?:-[a-z]+)?|margin(?:-[a-z]+)?|gap|row-gap|column-
 const rawColor = /#[\da-f]{3,8}\b|\b(?:rgba?|hsla?|oklch|color)\s*\(/i
 const colorProperty = /(?:color|fill|stroke|background)$/i
 const semanticColor = /^(?:inherit|initial|unset|revert|none|currentColor|var\(|url\()/i
+const rawScale = new Set(['fontSize', 'lineHeight'])
+const touchSize = new Set(['minHeight', 'minWidth', 'height', 'width'])
+const TOUCH = 44
 
 export function scanDesignSystem(source, file = 'app/fixture.tsx') {
-    if (!/^(?:app|components)\//.test(file) || file.startsWith('components/ui/')) return []
+    if (!/^(?:app|components)\//.test(file)) return []
     const tree = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
     const violations = new Map()
     const bindings = new Map()
@@ -51,11 +54,24 @@ export function scanDesignSystem(source, file = 'app/fixture.tsx') {
         ts.forEachChild(node, child => numbers(child, kind, property, seen))
     }
     const visit = node => {
+        if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier) && node.moduleSpecifier.text === '@/constants/tokens' && node.importClause?.namedBindings && ts.isNamedImports(node.importClause.namedBindings)) {
+            for (const item of node.importClause.namedBindings.elements) {
+                const imported = (item.propertyName ?? item.name).text
+                if (rawScale.has(imported)) register(item, 'type', imported, imported)
+            }
+        }
         if (ts.isPropertyAssignment(node) || ts.isJsxAttribute(node)) {
             const name = ts.isComputedPropertyName(node.name) ? node.name.expression : node.name
             const property = ts.isStringLiteralLike(name) ? name.text : name.getText(tree)
             const kind = metricKind(property)
             if (kind && node.initializer) numbers(node.initializer, kind, property)
+            if (touchSize.has(property) && node.initializer) {
+                const touch = child => {
+                    if (ts.isConditionalExpression(child)) { touch(child.whenTrue); touch(child.whenFalse); return }
+                    if (ts.isNumericLiteral(child) && Number(child.text) === TOUCH) register(child, 'touch', property)
+                }
+                touch(node.initializer)
+            }
             if (colorProperty.test(property) && node.initializer) {
                 const checkColor = (child, seen = new Set()) => {
                     if (ts.isPropertyAccessExpression(child) || ts.isElementAccessExpression(child)) {
@@ -93,16 +109,31 @@ export function scanDesignSystem(source, file = 'app/fixture.tsx') {
     return [...violations.values()].sort((a, b) => a.start - b.start)
 }
 
-export function designSystemViolations(root = process.cwd()) {
-    const files = ['app', 'components'].flatMap(folder => readdirSync(path.join(root, folder), { recursive: true })
-        .map(file => `${folder}/${file}`)).filter(file => /\.tsx?$/.test(file) && !file.startsWith('components/ui/')).sort()
-    return files.flatMap(file => scanDesignSystem(readFileSync(path.join(root, file), 'utf8'), file))
+const listSources = (root, folders) => folders.flatMap(folder => readdirSync(path.join(root, folder), { recursive: true })
+    .map(file => `${folder}/${String(file).split(path.sep).join('/')}`)).filter(file => /\.tsx?$/.test(file)).sort()
+
+export const EXCEPTIONS = [
+    { file: 'components/ui/Badge.tsx', property: 'fontSize', value: '9', reason: 'Compact eligibility tags (DTD, O, OUT, IR) sit one step below the 10px game line in Matchup and Roster rows; tests/components/player-eligibility-tags.test.ts pins it.' },
+]
+
+export function designSystemViolations(root = process.cwd(), exceptions = EXCEPTIONS) {
+    const allowed = new Map(exceptions.map(item => [`${item.file}|${item.property}|${item.value}`, item]))
+    const used = new Set()
+    const violations = listSources(root, ['app', 'components'])
+        .flatMap(file => scanDesignSystem(readFileSync(path.join(root, file), 'utf8'), file))
+        .filter(item => {
+            const key = `${item.file}|${item.property}|${item.value}`
+            if (!allowed.has(key)) return true
+            used.add(key)
+            return false
+        })
+    for (const [key, item] of allowed) if (!used.has(key)) violations.push({ file: item.file, line: 0, kind: 'exception', property: item.property, value: `${item.value} is a stale exception` })
+    return violations
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
     const violations = designSystemViolations()
-    if (violations.length) {
-        for (const item of violations) console.error(`${item.file}:${item.line} ${item.property}: ${item.value} requires a shared token`)
-        process.exitCode = 1
-    } else console.log('Design system conformance passes for app/** and components/**')
+    for (const item of violations) console.error(item.kind === 'type' ? `${item.file}:${item.line} ${item.value} is a raw type scale; use typeScale or textStyles` : `${item.file}:${item.line} ${item.property}: ${item.value} requires a shared token`)
+    if (violations.length) process.exitCode = 1
+    else console.log('Design system conformance passes for app/** and components/**')
 }

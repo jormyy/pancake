@@ -7,7 +7,7 @@ import type { LiveStatLine } from '@/lib/games'
 import type { StatColumn } from '@/lib/score-breakdown'
 import { formatPoints } from '@/lib/format'
 import { matchupDailyTotal } from '@/lib/matchup-daily-total'
-import { borderWidth, colors, fontSize, fontWeight, radii, spacing, srOnly, textStyles } from '@/constants/tokens'
+import { borderWidth, colors, fontWeight, radii, spacing, srOnly, textStyles, typeScale } from '@/constants/tokens'
 
 type DetailsRow = { myPlayer: LineupPlayer | null; oppPlayer: LineupPlayer | null; slotType: string }
 
@@ -212,7 +212,7 @@ const styles = StyleSheet.create({
         marginBottom: spacing.md,
     },
     lineupSectionCount: {
-        fontSize: fontSize.xs,
+        ...typeScale.caption,
         fontWeight: fontWeight.extrabold,
         color: colors.textMuted,
     },

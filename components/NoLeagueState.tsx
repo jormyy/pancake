@@ -1,7 +1,7 @@
-import { Platform, View, Text, StyleSheet } from 'react-native'
+import { View, Text, StyleSheet } from 'react-native'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { useRouter } from 'expo-router'
-import { colors, elevation, fontFamily, fontSize, fontWeight, radii, spacing, textStyles, webBackgrounds, type WebOnlyViewStyle } from '@/constants/tokens'
+import { colors, elevation, fontFamily, fontWeight, radii, spacing, textStyles, typeScale } from '@/constants/tokens'
 import { Button, LoadingState } from '@/components/ui'
 import { PromptFrame } from '@/components/ui/PromptFrame'
 import { useLeagueContext } from '@/contexts/league-context'
@@ -31,7 +31,6 @@ export function NoLeagueState() {
     return (
         <PromptFrame
             cardMaxWidth={520}
-            containerStyle={Platform.OS === 'web' ? styles.containerWeb : null}
             cardStyle={styles.card}
         >
             <View style={styles.brandMark}>
@@ -60,10 +59,7 @@ export function NoLeagueState() {
 }
 
 const styles = StyleSheet.create({
-    noticeTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.semibold, color: colors.textPrimary, textAlign: 'center' },
-    containerWeb: {
-        backgroundImage: webBackgrounds.noLeague,
-    } as WebOnlyViewStyle,
+    noticeTitle: { ...typeScale.title, fontWeight: fontWeight.semibold, color: colors.textPrimary, textAlign: 'center' },
     card: {
         paddingHorizontal: spacing['4xl'],
     },
@@ -77,8 +73,8 @@ const styles = StyleSheet.create({
         marginBottom: spacing.sm,
         ...(elevation('brandGlow') as object),
     },
-    brandMarkText: { color: colors.textWhite, fontSize: fontSize['3xl'], fontFamily: fontFamily.display, fontWeight: fontWeight.extrabold },
-    title: { fontSize: fontSize['4xl'], fontFamily: fontFamily.display, fontWeight: fontWeight.black, color: colors.textPrimary, textAlign: 'center' },
+    brandMarkText: { ...typeScale.score, color: colors.textWhite, fontFamily: fontFamily.display, fontWeight: fontWeight.extrabold },
+    title: { ...typeScale.display, fontFamily: fontFamily.display, fontWeight: fontWeight.black, color: colors.textPrimary, textAlign: 'center' },
     sub: {
         ...textStyles.body,
         textAlign: 'center',
@@ -106,6 +102,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
-    featureText: { flex: 1, fontSize: fontSize.md, color: colors.textSecondary, fontWeight: fontWeight.semibold },
+    featureText: { ...typeScale.row, flex: 1, color: colors.textSecondary, fontWeight: fontWeight.semibold },
     actions: { width: '100%', gap: spacing.md },
 })

@@ -1,7 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native'
 import type { SnakePick } from '@/lib/rookieDraft'
 import { PlayerRowContent } from '@/components/player/PlayerRowContent'
-import { colors, fontSize, fontWeight, spacing, table, textStyles, uiColors } from '@/constants/tokens'
+import { colors, fontWeight, spacing, table, textStyles, uiColors, typeScale } from '@/constants/tokens'
 
 export function RookiePickRow({
     item,
@@ -61,12 +61,12 @@ export const rookiePickRowStyles = StyleSheet.create({
     },
     pickRowMe: { backgroundColor: colors.primaryLight },
     pickRowOnClock: { backgroundColor: uiColors.successSurface },
-    pickNum: { width: 28, fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.textMuted },
+    pickNum: { ...typeScale.small, width: 28, fontWeight: fontWeight.bold, color: colors.textMuted },
     pickTeam: { width: '25%', maxWidth: 140, minWidth: 0, gap: spacing.xxs },
-    pickTeamName: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textPrimary },
+    pickTeamName: { ...typeScale.small, fontWeight: fontWeight.semibold, color: colors.textPrimary },
     pickRoundStart: { ...textStyles.tableHeader },
-    pickPlayer: { flex: 1, fontSize: fontSize.sm, color: colors.textPlaceholder },
-    pickSkipped: { flex: 1, fontSize: fontSize.sm, color: colors.textMuted, fontWeight: fontWeight.semibold },
+    pickPlayer: { ...typeScale.small, flex: 1, color: colors.textPlaceholder },
+    pickSkipped: { ...typeScale.small, flex: 1, color: colors.textMuted, fontWeight: fontWeight.semibold },
     pickPlayerCell: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: spacing.md },
     onClockText: { color: uiColors.successText, fontWeight: fontWeight.bold },
     meText: { color: colors.primaryDark, fontWeight: fontWeight.bold }

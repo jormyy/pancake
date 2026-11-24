@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native'
 import type { Trade } from '@/lib/trades'
-import { colors, fontSize } from '@/constants/tokens'
+import { colors, typeScale } from '@/constants/tokens'
 import { displayedTradeValues, formatTradeValue } from '@/lib/trade-estimates'
 
 export function SavedTradeEstimate({ trade, myMemberId }: { trade: Trade; myMemberId: string }) {
@@ -16,5 +16,5 @@ export function SavedTradeEstimate({ trade, myMemberId }: { trade: Trade; myMemb
 }
 
 const styles = StyleSheet.create({
-    value: { fontSize: fontSize.xs, color: colors.textSecondary, fontVariant: ['tabular-nums'] },
+    value: { ...typeScale.caption, color: colors.textSecondary, fontVariant: ['tabular-nums'] },
 })

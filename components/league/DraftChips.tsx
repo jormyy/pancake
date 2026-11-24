@@ -10,7 +10,7 @@ import {
     type RookieTimerExpiryBehavior,
 } from '@/lib/draft'
 import type { MockDraftRoomKind } from '@/lib/mockDraftRooms'
-import { controlSize, colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { controlSize, colors, fontWeight, radii, spacing, typeScale } from '@/constants/tokens'
 import { nextRovingIndex } from '@/components/ui/rovingFocus'
 import {
     DRAFT_TIMER_MAX_SECONDS,
@@ -296,7 +296,7 @@ export function DraftTimerControl({
                 dense
             /></View> : null}
             </View>
-            {error ? <Text accessibilityRole="alert" style={{ color: colors.danger, fontSize: fontSize.sm }}>{error}</Text> : null}
+            {error ? <Text accessibilityRole="alert" style={{ ...typeScale.small, color: colors.danger }}>{error}</Text> : null}
         </View>
     )
 }
@@ -307,7 +307,7 @@ const styles = StyleSheet.create({
     nominationModeChip: {
         flexGrow: 1,
         flexBasis: 78,
-        minHeight: 44,
+        minHeight: controlSize.minTouch,
         paddingVertical: spacing.sm,
         paddingHorizontal: spacing.md,
         borderRadius: radii.md,
@@ -321,7 +321,7 @@ const styles = StyleSheet.create({
     rookieTimerPresets: { flexBasis: '100%' },
     timerUnits: { flexGrow: 1, flexBasis: 180, minWidth: 0 },
     nominationModeChipOn: { borderColor: colors.primary, backgroundColor: colors.primary },
-    nominationModeChipText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textSecondary, textAlign: 'center' },
+    nominationModeChipText: { ...typeScale.small, fontWeight: fontWeight.semibold, color: colors.textSecondary, textAlign: 'center' },
     nominationModeChipTextOn: { color: colors.textWhite },
     // Presets and the custom field wrap as one row, so a narrow screen moves
     // the custom field below instead of squeezing the presets into a column.
@@ -344,28 +344,31 @@ const styles = StyleSheet.create({
         flexGrow: 1,
         flexBasis: 118,
         minWidth: 118,
-        minHeight: 44,
+        minHeight: controlSize.minTouch,
         borderWidth: 1,
         borderColor: colors.border,
         borderRadius: radii.md,
         borderCurve: 'continuous' as const,
         backgroundColor: colors.bgCard,
         paddingHorizontal: spacing.sm,
-        paddingVertical: spacing.xs,
-        justifyContent: 'center',
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.xs,
     },
     customTimerFieldActive: {
         borderColor: colors.primary,
         backgroundColor: colors.primaryLight,
     },
     customTimerLabel: {
-        fontSize: fontSize['2xs'],
+        ...typeScale.micro,
         fontWeight: fontWeight.bold,
         color: colors.textMuted,
     },
     customTimerLabelActive: { color: colors.primaryDark },
     customTimerInput: {
-        minHeight: 22,
+        flex: 1,
+        minWidth: 0,
+        minHeight: controlSize.minTouch,
         padding: spacing.none,
         fontSize: controlSize.field.fontSize,
         fontWeight: fontWeight.semibold,

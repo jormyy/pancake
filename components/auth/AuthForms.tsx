@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from 'react-native'
 import { AuthScaffold } from '@/components/auth/AuthScaffold'
 import type { AuthHeroContent } from '@/components/auth/AuthHero'
 import { Button, Input } from '@/components/ui'
-import { colors, componentTokens, fontSize, fontWeight, spacing } from '@/constants/tokens'
+import { colors, componentTokens, fontWeight, spacing, typeScale } from '@/constants/tokens'
 
 const SIGN_IN_HERO: AuthHeroContent = {
     title: 'A calmer command center for serious dynasty leagues.',
@@ -68,8 +68,8 @@ export function SignInForm({ email, password, loading, error, restorationNotice,
 
 const signinStyles = StyleSheet.create({
     error: {
+        ...typeScale.row,
         color: colors.dangerDark,
-        fontSize: fontSize.md,
         fontWeight: fontWeight.semibold,
         marginBottom: spacing.lg,
     },
@@ -78,10 +78,10 @@ const signinStyles = StyleSheet.create({
     // Padded to a 44px tap target.
     link: {
         ...componentTokens.textLink,
+        ...typeScale.row,
         paddingVertical: spacing.lg,
         textAlign: 'center',
         color: colors.primaryDark,
-        fontSize: fontSize.md,
         fontWeight: fontWeight.semibold,
     },
 })
@@ -168,8 +168,8 @@ export function SignUpForm({ email, password, username, displayName, loading, er
 
 const signupStyles = StyleSheet.create({
     error: {
+        ...typeScale.row,
         color: colors.dangerDark,
-        fontSize: fontSize.md,
         fontWeight: fontWeight.semibold,
         marginBottom: spacing.lg,
     },
@@ -178,10 +178,10 @@ const signupStyles = StyleSheet.create({
     // Padded to a 44px tap target.
     link: {
         ...componentTokens.textLink,
+        ...typeScale.row,
         paddingVertical: spacing.lg,
         textAlign: 'center',
         color: colors.primaryDark,
-        fontSize: fontSize.md,
         fontWeight: fontWeight.semibold,
     },
 })

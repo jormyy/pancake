@@ -14,9 +14,10 @@ type Props = {
     reserveSpace?: boolean
     liveGame?: PlayerGame | null
     liveFantasyPoints?: number | null
+    plain?: boolean
 }
 
-export function NextProjectionCard({ projection, loading = false, reserveSpace = false, liveGame, liveFantasyPoints }: Props) {
+export function NextProjectionCard({ projection, loading = false, reserveSpace = false, liveGame, liveFantasyPoints, plain = false }: Props) {
     const timezone = useLeagueTimezone()
     const activity = useBrowserReadActivity()
     const [, updateTime] = useState(0)
@@ -31,7 +32,7 @@ export function NextProjectionCard({ projection, loading = false, reserveSpace =
     const unstarted = projection && projection.next_game_date && (tipoff != null && Number.isFinite(tipoff)
         ? tipoff > Date.now() : projection.next_game_date > todayLeague(timezone))
     const next = unstarted ? projection : null
-    if (!liveGame && !next) return reserveSpace ? <View style={styles.slot} testID="player-projection-slot" aria-hidden /> : null
+    if (!liveGame && !next) return reserveSpace ? <View style={plain ? styles.plainSlot : styles.slot} testID="player-projection-slot" aria-hidden /> : null
     const date = next ? new Date(tipoff != null && Number.isFinite(tipoff) ? tipoff : `${next.next_game_date}T12:00:00Z`) : null
     const weekday = date?.toLocaleDateString('en-US', { weekday: 'short', timeZone: next?.next_game_time ? timezone : 'UTC' })
     const time = next?.next_game_time && tipoff != null && Number.isFinite(tipoff)
@@ -40,15 +41,16 @@ export function NextProjectionCard({ projection, loading = false, reserveSpace =
         ? `Live ${liveGame.opponent} · ${liveFantasyPoints != null ? `${formatPoints(liveFantasyPoints)} FP` : `${liveGame.points} PTS`} so far`
         : [[next?.next_game_opponent, weekday, time].filter(Boolean).join(' '), next?.projection_fantasy_points == null ? '— proj' : `${formatAvgPoints(next.projection_fantasy_points)} proj`].join(' · ')
     const card = (
-        <View style={styles.card} aria-busy={loading}>
+        <View style={plain ? null : styles.card} aria-busy={loading}>
             <Text style={[styles.summary, liveGame && styles.live]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>{summary}</Text>
         </View>
     )
-    return reserveSpace ? <View style={styles.slot} testID="player-projection-slot">{card}</View> : card
+    return reserveSpace ? <View style={plain ? styles.plainSlot : styles.slot} testID="player-projection-slot">{card}</View> : card
 }
 
 const styles = StyleSheet.create({
     slot: { minHeight: textStyles.meta.lineHeight + spacing.md * 2 + 2 },
+    plainSlot: { minHeight: textStyles.meta.lineHeight },
     card: { padding: spacing.md, backgroundColor: colors.bgCard, borderWidth: 1, borderColor: colors.borderLight, borderRadius: radii.lg, borderCurve: 'continuous' },
     summary: { ...textStyles.meta, color: colors.textSecondary, fontVariant: ['tabular-nums'] },
     live: { color: colors.success, fontWeight: fontWeight.semibold },

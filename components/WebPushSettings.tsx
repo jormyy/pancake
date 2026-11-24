@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 import { Button } from '@/components/ui'
-import { spacing, textStyles } from '@/constants/tokens'
+import { spacing, textStyles, controlSize } from '@/constants/tokens'
 import { showAlert } from '@/lib/alert'
 import { useBrowserReadActivity } from '@/hooks/use-browser-read-activity'
 import { sessionGeneration } from '@/lib/session-cache-registry'
@@ -92,7 +92,7 @@ export function WebPushSettings({ onStatusChange }: { onStatusChange?: (status: 
         return (
             <View style={styles.row} aria-busy accessibilityState={{ busy: true }}>
                 <Text style={styles.label}>This device</Text>
-                <View style={{ minHeight: 44, minWidth: 80 }} />
+                <View style={{ minHeight: controlSize.minTouch, minWidth: 80 }} />
             </View>
         )
     }

@@ -1,8 +1,10 @@
 import { formatLeagueDateTime } from '@/lib/timezone'
 import { useEffect, useState } from 'react'
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native'
+import { ActivityIndicator, RefreshControl, ScrollView, Text, View } from 'react-native'
 import { ScreenFrame } from '@/components/ui/ScreenFrame'
-import { colors, radii, spacing, textStyles } from '@/constants/tokens'
+import { Button } from '@/components/ui/Button'
+import { SegmentedControl } from '@/components/ui/SegmentedControl'
+import { borderWidth, colors, layout, spacing, textStyles } from '@/constants/tokens'
 import { timelineMatches, timelineRelativeTime, type TimelineFilter } from '@/lib/timeline'
 import { useTeamTimeline } from '@/lib/timeline/useTeamTimeline'
 
@@ -34,44 +36,32 @@ export function TeamTimelineScreen({ leagueId, memberId, teamName, entityId, fil
     const events = timeline.events.filter(event => timelineMatches(event, filter)
         && (!focusedEntity || event.entityId === focusedEntity || Boolean(focusedThread && event.threadId === focusedThread)))
     return <ScreenFrame style={{ flex: 1, backgroundColor: colors.bgScreen }}>
-        <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg, width: '100%', maxWidth: 760, alignSelf: 'center' }}
+        <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg, width: '100%', maxWidth: layout.formMaxWidth, alignSelf: 'center' }}
             refreshControl={<RefreshControl refreshing={timeline.loading} onRefresh={() => { void timeline.refresh() }} />}>
             <View style={{ gap: spacing.sm }}>
                 {showTitle ? <Text accessibilityRole="header" style={textStyles.pageTitle}>Timeline</Text> : null}
                 <Text style={textStyles.body}>{teamName ? `${teamName} activity` : 'Your team activity'}</Text>
             </View>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
-                {filters.map(item => <Pressable key={item.value} accessibilityRole="button" accessibilityState={{ selected: filter === item.value }}
-                    onPress={() => setFilter(item.value)} style={{ minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.md,
-                        borderRadius: radii.md, backgroundColor: filter === item.value ? colors.primaryLight : undefined }}>
-                    <Text style={{ ...textStyles.body, color: filter === item.value ? colors.primaryDark : colors.textSecondary }}>{item.label}</Text>
-                </Pressable>)}
-            </View>
-            {focusedEntity ? <Pressable accessibilityRole="button" onPress={() => setFocusedEntity(undefined)} style={{ minHeight: 44, justifyContent: 'center' }}>
-                <Text style={{ ...textStyles.body, color: colors.primaryDark }}>Show all team activity</Text>
-            </Pressable> : null}
+            <SegmentedControl options={filters} value={filter} onChange={setFilter} accessibilityLabel="Timeline filter" scrollable />
+            {focusedEntity ? <Button variant="ghost" size="sm" title="Show all team activity" style={{ alignSelf: 'flex-start' }} onPress={() => setFocusedEntity(undefined)} /> : null}
             {timeline.error ? <View accessibilityRole="alert" style={{ gap: spacing.sm }}>
                 <Text style={{ ...textStyles.body, color: colors.dangerDark }}>{timeline.error}</Text>
-                <Pressable accessibilityRole="button" onPress={() => { void timeline.retry() }} style={{ minHeight: 44, justifyContent: 'center' }}>
-                    <Text style={{ ...textStyles.body, color: colors.primaryDark }}>Try again</Text>
-                </Pressable>
+                <Button variant="outline" size="sm" title="Try again" style={{ alignSelf: 'flex-start' }} onPress={() => { void timeline.retry() }} />
             </View> : null}
             {timeline.loading && !timeline.events.length ? <ActivityIndicator accessibilityLabel="Loading timeline" color={colors.primary} /> : null}
             {!timeline.loading && !timeline.error && !events.length ? <Text style={textStyles.body}>
                 {timeline.hasMore ? 'No matching activity on this page. Load older activity to continue.' : 'No activity here yet. Team results appear here when they happen.'}
             </Text> : null}
             <View>
-                {events.map(event => <View key={event.id} style={{ borderLeftWidth: 2, borderColor: colors.borderLight, paddingLeft: spacing.lg, paddingBottom: spacing.xl, gap: spacing.sm }}>
+                {events.map(event => <View key={event.id} style={{ borderLeftWidth: borderWidth.strong, borderColor: colors.borderLight, paddingLeft: spacing.lg, paddingBottom: spacing.xl, gap: spacing.sm }}>
                     <Text accessibilityLabel={formatLeagueDateTime(event.createdAt, timezone)} style={textStyles.meta}>{`${timelineRelativeTime(event.createdAt, now, timezone)} · ${formatLeagueDateTime(event.createdAt, timezone)}`}</Text>
                     <Text style={textStyles.rowTitle}>{event.summary}</Text>
                     {event.reason !== null ? <Text selectable style={{ ...textStyles.body, color: colors.textPrimary }}>{event.reason}</Text> : null}
                     {typeof event.detail.bid_amount === 'number' ? <Text style={textStyles.body}>Bid: ${event.detail.bid_amount}</Text> : null}
                 </View>)}
             </View>
-            {timeline.hasMore ? <Pressable accessibilityRole="button" disabled={timeline.loadingMore || timeline.loading}
-                onPress={() => { void timeline.loadMore() }} style={{ minHeight: 44, justifyContent: 'center' }}>
-                <Text style={{ ...textStyles.body, color: colors.primaryDark }}>{timeline.loadingMore ? 'Loading older activity…' : 'Load older activity'}</Text>
-            </Pressable> : null}
+            {timeline.hasMore ? <Button variant="outline" size="sm" style={{ alignSelf: 'flex-start' }} disabled={timeline.loadingMore || timeline.loading}
+                title={timeline.loadingMore ? 'Loading older activity…' : 'Load older activity'} onPress={() => { void timeline.loadMore() }} /> : null}
         </ScrollView>
     </ScreenFrame>
 }

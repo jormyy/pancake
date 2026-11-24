@@ -12,6 +12,7 @@ import { enableWebPush, getWebPushStatus } from '@/lib/web-push'
 import { showAlert, confirmAction } from '@/lib/alert'
 
 const auth = vi.hoisted(() => ({ user: { id: 'owner-a', email: 'synthetic@example.invalid' }, ready: true, tradeEnabled: true }))
+vi.mock('@/components/ScreenErrorFallback', () => ({ ScreenErrorFallback: () => null }))
 vi.mock('@react-navigation/native', () => ({ useIsFocused: () => true }))
 vi.mock('@/hooks/use-auth', () => ({ useAuth: () => auth }))
 vi.mock('react-native', () => ({
@@ -165,6 +166,18 @@ it('keeps the local-only logout warning after the initiating account signs out',
     expect(showAlert).toHaveBeenCalledWith('Signed out on this device', expect.stringContaining('Other sessions may still be signed in'))
 })
 
+it('marks the visible screen frame busy, not the hidden content, while the profile loads', async () => {
+    auth.ready = false
+    let renderer!: ReactTestRenderer
+    await act(async () => { renderer = create(React.createElement(ProfileScreen)); mounted = renderer })
+    const content = renderer.root.findByType('ScrollView' as React.ElementType)
+    expect(content.props['aria-hidden']).toBe(true)
+    expect(content.props['aria-busy']).toBeUndefined()
+    expect(content.parent!.props['aria-busy']).toBe(true)
+    expect(content.parent!.props['aria-hidden']).toBeUndefined()
+    auth.ready = true
+})
+
 it('reveals profile content without waiting for device controls on the notification screen', async () => {
     const pending = deferred<'off'>()
     vi.mocked(getWebPushStatus).mockReturnValueOnce(pending.promise)
@@ -172,6 +185,7 @@ it('reveals profile content without waiting for device controls on the notificat
     await act(async () => { renderer = create(React.createElement(ProfileScreen)); mounted = renderer })
     const content = () => renderer.root.findByType('ScrollView' as React.ElementType)
     expect(content().props['aria-hidden']).toBe(false)
+    expect(content().parent!.props['aria-busy']).toBe(false)
     expect(content().props.pointerEvents).toBe('auto')
     expect(getWebPushStatus).not.toHaveBeenCalled()
     expect(renderer.root.findAllByType(SettingsRow).some(node => node.props.label === 'Notification settings')).toBe(true)

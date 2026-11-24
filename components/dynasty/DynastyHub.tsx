@@ -18,7 +18,7 @@ import { useRouter } from 'expo-router'
 
 import { EmptyState } from '@/components/EmptyState'
 import { ItemSeparator } from '@/components/ItemSeparator'
-import { Card, ErrorBanner, Input, SegmentedControl } from '@/components/ui'
+import { Button, Card, ErrorBanner, Input, SegmentedControl } from '@/components/ui'
 import { usePageMetrics } from '@/components/ui/Page'
 import { RetainedPanel } from '@/components/ui/RetainedPanel'
 import { useLeagueContext } from '@/contexts/league-context'
@@ -30,7 +30,7 @@ import { formatAvgPoints, playerHeadshotUrl } from '@/lib/format'
 import { getEligiblePositions } from '@/lib/players'
 import { API_URL } from '@/lib/shared/api'
 import { getLeagueMembers } from '@/lib/league'
-import { colors, fontSize, fontWeight, controlSize, layout, radii, spacing, table, textStyles, lineHeight } from '@/constants/tokens'
+import { colors, fontWeight, controlSize, layout, radii, spacing, table, textStyles, typeScale } from '@/constants/tokens'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 
 type DynastySection = 'rankings' | 'news'
@@ -220,10 +220,7 @@ export function DynastyHub({ section }: { section: DynastySection }) {
                                 <MaterialIcons name="error-outline" size={26} color={colors.danger} />
                                 <Text style={styles.errorTitle}>Rankings could not load</Text>
                                 <Text style={styles.errorText}>{rankings.error.message}</Text>
-                                <Pressable style={styles.retryButton} onPress={() => void rankings.refresh()} accessibilityRole="button" accessibilityLabel="Retry rankings">
-                                    <MaterialIcons name="refresh" size={18} color={colors.textWhite} />
-                                    <Text style={styles.retryButtonText}>Retry</Text>
-                                </Pressable>
+                                <Button title="Retry" icon="refresh" accessibilityLabel="Retry rankings" onPress={() => void rankings.refresh()} />
                             </View>
                         ) : (
                             <FlashList
@@ -332,7 +329,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         gap: spacing.xxs,
     },
-    rankMovementText: { ...textStyles.meta, fontSize: fontSize.xs },
+    rankMovementText: { ...textStyles.meta, ...typeScale.caption },
     rankMain: { flex: 1, minWidth: 0, gap: spacing.xxs },
     rankHeadline: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.sm },
     playerName: { ...textStyles.rowTitle, flex: 1, minWidth: 0 },
@@ -362,28 +359,16 @@ const styles = StyleSheet.create({
         padding: spacing['4xl'],
     },
     errorTitle: {
-        fontSize: fontSize.lg,
+        ...typeScale.title,
         fontWeight: fontWeight.extrabold,
         color: colors.textPrimary,
     },
     errorText: {
+        ...typeScale.small,
         maxWidth: 520,
         textAlign: 'center',
-        fontSize: fontSize.sm,
-        lineHeight: lineHeight.control,
         color: colors.textMuted,
     },
-    retryButton: {
-        minHeight: 42,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: spacing.sm,
-        borderRadius: radii.md,
-        paddingHorizontal: spacing.xl,
-        backgroundColor: colors.primary,
-    },
-    retryButtonText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.textWhite },
     footerRetry: {
         minHeight: 54,
         flexDirection: 'row',
@@ -391,5 +376,5 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         gap: spacing.sm,
     },
-    footerRetryText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.primaryDark },
+    footerRetryText: { ...typeScale.small, fontWeight: fontWeight.bold, color: colors.primaryDark },
 })

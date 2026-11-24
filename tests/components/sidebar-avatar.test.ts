@@ -49,6 +49,21 @@ beforeEach(() => {
     mocks.eq.mockResolvedValue({ error: null })
 })
 
+it.each([
+    ['/', false, false],
+    ['/league', false, true],
+    ['/profile', true, false],
+    ['/notification-settings', true, false],
+])('links Profile from the desktop sidebar on %s', async (pathname, profileActive, leagueActive) => {
+    mocks.pathname = pathname
+    await mount()
+    const link = (label: string) => screen.root.findAll(node => node.type === ('Pressable' as React.ElementType) && node.props.accessibilityLabel === label)
+    expect(link('Profile')).toHaveLength(1)
+    expect(link('Profile')[0].parent!.props.href).toBe('/profile')
+    expect(link('Profile')[0].props.accessibilityState.selected).toBe(profileActive)
+    expect(link('League')[0].props.accessibilityState.selected).toBe(leagueActive)
+})
+
 it.each([1440, 390])('reserves the league switch geometry before identity resolves at width %s', async width => {
     mocks.width = width
     mocks.pathname = '/'

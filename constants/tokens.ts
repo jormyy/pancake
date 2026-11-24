@@ -261,7 +261,6 @@ export const spacing = {
     md: unit(2),
     lg: unit(3),
     xl: unit(4),
-    '2xl': unit(5),
     '3xl': unit(5),
     '4xl': unit(6),
     '5xl': unit(8),
@@ -292,22 +291,20 @@ export const radii = {
 
 // ── Typography ──────────────────────────────────────────────────
 
-const TYPE_SCALE = [10, 11, 12, 12, 13, 16, 17, 18, 20, 24, 28, 32] as const
+const TYPE_SCALE = [10, 11, 12, 13, 14, 16, 18, 20, 24, 28, 32] as const
 
 export const fontSize = {
     '2xs': TYPE_SCALE[0],
     xs: TYPE_SCALE[1],
-    '2sm': TYPE_SCALE[2],
-    sm: TYPE_SCALE[3],
-    md: TYPE_SCALE[4],
-    '2md': 14,
+    sm: TYPE_SCALE[2],
+    md: TYPE_SCALE[3],
+    '2md': TYPE_SCALE[4],
     lg: TYPE_SCALE[5],
-    '2lg': TYPE_SCALE[6],
-    xl: TYPE_SCALE[7],
-    '2xl': TYPE_SCALE[8],
-    '3xl': TYPE_SCALE[9],
-    '4xl': TYPE_SCALE[10],
-    '5xl': TYPE_SCALE[11],
+    xl: TYPE_SCALE[6],
+    '2xl': TYPE_SCALE[7],
+    '3xl': TYPE_SCALE[8],
+    '4xl': TYPE_SCALE[9],
+    '5xl': TYPE_SCALE[10],
 } as const
 
 // Display face — Outfit, loaded via useFonts in app/_layout.tsx without
@@ -347,6 +344,8 @@ export const tracking = {
     tight: 0.3,
     normal: 0.4,
     label: 0.5,
+    table: 0.6,
+    caps: 0.8,
     wide: 1,
 } as const
 
@@ -362,19 +361,34 @@ export const fontWeight = {
 
 const tabularNums: TextStyle['fontVariant'] = ['tabular-nums']
 
-// Text roles. Screens pick a role instead of a raw size so the hierarchy reads
-// the same everywhere: hero number > page title > row title > body > meta > label.
+const step = (size: number, leading: number) => ({ fontSize: size, lineHeight: leading })
+
+export const typeScale = {
+    micro: step(fontSize['2xs'], unit(3)),
+    caption: step(fontSize.xs, halfUnit(7)),
+    small: step(fontSize.sm, halfUnit(7)),
+    row: step(fontSize.md, unit(4)),
+    body: step(fontSize.md, halfUnit(9)),
+    number: step(fontSize['2md'], halfUnit(9)),
+    title: step(fontSize.lg, unit(5)),
+    heading: step(fontSize.xl, unit(6)),
+    headline: step(fontSize['2xl'], unit(6)),
+    score: step(fontSize['3xl'], unit(7)),
+    display: step(fontSize['4xl'], unit(8)),
+    hero: step(fontSize['5xl'], unit(9)),
+} as const satisfies Record<string, TextStyle>
+
 export const textStyles = {
-    hero: { fontFamily: fontFamily.display, fontSize: fontSize['5xl'], lineHeight: 36, fontWeight: fontWeight.black, fontVariant: tabularNums },
-    compactScore: { fontFamily: fontFamily.display, fontSize: fontSize['3xl'], lineHeight: unit(7), fontWeight: fontWeight.black, fontVariant: tabularNums },
-    pageTitle: { fontFamily: fontFamily.display, fontSize: fontSize.xl, lineHeight: 24, fontWeight: fontWeight.bold, color: colors.textPrimary },
-    rowTitle: { fontSize: fontSize.md, lineHeight: 16, fontWeight: fontWeight.semibold, color: colors.textPrimary },
-    body: { fontSize: fontSize.md, lineHeight: 18, color: colors.textSecondary },
-    meta: { fontSize: fontSize['2sm'], lineHeight: 14, color: colors.textMuted },
-    sectionLabel: { fontSize: fontSize.xs, lineHeight: 14, fontWeight: fontWeight.extrabold, letterSpacing: 0.8, textTransform: 'uppercase' as const, color: colors.textMuted },
-    stat: { fontSize: fontSize['2sm'], fontVariant: tabularNums, color: colors.textSecondary },
-    tableHeader: { fontSize: fontSize['2xs'], lineHeight: 12, fontWeight: fontWeight.extrabold, letterSpacing: 0.6, textTransform: 'uppercase' as const, color: colors.textMuted },
-    tableCell: { fontSize: fontSize.sm, fontVariant: tabularNums, color: colors.textSecondary },
+    hero: { fontFamily: fontFamily.display, ...typeScale.hero, fontWeight: fontWeight.black, fontVariant: tabularNums },
+    compactScore: { fontFamily: fontFamily.display, ...typeScale.score, fontWeight: fontWeight.black, fontVariant: tabularNums },
+    pageTitle: { fontFamily: fontFamily.display, ...typeScale.heading, fontWeight: fontWeight.bold, color: colors.textPrimary },
+    rowTitle: { ...typeScale.row, fontWeight: fontWeight.semibold, color: colors.textPrimary },
+    body: { ...typeScale.body, color: colors.textSecondary },
+    meta: { ...typeScale.small, color: colors.textMuted },
+    sectionLabel: { ...typeScale.caption, fontWeight: fontWeight.extrabold, letterSpacing: tracking.caps, textTransform: 'uppercase' as const, color: colors.textMuted },
+    stat: { ...typeScale.small, fontVariant: tabularNums, color: colors.textSecondary },
+    tableHeader: { ...typeScale.micro, fontWeight: fontWeight.extrabold, letterSpacing: tracking.table, textTransform: 'uppercase' as const, color: colors.textMuted },
+    tableCell: { ...typeScale.small, fontVariant: tabularNums, color: colors.textSecondary },
 } satisfies Record<string, TextStyle>
 
 // Data tables (roster, players, standings, rankings, trades). One spec so
@@ -384,6 +398,7 @@ export const table = {
     rowHeight: 48,
     rowHeightCompact: 44,
     statColWidth: 44,
+    scoreColWidth: unit(8),
     scoreBreakdownRowHeight: unit(10),
     cellPadX: spacing.sm,
 } as const
@@ -394,10 +409,10 @@ export const controlSize = {
     icon: { sm: unit(4), md: unit(5), lg: unit(6) },
     avatar: { sm: unit(7), md: unit(8), lg: unit(11), profile: unit(13) },
     button: {
-        inline: { height: unit(7), padX: spacing.md, font: fontSize.sm, icon: unit(4), gap: spacing.xs },
-        sm: { height: unit(11), padX: spacing.lg, font: fontSize.sm, icon: unit(4), gap: spacing.sm },
-        md: { height: unit(11), padX: spacing.xl, font: fontSize.md, icon: halfUnit(9), gap: spacing.md },
-        lg: { height: unit(12), padX: spacing['3xl'], font: fontSize.lg, icon: unit(5), gap: spacing.md },
+        inline: { height: unit(7), padX: spacing.md, font: typeScale.small.fontSize, line: typeScale.small.lineHeight, icon: unit(4), gap: spacing.xs },
+        sm: { height: unit(11), padX: spacing.lg, font: typeScale.small.fontSize, line: typeScale.small.lineHeight, icon: unit(4), gap: spacing.sm },
+        md: { height: unit(11), padX: spacing.xl, font: typeScale.body.fontSize, line: typeScale.body.lineHeight, icon: halfUnit(9), gap: spacing.md },
+        lg: { height: unit(12), padX: spacing['3xl'], font: typeScale.title.fontSize, line: typeScale.title.lineHeight, icon: unit(5), gap: spacing.md },
     },
     field: {
         fontSize: fontSize.lg,
@@ -473,11 +488,7 @@ export type WebOnlyViewStyle = ViewStyle & {
 }
 
 export const webBackgrounds = {
-    appRoot: webColor('image-app-root', 'radial-gradient(circle at 22% 0%, rgba(166, 83, 23, 0.10), transparent 32%), radial-gradient(circle at 78% 10%, rgba(47, 122, 91, 0.12), transparent 30%), linear-gradient(180deg, #FFFDF7 0%, #F7F1E8 42%, #EFE5D6 100%)'),
-    appContent: webColor('image-app-content', 'radial-gradient(circle at 74% -10%, rgba(47, 122, 91, 0.12), transparent 30%), linear-gradient(180deg, rgba(255, 253, 247, 0.92), rgba(247, 241, 232, 0.98))'),
-    authScreen: webColor('image-auth-screen', 'radial-gradient(circle at 84% 8%, rgba(47, 122, 91, 0.12), transparent 32%), linear-gradient(135deg, #FFFDF7 0%, #F7F1E8 54%, #EDE0CE 100%)'),
     authHero: `radial-gradient(circle at 24% 12%, rgba(166, 83, 23, 0.30), transparent 30%), radial-gradient(circle at 80% 30%, rgba(47, 122, 91, 0.22), transparent 34%), linear-gradient(155deg, ${brand.surface} 0%, ${brand.surfaceDeeper} 100%)`,
-    noLeague: webColor('image-no-league', 'radial-gradient(circle at 78% 8%, rgba(47, 122, 91, 0.12), transparent 34%), linear-gradient(145deg, #FFFDF7, #F7F1E8)'),
     sidebar: `radial-gradient(circle at 18% 0%, rgba(166, 83, 23, 0.26), transparent 34%), linear-gradient(180deg, ${brand.surface} 0%, ${brand.surfaceDeeper} 100%)`,
 } as const
 
@@ -599,6 +610,7 @@ export const layout = {
         tabHeight: halfUnit(27),
         leagueHeight: unit(17),
         crestSize: halfUnit(17),
+        statusNoticeBottom: { compact: unit(18), regular: unit(36) },
     },
     auth: { maxWidth: unit(112), markSize: foundation.minTouch, heroMarkSize: unit(24) },
     gameCard: { width: unit(24), compactWidth: unit(22), scoreWidth: unit(6) },
@@ -680,16 +692,16 @@ export const componentTokens = {
         outlinedCompact: { paddingVertical: spacing.xxs },
         scoreLetterSpacing: textStyles.tableHeader.letterSpacing,
         ownership: { minHeight: controlSize.badge.height, paddingHorizontal: spacing.sm, paddingVertical: 0, borderRadius: radii.sm, width: 90, maxCompactWidth: 96 },
-        position: { minHeight: controlSize.badge.height, paddingHorizontal: spacing.xxs, paddingVertical: 0, borderRadius: radii.xs, label: { fontSize: fontSize['2xs'], lineHeight: textStyles.meta.lineHeight, fontWeight: fontWeight.extrabold, letterSpacing: 0.3 } },
+        position: { minHeight: controlSize.badge.height, paddingHorizontal: spacing.xxs, paddingVertical: 0, borderRadius: radii.xs, label: { ...typeScale.micro, fontWeight: fontWeight.extrabold, letterSpacing: 0.3 } },
         inline: { minHeight: controlSize.badge.height, paddingHorizontal: spacing.xxs, paddingVertical: 0 },
         count: { minWidth: 18, minHeight: 18, paddingVertical: 0, paddingHorizontal: spacing.xs, borderRadius: radii.full },
         tintOpacity: 0.13,
-        label: { fontSize: fontSize.xs, fontWeight: fontWeight.bold },
-        countLabel: { fontSize: fontSize['2xs'], fontWeight: fontWeight.bold },
+        label: { ...typeScale.caption, fontWeight: fontWeight.bold },
+        countLabel: { ...typeScale.micro, fontWeight: fontWeight.bold },
     },
     statCell: {
         width: table.statColWidth,
-        summary: { width: '100%' as const, textAlign: 'center' as const, fontSize: fontSize['2lg'], fontWeight: fontWeight.bold, color: colors.textPrimary, fontVariant: tabularNums },
+        summary: { width: '100%' as const, textAlign: 'center' as const, ...typeScale.title, fontWeight: fontWeight.bold, color: colors.textPrimary, fontVariant: tabularNums },
         text: { ...textStyles.meta, fontWeight: fontWeight.semibold, textAlign: 'right' as const },
         highlight: { color: colors.primaryDark, fontWeight: fontWeight.extrabold },
     },
@@ -700,8 +712,8 @@ export const componentTokens = {
         gap: spacing.sm,
         radius: radii['3xl'],
         underlineWidth: borderWidth.strong,
-        pillLabel: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, fontFamily: fontFamily.displayMedium, color: colors.textSecondary },
-        tabLabel: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textMuted },
+        pillLabel: { ...typeScale.small, fontWeight: fontWeight.bold, fontFamily: fontFamily.displayMedium, color: colors.textSecondary },
+        tabLabel: { ...typeScale.body, fontWeight: fontWeight.semibold, color: colors.textMuted },
     },
     sheet: {
         ...layout.sheet,
@@ -792,9 +804,6 @@ export const positionColors: Record<string, string> = {
 // Web follows the system setting; native stays light.
 export const WEB_THEME_VARS: Record<string, string> = LIGHT_THEME
 
-const darkImage = (glow: string) =>
-    `radial-gradient(circle at 22% 0%, rgba(240, 168, 104, 0.07), transparent 32%), ${glow}linear-gradient(180deg, ${night.bgSubtle} 0%, ${night.bgScreen} 100%)`
-
 export const WEB_THEME_VARS_DARK: Record<string, string> = {
     'text-primary': night.textPrimary,
     'text-secondary': night.textSecondary,
@@ -827,10 +836,6 @@ export const WEB_THEME_VARS_DARK: Record<string, string> = {
     'info': night.purple,
     'info-light': night.purpleTint,
     'accent': night.blue,
-    'image-app-root': darkImage('radial-gradient(circle at 78% 10%, rgba(79, 178, 134, 0.06), transparent 30%), '),
-    'image-app-content': darkImage(''),
-    'image-auth-screen': darkImage('radial-gradient(circle at 84% 8%, rgba(79, 178, 134, 0.06), transparent 32%), '),
-    'image-no-league': darkImage(''),
     'overlay-mobile-topbar': night.bgScreen,
     'overlay-mobile-bottom-nav': 'rgba(18, 22, 20, 0.94)',
     'ui-accent-danger': night.red,

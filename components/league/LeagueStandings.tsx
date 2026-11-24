@@ -4,7 +4,7 @@ import { ScreenStatusScrollView as ScrollView } from '@/components/ui/ScreenStat
 import { View, Text, Pressable, StyleSheet } from 'react-native'
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { compareStandingsRows, type StandingRow } from '@/lib/scoring'
-import { colors, controlSize, fontSize, fontWeight, layout, spacing, srOnly, table, textStyles } from '@/constants/tokens'
+import { colors, controlSize, fontWeight, layout, spacing, srOnly, table, textStyles, typeScale } from '@/constants/tokens'
 import { countLabel, formatPoints } from '@/lib/format'
 import { ItemSeparator } from '@/components/ItemSeparator'
 import { EmptyState } from '@/components/EmptyState'
@@ -404,7 +404,7 @@ const styles = StyleSheet.create({
         gap: spacing.sm,
     },
     rowHover: { backgroundColor: colors.bgSubtle },
-    rank: { width: RANK_W, fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.textMuted, fontVariant: ['tabular-nums'] as const },
+    rank: { ...typeScale.small, width: RANK_W, fontWeight: fontWeight.bold, color: colors.textMuted, fontVariant: ['tabular-nums'] as const },
     teamWrap: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
     // Link-colored so every row (not just "You") reads as a tappable roster.
     teamName: { ...textStyles.rowTitle, flexShrink: 1, color: colors.primaryDark },

@@ -11,7 +11,7 @@ import { View, Text, Pressable, StyleSheet } from 'react-native'
 import { useCallback } from 'react'
 import { FlashList, type ListRenderItem } from '@shopify/flash-list'
 import { TransactionRow, TRANSACTION_LABELS, activityEventCategory } from '@/lib/transactions'
-import { alpha, colors, controlSize, fontSize, fontWeight, layout, spacing, srOnly, table, textStyles, TX_COLORS } from '@/constants/tokens'
+import { alpha, colors, controlSize, fontWeight, layout, spacing, srOnly, table, textStyles, TX_COLORS, typeScale } from '@/constants/tokens'
 import { ItemSeparator } from '@/components/ItemSeparator'
 import { EmptyState } from '@/components/EmptyState'
 import { Avatar } from '@/components/Avatar'
@@ -204,15 +204,15 @@ const styles = StyleSheet.create({
     txPlayer: { ...textStyles.rowTitle, flexShrink: 1 },
     txTeam: { ...textStyles.meta },
     txRight: { alignItems: 'flex-end', gap: spacing.xxs },
-    txTime: { fontSize: fontSize.xs, color: colors.textMuted },
+    txTime: { ...typeScale.caption, color: colors.textMuted },
     meTag: { color: colors.textMuted, fontWeight: fontWeight.regular },
     activityFooterAction: {
-        minHeight: 44,
-        padding: spacing['2xl'],
+        minHeight: controlSize.minTouch,
+        padding: spacing['3xl'],
         alignItems: 'center',
         justifyContent: 'center',
     },
-    footerText: { fontSize: fontSize.sm, color: colors.primaryDark, fontWeight: fontWeight.semibold },
+    footerText: { ...typeScale.small, color: colors.primaryDark, fontWeight: fontWeight.semibold },
     footerTextDanger: { color: colors.dangerDark },
     activityHiddenHeading: {
         ...srOnly,

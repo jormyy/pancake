@@ -1,7 +1,7 @@
 import { ComponentProps, ReactNode } from 'react'
 import { Pressable, StyleSheet, Text, View, type AccessibilityState, type StyleProp, type ViewStyle, type TextStyle } from 'react-native'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
-import { colors, controlSize, elevation, fontFamily, fontWeight, motion, radii } from '@/constants/tokens'
+import { colors, controlSize, elevation, fontFamily, fontWeight, motion, radii, tracking } from '@/constants/tokens'
 
 type IconName = ComponentProps<typeof MaterialIcons>['name']
 type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'danger' | 'ghost'
@@ -27,7 +27,7 @@ type Props = {
 
 type PressableState = { hovered?: boolean; pressed?: boolean }
 
-const SIZES: Record<ButtonSize, { height: number; padX: number; font: number; icon: number; gap: number }> = controlSize.button
+const SIZES: Record<ButtonSize, { height: number; padX: number; font: number; line: number; icon: number; gap: number }> = controlSize.button
 
 function variantColors(variant: ButtonVariant) {
     switch (variant) {
@@ -86,7 +86,7 @@ export function Button({
     const content = <>
         {icon ? <MaterialIcons name={icon} size={s.icon} color={c.fg} /> : null}
         {title ? (
-            <Text style={[styles.label, { color: c.fg, fontSize: s.font }, inline && styles.inlineLabel, labelStyle]} numberOfLines={1}>
+            <Text style={[styles.label, { color: c.fg, fontSize: s.font, lineHeight: s.line }, inline && styles.inlineLabel, labelStyle]} numberOfLines={1}>
                 {title}
             </Text>
         ) : children}
@@ -100,7 +100,8 @@ export function Button({
             accessibilityRole="button"
             accessibilityLabel={accessibilityLabel ?? title}
             accessibilityHint={accessibilityHint}
-            accessibilityState={{ ...accessibilityState, disabled: isDisabled || accessibilityState?.disabled === true }}
+            accessibilityState={{ ...accessibilityState, disabled: isDisabled || accessibilityState?.disabled === true, busy: loading || accessibilityState?.busy === true }}
+            aria-busy={loading || accessibilityState?.busy === true}
             style={state => [inline ? [styles.inlineTarget, state.pressed && !isDisabled && styles.pressed] : surfaceStyle(state), fullWidth && styles.fullWidth, style]}
         >
             {inline ? <View pointerEvents="none" style={surfaceStyle({})}>{content}</View> : content}
@@ -118,11 +119,11 @@ const styles = StyleSheet.create({
     } as ViewStyle,
     fullWidth: { width: '100%' },
     inlineTarget: { minHeight: controlSize.minTouch, minWidth: controlSize.minTouch, alignItems: 'center', justifyContent: 'center' },
-    inlineLabel: { lineHeight: controlSize.icon.sm, fontWeight: fontWeight.semibold, fontFamily: fontFamily.control, letterSpacing: 0 },
+    inlineLabel: { fontWeight: fontWeight.semibold, fontFamily: fontFamily.control, letterSpacing: tracking.none },
     label: {
         fontWeight: fontWeight.bold,
         fontFamily: fontFamily.displayMedium,
-        letterSpacing: 0.1,
+        letterSpacing: tracking.none,
     },
     pressed: { opacity: motion.pressedOpacity },
     disabled: { opacity: 0.5 },

@@ -13,8 +13,9 @@ import { readPlayerHeader } from '@/components/player/navigation'
 import { TransactionHistory } from '@/components/player/TransactionHistory'
 import { PlayerSection } from '@/components/player/PlayerSection'
 import { NextProjectionCard } from '@/components/player/NextProjectionCard'
-import { breakpoints, colors, fontSize, fontWeight, layout, spacing, textStyles } from '@/constants/tokens'
+import { breakpoints, colors, fontWeight, layout, spacing, textStyles, typeScale } from '@/constants/tokens'
 import { BackButton, Page, usePageMetrics } from '@/components/ui'
+import { Button } from '@/components/ui/Button'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useOnlineStatus } from '@/hooks/use-online-status'
 import { usePlayerScreenData } from '@/hooks/use-player-screen-data'
@@ -234,20 +235,16 @@ export default function PlayerDetailScreen() {
         />
     ) : null
     const profile = (
-        <>
-                <StatsOverview
-                    averages={seasonAverages}
-                    seasonYear={selectedSeason}
-                    avgFantasyPoints={avgFantasyPoints}
-                    showFantasy={showFantasy}
-                    columns={statColumns}
-                    seasonControl={seasonControl}
-                    loading={seasonLoading}
-                    includesLive={includesLive}
-                />
-            <NextProjectionCard reserveSpace projection={nextProjection} loading={!projectionSettled} liveGame={liveGame}
-                liveFantasyPoints={liveGame ? fantasyPointsMap?.get(liveGame.gameId) : null} />
-        </>
+        <StatsOverview
+            averages={seasonAverages}
+            seasonYear={selectedSeason}
+            avgFantasyPoints={avgFantasyPoints}
+            showFantasy={showFantasy}
+            columns={statColumns}
+            seasonControl={seasonControl}
+            loading={seasonLoading}
+            includesLive={includesLive}
+        />
     )
     const gameLogSection = (
         <GameLogTable
@@ -265,7 +262,7 @@ export default function PlayerDetailScreen() {
     )
     const historySection = showTransactions ? (
         <PlayerSection title="League history" expanded={opened.history === true} onToggle={() => toggleSection('history')}>
-            {historyLoading ? <Text style={textStyles.meta}>Loading history…</Text> : transactionsError ? <Pressable onPress={() => { void retryHistory(true) }}><Text>Retry history</Text></Pressable> : <TransactionHistory key={ownerIdentity} playerId={id} leagueId={leagueId!} transactions={transactions} showHeading={false} />}
+            {historyLoading ? <Text style={textStyles.meta}>Loading history…</Text> : transactionsError ? <Button size="sm" variant="outline" title="Retry history" onPress={() => { void retryHistory(true) }} /> : <TransactionHistory key={ownerIdentity} playerId={id} leagueId={leagueId!} transactions={transactions} showHeading={false} />}
         </PlayerSection>
     ) : null
 
@@ -274,7 +271,7 @@ export default function PlayerDetailScreen() {
             {gameLogSection}
         </PlayerSection>
         <PlayerSection title="News" expanded={opened.news === true} onToggle={() => toggleSection('news')}>
-            {newsLoading ? <Text style={textStyles.meta}>Loading news…</Text> : newsError ? <Pressable onPress={() => { void retryNews(true) }}><Text>Retry news</Text></Pressable> : news.length === 0 ? <Text style={textStyles.meta}>No recent news.</Text> : news.map(item => <Pressable key={item.id} accessibilityRole={item.url ? 'link' : undefined} disabled={!item.url} onPress={() => { if (item.url && /^https?:\/\//.test(item.url)) void Linking.openURL(item.url) }} style={styles.newsItem}>
+            {newsLoading ? <Text style={textStyles.meta}>Loading news…</Text> : newsError ? <Button size="sm" variant="outline" title="Retry news" onPress={() => { void retryNews(true) }} /> : news.length === 0 ? <Text style={textStyles.meta}>No recent news.</Text> : news.map(item => <Pressable key={item.id} accessibilityRole={item.url ? 'link' : undefined} disabled={!item.url} onPress={() => { if (item.url && /^https?:\/\//.test(item.url)) void Linking.openURL(item.url) }} style={styles.newsItem}>
                 <Text style={textStyles.rowTitle}>{item.title}</Text>
                 <Text style={textStyles.body}>{item.summary}</Text>
                 <Text style={textStyles.meta}>{item.source}</Text>
@@ -300,6 +297,8 @@ export default function PlayerDetailScreen() {
                         dropDisabled={dropping}
                         backControl={<BackButton onPress={goBack} />}
                         compact={usableWidth < 600}
+                        detail={<NextProjectionCard plain reserveSpace projection={nextProjection} loading={!projectionSettled} liveGame={liveGame}
+                            liveFantasyPoints={liveGame ? fantasyPointsMap?.get(liveGame.gameId) : null} />}
                     />
                     <View style={styles.body}>
                         {injuryDetails ? <Text style={textStyles.meta}>{injuryDetails}</Text> : null}
@@ -366,12 +365,12 @@ export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFa
 
 const styles = StyleSheet.create({
     newsItem: { paddingVertical: spacing.md, gap: spacing.xs },
-    scroll: { width: '100%', maxWidth: layout.contentMaxWidth, alignSelf: 'center', paddingTop: spacing.sm, paddingBottom: spacing['2xl'], gap: spacing.md },
+    scroll: { width: '100%', maxWidth: layout.contentMaxWidth, alignSelf: 'center', paddingTop: spacing.sm, paddingBottom: spacing['3xl'], gap: spacing.md },
     body: { gap: spacing.md },
     initialSlot: { flex: 1, minHeight: 0 },
     columns: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing['3xl'] },
     sideColumn: { width: SIDE_COLUMN_WIDTH, flexShrink: 0, gap: spacing.md },
     mainColumn: { flex: 1, minWidth: 0, gap: spacing.md },
     errorText: { ...textStyles.body, textAlign: 'center', marginTop: spacing['5xl'], color: colors.textMuted },
-    warningText: { color: colors.dangerDark, fontSize: fontSize.sm, fontWeight: fontWeight.semibold },
+    warningText: { ...typeScale.small, color: colors.dangerDark, fontWeight: fontWeight.semibold },
 })

@@ -10,7 +10,6 @@ vi.mock('@/components/trades/PendingTradeRosterPlan', () => ({ PendingTradeRoste
 const timelineNavigation = vi.hoisted(() => ({ push: vi.fn() }))
 vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => ({ current: { id: 'member-a' }, currentLeague: { id: 'league' } }) }))
 vi.mock('expo-router', () => ({ useRouter: () => ({ push: timelineNavigation.push }) }))
-vi.mock('@/components/SectionHeader', () => ({ SectionHeader: 'SectionHeader' }))
 vi.mock('@/components/trades/MultiTeamTradeOverview', () => ({ MultiTeamTradeOverview: () => null }))
 vi.mock('@/lib/format', () => ({ playerHeadshotUrl: () => null, yearShort: String }))
 vi.mock('@/lib/player-context', () => ({ playerEligiblePositions: () => [], playerSeasonContextText: () => '' }))

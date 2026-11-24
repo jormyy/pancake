@@ -17,7 +17,7 @@ vi.mock('react-native', () => ({
 vi.mock('@/lib/players', () => ({ getPlayerTransactionHistory }))
 vi.mock('@/constants/tokens', () => ({
     colors: { textPrimary: '#000', textPlaceholder: '#777', separator: '#ddd', textMuted: '#666', primaryDark: '#111' },
-    fontSize: { md: 14, sm: 12 },
+    typeScale: { small: { fontSize: 12, lineHeight: 14 } },
     fontWeight: { bold: '700', semibold: '600' },
     spacing: { md: 12, xxs: 2, lg: 16 },
     radii: { md: 4 },

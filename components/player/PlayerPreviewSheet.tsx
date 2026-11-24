@@ -7,7 +7,7 @@ import type { ComponentProps } from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 
 import { Sheet } from '@/components/ui/Sheet'
-import { colors, controlSize, fontSize, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
+import { colors, controlSize, fontWeight, radii, spacing, textStyles, typeScale } from '@/constants/tokens'
 import { formatAvgPoints, formatStat } from '@/lib/format'
 import type { RosterAverage } from '@/lib/roster-stats'
 
@@ -148,7 +148,7 @@ const styles = StyleSheet.create({
         borderRightWidth: 1,
         borderBottomWidth: 1,
     },
-    statValue: { fontSize: fontSize.md, fontWeight: fontWeight.bold, color: colors.textPrimary, fontVariant: ['tabular-nums'] as const },
+    statValue: { ...typeScale.row, fontWeight: fontWeight.bold, color: colors.textPrimary, fontVariant: ['tabular-nums'] as const },
     statValueStrong: { color: colors.primaryDark },
     statLabel: { ...textStyles.tableHeader },
     actions: {
@@ -168,6 +168,6 @@ const styles = StyleSheet.create({
     actionDivider: { borderBottomWidth: 1, borderBottomColor: colors.separator },
     actionHover: { backgroundColor: colors.bgSubtle },
     actionPressed: { backgroundColor: colors.bgMuted },
-    actionLabel: { flex: 1, fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textPrimary },
+    actionLabel: { ...typeScale.row, flex: 1, fontWeight: fontWeight.semibold, color: colors.textPrimary },
     actionLabelDanger: { color: colors.dangerDark },
 })

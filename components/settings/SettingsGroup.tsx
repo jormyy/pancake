@@ -1,7 +1,7 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { Children, Fragment, isValidElement, type ReactNode } from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
-import { colors, motion, radii, spacing, textStyles } from '@/constants/tokens'
+import { colors, motion, radii, spacing, textStyles, controlSize } from '@/constants/tokens'
 import { notificationSwitchKeyboardProps } from './NotificationSwitchKeyboard'
 
 type PressableState = { hovered?: boolean; pressed?: boolean }
@@ -137,7 +137,7 @@ const styles = StyleSheet.create({
     reservedValue: { width: '60%' },
     danger: { color: colors.dangerDark },
     toggle: {
-        width: 44,
+        width: controlSize.minTouch,
         height: 26,
         borderRadius: radii.full,
         backgroundColor: colors.bgMuted,

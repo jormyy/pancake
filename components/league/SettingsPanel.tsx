@@ -2,7 +2,7 @@ import { ScreenStatusScrollView as ScrollView } from '@/components/ui/ScreenStat
 import { useEffect, useRef, useState } from 'react'
 import { Platform, View, Text, StyleSheet } from 'react-native'
 import type { WaiverPriorityRow } from '@/lib/waivers'
-import { colors, fontSize, fontWeight, spacing, table, textStyles } from '@/constants/tokens'
+import { colors, fontWeight, spacing, table, textStyles, typeScale } from '@/constants/tokens'
 import { countLabel } from '@/lib/format'
 import { panelStyles } from '@/components/league/draftPanelStyles'
 import { tableStyles } from '@/components/league/leagueTableStyles'
@@ -135,6 +135,6 @@ const styles = StyleSheet.create({
         gap: spacing.md,
         paddingHorizontal: spacing.lg,
     },
-    waiverRank: { width: 24, fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.textMuted, fontVariant: ['tabular-nums'] as const },
+    waiverRank: { ...typeScale.small, width: 24, fontWeight: fontWeight.bold, color: colors.textMuted, fontVariant: ['tabular-nums'] as const },
     waiverTeam: { ...textStyles.rowTitle, flex: 1, minWidth: 0 },
 })

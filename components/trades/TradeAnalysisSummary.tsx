@@ -5,7 +5,7 @@ import type { RosterPlayer } from '@/lib/roster'
 import type { DynastyTradeAnalysis } from '@/core/src/dynasty/decisionEngine'
 import { curveTradeValue } from '@/core/src/dynasty/tradeScoring'
 import { curvedAssetValue, tradeComparison, formatTradeValue } from '@/lib/trade-estimates'
-import { borderWidth, colors, componentTokens, fontSize, fontWeight, spacing, textStyles, lineHeight } from '@/constants/tokens'
+import { borderWidth, colors, componentTokens, fontWeight, spacing, textStyles, typeScale } from '@/constants/tokens'
 
 export function TradeAnalysisSummary({
     analysis,
@@ -86,15 +86,15 @@ const styles = StyleSheet.create({
     root: { gap: spacing.md },
     teamGrid: { gap: spacing.xs },
     teamCard: { alignItems: 'stretch', minHeight: componentTokens.playerRow.compact.minHeight, paddingHorizontal: componentTokens.playerRow.compact.paddingHorizontal, gap: spacing.md, width: '100%' },
-    verdict: { fontSize: fontSize.md, fontWeight: fontWeight.bold, color: colors.textPrimary },
+    verdict: { ...typeScale.row, fontWeight: fontWeight.bold, color: colors.textPrimary },
     teamHeading: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing.sm },
-    teamName: { fontSize: fontSize.md, fontWeight: fontWeight.bold, color: colors.textPrimary },
-    value: { fontSize: fontSize.md, fontWeight: fontWeight.bold, color: colors.primaryDark },
+    teamName: { ...typeScale.row, fontWeight: fontWeight.bold, color: colors.textPrimary },
+    value: { ...typeScale.row, fontWeight: fontWeight.bold, color: colors.primaryDark },
     valueNegative: { color: colors.dangerDark },
-    detail: { fontSize: fontSize.xs, color: colors.textSecondary, lineHeight: lineHeight.body },
+    detail: { ...typeScale.caption, color: colors.textSecondary },
     assetRow: { gap: spacing.xxs, paddingVertical: spacing.sm, borderTopWidth: borderWidth.thin, borderTopColor: colors.borderLight },
     assetHeading: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-    assetValue: { ...textStyles.meta, fontSize: fontSize.xs, color: colors.textSecondary, fontVariant: ['tabular-nums'] },
+    assetValue: { ...textStyles.meta, ...typeScale.caption, color: colors.textSecondary, fontVariant: ['tabular-nums'] },
     assetCopy: { flex: 1, minWidth: 0 },
-    assetName: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.textPrimary },
+    assetName: { ...typeScale.small, fontWeight: fontWeight.bold, color: colors.textPrimary },
 })

@@ -373,8 +373,11 @@ function SidebarNavButton({
     return href ? <Link href={href} dismissTo asChild>{button}</Link> : button
 }
 
+const ACCOUNT_ROUTES = ['/profile', '/notification-settings', '/change-password']
+
 function WebSidebar() {
     const pathname = usePathname()
+    const onAccountPage = ACCOUNT_ROUTES.some(route => pathname === route || pathname.startsWith(`${route}/`))
     const pendingTradeCount = usePendingTradeCount()
 
     return (
@@ -408,8 +411,14 @@ function WebSidebar() {
                     <SidebarNavButton
                         label="League"
                         icon="emoji-events"
-                        active={isRouteActive(pathname, '/league')}
+                        active={isRouteActive(pathname, '/league') && !onAccountPage}
                         href="/league"
+                    />
+                    <SidebarNavButton
+                        label="Profile"
+                        icon="person"
+                        active={onAccountPage}
+                        href="/profile"
                     />
                 </View>
 

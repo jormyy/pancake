@@ -5,7 +5,7 @@ import type { RosterView } from '@/lib/cache/view-types'
 import { ScreenStatusOverlay, ScreenStatusProvider } from '@/components/ui/ScreenStatusOverlay'
 import { DeferredContent } from '@/components/ui/DeferredContent'
 import { View, Text, StyleSheet } from 'react-native'
-import { colors, fontSize, spacing } from '@/constants/tokens'
+import { colors, spacing, typeScale } from '@/constants/tokens'
 import { ErrorBanner, Page, PageHeader, SegmentedControl } from '@/components/ui'
 import { NoLeagueState } from '@/components/NoLeagueState'
 import { StandingsTable } from '@/components/league/LeagueStandings'
@@ -214,7 +214,7 @@ function LeagueScreen() {
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgScreen },
-    freshness: { color: colors.textSecondary, fontSize: fontSize.sm, padding: spacing.md },
+    freshness: { ...typeScale.small, color: colors.textSecondary, padding: spacing.md },
     panel: { flex: 1, minHeight: 0 },
     tabs: { flexWrap: 'nowrap' },
 })

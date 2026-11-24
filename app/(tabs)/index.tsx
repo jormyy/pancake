@@ -141,7 +141,7 @@ export default function HomeScreen() {
             {/* The error card owns the retry when there is no matchup to show; the banner covers a failed refresh over live data. */}
             {error && homeSurface !== 'error' && <ErrorBanner onRetry={refreshHome} />}
 
-            {lineupError ? <ErrorBanner message="Couldn't load this day. Tap to retry." onRetry={() => { void handleDaySelect(selectedDate) }} /> : null}
+            {lineupError && matchup ? <ErrorBanner message="Couldn't load this day. Tap to retry." onRetry={() => { void handleDaySelect(selectedDate) }} /> : null}
             <DeferredContent ready={homeSurface !== 'loading' && (homeSurface !== 'matchup' || lineupError || Boolean(myLineup && oppLineup && gamesReady))} busy={refreshingHome || lineupLoading}>
             {matchup ? (
                 <View style={[styles.playSurface, { paddingHorizontal: padX }]}>

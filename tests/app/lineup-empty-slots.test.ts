@@ -56,6 +56,8 @@ vi.mock('@/components/DaySelector', () => ({ DaySelector: 'DaySelector' }))
 vi.mock('@/components/PosTag', () => ({ PosTag: 'PosTag' }))
 vi.mock('@/components/Badge', () => ({ InjuryBadge: 'InjuryBadge' }))
 vi.mock('@/components/Motion', () => ({ MotionPressable: 'MotionPressable', MotionView: 'MotionView' }))
+vi.mock('@expo/vector-icons/MaterialIcons', () => ({ default: 'MaterialIcons' }))
+vi.mock('@/components/ui/Sheet', () => ({ Sheet: 'Sheet' }))
 vi.mock('@/components/ui', () => ({ Button: 'Button', Page: 'Page', PageHeader: 'PageHeader', usePageMetrics: () => ({ padX: 16, usableWidth: 358, compact: true }) }))
 vi.mock('@/components/ui/useGoBack', () => ({ useGoBack: () => vi.fn() }))
 vi.mock('@/components/ScreenErrorFallback', () => ({ ScreenErrorFallback: 'ScreenErrorFallback' }))
@@ -166,14 +168,15 @@ it('shows nothing when Auto Lineup is disabled', async () => {
     expect(JSON.stringify(screen.toJSON())).not.toContain('Roster needs your call')
 })
 
-it.each(['starter', 'bench'] as const)('disables pins on locked %s rows', async kind => {
+it.each(['starter', 'bench'] as const)('replaces the pin control with the lock on locked %s rows', async kind => {
     const player = pinPlayer('Locked')
     if (kind === 'starter') mocks.lineup.starters = [{ slotType: 'PG', player }]
     else mocks.lineup.bench = [player]
     mocks.startedTeams = new Set(['LAL'])
     await mount()
-    expect(pinButton('Pin Locked to start').props.disabled).toBe(true)
-    await tapPin('Pin Locked to start')
+    expect(screen.root.findAllByProps({ accessibilityLabel: 'Pin Locked to start' })).toHaveLength(0)
+    expect(screen.root.findAll(node => typeof node.props.accessibilityLabel === 'string' && node.props.accessibilityLabel.startsWith('Lineup pin for Locked'))).toHaveLength(0)
+    expect(screen.root.findAllByType('Text' as React.ElementType).some(node => node.props.children === 'LOCK')).toBe(true)
     expect(mocks.setPin).not.toHaveBeenCalled()
 })
 

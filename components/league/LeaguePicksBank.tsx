@@ -7,11 +7,11 @@ import { ScreenStatusScrollView as ScrollView } from '@/components/ui/ScreenStat
 import { View, Text, StyleSheet } from 'react-native'
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { LeaguePickItem } from '@/lib/rookieDraft'
-import { colors, fontSize, fontWeight, layout, spacing, srOnly, table, textStyles } from '@/constants/tokens'
+import { SectionBand } from '@/components/ui/SectionBand'
+import { colors, fontWeight, layout, spacing, srOnly, table, textStyles, typeScale } from '@/constants/tokens'
 import { countLabel } from '@/lib/format'
 import { ItemSeparator } from '@/components/ItemSeparator'
 import { EmptyState } from '@/components/EmptyState'
-import { SectionHeader } from '@/components/SectionHeader'
 import { SegmentedControl, type SegmentOption } from '@/components/ui/SegmentedControl'
 import { tableStyles } from '@/components/league/leagueTableStyles'
 import { useWebViewport } from '@/hooks/use-web-viewport'
@@ -57,7 +57,7 @@ type PicksBankItem =
     | { type: 'pick'; pick: LeaguePickItem; id: string }
 
 function PicksBankYearHeader({ year }: { year: number }) {
-    return <SectionHeader label={String(year)} decorative />
+    return <SectionBand label={String(year)} decorative />
 }
 
 function pickRowLabel(pick: LeaguePickItem, isMine: boolean) {
@@ -469,7 +469,7 @@ const styles = StyleSheet.create({
         paddingVertical: spacing.xs,
     },
     pickLabel: { width: 56, flexDirection: 'row', alignItems: 'center', gap: spacing.xxs },
-    picksBankRound: { flexShrink: 1, fontSize: fontSize.md, fontWeight: fontWeight.bold, color: colors.textSecondary },
+    picksBankRound: { ...typeScale.row, flexShrink: 1, fontWeight: fontWeight.bold, color: colors.textSecondary },
     picksBankRoundCompact: { width: 88 },
     picksBankFromWrap: {
         flex: 1,
@@ -479,8 +479,8 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         gap: spacing.sm,
     },
-    picksBankFrom: { flex: 1, minWidth: 0, fontSize: fontSize.sm, color: colors.textSecondary },
-    picksBankOwner: { flexShrink: 1, maxWidth: '45%', marginLeft: spacing.md, textAlign: 'right', fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textPrimary },
+    picksBankFrom: { ...typeScale.small, flex: 1, minWidth: 0, color: colors.textSecondary },
+    picksBankOwner: { ...typeScale.small, flexShrink: 1, maxWidth: '45%', marginLeft: spacing.md, textAlign: 'right', fontWeight: fontWeight.semibold, color: colors.textPrimary },
     pickSummary: { ...textStyles.body, marginTop: spacing.md },
     picksLedgerIntro: {
         paddingTop: spacing.lg,
