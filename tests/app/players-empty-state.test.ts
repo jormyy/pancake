@@ -110,11 +110,10 @@ it('shows pagination progress without removing the existing players', async () =
     expect(screen!.root.findAllByProps({ children: 'Loading more players…' }).length).toBeGreaterThan(0)
 })
 
-it('shows the status chips with saved rows during background refresh', async () => {
-    state.support.data = { ...(state.support.data as object), transactionState: { waiverMode: 'faab', faabBalance: 100 } }
+it('shows one plain status line with saved rows during background refresh', async () => {
+    state.support.data = { ...(state.support.data as object), transactionState: { waiverMode: 'faab', faabBalance: 100, weeklyAddCount: 0, weeklyAddLimit: 7 } }
     state.search = { ...state.search, players: Array.from({ length: 20 }, (_, id) => ({ id: String(id), stats_season_year: 2027 })), refreshing: true }
     await render()
     const labels = screen!.root.findAllByType('Text' as React.ElementType).map(node => String(node.props.children))
-    expect(labels).toContain('20 players')
-    expect(labels).toContain('FAAB $100')
+    expect(labels).toContain('20 players · 0/7 adds · $100 FAAB')
 })
