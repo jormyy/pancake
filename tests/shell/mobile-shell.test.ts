@@ -83,7 +83,12 @@ it.each([
     expect(screen.root.findAll(node => node.type === ('Pressable' as React.ElementType) && node.props.accessibilityRole === 'link')).toHaveLength(5)
     const main = screen.root.find(node => node.type === ('View' as React.ElementType) && node.props.role === 'main')
     const style = Object.assign({}, ...main.props.style.filter(Boolean))
-    expect(style.paddingTop).toBe('env(safe-area-inset-top, 0px)')
+    expect(style.paddingTop).toBeUndefined()
+    const inset = screen.root.findAll(node => node.type === ('View' as React.ElementType) && node.props.testID === 'back-header-inset')
+    expect(inset).toHaveLength(1)
+    const insetStyle = Object.assign({}, ...[inset[0].props.style].flat(Infinity).filter(Boolean))
+    expect(insetStyle.height).toBe('env(safe-area-inset-top, 0px)')
+    expect(insetStyle.position).toBeUndefined()
 })
 
 it.each(['/', '/roster', '/players', '/trades', '/league', '/bracket'])('keeps the league header on %s', async pathname => {

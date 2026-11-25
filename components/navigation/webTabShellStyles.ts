@@ -291,19 +291,13 @@ export const styles = StyleSheet.create({
     // notch and the bottom tabs under the home indicator.
     contentCompact: {
         paddingTop: `var(--pancake-mobile-topbar-height, calc(${MOBILE_TOPBAR_HEIGHT}px + env(safe-area-inset-top, ${spacing.none}px)))`,
+    } as unknown as WebOnlyViewStyle,
+    contentCompactBottom: {
         paddingBottom: `calc(${MOBILE_BOTTOMBAR_HEIGHT}px + env(safe-area-inset-bottom, ${spacing.none}px))`,
     } as unknown as WebOnlyViewStyle,
 
-    contentWithBackHeader: {
-        paddingTop: `env(safe-area-inset-top, ${spacing.none}px)`,
-    } as unknown as WebOnlyViewStyle,
-
-    statusBarCap: {
-        position: 'fixed',
-        top: spacing.none,
-        left: spacing.none,
-        right: spacing.none,
-        zIndex: 50,
+    backHeaderInset: {
+        flexShrink: 0,
         height: `env(safe-area-inset-top, ${spacing.none}px)`,
         backgroundColor: colors.bgScreen,
     } as unknown as WebOnlyViewStyle,

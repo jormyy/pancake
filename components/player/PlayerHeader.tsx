@@ -36,6 +36,15 @@ export type PlayerHeaderAction = {
     blockedReason?: string | null
 }
 
+export function playerSummaryLine(player: Pick<PlayerHeaderPlayer, 'dynasty_rank' | 'birthdate' | 'years_exp'>) {
+    const age = playerAgeDecimal(player.birthdate)
+    return [
+        player.dynasty_rank != null ? `Dynasty #${player.dynasty_rank}` : null,
+        age != null ? `Age: ${age.toFixed(1)}` : null,
+        player.years_exp === 0 ? 'Rookie' : player.years_exp != null ? `Yr ${player.years_exp + 1}` : null,
+    ].filter(Boolean).join(' · ')
+}
+
 type Props = {
     locks?: readonly AssetLock[]
     player: PlayerHeaderPlayer
@@ -48,19 +57,17 @@ type Props = {
     dropDisabled?: boolean
     onDrop?: () => void
     compact?: boolean
+    showSummary?: boolean
+    padX?: number
     detail?: ReactNode
 }
 
 export function PlayerHeader({ locks = [], player, rosterStatus, ownTeamName, action, backControl,
-    leagueActive, actionsReady = true, dropDisabled = false, onDrop, compact = false, detail }: Props) {
+    leagueActive, actionsReady = true, dropDisabled = false, onDrop, compact = false, showSummary = true,
+    padX = spacing.none, detail }: Props) {
     const headshotSize = compact ? controlSize.avatar.md : controlSize.avatar.lg
     const eligiblePositions = getEligiblePositions(player)
-    const age = playerAgeDecimal(player.birthdate)
-    const summary = [
-        player.dynasty_rank != null ? `Dynasty #${player.dynasty_rank}` : null,
-        age != null ? `Age: ${age.toFixed(1)}` : null,
-        player.years_exp === 0 ? 'Rookie' : player.years_exp != null ? `Yr ${player.years_exp + 1}` : null,
-    ].filter(Boolean).join(' · ')
+    const summary = playerSummaryLine(player)
     const statusLabel = rosterStatus?.status === 'free_agent' ? 'Free agent'
         : rosterStatus?.status === 'on_waivers' ? 'On waivers'
         : rosterStatus?.status === 'mine' ? ownTeamName ?? 'On your roster'
@@ -71,24 +78,28 @@ export function PlayerHeader({ locks = [], player, rosterStatus, ownTeamName, ac
     const showDrop = rosterStatus?.status === 'mine' && onDrop != null
     const busy = action?.busy || (!rosterStatus && leagueActive) || !actionsReady
     return (
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingHorizontal: padX }]}>
             <View style={styles.identity}>
                 {backControl}
                 <View style={styles.avatarWrap}>
                     <PlayerAvatar name={player.display_name} nbaId={player.nba_id} size={headshotSize} />
                     <InjuryTag status={player.injury_status} avatarSize={headshotSize} />
                 </View>
-                <Text style={[styles.name, compact && styles.nameCompact]} accessibilityLabel={player.display_name}>{player.display_name}</Text>
+                <View style={styles.identityCopy}>
+                    <Text style={[styles.name, compact && styles.nameCompact]} accessibilityLabel={player.display_name}>{player.display_name}</Text>
+                    <View style={styles.metaRow} testID="player-position-line">
+                        <PlayerDetailsLine team={player.nba_team} positions={eligiblePositions} jersey={player.jersey_number} />
+                    </View>
+                </View>
             </View>
-            <View style={styles.metaRow} testID="player-position-line">
-                <PlayerDetailsLine team={player.nba_team} positions={eligiblePositions} jersey={player.jersey_number} />
-            </View>
-            <View style={styles.summaryRow} testID="player-summary-line">
-                {summary ? <Text style={styles.summary} numberOfLines={1}>{summary}</Text> : null}
-                <LockedAssetNotice locks={locks} />
-            </View>
+            {showSummary || locks.length > 0 ? (
+                <View style={styles.summaryRow} testID="player-summary-line">
+                    {showSummary && summary ? <Text style={styles.summary} numberOfLines={1}>{summary}</Text> : null}
+                    <LockedAssetNotice locks={locks} />
+                </View>
+            ) : null}
             {leagueActive ? (
-                <View style={styles.decision} testID="player-decision-bar">
+                <View style={[styles.decision, compact && styles.decisionCompact]} testID="player-decision-bar">
                     <View style={styles.decisionCopy}>
                         <Text style={[styles.availability, { color: statusTone }]} numberOfLines={1} testID="player-availability">{statusLabel}</Text>
                         {detail}
@@ -116,15 +127,23 @@ export function PlayerHeader({ locks = [], player, rosterStatus, ownTeamName, ac
 }
 
 const styles = StyleSheet.create({
-    header: { gap: spacing.sm },
+    header: {
+        gap: spacing.xs,
+        paddingVertical: spacing.sm,
+        backgroundColor: colors.bgCard,
+        borderBottomWidth: borderWidth.thin,
+        borderBottomColor: colors.borderLight,
+    },
     identity: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: controlSize.field.md },
     avatarWrap: { flexShrink: 0 },
-    name: { ...textStyles.pageTitle, flex: 1, minWidth: 0 },
+    identityCopy: { flex: 1, minWidth: 0, gap: spacing.xxs },
+    name: { ...textStyles.pageTitle, flexShrink: 1 },
     nameCompact: { ...textStyles.rowTitle, ...typeScale.title },
     metaRow: { flexDirection: 'row', flexWrap: 'nowrap', alignItems: 'center', gap: spacing.xs, minHeight: textStyles.body.lineHeight },
     summary: { ...componentTokens.playerRow.metadata, color: colors.textSecondary, flexShrink: 1, minWidth: 0 },
     summaryRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.xs, minHeight: textStyles.body.lineHeight },
     decision: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md, backgroundColor: colors.bgCard, borderWidth: borderWidth.thin, borderColor: colors.borderLight, borderRadius: radii.lg, borderCurve: 'continuous' },
+    decisionCompact: { padding: spacing.none, backgroundColor: colors.transparent, borderWidth: 0 },
     decisionCopy: { flex: 1, minWidth: 0, gap: spacing.xxs },
     availability: { ...typeScale.row, fontWeight: fontWeight.bold },
     actionWrap: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minWidth: controlSize.minTouch * 2, minHeight: controlSize.minTouch, flexShrink: 0, justifyContent: 'flex-end' },
