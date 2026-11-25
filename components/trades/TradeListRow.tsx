@@ -2,7 +2,7 @@ import { SectionBand } from '@/components/ui/SectionBand'
 import { pickLabel } from '@/lib/picks'
 import { TradePlayerLink } from '@/components/trades/TradePlayerLink'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
-import { memo, useState } from 'react'
+import { memo, useState, type ReactNode } from 'react'
 import { PendingTradeRosterPlan } from './PendingTradeRosterPlan'
 import { useRouter } from 'expo-router'
 
@@ -10,7 +10,7 @@ import { useRouter } from 'expo-router'
 import { TradeCard } from '@/components/trades/TradeCard'
 import { TradeBlockNoteEditor } from '@/components/trades/TradeBlockNoteEditor'
 import type { TradeTabKey } from '@/lib/trade-ui-model'
-import { colors, componentTokens, controlSize, table, fontWeight, radii, spacing, textStyles, typeScale } from '@/constants/tokens'
+import { borderWidth, colors, componentTokens, controlSize, table, fontWeight, radii, spacing, textStyles, typeScale } from '@/constants/tokens'
 import { playerEligiblePositions, playerSeasonContextText } from '@/lib/player-context'
 import type { RosterPlayer } from '@/lib/roster'
 import type { Trade, TradeBlockItem, TradePickItem } from '@/lib/trades'
@@ -20,18 +20,25 @@ import { rosterLocation } from '@/lib/roster-capacity'
 
 type ItemOf<Type extends TradeListItem['_type']> = Extract<TradeListItem, { _type: Type }>
 
-export const TradeSectionRow = memo(function TradeSectionRow({ item }: { item: ItemOf<'header'> }) {
+export const TradeSectionRow = memo(function TradeSectionRow({ item, standalone = false }: { item: ItemOf<'header'>; standalone?: boolean }) {
     if (!item.label) return null
-    return (
-        <View style={styles.sectionCard}>
-            <SectionBand label={item.label} style={styles.sectionBand} />
-        </View>
-    )
+    if (!standalone) return <SectionBand label={item.label} />
+    return <View style={styles.bandCard}><SectionBand label={item.label} style={styles.bandBottomless} /></View>
 })
 
 export const TradeEmptyRow = memo(function TradeEmptyRow({ item }: { item: ItemOf<'empty'> }) {
     return <View style={styles.emptyRow}><Text style={styles.emptyText}>{item.message}</Text></View>
 })
+
+export function TradeCardFrame({ first, last, children }: { first: boolean; last: boolean; children: ReactNode }) {
+    return (
+        <View style={last && styles.cardSpacer}>
+            <View style={[styles.cardFrame, first && styles.cardFirst, last && styles.cardLast, !first && !last && styles.rowDivider]}>
+                {children}
+            </View>
+        </View>
+    )
+}
 
 export const TradeBlockListingRow = memo(function TradeBlockListingRow({
     item,
@@ -183,6 +190,7 @@ export const TradeOfferRow = memo(function TradeOfferRow({
     onAnalyze,
     selected = false,
     brief = false,
+    embedded = false,
     onOpen,
 }: {
     item: ItemOf<'trade'>
@@ -201,12 +209,14 @@ export const TradeOfferRow = memo(function TradeOfferRow({
     onAnalyze: (trade: Trade) => void
     selected?: boolean
     brief?: boolean
+    embedded?: boolean
     onOpen?: (trade: Trade) => void
 }) {
     const [accepting, setAccepting] = useState(false)
     return <><TradeCard trade={item.trade} myMemberId={myMemberId}
         tab={tab} tradeVetoMode={tradeVetoMode} isCommissioner={isCommissioner} holdReady={holdReady}
         acting={acting} decisionsDisabled={decisionsDisabled} selected={selected} brief={brief} onAccept={() => setAccepting(true)}
+        embedded={embedded}
         onReject={() => onReject(item.trade.id)} onVeto={() => onVeto(item.trade.id)}
         onWithdraw={() => onWithdraw(item.trade.id)} onWithdrawAcceptance={onWithdrawAcceptance ? () => onWithdrawAcceptance(item.trade.id) : undefined}
         onAnalyze={() => onAnalyze(item.trade)}
@@ -216,33 +226,46 @@ export const TradeOfferRow = memo(function TradeOfferRow({
 })
 
 const styles = StyleSheet.create({
-    sectionCard: {
-        marginTop: spacing.lg,
-        borderWidth: 1,
+    cardFrame: {
+        backgroundColor: colors.bgCard,
+        borderLeftWidth: borderWidth.thin,
+        borderRightWidth: borderWidth.thin,
+        borderColor: colors.borderLight,
+    },
+    cardFirst: {
+        borderTopWidth: borderWidth.thin,
+        borderTopLeftRadius: radii.xl,
+        borderTopRightRadius: radii.xl,
+        borderCurve: 'continuous',
+        overflow: 'hidden',
+    },
+    cardLast: {
+        borderBottomWidth: borderWidth.thin,
+        borderBottomLeftRadius: radii.xl,
+        borderBottomRightRadius: radii.xl,
+        borderCurve: 'continuous',
+        overflow: 'hidden',
+    },
+    cardSpacer: { paddingBottom: spacing.md },
+    rowDivider: { borderBottomWidth: borderWidth.thin, borderBottomColor: colors.separator },
+    bandCard: {
+        marginTop: spacing.md,
+        borderWidth: borderWidth.thin,
         borderColor: colors.borderLight,
         borderRadius: radii.xl,
         borderCurve: 'continuous',
         overflow: 'hidden',
     },
-    sectionBand: { borderBottomWidth: 0 },
+    bandBottomless: { borderBottomWidth: 0 },
     emptyRow: {
+        minHeight: controlSize.minTouch,
+        justifyContent: 'center',
         paddingHorizontal: spacing.lg,
-        paddingVertical: spacing.md,
-        backgroundColor: colors.bgCard,
-        borderWidth: 1,
-        borderColor: colors.borderLight,
-        borderRadius: radii.xl,
-        borderCurve: 'continuous',
+        paddingVertical: spacing.sm,
     },
     emptyText: { ...textStyles.meta, color: colors.textSecondary },
     blockRow: { minHeight: table.rowHeight, flexDirection: 'row', alignItems: 'center', gap: spacing.lg, paddingVertical: componentTokens.playerRow.standard.paddingVertical },
     compactBlockRow: {
-        borderWidth: 1,
-        borderColor: colors.borderLight,
-        borderRadius: radii.xl,
-        borderCurve: 'continuous',
-        backgroundColor: colors.bgCard,
-        marginBottom: spacing.sm,
         paddingHorizontal: spacing.lg,
         paddingVertical: componentTokens.playerRow.compact.paddingVertical,
         gap: componentTokens.playerRow.compact.gap,

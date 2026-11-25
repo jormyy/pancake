@@ -392,10 +392,10 @@ export function MultiTeamTradeBuilder({
 }
 
 const styles = StyleSheet.create({
-    routeWarning: { ...typeScale.small, marginHorizontal: spacing.xl, marginTop: spacing.md, color: colors.warningDark },
+    routeWarning: { ...typeScale.small, marginHorizontal: spacing.lg, marginTop: spacing.md, color: colors.warningDark },
     root: { width: '100%', maxWidth: '100%', minWidth: 0 },
-    reviewRoot: { width: '100%', maxWidth: '100%', minWidth: 0, paddingBottom: spacing.lg },
-    reviewHeading: { paddingHorizontal: spacing.lg, paddingTop: spacing.lg },
+    reviewRoot: { width: '100%', maxWidth: '100%', minWidth: 0, paddingBottom: spacing.md },
+    reviewHeading: { paddingHorizontal: spacing.lg, paddingTop: spacing.md },
     reviewTitle: {
         ...typeScale.small,
         marginTop: spacing.xs,
@@ -403,7 +403,7 @@ const styles = StyleSheet.create({
         color: colors.textPrimary,
     },
     reviewTerms: {
-        marginHorizontal: spacing.xl,
+        marginHorizontal: spacing.lg,
         marginTop: spacing.md,
         paddingTop: spacing.lg,
         gap: spacing.xs,
@@ -416,7 +416,7 @@ const styles = StyleSheet.create({
         fontWeight: fontWeight.semibold,
         color: colors.textPrimary,
     },
-    summaryRow: { flexDirection: 'row', alignItems: 'center', marginHorizontal: spacing.xl, marginTop: spacing.md, marginBottom: spacing.lg, gap: spacing.md },
+    summaryRow: { flexDirection: 'row', alignItems: 'center', marginHorizontal: spacing.lg, marginTop: spacing.md, marginBottom: spacing.md, gap: spacing.md },
     compactSummary: {
         flex: 1,
         minHeight: controlSize.minTouch,
@@ -440,21 +440,21 @@ const styles = StyleSheet.create({
     },
     sectionLabel: {
         ...textStyles.sectionLabel,
-        paddingHorizontal: spacing.xl,
-        paddingTop: spacing.lg,
+        paddingHorizontal: spacing.lg,
+        paddingTop: spacing.md,
         paddingBottom: spacing.md,
     },
-    stack: { gap: spacing.lg, marginBottom: spacing.lg, paddingHorizontal: spacing.xl },
-    scroller: { marginBottom: spacing.lg },
+    stack: { gap: spacing.md, marginBottom: spacing.md, paddingHorizontal: spacing.lg },
+    scroller: { marginBottom: spacing.md },
     // flexGrow lets team panels share the full builder width instead of
     // sitting at their minimum width inside the sideways scroller.
-    columns: { flexGrow: 1, flexDirection: 'row', gap: spacing.xl, paddingHorizontal: spacing.xl, paddingBottom: spacing.sm },
+    columns: { flexGrow: 1, flexDirection: 'row', gap: spacing.md, paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },
     senderTabs: {
         flexDirection: 'row',
         flexWrap: 'wrap',
         gap: spacing.md,
-        marginHorizontal: spacing.xl,
-        marginBottom: spacing.lg,
+        marginHorizontal: spacing.lg,
+        marginBottom: spacing.md,
         padding: spacing.sm,
         borderRadius: radii.xl,
         backgroundColor: colors.bgSubtle,
@@ -473,7 +473,7 @@ const styles = StyleSheet.create({
     senderTabTextActive: { color: colors.primaryDark },
     notesInput: {
         ...typeScale.title,
-        marginHorizontal: spacing.xl,
+        marginHorizontal: spacing.lg,
         borderWidth: 1,
         borderColor: uiColors.borderNeutral,
         borderRadius: radii.lg,
@@ -487,7 +487,7 @@ const styles = StyleSheet.create({
     notesInputInvalid: { borderColor: colors.danger },
     notesMeta: {
         minHeight: 20,
-        marginHorizontal: spacing.xl,
+        marginHorizontal: spacing.lg,
         marginTop: spacing.xs,
         flexDirection: 'row',
         alignItems: 'flex-start',
@@ -497,7 +497,7 @@ const styles = StyleSheet.create({
     notesError: { ...typeScale.small, flex: 1, color: colors.dangerDark, fontWeight: fontWeight.semibold },
     notesCount: { ...typeScale.small, marginLeft: 'auto', color: colors.textMuted, fontWeight: fontWeight.semibold },
     notesCountInvalid: { color: colors.dangerDark },
-    termsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, marginHorizontal: spacing.xl },
+    termsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, marginHorizontal: spacing.lg },
     termField: { flexGrow: 1, flexBasis: 150, minWidth: 150, gap: spacing.xs },
     termLabel: { ...textStyles.sectionLabel, ...typeScale.micro },
     termInput: {
@@ -513,6 +513,6 @@ const styles = StyleSheet.create({
     },
     termInputInvalid: { borderColor: colors.danger },
     termError: { ...typeScale.small, color: colors.dangerDark, fontWeight: fontWeight.semibold },
-    rosterErrorRow: { paddingHorizontal: spacing.xl, paddingVertical: spacing.lg, minHeight: controlSize.minTouch, alignItems: 'center' },
+    rosterErrorRow: { paddingHorizontal: spacing.lg, paddingVertical: spacing.md, minHeight: controlSize.minTouch, alignItems: 'center' },
     rosterErrorText: { ...typeScale.row, color: colors.dangerDark, fontWeight: fontWeight.semibold, textAlign: 'center' },
 })

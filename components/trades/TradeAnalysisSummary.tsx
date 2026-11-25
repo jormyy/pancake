@@ -82,7 +82,7 @@ function signed(value: number): string {
 
 const styles = StyleSheet.create({
     pending: { minHeight: componentTokens.tradeAnalyzer.pendingHeight, alignItems: 'center', justifyContent: 'center', gap: spacing.sm },
-    inset: { margin: spacing.xl },
+    inset: { margin: spacing.lg },
     root: { gap: spacing.md },
     teamGrid: { gap: spacing.xs },
     teamCard: { alignItems: 'stretch', minHeight: componentTokens.playerRow.compact.minHeight, paddingHorizontal: componentTokens.playerRow.compact.paddingHorizontal, gap: spacing.md, width: '100%' },
