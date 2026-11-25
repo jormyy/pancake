@@ -2,7 +2,7 @@ import { Badge } from '@/components/ui/Badge'
 import { ListHeader } from '@/components/ui/ListHeader'
 import { ScreenStatusScrollView as ScrollView } from '@/components/ui/ScreenStatusOverlay'
 import { View, Text, Pressable, StyleSheet } from 'react-native'
-import { Fragment, useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { compareStandingsRows, type StandingRow } from '@/lib/scoring'
 import { colors, controlSize, fontWeight, layout, spacing, srOnly, table, textStyles, typeScale } from '@/constants/tokens'
 import { countLabel, formatPoints } from '@/lib/format'
@@ -11,6 +11,8 @@ import { EmptyState } from '@/components/EmptyState'
 import { tableStyles } from '@/components/league/leagueTableStyles'
 import { usePageMetrics } from '@/components/ui'
 import { Card } from '@/components/ui/Card'
+import { SectionBand } from '@/components/ui/SectionBand'
+import { Avatar } from '@/components/Avatar'
 import type { LeagueStatus } from '@/types/database'
 
 type StandingsSortKey = 'wins' | 'pf' | 'maxPf' | 'pa'
@@ -125,6 +127,9 @@ function StandingsRow({
             accessibilityLabel={label}
         >
             <Text style={[styles.rank, isMe && tableStyles.textMe]}>{index + 1}</Text>
+            <View aria-hidden accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+                <Avatar name={item.teamName} size={controlSize.avatar.sm} />
+            </View>
             <View style={styles.teamWrap}>
                 <Text style={[styles.teamName, isMe && tableStyles.textMe]} numberOfLines={1}>
                     {item.teamName}
@@ -263,6 +268,7 @@ export function StandingsTable({
     loading = false,
     myMemberId,
     onSelectTeam,
+    footer,
 }: {
     standings: StandingRow[]
     leagueStatus?: LeagueStatus
@@ -271,6 +277,7 @@ export function StandingsTable({
     myMemberId?: string
     onSelectTeam: (memberId: string, teamName: string) => void
     onOpenBracket?: () => void
+    footer?: ReactNode
 }) {
     const [sortBy, setSortBy] = useState<StandingsSortKey>('wins')
     const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
@@ -327,7 +334,7 @@ export function StandingsTable({
               accessibilityLabel: 'No league members yet. Invite managers to fill the standings table before the draft.',
           }
     // The header stays visible (and sortable) even before any team joins.
-    const header = <StandingsHeader sortBy={sortBy} sortDir={sortDir} onSort={handleSort} showMaxPf={showMaxPf} showPa={showPa} narrow={narrow} padX={padX} />
+    const header = <StandingsHeader sortBy={sortBy} sortDir={sortDir} onSort={handleSort} showMaxPf={showMaxPf} showPa={showPa} narrow={narrow} padX={spacing.lg} />
 
     const tableBody = sorted.length ? (
         <View
@@ -344,7 +351,7 @@ export function StandingsTable({
             {sorted.map((item, index) => (
                 <Fragment key={item.memberId}>
                     {index === playoffCutIndex ? (
-                        <PlayoffCutLine teamCount={cutTeamCount} padX={padX} />
+                        <PlayoffCutLine teamCount={cutTeamCount} padX={spacing.lg} />
                     ) : index > 0 ? (
                         <ItemSeparator />
                     ) : null}
@@ -358,7 +365,7 @@ export function StandingsTable({
                             showPa={showPa}
                             showTies={showTies}
                             narrow={narrow}
-                            padX={padX}
+                            padX={spacing.lg}
                         />
                     </View>
                 </Fragment>
@@ -382,9 +389,14 @@ export function StandingsTable({
     return (
         <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, { paddingHorizontal: padX }]}>
             <Card padding="none" elevated="none" style={styles.tableColumn}>
+                <SectionBand
+                    label="Standings"
+                    detail={<Text style={styles.bandDetail}>{countLabel(sorted.length, 'team')}</Text>}
+                />
                 {header}
                 {tableBody}
             </Card>
+            {footer}
         </ScrollView>
     )
 }
@@ -409,6 +421,7 @@ const styles = StyleSheet.create({
     // Link-colored so every row (not just "You") reads as a tappable roster.
     teamName: { ...textStyles.rowTitle, flexShrink: 1, color: colors.primaryDark },
     cell: { ...textStyles.tableCell, textAlign: 'right' },
+    bandDetail: { ...textStyles.meta, color: colors.info },
     playoffCutRow: {
         flexDirection: 'row',
         alignItems: 'center',

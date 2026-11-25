@@ -15,20 +15,31 @@ import { ActivityFeed } from '@/components/league/LeagueActivityFeed'
 import { DraftPanel } from '@/components/league/DraftSetupPanels'
 import { MockRoomsPanel } from '@/components/league/MockRoomsPanel'
 import { SettingsPanel } from '@/components/league/SettingsPanel'
+import { LeagueMoreCard } from '@/components/league/LeagueMoreCard'
 import { useLeagueScreenState } from '@/hooks/use-league-screen-state'
 import { LeagueSchedule } from '@/components/league/LeagueSchedule'
 import { PicksBankList } from '@/components/league/LeaguePicksBank'
-import { LEAGUE_TABS } from '@/lib/league/tabs'
+import { LEAGUE_TABS, type LeagueSection } from '@/lib/league/tabs'
 
 const LEAGUE_TAB_LABELS = Object.fromEntries(
     LEAGUE_TABS.map((tab) => [tab.key, tab.label]),
 ) as Record<(typeof LEAGUE_TABS)[number]['key'], string>
 
+const PRIMARY_TABS: readonly { value: LeagueSection; label: string }[] = [
+    { value: 'results', label: 'Standings' },
+    { value: 'schedule', label: 'Schedule' },
+    { value: 'bracket', label: 'Playoffs' },
+]
+
+function isPrimarySection(tab: LeagueSection) {
+    return PRIMARY_TABS.some((option) => option.value === tab)
+}
 
 function LeagueScreen() {
     const screen = useLeagueScreenState()
     const lockView = useScreenView<RosterView>(screen.tab === 'picks' && screen.current && screen.currentLeague && sessionOwner()
         ? screenScope('roster', screen.currentLeague.id, screen.current.id, {}, sessionOwner()!) : null)
+    const primary = isPrimarySection(screen.tab)
     const activePanelId = `league-panel-${screen.tab}`
     const activeTabId = `league-tab-${screen.tab}`
     const activeTabLabel = LEAGUE_TAB_LABELS[screen.tab]
@@ -60,6 +71,7 @@ function LeagueScreen() {
                     myMemberId={screen.current?.id}
                     onSelectTeam={screen.openTeamRoster}
                     onOpenBracket={screen.openBracket}
+                    footer={<LeagueMoreCard activeTab={screen.tab} onSelect={screen.handleTabChange} />}
                 />
             )
         }
@@ -166,30 +178,35 @@ function LeagueScreen() {
     }
 
     // The league switcher already names the league and team, so the page
-    // leads with its sections.
+    // leads with its sections. Standings, Schedule and Playoffs stay one tap
+    // away; every other view opens from the More card and returns here.
     return (
         <Page title="League">
             <PageHeader
-                tabs={(
+                title={primary ? undefined : activeTabLabel}
+                showTitle={!primary}
+                onBack={primary ? undefined : () => screen.handleTabChange('results')}
+                backLabel="League sections"
+                tabs={primary ? (
                     <SegmentedControl
                         variant="tabs"
-                        scrollable
+                        equalWidth
                         value={screen.tab}
                         onChange={screen.handleTabChange}
-                        options={LEAGUE_TABS.map((tab) => ({ label: tab.label, value: tab.key }))}
+                        options={PRIMARY_TABS.map((tab) => ({ label: tab.label, value: tab.value }))}
                         accessibilityLabel="League sections"
                         idBase="league-tab"
                         controlledPanelId={activePanelId}
                         style={styles.tabs}
                     />
-                )}
+                ) : undefined}
             />
             <View
                 nativeID={activePanelId}
                 style={styles.panel}
                 role="tabpanel"
                 aria-label={`${activeTabLabel} league section`}
-                aria-labelledby={activeTabId}
+                aria-labelledby={primary ? activeTabId : undefined}
                 accessibilityLabel={`${activeTabLabel} league section`}
             >
                 <DeferredContent ready={screen.isTabLoaded && (screen.tab !== 'draft' || screen.activeDraftLoaded)} busy={screen.isTabRefreshing || screen.isTabLoading}>{renderTabContent()}</DeferredContent>

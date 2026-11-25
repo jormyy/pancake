@@ -19,6 +19,7 @@ vi.mock('@/components/league/DraftSetupPanels', () => ({ DraftPanel: 'DraftPanel
 vi.mock('@/components/league/MockRoomsPanel', () => ({ MockRoomsPanel: 'MockRoomsPanel' }))
 vi.mock('@/components/league/SettingsPanel', () => ({ SettingsPanel: 'SettingsPanel' }))
 vi.mock('@/components/league/LeaguePicksBank', () => ({ PicksBankList: 'PicksBankList' }))
+vi.mock('@/components/league/LeagueMoreCard', () => ({ LeagueMoreCard: 'LeagueMoreCard' }))
 vi.mock('@/components/NoLeagueState', () => ({ NoLeagueState: 'NoLeagueState' }))
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 

@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/Badge'
 import { EmptyState } from '@/components/EmptyState'
 import { usePageMetrics } from '@/components/ui'
 import { Card } from '@/components/ui/Card'
+import { SectionBand } from '@/components/ui/SectionBand'
 import { MotionPressable } from '@/components/Motion'
 import { colors, controlSize, fontWeight, layout, spacing, table, textStyles } from '@/constants/tokens'
 import { tableStyles } from '@/components/league/leagueTableStyles'
@@ -32,7 +33,8 @@ export function LeagueSchedule({ rows, onOpenMatchup }: { rows: LeagueScheduleRo
     return (
         <ScreenStatusScrollView contentContainerStyle={[styles.content, { paddingHorizontal: padX }]}>
             <Card padding="none" elevated="none" style={styles.card}>
-            <ListHeader style={{ paddingHorizontal: padX }}>
+            <SectionBand label="Schedule" />
+            <ListHeader style={{ paddingHorizontal: spacing.lg }}>
                 <Text style={[textStyles.tableHeader, styles.week]}>Week</Text>
                 <Text style={[textStyles.tableHeader, styles.opponent]}>Opponent</Text>
                 <Text style={[textStyles.tableHeader, styles.result]}>Result</Text>
@@ -58,7 +60,7 @@ export function LeagueSchedule({ rows, onOpenMatchup }: { rows: LeagueScheduleRo
                     </>
                     return (
                         <View key={row.weekNumber} ref={row.isCurrent ? currentRow : undefined} role="listitem" aria-label={label} accessibilityLabel={label}
-                            style={[styles.row, { paddingHorizontal: padX }, row.isCurrent && tableStyles.rowMe]}>
+                            style={[styles.row, { paddingHorizontal: spacing.lg }, row.isCurrent && tableStyles.rowMe]}>
                             {row.matchupId && onOpenMatchup ? <MotionPressable accessibilityRole="button" accessibilityLabel={`Open ${label}`} style={styles.action} onPress={() => onOpenMatchup(row.matchupId!)}>{content}</MotionPressable> : content}
                         </View>
                     )

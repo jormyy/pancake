@@ -176,6 +176,7 @@ async function launch() {
     await mkdir(run.work)
     const files = output('git', ['ls-files', '--cached', '--others', '--exclude-standard', '-z']).split('\0').filter(Boolean)
     for (const file of files) {
+      if (file.endsWith('/')) continue
       if (/(^|\/)(\.env[^/]*|\.temp|\.branches)(\/|$)/.test(file) || /\.(pem|key)$/.test(file)) continue
       await mkdir(path.dirname(path.join(run.work, file)), { recursive: true })
       await cp(path.join(repo, file), path.join(run.work, file))

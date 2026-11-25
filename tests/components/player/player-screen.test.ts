@@ -164,6 +164,26 @@ it('keeps Claim visible for an injured player during roster refresh and passes t
     expect(state.add).toHaveBeenCalledWith(expect.objectContaining({ id: 'player', display_name: 'Player A', injury_status: 'Out', years_exp: 2 }))
 })
 
+it('pins the header and its action above the scroll and shows the last five games before the log is opened', async () => {
+    const games = Array.from({ length: 6 }, (_, index) => ({
+        gameId: `game-${index}`, gameDate: `2026-10-${20 + index}`, opponent: 'vs BOS', isHome: true, didNotPlay: false,
+        minutes: 30, points: 20, rebounds: 5, assists: 4, steals: 1, blocks: 1, turnovers: 2,
+        personalFouls: 2, fgMade: 7, fgAttempted: 15, threeMade: 3, threeAttempted: 7,
+        ftMade: 3, ftAttempted: 4, plusMinus: 4, doubleDouble: false, tripleDouble: false,
+    }))
+    state.data = { ...state.data, gameLog: games }
+    await act(async () => { screen = create(React.createElement(PlayerDetailScreen)) })
+    const scroll = screen!.root.findByProps({ testID: 'player-detail-scroll' })
+    expect(scroll.findAllByType(PlayerHeader)).toHaveLength(0)
+    expect(scroll.findAllByProps({ accessibilityLabel: 'Claim Player A' })).toHaveLength(0)
+    expect(screen!.root.findAllByType(PlayerHeader)).toHaveLength(1)
+    const rows = scroll.findAll(node => typeof node.props.testID === 'string' && node.props.testID.startsWith('game-log-row-'))
+    expect(rows).toHaveLength(5)
+    expect(screen!.root.findByProps({ accessibilityLabel: 'Game log' }).props.accessibilityState).toEqual({ expanded: false })
+    await act(async () => screen!.root.findByProps({ accessibilityLabel: 'Show all games' }).props.onPress())
+    expect(state.data.toggleSection).toHaveBeenCalledWith('games')
+})
+
 it("opens a trade for another team's player from the main action", async () => {
     state.roster.mockResolvedValue({ status: { status: 'taken', ownerTeamName: 'Other team' }, transactionState: null, claimPending: false })
     await act(async () => { screen = create(React.createElement(PlayerDetailScreen)) })

@@ -3,14 +3,13 @@ import { PendingMutationBadge } from '@/components/PendingMutationBadge'
 import { Badge } from '@/components/ui/Badge'
 import { StatCell } from '@/components/ui/StatCell'
 import { PlayerRowContent } from '@/components/player/PlayerRowContent'
-import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { View, Text, StyleSheet, Pressable } from 'react-native'
 import { memo } from 'react'
 import { claimProcessWeekdayLabel } from '@/lib/waivers'
 import { PlayerRow, getEligiblePositions } from '@/lib/players'
 import { formatAvgPoints, formatStat } from '@/lib/format'
 import { OwnedEntry } from '@/lib/roster'
-import { colors, componentTokens, controlSize, fontWeight, radii, spacing, table, textStyles, uiColors } from '@/constants/tokens'
+import { colors, componentTokens, controlSize, fontWeight, radii, spacing, table, textStyles, typeScale, uiColors } from '@/constants/tokens'
 
 
 import { MotionPressable, MotionView } from '@/components/Motion'
@@ -121,11 +120,12 @@ function PlayerSearchItemImpl({
                         {...blockedActionProps(blockedReason, isAdding || addDisabled)}
                     >
                         <View style={[styles.addBtn, isWaiver && styles.addBtnWaiver, blockedReason ? styles.addBtnBlocked : null]}>
-                            <MaterialIcons
-                                name="schedule"
-                                size={controlSize.icon.md}
-                                color={blockedReason ? colors.textPlaceholder : isWaiver ? uiColors.waiverText : colors.primaryDark}
-                            />
+                            <Text
+                                numberOfLines={1}
+                                style={[styles.addBtnText, isWaiver && styles.addBtnTextWaiver, blockedReason ? styles.addBtnTextBlocked : null]}
+                            >
+                                {claimPending ? 'View' : isWaiver ? 'Claim' : 'Add'}
+                            </Text>
                         </View>
                     </MotionPressable>
                 ) : null}
@@ -196,18 +196,22 @@ const styles = StyleSheet.create({
     addCol: { width: ADD_COL_W, alignItems: 'center' },
     addTarget: { width: ADD_COL_W, height: controlSize.minTouch, alignItems: 'center', justifyContent: 'center' },
     addBtn: {
-        width: spacing['4xl'],
-        height: spacing['4xl'],
-        borderRadius: radii.full,
+        width: ADD_COL_W,
+        minHeight: spacing['4xl'] + spacing.md,
+        borderRadius: radii.md,
         borderCurve: 'continuous' as const,
         backgroundColor: colors.primaryLight,
         borderWidth: 1,
         borderColor: colors.primaryBorder,
         alignItems: 'center',
         justifyContent: 'center',
+        paddingHorizontal: spacing.xxs,
     },
     addBtnWaiver: { backgroundColor: colors.infoLight, borderColor: colors.info, borderWidth: 1 },
     addBtnBlocked: { backgroundColor: colors.bgMuted, borderColor: colors.borderLight },
+    addBtnText: { ...typeScale.caption, fontWeight: fontWeight.extrabold, color: colors.primaryDark },
+    addBtnTextWaiver: { color: uiColors.waiverText },
+    addBtnTextBlocked: { color: colors.textPlaceholder },
     playerCard: {
         flex: 1,
         flexDirection: 'row',
