@@ -16,6 +16,8 @@ import { EmptyState } from '@/components/EmptyState'
 import { projectPlayoffs, type ProjectedMatchup } from '@/lib/playoff-projection'
 import type { StandingRow } from '@/lib/scoring'
 import { ErrorBanner, LoadingState, usePageMetrics } from '@/components/ui'
+import { Card } from '@/components/ui/Card'
+import { SectionBand } from '@/components/ui/SectionBand'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 import { formatPoints } from '@/lib/format'
 import { colors, fontWeight, layout, radii, spacing, textStyles, uiColors, typeScale } from '@/constants/tokens'
@@ -109,6 +111,9 @@ export function LeaguePlayoffs({ standings, playoffEntrants }: { standings: Stan
                     </View>
                 ) : (
                     <ScrollView contentContainerStyle={[styles.scroll, { paddingHorizontal: padX, maxWidth: rounds.length * ROUND_COLUMN_W + (rounds.length - 1) * spacing['3xl'] + 2 * padX }, compactLandscape && styles.scrollCompact]}>
+                        <Card padding="none" elevated="none" style={styles.boardCard}>
+                        <SectionBand label="Playoffs" />
+                        <View style={styles.boardBody}>
                         {projection.kind === 'projected' ? (
                             <View style={{ gap: spacing.sm }}>
                                 <Text style={textStyles.rowTitle}>Projected bracket — based on current standings</Text>
@@ -140,6 +145,8 @@ export function LeaguePlayoffs({ standings, playoffEntrants }: { standings: Stan
                                 ))}
                             </View>
                         )}
+                        </View>
+                        </Card>
                     </ScrollView>
                 )}
                 </View>
@@ -288,6 +295,8 @@ function TeamRow({
 }
 
 const styles = StyleSheet.create({
+    boardCard: { width: '100%', alignSelf: 'center', overflow: 'hidden' },
+    boardBody: { padding: spacing.lg, gap: spacing.lg },
     emptyBracket: { width: '100%', maxWidth: layout.formMaxWidth, alignSelf: 'center', paddingTop: spacing.lg, gap: spacing.sm },
     scroll: { paddingTop: spacing.xl, paddingBottom: spacing['5xl'], gap: spacing.lg, width: '100%', alignSelf: 'center' },
     scrollCompact: { paddingTop: spacing.md, gap: spacing.sm, paddingBottom: spacing['4xl'] },
