@@ -17,7 +17,7 @@ import { FlashList } from '@shopify/flash-list'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { type OwnedEntry } from '@/lib/roster'
 import { useLeagueContext } from '@/contexts/league-context'
-import { colors, controlSize, fontWeight, radii, spacing, typeScale } from '@/constants/tokens'
+import { colors, controlSize, fontWeight, radii, spacing, textStyles, typeScale } from '@/constants/tokens'
 import { EmptyState } from '@/components/EmptyState'
 import { IRResolutionModal } from '@/components/IRResolutionModal'
 import { DropPlayerPickerModal } from '@/components/DropPlayerPickerModal'
@@ -50,7 +50,6 @@ import { currentSeasonYear } from '@/lib/shared/season'
 import { useQuickAdd, type PickupClaimSelection } from '@/hooks/use-quick-add'
 import { partitionRoster, rosterLimits } from '@/lib/roster-capacity'
 import { useRosterHoldCheck } from '@/hooks/use-roster-hold-check'
-import { addLimitSummary } from '@/lib/pickup'
 import { PlayerRow } from '@/lib/players'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { readsAllowed } from '@/lib/lifecycle'
@@ -129,7 +128,7 @@ function PlayerSearchSection() {
     const leagueId = currentLeague?.id ?? null
 
     const searchEnabled = membershipValidated && !!user && !!current?.id && !!leagueId
-    const { padX } = usePageMetrics()
+    const { padX, compact } = usePageMetrics()
     const showStatTable = width >= 1180
     const [filtersOpen, setFiltersOpen] = useState(false)
 
@@ -239,14 +238,17 @@ function PlayerSearchSection() {
         : `${resultCount}${search.activeFilterCount > 0 ? ' filtered' : ''} player${resultCount === 1 ? '' : 's'}`
     const waiverLine = transactionState
         ? transactionState.waiverMode === 'faab'
-            ? `FAAB $${transactionState.faabBalance}`
+            ? `$${transactionState.faabBalance} FAAB`
             : 'Rolling waivers'
         : ''
     const averageLabel = search.statsWindow.days === null
         ? playerAverageLabel(search.results.players[0]?.stats_season_year)
         : statsWindowLabel(search.statsWindow.range)
     const summaryLoading = !playerSupportReady || (search.results.players.length === 0 && search.results.loading)
-    const addChip = transactionState ? addLimitSummary(transactionState, Date.now(), currentLeague?.timezone) : null
+    const addsLine = transactionState && transactionState.weeklyAddCount != null
+        ? `${transactionState.weeklyAddCount}/${transactionState.weeklyAddLimit ?? '∞'} adds`
+        : ''
+    const summaryLine = [resultCountLabel, addsLine, waiverLine].filter(Boolean).join(' · ')
     const listLabel = PLAYER_AVAILABILITY_FILTERS.find((option) => option.key === search.availabilityFilter.value)?.label ?? 'Players'
     const filterControls = (variant: 'chip' | 'field') => (
         <>
@@ -334,10 +336,8 @@ function PlayerSearchSection() {
         <View style={styles.container}>
           <View style={styles.contentWrap}>
             <View style={[localStyles.toolbar, { paddingHorizontal: padX }]}>
-                <View style={localStyles.statusRow} aria-busy={summaryLoading} accessibilityState={{ busy: summaryLoading }}>
-                    {resultCountLabel ? <Badge size="status" variant="soft" color={colors.bgMuted} textColor={colors.textSecondary} label={resultCountLabel} /> : null}
-                    {addChip ? <Badge size="status" variant="soft" color={colors.bgMuted} textColor={colors.textSecondary} label={addChip} /> : null}
-                    {waiverLine ? <Badge size="status" variant="soft" color={colors.primaryLight} textColor={colors.primaryDark} label={waiverLine} /> : null}
+                <View style={localStyles.summaryRow} aria-busy={summaryLoading} accessibilityState={{ busy: summaryLoading }}>
+                    <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} style={localStyles.summaryText}>{summaryLine}</Text>
                     {addBlockedReason ? (
                         <View testID="add-limit-notice" role="status" accessibilityLiveRegion="polite">
                             <Badge size="status" variant="soft" color={colors.dangerLight} textColor={colors.dangerDark} label="Add limit reached" accessibilityLabel={addBlockedReason} />
@@ -368,21 +368,12 @@ function PlayerSearchSection() {
                             </View>
                         ) : null}
                     </Pressable>
-                    {search.activeFilterCount > 0 ? (
+                    {!compact && search.activeFilterCount > 0 ? (
                         <Pressable onPress={search.clearAllFilters} style={localStyles.clearButton} accessibilityRole="button" accessibilityLabel="Clear all filters">
                             <Text style={localStyles.clearButtonText}>Clear</Text>
                         </Pressable>
                     ) : null}
                 </View>
-                <SegmentedControl
-                    variant="pills"
-                    value={search.position.value}
-                    onChange={search.position.setValue}
-                    options={PLAYER_POSITION_FILTERS.slice(0, 6).map((option) => ({ label: option.label, value: option.key }))}
-                    accessibilityLabel="Filter by position"
-                    idBase="players-position"
-                    equalWidth
-                />
             </View>
 
             <Sheet visible={filtersOpen} title="Filters" onClose={() => setFiltersOpen(false)}>
@@ -435,7 +426,7 @@ function PlayerSearchSection() {
                                 : listIsInitialLoading
                                   ? <EmptyState message="Loading players…" fullScreen={false} />
                                 : search.activeFilterCount > 0
-                                  ? <EmptyState message="No players match these filters." actionLabel="Clear filters" onAction={search.clearAllFilters} fullScreen={false} />
+                                  ? <EmptyState message="No players match these filters." actionLabel="Change filters" onAction={() => setFiltersOpen(true)} fullScreen={false} />
                                 : search.search.query.trim()
                                   ? <EmptyState message={`No players match "${search.search.query.trim()}".`} actionLabel="Clear search" onAction={() => search.search.setQuery('')} fullScreen={false} />
                                 : search.availabilityFilter.value === 'free_agents'
@@ -589,13 +580,9 @@ const localStyles = StyleSheet.create({
     list: { flex: 1, minHeight: 0 },
     bandDetail: { ...typeScale.caption, color: colors.textMuted },
     pageProgress: { minHeight: controlSize.minTouch, alignItems: 'center', justifyContent: 'center' },
-    toolbar: {
-        gap: spacing.xs,
-        paddingVertical: spacing.md,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.borderLight,
-    },
-    statusRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.sm },
+    toolbar: { gap: spacing.sm, paddingTop: spacing.md },
+    summaryRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.sm, minHeight: textStyles.meta.lineHeight },
+    summaryText: { ...textStyles.meta, color: colors.textSecondary, fontWeight: fontWeight.semibold, fontVariant: ['tabular-nums'] as const, flexShrink: 1 },
     toolbarRow: {
         flexDirection: 'row',
         alignItems: 'center',

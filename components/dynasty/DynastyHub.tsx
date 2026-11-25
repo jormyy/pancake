@@ -6,7 +6,8 @@ import { newsFeedReady, updateNewsCache, type DynastyNewsCache, type NewsFeed } 
 import { DeferredContent } from '@/components/ui/DeferredContent'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { FlashList } from '@shopify/flash-list'
-import { memo, useCallback, useState } from 'react'
+import type { FlashListRef } from '@shopify/flash-list'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import {
     Pressable,
     ScrollView,
@@ -153,6 +154,11 @@ export function DynastyHub({ section }: { section: DynastySection }) {
             onPress={handleOpenRankedPlayer}
         />
     ), [handleOpenRankedPlayer])
+    const rankingListRef = useRef<FlashListRef<DynastyRankPlayer>>(null)
+    const rankingView = rankings.view
+    useEffect(() => {
+        rankingListRef.current?.scrollToOffset({ offset: 0, animated: false })
+    }, [rankingView])
     const cachedNews = readPersistentCache<DynastyNewsCache>(dynastyNewsCacheKey(user?.id, current?.id, currentLeague?.id)) ?? undefined
     const { data: newsData, loading: newsLoading, error: newsError, refresh: refreshNews } = useFocusAsyncData(
         async () => {
@@ -227,7 +233,7 @@ export function DynastyHub({ section }: { section: DynastySection }) {
                             <Card padding="none" elevated="none" style={styles.rankingCard}>
                                 <SectionBand label="Dynasty rankings" detail={<Text style={styles.bandDetail}>{rankings.players.length}</Text>} />
                                 <FlashList
-                                    key={rankings.view}
+                                    ref={rankingListRef}
                                     style={styles.list}
                                     data={rankings.players}
                                     keyExtractor={(player) => player.rankingId}
@@ -323,10 +329,12 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         paddingVertical: spacing.md,
+        paddingHorizontal: spacing.sm,
         gap: spacing.md,
     },
     rankNumber: {
-        width: table.headerHeight,
+        minWidth: table.statColWidth,
+        flexShrink: 0,
         alignItems: 'center',
         gap: spacing.xxs,
     },
@@ -355,7 +363,7 @@ const styles = StyleSheet.create({
     },
     decisionMeta: { ...textStyles.meta },
     sourceFootnote: { ...textStyles.meta, paddingVertical: spacing.lg },
-    newsContent: { paddingBottom: spacing.xl, gap: spacing.md, width: '100%', maxWidth: layout.formMaxWidth, alignSelf: 'center' },
+    newsContent: { paddingBottom: spacing.md, gap: spacing.md, width: '100%', maxWidth: layout.formMaxWidth, alignSelf: 'center' },
     listCard: { overflow: 'hidden' },
     rankingCard: { flex: 1, minHeight: 0, overflow: 'hidden' },
     list: { flex: 1, minHeight: 0 },
