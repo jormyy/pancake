@@ -240,7 +240,7 @@ export default function PlayerDetailScreen() {
         <Pressable accessibilityRole="button" accessibilityLabel={label}
             accessibilityState={{ expanded: opened[section] === true }} aria-expanded={opened[section] === true}
             onPress={() => toggleSection(section)} style={styles.bandAction}>
-            <Text style={styles.bandLink}>{opened[section] === true ? 'Hide' : 'Show'}</Text>
+            <Text style={styles.bandLink}>{section === 'games' ? (opened.games === true ? 'Show fewer' : 'Show all') : opened[section] === true ? 'Hide' : 'Show'}</Text>
         </Pressable>
     )
     const infoCard = (

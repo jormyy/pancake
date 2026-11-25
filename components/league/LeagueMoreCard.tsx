@@ -9,9 +9,9 @@ import type { LeagueSection } from '@/lib/league/tabs'
 type IconName = ComponentProps<typeof MaterialIcons>['name']
 
 const MORE_ITEMS: readonly { key: LeagueSection; label: string; icon: IconName }[] = [
-    { key: 'history', label: 'Activity', icon: 'bolt' },
-    { key: 'picks', label: 'Picks', icon: 'list' },
-    { key: 'seasons', label: 'History', icon: 'history' },
+    { key: 'history', label: 'Activity', icon: 'swap-horiz' },
+    { key: 'picks', label: 'Picks', icon: 'sports-basketball' },
+    { key: 'seasons', label: 'History', icon: 'emoji-events' },
     { key: 'draft', label: 'Draft', icon: 'groups' },
     { key: 'settings', label: 'Settings', icon: 'settings' },
 ]
