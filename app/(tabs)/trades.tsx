@@ -12,11 +12,12 @@ import { useLeagueContext } from '@/contexts/league-context'
 import { NoLeagueState } from '@/components/NoLeagueState'
 import { isTradingClosed } from '@/lib/league'
 import { type Trade } from '@/lib/trades'
-import { colors, controlSize, layout, spacing, textStyles, typeScale } from '@/constants/tokens'
+import { colors, controlSize, layout, spacing, typeScale } from '@/constants/tokens'
 import { SegmentedControl, type SegmentOption } from '@/components/ui/SegmentedControl'
 import { Button, ErrorBanner, Page, PageHeader, usePageMetrics } from '@/components/ui'
 import { TradeDetailsPanel } from '@/components/trades/TradeDetailsPanel'
 import { tradeCardModel } from '@/components/trades/TradeCard'
+import { TradeNeedsCard } from '@/components/trades/TradeNeedsCard'
 import { normalizeTradeTab, TRADE_TABS, type TradeTabKey } from '@/lib/trade-ui-model'
 import {
     TradeBlockListingRow,
@@ -52,9 +53,6 @@ export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFa
 const TradeAnalyzer = lazy(() => import('@/components/trades/TradeAnalyzer'))
 const STATIC_TRADE_LIMIT = 10
 
-const SPLIT_LIST_WIDTH = 440
-const SPLIT_MIN_WIDTH = 960
-
 function blockColumns(usableWidth: number) {
     if (usableWidth >= 1080) return 3
     if (usableWidth >= 700) return 2
@@ -76,7 +74,7 @@ function TradesScreen() {
     const leagueId = currentLeague?.id ?? ''
     const myTeamName = current?.team_name ?? ''
     const tradingClosed = isTradingClosed(currentLeague)
-    const { compact, padX, usableWidth } = usePageMetrics()
+    const { padX, usableWidth } = usePageMetrics()
     const tab = normalizeTradeTab(params.tab ?? readScreenSection(user?.id, myMemberId, 'trades'))
     const openTradeId = Array.isArray(params.tradeId) ? params.tradeId[0] : params.tradeId
     const setOpenTradeId = useCallback((tradeId: string | null) => setParams({ tradeId: tradeId ?? undefined }), [setParams])
@@ -181,18 +179,16 @@ function TradesScreen() {
         blockRoster,
         leagueBlockItems: blockItems,
     }), [offersHaveData, historyHasData, blockHasData, blockError, blockItems, blockLoading, blockRoster, historyError, historyLoading, historyTrades, loading, myMemberId, picksList, tab, trades, tradesError])
-    const { listData } = screenModel
+    const { listData, incomingTrades, vetoableTrades, outgoingTrades } = screenModel
     const pendingInboxCount = usePendingTradeCount()
     const tradeTab = tab === 'offers' || tab === 'history'
-    const split = tradeTab && usableWidth >= SPLIT_MIN_WIDTH
     const gridColumns = tab === 'block' ? blockColumns(usableWidth) : 1
     const listTrades = useMemo(
         () => listData.flatMap((item) => (item._type === 'trade' ? [item.trade] : [])),
         [listData],
     )
     const staticTradeList = tradeTab && listTrades.length <= STATIC_TRADE_LIMIT && !(tab === 'offers' ? offersHaveMore : historyHasMore)
-    const openTrade = (openTradeId ? listTrades.find((trade) => trade.id === openTradeId) : null)
-        ?? (split ? listTrades[0] ?? null : null)
+    const openTrade = openTradeId ? listTrades.find((trade) => trade.id === openTradeId) ?? null : null
     const openTradeDetails = useCallback((trade: Trade) => setOpenTradeId(trade.id), [setOpenTradeId])
     const renderItem = useCallback(({ item }: { item: TradeListItem }) => {
         switch (item._type) {
@@ -221,12 +217,12 @@ function TradesScreen() {
                     onVeto={tradeActions.veto} onWithdraw={tradeActions.withdraw}
                     onWithdrawAcceptance={tradeActions.retractAcceptance}
                     holdReady={holdReady}
-                    onAnalyze={openAnalyzer} selected={split && item.trade.id === openTrade?.id} brief={split}
+                    onAnalyze={openAnalyzer}
                     onOpen={openTradeDetails} />
         }
     }, [blockAvgMap, blockAvgStatsMap, blockBusyId, decisionsDisabled, currentLeague?.trade_veto_mode, gridColumns, handleListPick, handleListPlayer,
         handleRemoveBlockItem, handleSaveBlockNote, isCommissioner, listedPickIds, listedPlayerIds, myMemberId, myTeamName,
-        openAnalyzer, openTrade?.id, openTradeDetails, split, tab, tradeActions.busyTradeId, tradeActions.reject,
+        openAnalyzer, openTradeDetails, tab, tradeActions.busyTradeId, tradeActions.reject,
         holdReady, tradeActions.retractAcceptance, tradeActions.veto, tradeActions.withdraw])
 
     const activeTabLoading = tab === 'block' ? !blockDisplayReady || (picksLoading && picks === null)
@@ -240,8 +236,8 @@ function TradesScreen() {
                 : tradesError
     useLayoutEffect(() => {
         const listReady = tab === 'history' ? historyHasData : tab === 'offers' && offersHaveData
-        if (listReady && openTradeId && !split && !activeTabLoading && !activeError && !openTrade) setOpenTradeId(null)
-    }, [activeError, activeTabLoading, historyHasData, offersHaveData, openTrade, openTradeId, setOpenTradeId, split, tab])
+        if (listReady && openTradeId && !activeTabLoading && !activeError && !openTrade) setOpenTradeId(null)
+    }, [activeError, activeTabLoading, historyHasData, offersHaveData, openTrade, openTradeId, setOpenTradeId, tab])
     const activeActionError = activeResource === 'block' ? blockActionError
         : activeResource === 'trades' ? offersLoadMoreError
             : null
@@ -258,15 +254,29 @@ function TradesScreen() {
         setAnalyzerTrade(null)
         setParams({ tab: next, tradeId: undefined })
     }
+    const proposeTrade = () => push('/(modals)/propose-trade')
+    const needsCount = incomingTrades.length + vetoableTrades.length + outgoingTrades.length
+    const offersEmpty = tab === 'offers' && !activeTabLoading && !tradesError && needsCount === 0
+    const needsKnown = tab === 'offers' && (offersHaveData || (online && !tradesError && !activeTabLoading))
+    const needsCard = needsKnown ? (
+        <TradeNeedsCard
+            incoming={incomingTrades.length}
+            awaitingVote={vetoableTrades.length}
+            outgoing={outgoingTrades.length}
+            proposeDisabled={!online || tradingClosed}
+            onPropose={proposeTrade}
+        />
+    ) : null
     const header = (disabled: boolean, onPropose: () => void) => (
         <PageHeader
-            tabs={<TradeTabs options={tabOptions} tab={ownedAnalyzerTrade ? 'analyzer' : tab} setTab={changeTab} />}
+            title="Trades"
+            showTitle
             actions={(
                 <Button
-                    title={compact ? undefined : !online ? 'Offline' : disabled ? 'Locked' : 'Propose'}
+                    title={!online ? 'Offline' : disabled ? 'Locked' : 'Propose'}
                     icon={disabled ? 'lock' : 'add'}
                     size="inline"
-                    style={{ minWidth: controlSize.minTouch }}
+                    style={{ minHeight: controlSize.minTouch }}
                     onPress={onPropose}
                     disabled={disabled}
                     accessibilityLabel={!online ? 'Reconnect to propose a trade' : disabled ? 'Trades unavailable' : 'Propose trade'}
@@ -302,6 +312,7 @@ function TradesScreen() {
         <FlashList onScroll={statusScroll.onScroll} scrollEventThrottle={16} data={listData} keyExtractor={tradeListKey} getItemType={tradeListItemType}
             key={`${tab}:${gridColumns}`}
             numColumns={gridColumns}
+            ListHeaderComponent={needsCard ?? undefined}
             overrideItemLayout={(itemLayout, item, _index, maxColumns) => {
                 if (item._type === 'header' || item._type === 'empty') itemLayout.span = maxColumns
             }}
@@ -324,7 +335,7 @@ function TradesScreen() {
             </Text> : null}
     </ScreenStatusOverlay>
 
-    if (!split && tradeContext && detailActions) return <Page title="Trade details">
+    if (tradeContext && detailActions) return <Page title="Trade details">
         <PageHeader title={tradeCardModel(tradeContext).opponentName} showTitle onBack={() => setOpenTradeId(null)} backLabel="Back to trades" />
         <ScrollView contentContainerStyle={styles.tradeDetails}>
             <TradeDetailsPanel context={tradeContext} actions={detailActions} analysisDisabled={tradeActions.busyTradeId !== null} showHeader={false}
@@ -335,7 +346,8 @@ function TradesScreen() {
     </Page>
 
     if (ownedAnalyzerTrade || tab === 'analyzer') return <Page title="Trade analysis">
-        {header(!online || tradingClosed, () => push('/(modals)/propose-trade'))}
+        {header(!online || tradingClosed, proposeTrade)}
+        <TradeTabs options={tabOptions} tab="analyzer" setTab={changeTab} />
         <Suspense fallback={<View style={styles.loading} aria-busy accessibilityState={{ busy: true }} />}>
             <TradeAnalyzer key={`${user?.id}:${leagueId}:${myMemberId}`} prefillTrade={ownedAnalyzerTrade} />
         </Suspense>
@@ -343,27 +355,16 @@ function TradesScreen() {
     </Page>
 
     return <Page title="Trades">
-        {header(!online || tradingClosed, () => push('/(modals)/propose-trade'))}
+        {header(!online || tradingClosed, proposeTrade)}
+        <TradeTabs options={tabOptions} tab={tab} setTab={changeTab} />
         {!activeError && activeActionError ? <ErrorBanner message={`${activeActionError.replace(/[.!]?\s*$/, '.')} Tap to refresh.`}
             onRetry={() => { void retryActiveResource() }} /> : null}
         <DeferredContent ready={!activeTabLoading}>
         {activeTabLoading ? <View style={styles.loading} aria-busy accessibilityState={{ busy: true }} />
-                    : split ? (
-                        <View style={styles.split}>
-                            <View style={styles.splitList}>{list}</View>
-                            <ScrollView style={styles.splitDetail} contentContainerStyle={styles.splitDetailContent}>
-                                {tradeContext && detailActions ? (
-                                    <TradeDetailsPanel context={tradeContext} actions={detailActions} analysisDisabled={tradeActions.busyTradeId !== null}
-                                        onAnalyze={() => openAnalyzer(tradeContext.trade)} />
-                                ) : (
-                                    <Text style={styles.detailHint}>Select a trade to see every asset and note.</Text>
-                                )}
-                            </ScrollView>
-                        </View>
-                    )
                     : gridColumns === 1 && (staticTradeList || tab === 'block' || listData.every((item) => item._type === 'empty')) ? (
                         <ScrollView contentContainerStyle={{ paddingHorizontal: padX, paddingBottom: spacing['3xl'] }}>
-                            {listData.map((item, index) => <View key={tradeListKey(item, index)}>
+                            {needsCard}
+                            {(offersEmpty ? [] : listData).map((item, index) => <View key={tradeListKey(item, index)}>
                                 {index > 0 && tradeTab ? <CardGap /> : null}
                                 {renderItem({ item })}
                             </View>)}
@@ -371,24 +372,23 @@ function TradesScreen() {
                     ) : list}
         </DeferredContent>
         {resourceStatus}
+        {rosterLegality.modalProps.visible ? <IRResolutionModal {...rosterLegality.modalProps} /> : null}
     </Page>
 }
 
 function TradeTabs({ options, tab, setTab }: { options: SegmentOption<TradeTabKey>[]; tab: TradeTabKey; setTab: (tab: TradeTabKey) => void }) {
-    return <SegmentedControl variant="tabs" scrollable options={options} value={tab} onChange={setTab}
-            idBase="trade-section" style={styles.tabOptions} accessibilityLabel="Trade sections" />
+    const { padX } = usePageMetrics()
+    return <View style={[styles.tabsRow, { paddingHorizontal: padX }]}>
+        <SegmentedControl equalWidth options={options} value={tab} onChange={setTab}
+            idBase="trade-section" accessibilityLabel="Trade sections" />
+    </View>
 }
 
 const styles = StyleSheet.create({
     freshness: { ...typeScale.small, color: colors.textSecondary, paddingHorizontal: spacing.xl, paddingVertical: spacing.sm },
-    tabOptions: { flexWrap: 'nowrap' },
+    tabsRow: { paddingVertical: spacing.md },
     cardGap: { height: spacing.md },
     tradeDetails: { padding: spacing.lg, paddingBottom: spacing['3xl'] },
-    split: { flex: 1, minHeight: 0, flexDirection: 'row' },
-    splitList: { width: SPLIT_LIST_WIDTH, flexShrink: 0 },
-    splitDetail: { flex: 1, borderLeftWidth: 1, borderLeftColor: colors.borderLight },
-    splitDetailContent: { maxWidth: layout.formMaxWidth, padding: spacing['3xl'] },
-    detailHint: { ...textStyles.meta, paddingTop: spacing['4xl'], textAlign: 'center' },
     loading: { flex: 1, minHeight: layout.loadingMinHeight },
 })
 
