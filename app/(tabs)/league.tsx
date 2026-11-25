@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { sessionOwner } from '@/lib/session-cache-registry'
 import { useScreenView } from '@/hooks/use-screen-view'
 import { screenScope } from '@/lib/cache/screen-scope'
@@ -16,6 +17,8 @@ import { DraftPanel } from '@/components/league/DraftSetupPanels'
 import { MockRoomsPanel } from '@/components/league/MockRoomsPanel'
 import { SettingsPanel } from '@/components/league/SettingsPanel'
 import { LeagueMoreCard } from '@/components/league/LeagueMoreCard'
+import { LeagueTabSkeleton } from '@/components/league/LeagueTabSkeleton'
+import { prefetchLeagueViews } from '@/components/league/prefetchLeagueViews'
 import { useLeagueScreenState } from '@/hooks/use-league-screen-state'
 import { LeagueSchedule } from '@/components/league/LeagueSchedule'
 import { PicksBankList } from '@/components/league/LeaguePicksBank'
@@ -39,6 +42,11 @@ function LeagueScreen() {
     const screen = useLeagueScreenState()
     const lockView = useScreenView<RosterView>(screen.tab === 'picks' && screen.current && screen.currentLeague && sessionOwner()
         ? screenScope('roster', screen.currentLeague.id, screen.current.id, {}, sessionOwner()!) : null)
+    const leagueId = screen.currentLeague?.id
+    const memberId = screen.current?.id
+    useEffect(() => {
+        if (leagueId && memberId) prefetchLeagueViews(leagueId, memberId)
+    }, [leagueId, memberId])
     const primary = isPrimarySection(screen.tab)
     const activePanelId = `league-panel-${screen.tab}`
     const activeTabId = `league-tab-${screen.tab}`
@@ -54,13 +62,6 @@ function LeagueScreen() {
     }
 
     function renderTabContent() {
-        // Tab panels render only once their data is known, so content appears
-        // fully formed instead of loading in pieces that shift the layout.
-        if (!screen.isTabLoaded) return null
-        if (screen.tab === 'draft' && !screen.activeDraftLoaded) {
-            return null
-        }
-
         if (screen.tab === 'results') {
             return (
                 <StandingsTable
@@ -209,7 +210,7 @@ function LeagueScreen() {
                 aria-labelledby={primary ? activeTabId : undefined}
                 accessibilityLabel={`${activeTabLabel} league section`}
             >
-                <DeferredContent ready={screen.isTabLoaded && (screen.tab !== 'draft' || screen.activeDraftLoaded)} busy={screen.isTabRefreshing || screen.isTabLoading}>{renderTabContent()}</DeferredContent>
+                <DeferredContent key={screen.tab} ready={screen.isTabLoaded && (screen.tab !== 'draft' || screen.activeDraftLoaded)} busy={screen.isTabRefreshing || screen.isTabLoading} fallback={<LeagueTabSkeleton label={activeTabLabel} />}>{renderTabContent()}</DeferredContent>
             </View>
             <ScreenStatusOverlay>
                 {screen.tab !== 'draft' && screen.isTabLoaded && !screen.isOnline ? (

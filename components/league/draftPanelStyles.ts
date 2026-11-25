@@ -27,9 +27,9 @@ export const panelStyles = StyleSheet.create({
     // Left-aligned readable column under the page tabs. Panels add the page's
     // side padding from usePageMetrics().
     panelScroll: {
-        paddingTop: spacing.lg,
-        paddingBottom: spacing['3xl'],
-        gap: spacing.xl,
+        paddingTop: spacing.md,
+        paddingBottom: spacing.md,
+        gap: spacing.md,
         width: '100%',
         maxWidth: layout.formMaxWidth + 2 * layout.pagePadX.regular,
         alignSelf: 'center',

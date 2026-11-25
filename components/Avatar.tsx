@@ -49,7 +49,7 @@ export function Avatar({ name, color = colors.bgMuted, textColor = colors.textSe
                 { width: size, height: size, borderRadius: half, backgroundColor: color },
             ]}
         >
-            <AvatarContent key={uri} uri={uri === visibleUri ? uri : null} name={name} size={size} fontSize={type.fontSize} lineHeight={type.lineHeight} textColor={textColor} />
+            <AvatarContent key={uri} uri={uri === visibleUri || (uri && loadedImageUris.has(uri)) ? uri : null} name={name} size={size} fontSize={type.fontSize} lineHeight={type.lineHeight} textColor={textColor} />
         </View>
     )
 }
@@ -63,6 +63,7 @@ function AvatarContent({ uri, name, size, fontSize, lineHeight, textColor }: {
     textColor: string
 }) {
     const [loaded, setLoaded] = useState(false)
+    const [cached] = useState(() => !!uri && loadedImageUris.has(uri))
     const [failed, setFailed] = useState(false)
     const initials = getInitials(name)
     return (
@@ -71,7 +72,7 @@ function AvatarContent({ uri, name, size, fontSize, lineHeight, textColor }: {
             {uri && !failed ? (
                 <Image
                     source={{ uri }}
-                    style={{ position: 'absolute', width: size, height: size, borderRadius: size / 2, opacity: loaded ? 1 : 0 }}
+                    style={{ position: 'absolute', width: size, height: size, borderRadius: size / 2, opacity: loaded || cached ? 1 : 0 }}
                     resizeMode="cover"
                     onLoad={() => {
                         loadedImageUris.add(uri)

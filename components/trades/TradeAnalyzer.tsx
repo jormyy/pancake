@@ -270,7 +270,7 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
 
     if (showAnalysis) return <DeferredContent ready={!online || Boolean(error || composer.rosterError || networkUnavailable) || (membersLoaded && composer.assetsReady)}>
         <View style={styles.scroll}>
-        <View style={styles.analysisActions}>
+        <View style={[styles.analysisActions, styles.railActions]}>
             <Button title="Edit assets" variant="secondary" size="sm" onPress={() => {
                 setEditedSnapshot(shownAnalysis && routeSignature ? { routeSignature, value: {
                     modelVersion: TRADE_FORMULA_VERSION,
@@ -294,9 +294,9 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
         <DeferredContent ready={membersLoaded || !online}>
         <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, sideBySide && styles.contentWide]} keyboardShouldPersistTaps="handled">
             <View style={[styles.main, sideBySide && styles.mainWide]}>
-                <View style={styles.intro}>
+                {!online || networkUnavailable ? <View style={styles.intro}>
                     {!online ? <Text style={styles.offline}>Offline</Text>
-                        : networkUnavailable ? (
+                        : (
                             <View>
                                 <Text style={styles.offline}>Could not load teams.</Text>
                                 <Pressable onPress={() => setMembersRetryToken((value) => value + 1)} accessibilityRole="button"
@@ -304,8 +304,8 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
                                     <Text style={styles.cancelText}>Retry</Text>
                                 </Pressable>
                             </View>
-                        ) : null}
-                </View>
+                        )}
+                </View> : null}
                 <View style={styles.modeRow}>
                     <ModeButton label="2-Team" active={!multiTeamMode} onPress={() => setMode(false)} />
                     <ModeButton label="Multi-Team" active={multiTeamMode} onPress={() => setMode(true)} />
@@ -347,26 +347,27 @@ function ModeButton({ label, active, onPress }: { label: string; active: boolean
 
 const styles = StyleSheet.create({
     scroll: { flex: 1 },
-    content: { paddingBottom: spacing['4xl'] },
+    content: { paddingBottom: spacing['3xl'] },
     contentWide: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'center', gap: spacing['3xl'] },
-    main: { width: '100%', maxWidth: BUILDER_WIDTH, alignSelf: 'center' },
+    main: { width: '100%', maxWidth: BUILDER_WIDTH, alignSelf: 'center', gap: spacing.md },
     mainWide: { flexShrink: 0, alignSelf: 'flex-start' },
-    rail: { width: layout.railWidth, paddingTop: spacing.xl },
+    rail: { width: layout.railWidth, paddingTop: spacing.md },
     // Keeps the verdict in view while the builder scrolls (web only).
     railSticky: { position: 'sticky', top: spacing.none } as unknown as ViewStyle,
     verdict: { gap: spacing.md },
-    analysisError: { paddingHorizontal: spacing.xl, gap: spacing.sm },
-    analysisActions: { flexDirection: 'row', justifyContent: 'space-between', padding: spacing.lg, gap: spacing.md },
+    analysisError: { paddingHorizontal: spacing.lg, gap: spacing.sm },
+    analysisActions: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: spacing.lg, gap: spacing.md },
+    railActions: { paddingTop: spacing.md },
     intro: { paddingHorizontal: spacing.lg, gap: spacing.xs },
     copy: { ...textStyles.body },
     offline: { ...typeScale.small, fontWeight: fontWeight.bold, color: colors.warningDark },
-    modeRow: { flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.xl, paddingTop: spacing.lg },
+    modeRow: { flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.lg },
     modeButton: { minHeight: controlSize.minTouch, minWidth: componentTokens.tradeAnalyzer.teamTabWidth, paddingHorizontal: spacing.lg, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bgMuted, borderRadius: radii.md, borderWidth: borderWidth.thin, borderColor: colors.borderLight },
     modeButtonActive: { backgroundColor: colors.primary, borderColor: colors.primary },
     teamTrack: { flexGrow: 0, minHeight: foundation.minTouch },
-    teamChips: { flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
+    teamChips: { flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.lg },
     teamChip: { minHeight: foundation.minTouch, flexShrink: 0, justifyContent: 'center', paddingHorizontal: spacing.lg, backgroundColor: colors.bgMuted, borderRadius: radii.full },
-    emptyPrompt: { ...textStyles.meta, padding: spacing.lg },
+    emptyPrompt: { ...textStyles.meta, paddingHorizontal: spacing.lg },
     teamChipActive: { backgroundColor: colors.primary },
     teamChipText: { ...typeScale.small, fontWeight: fontWeight.bold, color: colors.textSecondary },
     teamChipTextActive: { color: colors.textWhite },

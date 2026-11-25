@@ -483,9 +483,8 @@ const styles = StyleSheet.create({
     picksBankOwner: { ...typeScale.small, flexShrink: 1, maxWidth: '45%', marginLeft: spacing.md, textAlign: 'right', fontWeight: fontWeight.semibold, color: colors.textPrimary },
     pickSummary: { ...textStyles.body, marginTop: spacing.md },
     picksLedgerIntro: {
-        paddingTop: spacing.lg,
         paddingBottom: spacing.md,
     },
     picksBankScroll: { flex: 1 },
-    picksBankContent: { paddingTop: spacing.md, paddingBottom: spacing['3xl'] },
+    picksBankContent: { paddingTop: spacing.md, paddingBottom: spacing.md },
 })

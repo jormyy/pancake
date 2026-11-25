@@ -94,7 +94,7 @@ export function WaiversSection({ active, onFindPlayer }: { active: boolean; onFi
 }
 
 const styles = StyleSheet.create({
-    root: { width: '100%', maxWidth: layout.formMaxWidth, alignSelf: 'center', paddingVertical: spacing.lg, gap: spacing.xl },
+    root: { width: '100%', maxWidth: layout.formMaxWidth, alignSelf: 'center', paddingVertical: spacing.md, gap: spacing.md },
     summary: { gap: spacing.lg },
     summaryRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xl },
     summaryStat: { flex: 1, minWidth: 0, gap: spacing.xs },

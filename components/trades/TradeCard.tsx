@@ -296,6 +296,7 @@ export function TradeCard({
     decisionsDisabled = false,
     selected = false,
     brief = false,
+    embedded = false,
     onAccept,
     onReject,
     onVeto,
@@ -318,6 +319,7 @@ export function TradeCard({
     selected?: boolean
     /** Beside an open detail pane: names only, the pane shows season context and notes. */
     brief?: boolean
+    embedded?: boolean
     onAccept: () => void
     onReject: () => void
     onVeto: () => void
@@ -345,7 +347,7 @@ export function TradeCard({
     )
 
     return (
-        <View style={[styles.card, selected && styles.cardSelected]} testID={reviewMode ? 'trade-review-card' : undefined}>
+        <View style={[styles.card, embedded && styles.cardEmbedded, selected && !embedded && styles.cardSelected]} testID={reviewMode ? 'trade-review-card' : undefined}>
             <PendingMutationBadge rowId={trade.id} />
             <View style={styles.cardHeader}>
                 <Text style={styles.cardOpponent} numberOfLines={2}>{model.opponentName}</Text>
@@ -404,6 +406,7 @@ const styles = StyleSheet.create({
         gap: spacing.md,
     },
     cardSelected: { borderColor: colors.primary, borderWidth: 1.5 },
+    cardEmbedded: { borderWidth: 0, borderRadius: 0, backgroundColor: colors.transparent },
     cardHeader: {
         flexDirection: 'row',
         flexWrap: 'wrap',

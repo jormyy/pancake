@@ -24,6 +24,7 @@ import {
     TradeBlockPickRow,
     TradeBlockPlayerRow,
     TradeEmptyRow,
+    TradeCardFrame,
     TradeOfferRow,
     TradeSectionRow,
 } from '@/components/trades/TradeListRow'
@@ -190,10 +191,21 @@ function TradesScreen() {
     const staticTradeList = tradeTab && listTrades.length <= STATIC_TRADE_LIMIT && !(tab === 'offers' ? offersHaveMore : historyHasMore)
     const openTrade = openTradeId ? listTrades.find((trade) => trade.id === openTradeId) ?? null : null
     const openTradeDetails = useCallback((trade: Trade) => setOpenTradeId(trade.id), [setOpenTradeId])
-    const renderItem = useCallback(({ item }: { item: TradeListItem }) => {
+    const cardEdges = useMemo(() => {
+        const grouped = listData.some((item) => item._type === 'header')
+        const first: boolean[] = []
+        const last: boolean[] = []
+        listData.forEach((item, index) => {
+            first.push(item._type === 'header' || !grouped)
+            const next = listData[index + 1]
+            last.push(!next || next._type === 'header')
+        })
+        return { first, last }
+    }, [listData])
+    const renderRow = useCallback((item: TradeListItem) => {
         switch (item._type) {
             case 'header':
-                return <TradeSectionRow item={item} />
+                return <TradeSectionRow item={item} standalone={gridColumns > 1} />
             case 'empty':
                 return <TradeEmptyRow item={item} />
             case 'blockItem':
@@ -218,12 +230,18 @@ function TradesScreen() {
                     onWithdrawAcceptance={tradeActions.retractAcceptance}
                     holdReady={holdReady}
                     onAnalyze={openAnalyzer}
+                    embedded={gridColumns === 1}
                     onOpen={openTradeDetails} />
         }
     }, [blockAvgMap, blockAvgStatsMap, blockBusyId, decisionsDisabled, currentLeague?.trade_veto_mode, gridColumns, handleListPick, handleListPlayer,
         handleRemoveBlockItem, handleSaveBlockNote, isCommissioner, listedPickIds, listedPlayerIds, myMemberId, myTeamName,
         openAnalyzer, openTradeDetails, tab, tradeActions.busyTradeId, tradeActions.reject,
         holdReady, tradeActions.retractAcceptance, tradeActions.veto, tradeActions.withdraw])
+    const renderItem = useCallback(({ item, index }: { item: TradeListItem; index: number }) => {
+        const row = renderRow(item)
+        if (gridColumns > 1) return row
+        return <TradeCardFrame first={cardEdges.first[index] ?? false} last={cardEdges.last[index] ?? false}>{row}</TradeCardFrame>
+    }, [cardEdges, gridColumns, renderRow])
 
     const activeTabLoading = tab === 'block' ? !blockDisplayReady || (picksLoading && picks === null)
         : tab === 'history' ? historyLoading && !historyHasData
@@ -316,7 +334,7 @@ function TradesScreen() {
             overrideItemLayout={(itemLayout, item, _index, maxColumns) => {
                 if (item._type === 'header' || item._type === 'empty') itemLayout.span = maxColumns
             }}
-            ItemSeparatorComponent={tradeTab ? CardGap : undefined}
+            ItemSeparatorComponent={gridColumns > 1 ? CardGap : undefined}
             renderItem={renderItem}
             contentContainerStyle={statusScroll.contentStyle({ paddingHorizontal: padX, paddingBottom: spacing['3xl'] })}
             onEndReached={tab === 'history' && historyHasMore
@@ -365,8 +383,7 @@ function TradesScreen() {
                         <ScrollView contentContainerStyle={{ paddingHorizontal: padX, paddingBottom: spacing['3xl'] }}>
                             {needsCard}
                             {(offersEmpty ? [] : listData).map((item, index) => <View key={tradeListKey(item, index)}>
-                                {index > 0 && tradeTab ? <CardGap /> : null}
-                                {renderItem({ item })}
+                                {renderItem({ item, index })}
                             </View>)}
                         </ScrollView>
                     ) : list}
