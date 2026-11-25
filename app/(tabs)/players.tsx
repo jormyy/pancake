@@ -17,14 +17,16 @@ import { FlashList } from '@shopify/flash-list'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { type OwnedEntry } from '@/lib/roster'
 import { useLeagueContext } from '@/contexts/league-context'
-import { colors, controlSize, fontWeight, radii, spacing, textStyles, typeScale } from '@/constants/tokens'
+import { colors, controlSize, fontWeight, radii, spacing, typeScale } from '@/constants/tokens'
 import { EmptyState } from '@/components/EmptyState'
 import { IRResolutionModal } from '@/components/IRResolutionModal'
 import { DropPlayerPickerModal } from '@/components/DropPlayerPickerModal'
 import { playerDetailRoute } from '@/components/player/navigation'
 import { PlayerSearchItem } from '@/components/PlayerSearchItem'
 import { NoLeagueState } from '@/components/NoLeagueState'
-import { FilterSelect, MultiSelect, Page, PageHeader, SegmentedControl, usePageMetrics } from '@/components/ui'
+import { Card, FilterSelect, MultiSelect, Page, PageHeader, SegmentedControl, usePageMetrics } from '@/components/ui'
+import { Badge } from '@/components/ui/Badge'
+import { SectionBand } from '@/components/ui/SectionBand'
 import { Sheet } from '@/components/ui/Sheet'
 import { DynastyHub } from '@/components/dynasty/DynastyHub'
 import { RetainedPanel } from '@/components/ui/RetainedPanel'
@@ -127,7 +129,7 @@ function PlayerSearchSection() {
     const leagueId = currentLeague?.id ?? null
 
     const searchEnabled = membershipValidated && !!user && !!current?.id && !!leagueId
-    const { compact: compactToolbar, padX } = usePageMetrics()
+    const { padX } = usePageMetrics()
     const showStatTable = width >= 1180
     const [filtersOpen, setFiltersOpen] = useState(false)
 
@@ -244,7 +246,8 @@ function PlayerSearchSection() {
         ? playerAverageLabel(search.results.players[0]?.stats_season_year)
         : statsWindowLabel(search.statsWindow.range)
     const summaryLoading = !playerSupportReady || (search.results.players.length === 0 && search.results.loading)
-    const summaryLine = [resultCountLabel, averageLabel, addLimitSummary(transactionState, Date.now(), currentLeague?.timezone), waiverLine].filter(Boolean).join(' · ')
+    const addChip = transactionState ? addLimitSummary(transactionState, Date.now(), currentLeague?.timezone) : null
+    const listLabel = PLAYER_AVAILABILITY_FILTERS.find((option) => option.key === search.availabilityFilter.value)?.label ?? 'Players'
     const filterControls = (variant: 'chip' | 'field') => (
         <>
             <FilterSelect
@@ -331,9 +334,19 @@ function PlayerSearchSection() {
         <View style={styles.container}>
           <View style={styles.contentWrap}>
             <View style={[localStyles.toolbar, { paddingHorizontal: padX }]}>
+                <View style={localStyles.statusRow} aria-busy={summaryLoading} accessibilityState={{ busy: summaryLoading }}>
+                    {resultCountLabel ? <Badge size="status" variant="soft" color={colors.bgMuted} textColor={colors.textSecondary} label={resultCountLabel} /> : null}
+                    {addChip ? <Badge size="status" variant="soft" color={colors.bgMuted} textColor={colors.textSecondary} label={addChip} /> : null}
+                    {waiverLine ? <Badge size="status" variant="soft" color={colors.primaryLight} textColor={colors.primaryDark} label={waiverLine} /> : null}
+                    {addBlockedReason ? (
+                        <View testID="add-limit-notice" role="status" accessibilityLiveRegion="polite">
+                            <Badge size="status" variant="soft" color={colors.dangerLight} textColor={colors.dangerDark} label="Add limit reached" accessibilityLabel={addBlockedReason} />
+                        </View>
+                    ) : null}
+                </View>
                 <View style={localStyles.toolbarRow}>
                     <TextInput
-                        style={[styles.searchInput, !compactToolbar && localStyles.searchWide]}
+                        style={styles.searchInput}
                         placeholder="Search players..."
                         placeholderTextColor={colors.inputPlaceholder}
                         value={search.search.query}
@@ -342,46 +355,37 @@ function PlayerSearchSection() {
                         clearButtonMode="while-editing"
                         accessibilityLabel="Search players"
                     />
-                    {compactToolbar ? (
-                        <Pressable
-                            style={[localStyles.filterButton, search.activeFilterCount > 0 && localStyles.filterButtonActive]}
-                            onPress={() => setFiltersOpen(true)}
-                            accessibilityRole="button"
-                            accessibilityLabel="Show filters"
-                        >
-                            <Text style={[localStyles.filterButtonText, search.activeFilterCount > 0 && localStyles.filterButtonTextActive]}>Filters</Text>
-                            {search.activeFilterCount > 0 ? (
-                                <View style={styles.filterCountDot}>
-                                    <Text style={styles.filterCountDotText}>{search.activeFilterCount}</Text>
-                                </View>
-                            ) : null}
-                        </Pressable>
-                    ) : (
-                        <>
-                            {filterControls('chip')}
-                            {search.activeFilterCount > 0 ? (
-                                <Pressable onPress={search.clearAllFilters} style={localStyles.clearButton} accessibilityRole="button" accessibilityLabel="Clear all filters">
-                                    <Text style={localStyles.clearButtonText}>Clear</Text>
-                                </Pressable>
-                            ) : null}
-                            <Text style={[localStyles.summary, localStyles.summaryWide, { minWidth: 240, minHeight: textStyles.body.lineHeight, opacity: summaryLoading ? 0 : 1 }]} aria-busy={summaryLoading} accessibilityState={{ busy: summaryLoading }}>{resultCountLabel ? summaryLine : ''}</Text>
-                        </>
-                    )}
-                </View>
-                {compactToolbar ? <Text style={[localStyles.summary, { minWidth: 240, minHeight: textStyles.body.lineHeight, opacity: summaryLoading ? 0 : 1 }]} aria-busy={summaryLoading} accessibilityState={{ busy: summaryLoading }}>{resultCountLabel ? summaryLine : ''}</Text> : null}
-                {addBlockedReason ? (
-                    <Text
-                        style={localStyles.addLimitNotice}
-                        accessibilityLiveRegion="polite"
-                        role="status"
-                        testID="add-limit-notice"
+                    <Pressable
+                        style={[localStyles.filterButton, search.activeFilterCount > 0 && localStyles.filterButtonActive]}
+                        onPress={() => setFiltersOpen(true)}
+                        accessibilityRole="button"
+                        accessibilityLabel="Show filters"
                     >
-                        {addBlockedReason}
-                    </Text>
-                ) : null}
+                        <Text style={[localStyles.filterButtonText, search.activeFilterCount > 0 && localStyles.filterButtonTextActive]}>Filters</Text>
+                        {search.activeFilterCount > 0 ? (
+                            <View style={styles.filterCountDot}>
+                                <Text style={styles.filterCountDotText}>{search.activeFilterCount}</Text>
+                            </View>
+                        ) : null}
+                    </Pressable>
+                    {search.activeFilterCount > 0 ? (
+                        <Pressable onPress={search.clearAllFilters} style={localStyles.clearButton} accessibilityRole="button" accessibilityLabel="Clear all filters">
+                            <Text style={localStyles.clearButtonText}>Clear</Text>
+                        </Pressable>
+                    ) : null}
+                </View>
+                <SegmentedControl
+                    variant="pills"
+                    value={search.position.value}
+                    onChange={search.position.setValue}
+                    options={PLAYER_POSITION_FILTERS.slice(0, 6).map((option) => ({ label: option.label, value: option.key }))}
+                    accessibilityLabel="Filter by position"
+                    idBase="players-position"
+                    equalWidth
+                />
             </View>
 
-            <Sheet visible={compactToolbar && filtersOpen} title="Filters" onClose={() => setFiltersOpen(false)}>
+            <Sheet visible={filtersOpen} title="Filters" onClose={() => setFiltersOpen(false)}>
                 <View style={localStyles.sheetFields}>
                     {filterControls('field')}
                     <Pressable
@@ -405,44 +409,48 @@ function PlayerSearchSection() {
                 </View>
             </Sheet>
 
-            <View style={localStyles.results} aria-busy={listIsInitialLoading || search.results.loadingMore} accessibilityState={{ busy: listIsInitialLoading || search.results.loadingMore }}>
-            <FlashList
-                    {...scrollRestoration}
-                    onScroll={event => { statusScroll.onScroll?.(event); scrollRestoration.onScroll(event) }}
-                    scrollEventThrottle={16}
-                    ref={search.results.listRef}
-                    data={liveRows.rows}
-                    onViewableItemsChanged={liveRows.onViewableItemsChanged}
-                    extraData={playerListExtraData}
-                    keyExtractor={(p: PlayerRow) => p.id}
-                    contentContainerStyle={statusScroll.contentStyle(search.results.players.length === 0 && !listIsInitialLoading ? styles.emptyContainer : undefined)}
-                    ListHeaderComponent={showStatTable ? (
-                        <PlayerTableHeader activeSort={search.sort.mode} sortDir={search.sort.dir} onColumnSort={handleColumnSort} />
-                    ) : null}
-                    renderItem={renderPlayerItem}
-                    ListEmptyComponent={
-                        !online
-                            ? <EmptyState message="Offline. No saved player results." description="Reconnect to load this search." fullScreen={false} />
-                            : listError
-                              ? <EmptyState message="Players could not load." description={listError.message} actionLabel="Retry" onAction={() => { void refreshPlayers() }} fullScreen={false} />
-                            : listIsInitialLoading
-                              ? <EmptyState message="Loading players…" fullScreen={false} />
-                            : search.activeFilterCount > 0
-                              ? <EmptyState message="No players match these filters." actionLabel="Clear filters" onAction={search.clearAllFilters} fullScreen={false} />
-                            : search.search.query.trim()
-                              ? <EmptyState message={`No players match "${search.search.query.trim()}".`} actionLabel="Clear search" onAction={() => search.search.setQuery('')} fullScreen={false} />
-                            : search.availabilityFilter.value === 'free_agents'
-                              ? <EmptyState message="No free agents right now." description="Every player is on a roster or on waivers." actionLabel="Show all players" onAction={() => search.availabilityFilter.setValue('all')} fullScreen={false} />
-                            : <EmptyState message="No players found." fullScreen={false} />
-                    }
-                    onEndReached={search.results.loadMore}
-                    onEndReachedThreshold={0.3}
-                    ListFooterComponent={
-                        <View style={localStyles.pageProgress}>
-                            <Text style={localStyles.freshnessText} accessibilityLiveRegion="polite">{search.results.loadingMore ? 'Loading more players…' : ''}</Text>
-                        </View>
-                    }
-                />
+            <View style={[localStyles.results, { paddingHorizontal: padX }]} aria-busy={listIsInitialLoading || search.results.loadingMore} accessibilityState={{ busy: listIsInitialLoading || search.results.loadingMore }}>
+                <Card padding="none" elevated="none" style={localStyles.listCard}>
+                    <SectionBand label={listLabel} detail={<Text style={localStyles.bandDetail}>{averageLabel}</Text>} />
+                    <FlashList
+                        {...scrollRestoration}
+                        style={localStyles.list}
+                        onScroll={event => { statusScroll.onScroll?.(event); scrollRestoration.onScroll(event) }}
+                        scrollEventThrottle={16}
+                        ref={search.results.listRef}
+                        data={liveRows.rows}
+                        onViewableItemsChanged={liveRows.onViewableItemsChanged}
+                        extraData={playerListExtraData}
+                        keyExtractor={(p: PlayerRow) => p.id}
+                        contentContainerStyle={statusScroll.contentStyle(search.results.players.length === 0 && !listIsInitialLoading ? styles.emptyContainer : undefined)}
+                        ListHeaderComponent={showStatTable ? (
+                            <PlayerTableHeader activeSort={search.sort.mode} sortDir={search.sort.dir} onColumnSort={handleColumnSort} />
+                        ) : null}
+                        renderItem={renderPlayerItem}
+                        ListEmptyComponent={
+                            !online
+                                ? <EmptyState message="Offline. No saved player results." description="Reconnect to load this search." fullScreen={false} />
+                                : listError
+                                  ? <EmptyState message="Players could not load." description={listError.message} actionLabel="Retry" onAction={() => { void refreshPlayers() }} fullScreen={false} />
+                                : listIsInitialLoading
+                                  ? <EmptyState message="Loading players…" fullScreen={false} />
+                                : search.activeFilterCount > 0
+                                  ? <EmptyState message="No players match these filters." actionLabel="Clear filters" onAction={search.clearAllFilters} fullScreen={false} />
+                                : search.search.query.trim()
+                                  ? <EmptyState message={`No players match "${search.search.query.trim()}".`} actionLabel="Clear search" onAction={() => search.search.setQuery('')} fullScreen={false} />
+                                : search.availabilityFilter.value === 'free_agents'
+                                  ? <EmptyState message="No free agents right now." description="Every player is on a roster or on waivers." actionLabel="Show all players" onAction={() => search.availabilityFilter.setValue('all')} fullScreen={false} />
+                                : <EmptyState message="No players found." fullScreen={false} />
+                        }
+                        onEndReached={search.results.loadMore}
+                        onEndReachedThreshold={0.3}
+                        ListFooterComponent={
+                            <View style={localStyles.pageProgress}>
+                                <Text style={localStyles.freshnessText} accessibilityLiveRegion="polite">{search.results.loadingMore ? 'Loading more players…' : ''}</Text>
+                            </View>
+                        }
+                    />
+                </Card>
             </View>
           </View>
             <ScreenStatusOverlay>
@@ -551,7 +559,6 @@ function PlayersScreen() {
                         accessibilityLabel="Players sections"
                         idBase="players-section"
                         controlledPanelId="players-section-panel"
-                        scrollable
                     />
                 )}
             />
@@ -577,7 +584,10 @@ const localStyles = StyleSheet.create({
     freshness: { minHeight: controlSize.minTouch, justifyContent: 'center', paddingVertical: spacing.sm },
     freshnessText: { ...typeScale.small, color: colors.textSecondary },
     panel: { flex: 1, minHeight: 0 },
-    results: { flex: 1, minHeight: 320 },
+    results: { flex: 1, minHeight: 320, paddingTop: spacing.md },
+    listCard: { flex: 1, minHeight: 0, overflow: 'hidden' },
+    list: { flex: 1, minHeight: 0 },
+    bandDetail: { ...typeScale.caption, color: colors.textMuted },
     pageProgress: { minHeight: controlSize.minTouch, alignItems: 'center', justifyContent: 'center' },
     toolbar: {
         gap: spacing.xs,
@@ -585,13 +595,13 @@ const localStyles = StyleSheet.create({
         borderBottomWidth: 1,
         borderBottomColor: colors.borderLight,
     },
+    statusRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.sm },
     toolbarRow: {
         flexDirection: 'row',
         alignItems: 'center',
         flexWrap: 'wrap',
         gap: spacing.sm,
     },
-    searchWide: { flexGrow: 0, flexBasis: 280, minWidth: 220, height: controlSize.minTouch },
     filterButton: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -609,8 +619,6 @@ const localStyles = StyleSheet.create({
     filterButtonTextActive: { color: colors.primaryDark },
     clearButton: { minHeight: controlSize.minTouch, justifyContent: 'center', paddingHorizontal: spacing.md },
     clearButtonText: { ...typeScale.small, fontWeight: fontWeight.bold, color: colors.dangerDark },
-    summary: { ...textStyles.meta },
-    summaryWide: { marginLeft: 'auto', flexShrink: 0 },
     sheetFields: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.lg },
     sheetActions: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.xl },
     sortDirInSheet: { flexGrow: 1, flexBasis: 140, minHeight: controlSize.minTouch },
@@ -631,12 +639,6 @@ const localStyles = StyleSheet.create({
         backgroundColor: colors.primary,
     },
     sheetDoneText: { ...typeScale.row, fontWeight: fontWeight.bold, color: colors.textWhite },
-    addLimitNotice: {
-        ...typeScale.caption,
-        marginTop: spacing.xs,
-        fontWeight: fontWeight.semibold,
-        color: colors.warningDark,
-    },
 })
 
 export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFallback'

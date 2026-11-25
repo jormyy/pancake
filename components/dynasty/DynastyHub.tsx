@@ -19,6 +19,7 @@ import { useRouter } from 'expo-router'
 import { EmptyState } from '@/components/EmptyState'
 import { ItemSeparator } from '@/components/ItemSeparator'
 import { Button, Card, ErrorBanner, Input, SegmentedControl } from '@/components/ui'
+import { SectionBand } from '@/components/ui/SectionBand'
 import { usePageMetrics } from '@/components/ui/Page'
 import { RetainedPanel } from '@/components/ui/RetainedPanel'
 import { useLeagueContext } from '@/contexts/league-context'
@@ -223,22 +224,26 @@ export function DynastyHub({ section }: { section: DynastySection }) {
                                 <Button title="Retry" icon="refresh" accessibilityLabel="Retry rankings" onPress={() => void rankings.refresh()} />
                             </View>
                         ) : (
-                            <FlashList
-                                key={rankings.view}
-                                data={rankings.players}
-                                keyExtractor={(player) => player.rankingId}
-                                ItemSeparatorComponent={ItemSeparator}
-                                contentContainerStyle={rankings.players.length === 0 && !rankings.loading ? styles.emptyContainer : undefined}
-                                renderItem={renderRankingRow}
-                                ListEmptyComponent={rankings.loading
-                                    ? null
-                                    : rankings.query.trim()
-                                        ? <EmptyState message={`No ranked players match "${rankings.query.trim()}".`} actionLabel="Clear search" onAction={() => rankings.setQuery('')} fullScreen={false} />
-                                    : <EmptyState message="No ranked players in this view." fullScreen={false} />}
-                                ListFooterComponent={rankingFooter}
-                                onEndReached={rankings.loadMore}
-                                onEndReachedThreshold={0.4}
-                            />
+                            <Card padding="none" elevated="none" style={styles.rankingCard}>
+                                <SectionBand label="Dynasty rankings" detail={<Text style={styles.bandDetail}>{rankings.players.length}</Text>} />
+                                <FlashList
+                                    key={rankings.view}
+                                    style={styles.list}
+                                    data={rankings.players}
+                                    keyExtractor={(player) => player.rankingId}
+                                    ItemSeparatorComponent={ItemSeparator}
+                                    contentContainerStyle={rankings.players.length === 0 && !rankings.loading ? styles.emptyContainer : undefined}
+                                    renderItem={renderRankingRow}
+                                    ListEmptyComponent={rankings.loading
+                                        ? null
+                                        : rankings.query.trim()
+                                            ? <EmptyState message={`No ranked players match "${rankings.query.trim()}".`} actionLabel="Clear search" onAction={() => rankings.setQuery('')} fullScreen={false} />
+                                        : <EmptyState message="No ranked players in this view." fullScreen={false} />}
+                                    ListFooterComponent={rankingFooter}
+                                    onEndReached={rankings.loadMore}
+                                    onEndReachedThreshold={0.4}
+                                />
+                            </Card>
                         )}
                         </DeferredContent>
                     </View>
@@ -267,17 +272,20 @@ export function DynastyHub({ section }: { section: DynastySection }) {
                             instead of swapping a loading line for news rows. */}
                         <DeferredContent ready={activeNewsHydrated}>
                         {activeNewsHydrated ? (
-                            <Card padding="md" radius="md" elevated="none" style={styles.listCard}>
-                                {activeNews.length === 0 ? (
-                                    <EmptyState message={emptyNewsMessage} fullScreen={false} />
-                                ) : (
-                                    activeNews.map((item, index) => (
-                                        <View key={item.id}>
-                                            <NewsRow item={item} dateLabel={formatDate(item.publishedAt, timezone)} />
-                                            {index < activeNews.length - 1 ? <View style={styles.separator} /> : null}
-                                        </View>
-                                    ))
-                                )}
+                            <Card padding="none" elevated="none" style={styles.listCard}>
+                                <SectionBand label={feed === 'my-news' ? 'My players' : 'All dynasty news'} detail={<Text style={styles.bandDetail}>{activeNews.length}</Text>} />
+                                <View style={styles.newsList}>
+                                    {activeNews.length === 0 ? (
+                                        <EmptyState message={emptyNewsMessage} fullScreen={false} />
+                                    ) : (
+                                        activeNews.map((item, index) => (
+                                            <View key={item.id}>
+                                                <NewsRow item={item} dateLabel={formatDate(item.publishedAt, timezone)} />
+                                                {index < activeNews.length - 1 ? <View style={styles.separator} /> : null}
+                                            </View>
+                                        ))
+                                    )}
+                                </View>
                             </Card>
                         ) : null}
                         </DeferredContent>
@@ -349,6 +357,10 @@ const styles = StyleSheet.create({
     sourceFootnote: { ...textStyles.meta, paddingVertical: spacing.lg },
     newsContent: { paddingBottom: spacing.xl, gap: spacing.md, width: '100%', maxWidth: layout.formMaxWidth, alignSelf: 'center' },
     listCard: { overflow: 'hidden' },
+    rankingCard: { flex: 1, minHeight: 0, overflow: 'hidden' },
+    list: { flex: 1, minHeight: 0 },
+    newsList: { padding: spacing.md },
+    bandDetail: { ...typeScale.caption, color: colors.textMuted },
     separator: { height: 1, backgroundColor: colors.borderLight },
     emptyContainer: { flexGrow: 1, justifyContent: 'center' },
     errorState: {
