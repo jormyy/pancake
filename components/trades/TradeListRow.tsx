@@ -23,7 +23,9 @@ type ItemOf<Type extends TradeListItem['_type']> = Extract<TradeListItem, { _typ
 export const TradeSectionRow = memo(function TradeSectionRow({ item }: { item: ItemOf<'header'> }) {
     if (!item.label) return null
     return (
-        <SectionBand variant="plain" label={item.label} style={styles.sectionRow} />
+        <View style={styles.sectionCard}>
+            <SectionBand label={item.label} style={styles.sectionBand} />
+        </View>
     )
 })
 
@@ -214,11 +216,37 @@ export const TradeOfferRow = memo(function TradeOfferRow({
 })
 
 const styles = StyleSheet.create({
-    sectionRow: { paddingTop: spacing.lg, paddingBottom: spacing.sm },
-    emptyRow: { paddingVertical: spacing.sm },
-    emptyText: { ...textStyles.meta },
+    sectionCard: {
+        marginTop: spacing.lg,
+        borderWidth: 1,
+        borderColor: colors.borderLight,
+        borderRadius: radii.xl,
+        borderCurve: 'continuous',
+        overflow: 'hidden',
+    },
+    sectionBand: { borderBottomWidth: 0 },
+    emptyRow: {
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.md,
+        backgroundColor: colors.bgCard,
+        borderWidth: 1,
+        borderColor: colors.borderLight,
+        borderRadius: radii.xl,
+        borderCurve: 'continuous',
+    },
+    emptyText: { ...textStyles.meta, color: colors.textSecondary },
     blockRow: { minHeight: table.rowHeight, flexDirection: 'row', alignItems: 'center', gap: spacing.lg, paddingVertical: componentTokens.playerRow.standard.paddingVertical },
-    compactBlockRow: { borderBottomWidth: 1, borderBottomColor: colors.borderLight, marginBottom: spacing.sm, paddingHorizontal: spacing.sm, paddingVertical: componentTokens.playerRow.compact.paddingVertical, gap: componentTokens.playerRow.compact.gap },
+    compactBlockRow: {
+        borderWidth: 1,
+        borderColor: colors.borderLight,
+        borderRadius: radii.xl,
+        borderCurve: 'continuous',
+        backgroundColor: colors.bgCard,
+        marginBottom: spacing.sm,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: componentTokens.playerRow.compact.paddingVertical,
+        gap: componentTokens.playerRow.compact.gap,
+    },
     tile: {
         flex: 1,
         margin: spacing.xs,
