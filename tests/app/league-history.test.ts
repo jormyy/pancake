@@ -7,6 +7,7 @@ import type { SeasonHistory } from '@/lib/league-history'
 
 const mocks = vi.hoisted(() => ({
     refresh: vi.fn(),
+    change: vi.fn(),
     state: {
         current: { id: 'member' }, currentLeague: { id: 'league' }, tab: 'seasons',
         seasons: [] as SeasonHistory[], isTabLoaded: true, isTabLoading: false,
@@ -30,7 +31,7 @@ vi.mock('@/components/ui/ScreenStatusOverlay', () => ({
     ScreenStatusScrollView: 'ScrollView', ScreenStatusOverlay: 'ScreenStatusOverlay', ScreenStatusProvider: 'ScreenStatusProvider',
 }))
 vi.mock('@/components/ui/DeferredContent', () => ({ DeferredContent: ({ ready, children }: { ready: boolean; children: React.ReactNode }) => ready ? children : null }))
-vi.mock('@/hooks/use-league-screen-state', () => ({ useLeagueScreenState: () => ({ ...mocks.state, retryCurrentTab: mocks.refresh }) }))
+vi.mock('@/hooks/use-league-screen-state', () => ({ useLeagueScreenState: () => ({ ...mocks.state, retryCurrentTab: mocks.refresh, handleTabChange: mocks.change }) }))
 vi.mock('@/hooks/use-screen-view', () => ({ useScreenView: () => ({ data: undefined }) }))
 vi.mock('@/components/league/LeaguePlayoffs', () => ({ LeaguePlayoffs: 'LeaguePlayoffs' }))
 vi.mock('@/components/league/LeagueActivityFeed', () => ({ ActivityFeed: 'ActivityFeed' }))
@@ -40,6 +41,7 @@ vi.mock('@/components/league/DraftSetupPanels', () => ({ DraftPanel: 'DraftPanel
 vi.mock('@/components/league/MockRoomsPanel', () => ({ MockRoomsPanel: 'MockRoomsPanel' }))
 vi.mock('@/components/league/SettingsPanel', () => ({ SettingsPanel: 'SettingsPanel' }))
 vi.mock('@/components/league/LeaguePicksBank', () => ({ PicksBankList: 'PicksBankList' }))
+vi.mock('@/components/league/LeagueMoreCard', () => ({ LeagueMoreCard: 'LeagueMoreCard' }))
 vi.mock('@/components/NoLeagueState', () => ({ NoLeagueState: 'NoLeagueState' }))
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -121,9 +123,29 @@ describe('League History', () => {
         mocks.state.isTabLoading = false
         await act(async () => screen!.update(React.createElement(LeagueScreen)))
         expect(screen!.root.findByType(LeagueHistory).props.seasons).toBe(seasons)
-        const options = screen!.root.findByType(host('PageHeader')).props.tabs.props.options
-        expect(options).toContainEqual({ value: 'seasons', label: 'History' })
-        expect(options).toContainEqual({ value: 'history', label: 'Activity' })
+        const header = screen!.root.findByType(host('PageHeader')).props
+        expect(header.tabs).toBeUndefined()
+        expect(header.title).toBe('History')
+        expect(header.onBack).toBeTypeOf('function')
+        expect(screen!.root.findByProps({ role: 'tabpanel' }).props['aria-label']).toBe('History league section')
+    })
+
+    it('leads with Standings, Schedule and Playoffs and lists the other views in a More card', async () => {
+        mocks.state.tab = 'results'
+        await act(async () => { screen = create(React.createElement(LeagueScreen)) })
+        const header = screen!.root.findByType(host('PageHeader')).props
+        expect(header.tabs.props.options).toEqual([
+            { value: 'results', label: 'Standings' },
+            { value: 'schedule', label: 'Schedule' },
+            { value: 'bracket', label: 'Playoffs' },
+        ])
+        expect(header.tabs.props.scrollable).toBeUndefined()
+        expect(header.onBack).toBeUndefined()
+        const footer = screen!.root.findByType(host('StandingsTable')).props.footer
+        expect(footer.type).toBe('LeagueMoreCard')
+        expect(footer.props.activeTab).toBe('results')
+        expect(footer.props.onSelect).toBe(mocks.change)
+        expect(screen!.root.findByProps({ role: 'tabpanel' }).props['aria-label']).toBe('Standings league section')
     })
 
     it('renders Playoffs under the same League header and tab panel', async () => {
