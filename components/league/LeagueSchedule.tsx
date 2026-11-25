@@ -29,14 +29,23 @@ export function LeagueSchedule({ rows, onOpenMatchup }: { rows: LeagueScheduleRo
     useEffect(() => {
         if (hasRows) currentRow.current?.scrollIntoView?.({ block: 'nearest' })
     }, [hasRows])
-    if (!rows.length) return <EmptyState message="No schedule yet." description="Your matchups appear when the season schedule is ready." />
+    if (!rows.length) {
+        return (
+            <ScreenStatusScrollView contentContainerStyle={[styles.content, { paddingHorizontal: padX }]}>
+                <Card padding="none" elevated="none" style={styles.card}>
+                    <SectionBand label="Schedule" />
+                    <EmptyState message="No schedule yet." description="Your matchups appear when the season schedule is ready." fullScreen={false} />
+                </Card>
+            </ScreenStatusScrollView>
+        )
+    }
     return (
         <ScreenStatusScrollView contentContainerStyle={[styles.content, { paddingHorizontal: padX }]}>
             <Card padding="none" elevated="none" style={styles.card}>
             <SectionBand label="Schedule" />
             <ListHeader style={{ paddingHorizontal: spacing.lg }}>
                 <Text style={[textStyles.tableHeader, styles.week]}>Week</Text>
-                <Text style={[textStyles.tableHeader, styles.opponent]}>Opponent</Text>
+                <Text style={[textStyles.tableHeader, styles.opponentHeader]}>Opponent</Text>
                 <Text style={[textStyles.tableHeader, styles.result]}>Result</Text>
             </ListHeader>
             <View role="list" aria-label="Your season schedule">
@@ -45,11 +54,11 @@ export function LeagueSchedule({ rows, onOpenMatchup }: { rows: LeagueScheduleRo
                     const outcome = OUTCOME[row.status]
                     const label = row.status === 'skipped' ? `Week ${row.weekNumber}, skipped` : `Week ${row.weekNumber}${row.isCurrent ? ', current week' : ''}${row.opponentTeamName ? `, ${row.opponentTeamName}` : ''}, ${row.status === 'live' ? 'Live ' : ''}${result}`
                     const content = <>
-                        <View style={styles.week}>
-                            <Text style={[textStyles.tableCell, row.isCurrent && tableStyles.textMe]}>{row.weekNumber}</Text>
+                        <Text style={[textStyles.tableCell, styles.week, row.isCurrent && tableStyles.textMe]}>{row.weekNumber}</Text>
+                        <View style={styles.opponent}>
+                            <Text numberOfLines={1} style={[textStyles.rowTitle, styles.opponentName, row.status === 'skipped' && styles.placeholder]}>{row.status === 'skipped' ? 'No matchup' : row.opponentTeamName ?? (row.status === 'playoffs' ? '—' : 'To be decided')}</Text>
                             {row.isCurrent ? <Badge label="Now" size="small" variant="solid" color={colors.primary} /> : null}
                         </View>
-                        <Text numberOfLines={1} style={[textStyles.rowTitle, styles.opponent, row.status === 'skipped' && styles.placeholder]}>{row.status === 'skipped' ? 'No matchup' : row.opponentTeamName ?? (row.status === 'playoffs' ? '—' : 'To be decided')}</Text>
                         {outcome ? (
                             <View style={styles.result}>
                                 <Text style={[textStyles.tableHeader, styles.outcome, row.status === 'win' && styles.win, row.status === 'loss' && styles.loss, row.status === 'live' && styles.live]}>{outcome}</Text>
@@ -72,12 +81,14 @@ export function LeagueSchedule({ rows, onOpenMatchup }: { rows: LeagueScheduleRo
 }
 
 const styles = StyleSheet.create({
-    content: { paddingTop: spacing.md, paddingBottom: spacing['3xl'] },
-    card: { width: '100%', maxWidth: layout.formMaxWidth, alignSelf: 'center', overflow: 'hidden' },
-    row: { flexDirection: 'row', alignItems: 'center', minHeight: table.rowHeight, paddingVertical: spacing.md, gap: spacing.lg, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+    content: { paddingTop: spacing.md, paddingBottom: spacing.md },
+    card: { width: '100%', maxWidth: layout.formMaxWidth + 2 * layout.pagePadX.regular, alignSelf: 'center', overflow: 'hidden' },
+    row: { flexDirection: 'row', alignItems: 'center', minHeight: table.rowHeight, paddingVertical: spacing.sm, gap: spacing.lg, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
     action: { flex: 1, minHeight: controlSize.minTouch, flexDirection: 'row', alignItems: 'center', gap: spacing.lg },
-    week: { width: table.statColWidth + spacing.md, flexShrink: 0, alignItems: 'flex-start', gap: spacing.xs },
-    opponent: { flex: 1, minWidth: 0 },
+    week: { width: table.statColWidth + spacing.md, flexShrink: 0 },
+    opponent: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+    opponentHeader: { flex: 1 },
+    opponentName: { flexShrink: 1 },
     placeholder: { color: colors.textMuted },
     result: { width: table.scoreColWidth * 3, flexShrink: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', textAlign: 'right' },
     outcome: { flex: 1, textAlign: 'left', color: colors.textSecondary },
