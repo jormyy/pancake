@@ -31,7 +31,7 @@ vi.mock('@/components/dynasty/DynastyHub', () => ({ DynastyHub: () => null }))
 vi.mock('@/components/ui/Sheet', () => ({ Sheet: () => null }))
 vi.mock('@/components/ui/RetainedPanel', () => ({ RetainedPanel: ({ children }: React.PropsWithChildren) => children }))
 vi.mock('@/components/ui/ScreenStatusOverlay', () => ({ ScreenStatusProvider: ({ children }: React.PropsWithChildren) => children, ScreenStatusOverlay: ({ children }: React.PropsWithChildren) => children, useScreenStatusScroll: () => ({ contentStyle: (x: unknown) => x }) }))
-vi.mock('@/components/ui', () => ({ FilterSelect: 'FilterSelect', MultiSelect: 'MultiSelect', Page: 'Page', PageHeader: () => null, SegmentedControl: () => null, usePageMetrics: () => ({ padX: 16, compact: true }) }))
+vi.mock('@/components/ui', () => ({ Card: 'View', FilterSelect: 'FilterSelect', MultiSelect: 'MultiSelect', Page: 'Page', PageHeader: () => null, SegmentedControl: () => null, usePageMetrics: () => ({ padX: 16, compact: true }) }))
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 let screen: ReactTestRenderer | undefined
 const empty = () => screen!.root.findAllByType('EmptyState' as React.ElementType)
@@ -110,12 +110,11 @@ it('shows pagination progress without removing the existing players', async () =
     expect(screen!.root.findAllByProps({ children: 'Loading more players…' }).length).toBeGreaterThan(0)
 })
 
-it('shows the summary with saved rows during background refresh', async () => {
+it('shows the status chips with saved rows during background refresh', async () => {
     state.support.data = { ...(state.support.data as object), transactionState: { waiverMode: 'faab', faabBalance: 100 } }
     state.search = { ...state.search, players: Array.from({ length: 20 }, (_, id) => ({ id: String(id), stats_season_year: 2027 })), refreshing: true }
     await render()
-    const summary = screen!.root.findAllByType('Text' as React.ElementType).find(node => String(node.props.children).includes('20 players'))!
-    expect(summary).toBeDefined()
-    expect(summary.props.style.flat().find((style: { opacity?: number }) => style.opacity !== undefined).opacity).toBe(1)
-    expect(summary.props.children).toContain('FAAB $100')
+    const labels = screen!.root.findAllByType('Text' as React.ElementType).map(node => String(node.props.children))
+    expect(labels).toContain('20 players')
+    expect(labels).toContain('FAAB $100')
 })

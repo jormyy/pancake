@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { PlayerSearchItem } from '@/components/PlayerSearchItem'
 import { PlayerHeader } from '@/components/player/PlayerHeader'
 import { claimProcessWeekdayLabel } from '@/lib/waivers'
-import { colors, uiColors } from '@/constants/tokens'
+import { colors } from '@/constants/tokens'
 import { headerPlayer, playerRow, rosterStatus } from './helpers/fixtures'
 vi.mock('@/hooks/use-league-timezone', () => ({ useLeagueTimezone: () => 'America/Los_Angeles' }))
 
@@ -58,7 +58,7 @@ describe('pickup entry points when the weekly add limit is reached', () => {
         const onAdd = vi.fn()
         const tree = await renderSearchItem({ waiverIds: new Set(['player-a']), claimPending: true, onAdd })
         const pending = tree.root.findByProps({ accessibilityLabel: 'View claim for Player A' })
-        expect(pending.findByProps({ name: 'schedule' }).props).toMatchObject({ name: 'schedule', color: uiColors.waiverText })
+        expect(pending.findByProps({ children: 'View' })).toBeDefined()
         await act(async () => { pending.props.onPress() })
         expect(onAdd).toHaveBeenCalledWith(playerRow())
     })
@@ -125,12 +125,12 @@ describe('pickup entry points when the weekly add limit is reached', () => {
 
 })
 
-it('keeps the claim icon accessible and disables it during a pending write', async () => {
+it('keeps the add button labeled and disables it during a pending write', async () => {
     const props = { item: playerRow(), currentMemberId: 'member', ownedMap: new Map(), waiverIds: new Set<string>(), isAdding: false, animate: false, onAdd: vi.fn(), onPress: vi.fn() }
     const tree = await renderSearchItem(props)
     const button = tree.root.findByProps({ accessibilityLabel: 'Claim Player A' })
-    expect(button.findByProps({ name: 'schedule' })).toBeDefined()
+    expect(button.findByProps({ children: 'Add' })).toBeDefined()
     await act(async () => tree.update(React.createElement(PlayerSearchItem, { ...props, isAdding: true })))
     expect(tree.root.findByProps({ accessibilityLabel: 'Claim Player A' }).props.disabled).toBe(true)
-    expect(tree.root.findByProps({ name: 'schedule' })).toBeDefined()
+    expect(tree.root.findByProps({ children: 'Add' })).toBeDefined()
 })
