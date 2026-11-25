@@ -6,16 +6,17 @@ import { listenForMemberClaimsChanges, memberClaimsRevision } from '@/lib/claim-
 import { IRResolutionModal } from '@/components/IRResolutionModal'
 import { DropPlayerPickerModal } from '@/components/DropPlayerPickerModal'
 import { GameLogTable } from '@/components/player/GameLogTable'
-import { PlayerHeader, type PlayerHeaderAction } from '@/components/player/PlayerHeader'
+import { PlayerHeader, playerSummaryLine, type PlayerHeaderAction } from '@/components/player/PlayerHeader'
 import { SeasonSelector } from '@/components/player/SeasonSelector'
 import { StatsOverview } from '@/components/player/StatsOverview'
 import { readPlayerHeader } from '@/components/player/navigation'
 import { TransactionHistory } from '@/components/player/TransactionHistory'
-import { PlayerSection } from '@/components/player/PlayerSection'
 import { NextProjectionCard } from '@/components/player/NextProjectionCard'
-import { breakpoints, colors, fontWeight, layout, spacing, textStyles, typeScale } from '@/constants/tokens'
+import { breakpoints, colors, controlSize, fontWeight, layout, spacing, textStyles, typeScale } from '@/constants/tokens'
 import { BackButton, Page, usePageMetrics } from '@/components/ui'
 import { Button } from '@/components/ui/Button'
+import { Card } from '@/components/ui/Card'
+import { SectionBand } from '@/components/ui/SectionBand'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useOnlineStatus } from '@/hooks/use-online-status'
 import { usePlayerScreenData } from '@/hooks/use-player-screen-data'
@@ -226,6 +227,7 @@ export default function PlayerDetailScreen() {
 
     const injuryDetails = loadedPlayer?.injury_status && (loadedPlayer.injury_reason || loadedPlayer.injury_expected_return)
         ? [loadedPlayer.injury_status, loadedPlayer.injury_reason, loadedPlayer.injury_expected_return].filter(Boolean).join(' · ') : null
+    const summaryLine = playerSummaryLine(player)
     const statColumns = 5
     const seasonControl = availableSeasons.length > 1 ? (
         <SeasonSelector
@@ -234,87 +236,135 @@ export default function PlayerDetailScreen() {
             onSelect={handleSeasonSelect}
         />
     ) : null
-    const profile = (
-        <StatsOverview
-            averages={seasonAverages}
-            seasonYear={selectedSeason}
-            avgFantasyPoints={avgFantasyPoints}
-            showFantasy={showFantasy}
-            columns={statColumns}
-            seasonControl={seasonControl}
-            loading={seasonLoading}
-            includesLive={includesLive}
-        />
+    const bandToggle = (label: string, section: 'games' | 'news' | 'history') => (
+        <Pressable accessibilityRole="button" accessibilityLabel={label}
+            accessibilityState={{ expanded: opened[section] === true }} aria-expanded={opened[section] === true}
+            onPress={() => toggleSection(section)} style={styles.bandAction}>
+            <Text style={styles.bandLink}>{opened[section] === true ? 'Hide' : 'Show'}</Text>
+        </Pressable>
     )
-    const gameLogSection = (
-        <GameLogTable
-            games={gameLog}
-            compact={!twoColumn}
-            loading={gameLogLoading}
-            fantasyPointsMap={showFantasy ? fantasyPointsMap : null}
-            hasMore={hasMoreGames}
-            loadingMore={gameLogLoading && gameLog.length > 0}
-            loadOnScroll={false}
-            onLoadMore={loadMoreGames}
-            error={gameLogError}
-            onRetry={() => { void retryGames(true) }}
-        />
+    const infoCard = (
+        <Card padding="none" elevated="none" style={styles.card}>
+            <SectionBand label="Player info" />
+            <View style={styles.cardBody}>
+                {summaryLine ? <Text style={styles.infoLine}>{summaryLine}</Text> : null}
+                {injuryDetails ? <Text style={textStyles.meta}>{injuryDetails}</Text> : null}
+                <NextProjectionCard plain reserveSpace projection={nextProjection} loading={!projectionSettled} liveGame={liveGame}
+                    liveFantasyPoints={liveGame ? fantasyPointsMap?.get(liveGame.gameId) : null} />
+            </View>
+        </Card>
     )
-    const historySection = showTransactions ? (
-        <PlayerSection title="League history" expanded={opened.history === true} onToggle={() => toggleSection('history')}>
-            {historyLoading ? <Text style={textStyles.meta}>Loading history…</Text> : transactionsError ? <Button size="sm" variant="outline" title="Retry history" onPress={() => { void retryHistory(true) }} /> : <TransactionHistory key={ownerIdentity} playerId={id} leagueId={leagueId!} transactions={transactions} showHeading={false} />}
-        </PlayerSection>
+    const averagesCard = (
+        <Card padding="none" elevated="none" style={styles.card}>
+            <SectionBand label="Season averages" detail={includesLive || seasonControl ? (
+                <View style={styles.bandDetail}>
+                    {includesLive ? <Text style={styles.bandHint}>Live</Text> : null}
+                    {seasonControl}
+                </View>
+            ) : undefined} />
+            <View style={styles.cardBody}>
+                <StatsOverview
+                    averages={seasonAverages}
+                    seasonYear={selectedSeason}
+                    avgFantasyPoints={avgFantasyPoints}
+                    showFantasy={showFantasy}
+                    columns={statColumns}
+                    seasonControl={seasonControl}
+                    loading={seasonLoading}
+                    includesLive={includesLive}
+                    embedded
+                />
+            </View>
+        </Card>
+    )
+    const gameLogCard = (
+        <Card padding="none" elevated="none" style={styles.card}>
+            <SectionBand label="Game log" decorative detail={bandToggle('Game log', 'games')} />
+            <View style={styles.cardBody}>
+                <GameLogTable
+                    games={gameLog}
+                    compact={!twoColumn}
+                    loading={gameLogLoading}
+                    fantasyPointsMap={showFantasy ? fantasyPointsMap : null}
+                    hasMore={hasMoreGames}
+                    loadingMore={gameLogLoading && gameLog.length > 0}
+                    loadOnScroll={false}
+                    onLoadMore={loadMoreGames}
+                    error={gameLogError}
+                    onRetry={() => { void retryGames(true) }}
+                    showHeading={false}
+                    embedded
+                    previewCount={opened.games === true ? undefined : 5}
+                    onShowAll={() => toggleSection('games')}
+                />
+            </View>
+        </Card>
+    )
+    const newsCard = (
+        <Card padding="none" elevated="none" style={styles.card}>
+            <SectionBand label="News" decorative detail={bandToggle('News', 'news')} />
+            {opened.news === true ? (
+                <View style={styles.cardBody}>
+                    {newsLoading ? <Text style={textStyles.meta}>Loading news…</Text> : newsError ? <Button size="sm" variant="outline" title="Retry news" onPress={() => { void retryNews(true) }} /> : news.length === 0 ? <Text style={textStyles.meta}>No recent news.</Text> : news.map(item => <Pressable key={item.id} accessibilityRole={item.url ? 'link' : undefined} disabled={!item.url} onPress={() => { if (item.url && /^https?:\/\//.test(item.url)) void Linking.openURL(item.url) }} style={styles.newsItem}>
+                        <Text style={textStyles.rowTitle}>{item.title}</Text>
+                        <Text style={textStyles.body}>{item.summary}</Text>
+                        <Text style={textStyles.meta}>{item.source}</Text>
+                    </Pressable>)}
+                </View>
+            ) : null}
+        </Card>
+    )
+    const historyCard = showTransactions ? (
+        <Card padding="none" elevated="none" style={styles.card}>
+            <SectionBand label="League history" decorative detail={bandToggle('League history', 'history')} />
+            {opened.history === true ? (
+                <View style={styles.cardBody}>
+                    {historyLoading ? <Text style={textStyles.meta}>Loading history…</Text> : transactionsError ? <Button size="sm" variant="outline" title="Retry history" onPress={() => { void retryHistory(true) }} /> : <TransactionHistory key={ownerIdentity} playerId={id} leagueId={leagueId!} transactions={transactions} showHeading={false} />}
+                </View>
+            ) : null}
+        </Card>
     ) : null
-
-    const lazySections = <>
-        <PlayerSection title="Game log" expanded={opened.games === true} onToggle={() => toggleSection('games')}>
-            {gameLogSection}
-        </PlayerSection>
-        <PlayerSection title="News" expanded={opened.news === true} onToggle={() => toggleSection('news')}>
-            {newsLoading ? <Text style={textStyles.meta}>Loading news…</Text> : newsError ? <Button size="sm" variant="outline" title="Retry news" onPress={() => { void retryNews(true) }} /> : news.length === 0 ? <Text style={textStyles.meta}>No recent news.</Text> : news.map(item => <Pressable key={item.id} accessibilityRole={item.url ? 'link' : undefined} disabled={!item.url} onPress={() => { if (item.url && /^https?:\/\//.test(item.url)) void Linking.openURL(item.url) }} style={styles.newsItem}>
-                <Text style={textStyles.rowTitle}>{item.title}</Text>
-                <Text style={textStyles.body}>{item.summary}</Text>
-                <Text style={textStyles.meta}>{item.source}</Text>
-            </Pressable>)}
-        </PlayerSection>
-        {historySection}
-    </>
 
     return (
         <>
             <Stack.Screen options={{ title: player.display_name, headerShown: false }} />
             <Page title={player.display_name}>
                 <View key={ownerIdentity} style={styles.initialSlot}>
-                <ScrollView testID="player-detail-scroll" contentContainerStyle={[styles.scroll, { paddingHorizontal: padX }]}>
-                    <PlayerHeader locks={locks}
-                        player={player}
-                        rosterStatus={rosterStatus}
-                        ownTeamName={current?.team_name}
-                        leagueActive={!!current || !membershipValidated}
-                        action={action}
-                        onDrop={handleDrop}
-                        actionsReady={actionsReady}
-                        dropDisabled={dropping}
-                        backControl={<BackButton onPress={goBack} />}
-                        compact={usableWidth < 600}
-                        detail={<NextProjectionCard plain reserveSpace projection={nextProjection} loading={!projectionSettled} liveGame={liveGame}
-                            liveFantasyPoints={liveGame ? fantasyPointsMap?.get(liveGame.gameId) : null} />}
-                    />
+                <PlayerHeader locks={locks}
+                    player={player}
+                    rosterStatus={rosterStatus}
+                    ownTeamName={current?.team_name}
+                    leagueActive={!!current || !membershipValidated}
+                    action={action}
+                    onDrop={handleDrop}
+                    actionsReady={actionsReady}
+                    dropDisabled={dropping}
+                    backControl={<BackButton onPress={goBack} />}
+                    compact={usableWidth < 600}
+                    showSummary={false}
+                    padX={padX}
+                />
+                <ScrollView testID="player-detail-scroll" style={styles.scroller} contentContainerStyle={[styles.scroll, { paddingHorizontal: padX }]}>
                     <View style={styles.body}>
-                        {injuryDetails ? <Text style={textStyles.meta}>{injuryDetails}</Text> : null}
                         {twoColumn ? (
                             <View style={styles.columns}>
                                 <View style={styles.sideColumn}>
-                                    {profile}
+                                    {averagesCard}
                                 </View>
                                 <View style={styles.mainColumn}>
-                                    {lazySections}
+                                    {infoCard}
+                                    {gameLogCard}
+                                    {newsCard}
+                                    {historyCard}
                                 </View>
                             </View>
                         ) : (
                             <>
-                                {profile}
-                                {lazySections}
+                                {infoCard}
+                                {averagesCard}
+                                {gameLogCard}
+                                {newsCard}
+                                {historyCard}
                             </>
                         )}
                         {dataWarnings.map(message => <Text key={message} style={styles.warningText}>{message}</Text>)}
@@ -365,9 +415,17 @@ export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFa
 
 const styles = StyleSheet.create({
     newsItem: { paddingVertical: spacing.md, gap: spacing.xs },
+    card: { overflow: 'hidden' },
+    cardBody: { padding: spacing.lg, gap: spacing.md },
+    infoLine: { ...textStyles.rowTitle, color: colors.textSecondary },
+    bandDetail: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+    bandHint: { ...textStyles.meta, color: colors.textMuted },
+    bandAction: { minHeight: controlSize.minTouch, minWidth: controlSize.minTouch, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.sm },
+    bandLink: { ...typeScale.small, fontWeight: fontWeight.semibold, color: colors.primaryDark },
     scroll: { width: '100%', maxWidth: layout.contentMaxWidth, alignSelf: 'center', paddingTop: spacing.sm, paddingBottom: spacing['3xl'], gap: spacing.md },
     body: { gap: spacing.md },
     initialSlot: { flex: 1, minHeight: 0 },
+    scroller: { flex: 1, minHeight: 0 },
     columns: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing['3xl'] },
     sideColumn: { width: SIDE_COLUMN_WIDTH, flexShrink: 0, gap: spacing.md },
     mainColumn: { flex: 1, minWidth: 0, gap: spacing.md },

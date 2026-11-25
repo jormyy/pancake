@@ -16,9 +16,10 @@ type Props = {
     columns: number
     seasonControl?: ReactNode
     actions?: ReactNode
+    embedded?: boolean
 }
 
-export function StatsOverview({ averages, seasonYear, avgFantasyPoints = null, columns, seasonControl, loading = false, includesLive = false, actions, showFantasy = avgFantasyPoints != null }: Props) {
+export function StatsOverview({ averages, seasonYear, avgFantasyPoints = null, columns, seasonControl, loading = false, includesLive = false, actions, embedded = false, showFantasy = avgFantasyPoints != null }: Props) {
     const cells = [
         showFantasy ? { label: 'FP/G', value: formatAvgPoints(avgFantasyPoints ?? 0), lead: true } : null,
         { label: 'GP', value: averages ? String(averages.gamesPlayed) : '—' },
@@ -34,14 +35,16 @@ export function StatsOverview({ averages, seasonYear, avgFantasyPoints = null, c
     const basis = `${100 / columns}%` as `${number}%`
     return (
         <View style={styles.section} aria-busy={loading}>
-            <View style={styles.heading}>
-                <View style={styles.headingCopy}>
-                <Text style={textStyles.sectionLabel} role="heading" aria-level={2} numberOfLines={1}>{seasonControl ? 'Season averages' : `${seasonYear - 1}–${String(seasonYear).slice(2)} averages`}{includesLive ? ' · Live' : ''}</Text>
+            {embedded ? null : (
+                <View style={styles.heading}>
+                    <View style={styles.headingCopy}>
+                    <Text style={textStyles.sectionLabel} role="heading" aria-level={2} numberOfLines={1}>{seasonControl ? 'Season averages' : `${seasonYear - 1}–${String(seasonYear).slice(2)} averages`}{includesLive ? ' · Live' : ''}</Text>
+                    </View>
+                    {actions}
+                    {seasonControl}
                 </View>
-                {actions}
-                {seasonControl}
-            </View>
-            <View style={styles.grid}>
+            )}
+            <View style={[styles.grid, embedded && styles.gridEmbedded]}>
                 {cells.map(({ label, value, lead }) => (
                     <View key={label} style={[styles.cell, { flexBasis: basis, maxWidth: basis }]} accessible accessibilityLabel={`${value} ${label === 'FP/G' ? 'fantasy points per game' : label}`}>
                         <StatCell variant="summary" value={value} highlight={lead} />
@@ -68,6 +71,7 @@ const styles = StyleSheet.create({
         overflow: 'hidden',
         paddingVertical: spacing.xs,
     },
+    gridEmbedded: { borderWidth: 0, borderRadius: radii.none, backgroundColor: colors.transparent },
     cell: {
         alignItems: 'center',
         paddingVertical: spacing.sm,

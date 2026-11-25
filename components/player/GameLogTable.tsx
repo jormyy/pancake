@@ -17,6 +17,10 @@ type Props = {
     error?: string | null
     onRetry?: () => void
     loadOnScroll?: boolean
+    showHeading?: boolean
+    previewCount?: number
+    onShowAll?: () => void
+    embedded?: boolean
 }
 
 function fmtDate(dateStr: string): string {
@@ -53,6 +57,10 @@ export const GameLogTable = memo(function GameLogTable({
     error,
     onRetry,
     loadOnScroll = true,
+    showHeading = true,
+    previewCount,
+    onShowAll,
+    embedded = false,
 }: Props) {
     const endRef = useRef<View>(null)
     const pageKey = games.map(game => game.gameId).join(',')
@@ -75,7 +83,9 @@ export const GameLogTable = memo(function GameLogTable({
     const showFpts = fantasyPointsMap !== null
     const { fadeStyle, scrollProps } = useEdgeFade()
 
-    const rows = [...games].sort((a, b) => b.gameDate.localeCompare(a.gameDate))
+    const ordered = [...games].sort((a, b) => b.gameDate.localeCompare(a.gameDate))
+    const previewing = previewCount != null && ordered.length > previewCount
+    const rows = previewing ? ordered.slice(0, previewCount) : ordered
 
     const dateCell = [styles.dateCell, compact && styles.compactDateCell]
     const oppCell = [styles.oppCell, compact && styles.compactOppCell]
@@ -109,7 +119,7 @@ export const GameLogTable = memo(function GameLogTable({
                     <View
                         testID={`game-log-row-${g.gameId}`}
                         key={'nbaGameId' in g && typeof g.nbaGameId === 'string' ? g.nbaGameId : g.gameId}
-                        style={[styles.row, i < games.length - 1 && styles.rowDivider]}
+                        style={[styles.row, i < rows.length - 1 && styles.rowDivider]}
                     >
                         <Text style={dateCell}>{fmtDate(g.gameDate)}</Text>
                         <Text style={oppCell} numberOfLines={1}>
@@ -146,20 +156,24 @@ export const GameLogTable = memo(function GameLogTable({
 
     return (
         <View style={styles.section} aria-busy={loading}>
-            <Text style={textStyles.sectionLabel} role="heading" aria-level={2}>Recent games</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.tableFrame, fadeStyle]} contentContainerStyle={styles.tableContent} testID="recent-games-table" {...scrollProps}>
+            {showHeading ? <Text style={textStyles.sectionLabel} role="heading" aria-level={2}>Recent games</Text> : null}
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.tableFrame, embedded && styles.tableFrameEmbedded, fadeStyle]} contentContainerStyle={styles.tableContent} testID="recent-games-table" {...scrollProps}>
                 {content}
             </ScrollView>
-            <View ref={endRef} testID="game-log-end" style={styles.pageStatus}>
-                {error && !loading ? <>
-                    <Text style={styles.loadMoreText}>Could not load recent games. {error}</Text>
-                    {onRetry ? <Pressable accessibilityRole="button" accessibilityLabel="Retry recent games" onPress={onRetry} style={styles.loadMoreBtn}>
-                        <Text style={styles.loadMoreText}>Retry</Text>
-                    </Pressable> : null}
-                </> : loading || loadingMore ? rows.length > 0 ? <Text role="status" style={styles.loadMoreText}>Loading recent games…</Text> : null
-                    : !hasMore && rows.length > 0 ? <Text style={styles.loadMoreText}>All games shown.</Text> : null}
-            </View>
-            {hasMore && !automatic && !error && (
+            {previewing
+                ? onShowAll ? <Pressable style={styles.loadMoreBtn} onPress={onShowAll} accessibilityRole="button" accessibilityLabel="Show all games">
+                    <Text style={styles.loadMoreText}>Show all games</Text>
+                </Pressable> : null
+                : <View ref={endRef} testID="game-log-end" style={styles.pageStatus}>
+                    {error && !loading ? <>
+                        <Text style={styles.loadMoreText}>Could not load recent games. {error}</Text>
+                        {onRetry ? <Pressable accessibilityRole="button" accessibilityLabel="Retry recent games" onPress={onRetry} style={styles.loadMoreBtn}>
+                            <Text style={styles.loadMoreText}>Retry</Text>
+                        </Pressable> : null}
+                    </> : loading || loadingMore ? rows.length > 0 ? <Text role="status" style={styles.loadMoreText}>Loading recent games…</Text> : null
+                        : !hasMore && rows.length > 0 ? <Text style={styles.loadMoreText}>All games shown.</Text> : null}
+                </View>}
+            {!previewing && hasMore && !automatic && !error && (
                 <Pressable
                     style={styles.loadMoreBtn}
                     onPress={onLoadMore}
@@ -188,6 +202,7 @@ const styles = StyleSheet.create({
         backgroundColor: colors.bgCard,
         overflow: 'hidden',
     },
+    tableFrameEmbedded: { borderWidth: 0, borderRadius: radii.none, backgroundColor: colors.transparent },
     // Fill the frame on wide screens; scroll sideways when the columns don't fit.
     tableContent: { flexGrow: 1 },
     tableInner: { flexGrow: 1 },
