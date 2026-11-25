@@ -403,7 +403,7 @@ export function StandingsTable({
 
 const styles = StyleSheet.create({
     scroll: { flex: 1 },
-    content: { paddingTop: spacing.md, paddingBottom: spacing['3xl'] },
+    content: { paddingTop: spacing.md, paddingBottom: spacing.md },
     tableColumn: { width: '100%', maxWidth: layout.formMaxWidth + 2 * layout.pagePadX.regular, alignSelf: 'center', overflow: 'hidden' },
     header: { gap: spacing.sm },
     headerCell: { minHeight: controlSize.minTouch, justifyContent: 'center' },

@@ -8,6 +8,7 @@ import type { SeasonHistory } from '@/lib/league-history'
 const mocks = vi.hoisted(() => ({
     refresh: vi.fn(),
     change: vi.fn(),
+    prefetch: vi.fn(),
     state: {
         current: { id: 'member' }, currentLeague: { id: 'league' }, tab: 'seasons',
         seasons: [] as SeasonHistory[], isTabLoaded: true, isTabLoading: false,
@@ -43,6 +44,7 @@ vi.mock('@/components/league/SettingsPanel', () => ({ SettingsPanel: 'SettingsPa
 vi.mock('@/components/league/LeaguePicksBank', () => ({ PicksBankList: 'PicksBankList' }))
 vi.mock('@/components/league/LeagueMoreCard', () => ({ LeagueMoreCard: 'LeagueMoreCard' }))
 vi.mock('@/components/NoLeagueState', () => ({ NoLeagueState: 'NoLeagueState' }))
+vi.mock('@/components/league/prefetchLeagueViews', () => ({ prefetchLeagueViews: mocks.prefetch }))
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -61,6 +63,7 @@ const text = () => screen!.root.findAllByType(host('Text')).map(node => node.chi
 
 beforeEach(() => {
     mocks.refresh.mockClear()
+    mocks.prefetch.mockClear()
     Object.assign(mocks.state, { tab: 'seasons', seasons: [], isTabLoaded: true, isTabLoading: false, isTabRefreshing: false, isOnline: true, tabErr: null })
 })
 
@@ -119,6 +122,8 @@ describe('League History', () => {
         mocks.state.isTabLoading = true
         await act(async () => { screen = create(React.createElement(LeagueScreen)) })
         expect(screen!.root.findAllByType(LeagueHistory)).toHaveLength(0)
+        expect(screen!.root.findByProps({ role: 'tabpanel' }).props['aria-label']).toBe('History league section')
+        expect(mocks.prefetch).toHaveBeenCalledExactlyOnceWith('league', 'member')
         mocks.state.isTabLoaded = true
         mocks.state.isTabLoading = false
         await act(async () => screen!.update(React.createElement(LeagueScreen)))

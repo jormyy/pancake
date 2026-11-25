@@ -6,8 +6,10 @@ import { colors, fontWeight, spacing, table, textStyles, typeScale } from '@/con
 import { countLabel } from '@/lib/format'
 import { panelStyles } from '@/components/league/draftPanelStyles'
 import { tableStyles } from '@/components/league/leagueTableStyles'
-import { SettingsGroup, SettingsRow } from '@/components/settings/SettingsGroup'
+import { SettingsRow } from '@/components/settings/SettingsGroup'
 import { Button, usePageMetrics } from '@/components/ui'
+import { Card } from '@/components/ui/Card'
+import { SectionBand } from '@/components/ui/SectionBand'
 
 function settingsWaiverPriorityRowLabel(row: WaiverPriorityRow, index: number, isMe: boolean) {
     return `Waiver priority ${index + 1}, ${row.teamName}${isMe ? ', your team' : ''}, manager ${row.displayName}`
@@ -15,35 +17,33 @@ function settingsWaiverPriorityRowLabel(row: WaiverPriorityRow, index: number, i
 
 function WaiverPriorityGroup({ waiverOrder, myMemberId }: { waiverOrder: WaiverPriorityRow[]; myMemberId?: string }) {
     const listLabel = `Waiver priority, ${countLabel(waiverOrder.length, 'team')}`
-    if (!waiverOrder.length) {
-        return (
-            <SettingsGroup title="Waiver priority" footer="Priority order is listed here once the season starts.">
-                <SettingsRow label="No waiver priorities yet" />
-            </SettingsGroup>
-        )
-    }
     return (
-        <View role="list" aria-label={listLabel} accessibilityRole="list" accessibilityLabel={listLabel}>
-            <SettingsGroup title="Waiver priority">
-                {waiverOrder.map((row, index) => {
-                    const isMe = row.memberId === myMemberId
-                    const label = settingsWaiverPriorityRowLabel(row, index, isMe)
-                    return (
-                        <View
-                            key={row.memberId}
-                            style={[styles.waiverRow, isMe && tableStyles.rowMe]}
-                            role="listitem"
-                            aria-label={label}
-                            accessibilityRole="text"
-                            accessibilityLabel={label}
-                        >
-                            <Text style={[styles.waiverRank, isMe && tableStyles.textMe]}>{index + 1}</Text>
-                            <Text style={[styles.waiverTeam, isMe && tableStyles.textMe]} numberOfLines={1}>{row.teamName}</Text>
-                        </View>
-                    )
-                })}
-            </SettingsGroup>
-        </View>
+        <Card padding="none" elevated="none" style={styles.card}>
+            <SectionBand label="Waiver priority" detail={<Text style={styles.bandDetail}>{countLabel(waiverOrder.length, 'team')}</Text>} />
+            {waiverOrder.length ? (
+                <View role="list" aria-label={listLabel} accessibilityRole="list" accessibilityLabel={listLabel}>
+                    {waiverOrder.map((row, index) => {
+                        const isMe = row.memberId === myMemberId
+                        const label = settingsWaiverPriorityRowLabel(row, index, isMe)
+                        return (
+                            <View
+                                key={row.memberId}
+                                style={[styles.waiverRow, index > 0 && styles.divider, isMe && tableStyles.rowMe]}
+                                role="listitem"
+                                aria-label={label}
+                                accessibilityRole="text"
+                                accessibilityLabel={label}
+                            >
+                                <Text style={[styles.waiverRank, isMe && tableStyles.textMe]}>{index + 1}</Text>
+                                <Text style={[styles.waiverTeam, isMe && tableStyles.textMe]} numberOfLines={1}>{row.teamName}</Text>
+                            </View>
+                        )
+                    })}
+                </View>
+            ) : (
+                <SettingsRow label="No waiver priorities yet" detail="Priority order is listed here once the season starts." />
+            )}
+        </Card>
     )
 }
 
@@ -83,18 +83,17 @@ export function SettingsPanel({
             if (copiedTimer.current) clearTimeout(copiedTimer.current)
             copiedTimer.current = setTimeout(() => setCopied(false), 2000)
         } catch {
-            // Clipboard permission denied — the Share action still works.
+            return
         }
     }
 
     return (
         <ScrollView contentContainerStyle={[panelStyles.panelScroll, { paddingHorizontal: padX }]}>
-            <SettingsGroup>
+            <Card padding="none" elevated="none" style={styles.card}>
+                <SectionBand label="League" />
                 <SettingsRow
                     label="Invite code"
-                    // Under the label, so Copy and Share keep their room on small phones.
-                    detail={inviteCode ?? '—'}
-                    // A plain row with two real buttons: no button nested in a button.
+                    detail={inviteCode ?? 'Not set'}
                     accessory={(
                         <View style={styles.inviteActions}>
                             {canCopy ? (
@@ -116,17 +115,24 @@ export function SettingsPanel({
                         </View>
                     )}
                 />
+                <View style={styles.divider} />
                 <SettingsRow label="Playoff bracket" onPress={onOpenBracket} accessibilityLabel="Open playoff bracket" />
                 {isCommissioner ? (
-                    <SettingsRow label="Commissioner settings" onPress={onOpenCommissionerSettings} accessibilityLabel="Open commissioner settings" />
+                    <>
+                        <View style={styles.divider} />
+                        <SettingsRow label="Commissioner settings" onPress={onOpenCommissionerSettings} accessibilityLabel="Open commissioner settings" />
+                    </>
                 ) : null}
-            </SettingsGroup>
+            </Card>
             <WaiverPriorityGroup waiverOrder={waiverOrder} myMemberId={myMemberId} />
         </ScrollView>
     )
 }
 
 const styles = StyleSheet.create({
+    card: { overflow: 'hidden' },
+    bandDetail: { ...textStyles.meta, color: colors.info },
+    divider: { height: StyleSheet.hairlineWidth, backgroundColor: colors.separator, marginLeft: spacing.lg },
     inviteActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
     waiverRow: {
         minHeight: table.rowHeightCompact,

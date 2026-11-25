@@ -7,11 +7,12 @@ import { TradePickLabel } from '@/components/trades/TradePickLabel'
 import { orderTradeAssets } from '@/lib/trade-assets'
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh'
 import { useScreenStatusScroll } from '@/components/ui/ScreenStatusOverlay'
+import { SectionBand } from '@/components/ui/SectionBand'
 import { View, Text, Pressable, StyleSheet } from 'react-native'
 import { useCallback } from 'react'
 import { FlashList, type ListRenderItem } from '@shopify/flash-list'
 import { TransactionRow, TRANSACTION_LABELS, activityEventCategory } from '@/lib/transactions'
-import { alpha, colors, controlSize, fontWeight, layout, spacing, srOnly, table, textStyles, TX_COLORS, typeScale } from '@/constants/tokens'
+import { alpha, colors, controlSize, fontWeight, layout, radii, spacing, table, textStyles, TX_COLORS, typeScale } from '@/constants/tokens'
 import { ItemSeparator } from '@/components/ItemSeparator'
 import { EmptyState } from '@/components/EmptyState'
 import { Avatar } from '@/components/Avatar'
@@ -98,8 +99,8 @@ export function ActivityFeed({
     const { padX } = usePageMetrics()
 
     const renderItem = useCallback<ListRenderItem<TransactionRow>>(({ item }) => (
-        <ActivityRow item={item} isMe={item.memberId === myMemberId} myMemberId={myMemberId} padX={padX} />
-    ), [myMemberId, padX])
+        <ActivityRow item={item} isMe={item.memberId === myMemberId} myMemberId={myMemberId} padX={spacing.lg} />
+    ), [myMemberId])
     const footerRetryMessage = 'League activity could not load more. Select to retry.'
 
     const ListFooter = loadMoreError ? (
@@ -159,38 +160,34 @@ export function ActivityFeed({
         </View>
     )
 
-    // Visually hidden section heading so the feed lands in the page outline
-    // under the League h1.
-    const ActivityHeading = (
-        <Text style={styles.activityHiddenHeading} role="heading" aria-level={2} accessibilityRole="header">
-            Activity
-        </Text>
-    )
-
-    // A readable column on wide screens instead of rows stretched edge to edge.
     return (
-        <View style={styles.column}>
-            <FlashList
-                {...pullRefresh}
-                scrollEventThrottle={16}
-                contentContainerStyle={statusScroll.contentStyle()}
-                data={transactions}
-                onRefresh={onRefresh}
-                refreshing={Boolean(refreshing)}
-                keyExtractor={(t) => t.id}
-                ItemSeparatorComponent={ItemSeparator}
-                renderItem={renderItem}
-                ListHeaderComponent={ActivityHeading}
-                ListFooterComponent={ListFooter}
-                ListEmptyComponent={ListEmpty}
-                extraData={padX}
-            />
+        <View style={[styles.column, { paddingHorizontal: padX }]}>
+            <View style={styles.card}>
+                <SectionBand label="Activity" />
+                <FlashList
+                    {...pullRefresh}
+                    style={styles.list}
+                    scrollEventThrottle={16}
+                    contentContainerStyle={statusScroll.contentStyle()}
+                    data={transactions}
+                    onRefresh={onRefresh}
+                    refreshing={Boolean(refreshing)}
+                    keyExtractor={(t) => t.id}
+                    ItemSeparatorComponent={ItemSeparator}
+                    renderItem={renderItem}
+                    ListFooterComponent={ListFooter}
+                    ListEmptyComponent={ListEmpty}
+                    extraData={padX}
+                />
+            </View>
         </View>
     )
 }
 
 const styles = StyleSheet.create({
-    column: { flex: 1, width: '100%', maxWidth: layout.formMaxWidth + 2 * layout.pagePadX.regular, alignSelf: 'center' },
+    column: { flex: 1, width: '100%', maxWidth: layout.formMaxWidth + 2 * layout.pagePadX.regular, alignSelf: 'center', paddingTop: spacing.md, paddingBottom: spacing.md },
+    card: { flex: 1, minHeight: 0, backgroundColor: colors.bgCard, borderWidth: 1, borderColor: colors.borderLight, borderRadius: radii.xl, overflow: 'hidden' },
+    list: { flex: 1, minHeight: 0 },
     txRow: {
         minHeight: table.rowHeight,
         flexDirection: 'row',
@@ -214,7 +211,4 @@ const styles = StyleSheet.create({
     },
     footerText: { ...typeScale.small, color: colors.primaryDark, fontWeight: fontWeight.semibold },
     footerTextDanger: { color: colors.dangerDark },
-    activityHiddenHeading: {
-        ...srOnly,
-    },
 })

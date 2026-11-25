@@ -56,7 +56,7 @@ const styles = StyleSheet.create({
         maxWidth: layout.formMaxWidth + 2 * layout.pagePadX.regular,
         alignSelf: 'center',
         overflow: 'hidden',
-        marginTop: spacing.xl,
+        marginTop: spacing.md,
     },
     row: {
         flexDirection: 'row',

@@ -5,7 +5,6 @@ import {
     View,
     Text,
     StyleSheet,
-    useWindowDimensions,
 } from 'react-native'
 import { useRouter } from 'expo-router'
 import { useEffect, useRef, useState } from 'react'
@@ -20,12 +19,37 @@ import { Card } from '@/components/ui/Card'
 import { SectionBand } from '@/components/ui/SectionBand'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 import { formatPoints } from '@/lib/format'
-import { colors, fontWeight, layout, radii, spacing, textStyles, uiColors, typeScale } from '@/constants/tokens'
+import { borderWidth, colors, fontWeight, layout, spacing, table, textStyles, uiColors, typeScale } from '@/constants/tokens'
 
-type Round = { key: string; label: string; matchups: (BracketMatchup | ProjectedMatchup)[]; final?: boolean }
+type Round = { key: string; label: string; matchups: (BracketMatchup | ProjectedMatchup)[] }
 type LoadStatus = 'loading' | 'ready' | 'error'
 
-const ROUND_COLUMN_W = 280
+function isActualMatchup(matchup: BracketMatchup | ProjectedMatchup): matchup is BracketMatchup {
+    return !('home' in matchup)
+}
+
+function roundWeeks(round: Round) {
+    const actual = round.matchups.find(isActualMatchup)
+    if (!actual) return null
+    const endWeek = actual.endWeekNumber ?? actual.weekNumber
+    return endWeek === actual.weekNumber ? `Week ${actual.weekNumber}` : `Weeks ${actual.weekNumber}–${endWeek}`
+}
+
+function roundStatus(round: Round): { label: string; color: string; textColor: string } {
+    const actual = round.matchups.filter(isActualMatchup)
+    if (!actual.length) return { label: 'Upcoming', color: colors.bgMuted, textColor: colors.textPlaceholder }
+    if (actual.every(matchup => matchup.isFinalized)) return { label: 'Final', color: colors.bgMuted, textColor: colors.textSecondary }
+    if (actual.some(matchup => !matchup.isFinalized && matchup.homePoints != null)) {
+        return { label: 'Live', color: uiColors.successSurfaceStrong, textColor: uiColors.successTextLive }
+    }
+    return { label: 'Upcoming', color: colors.bgMuted, textColor: colors.textPlaceholder }
+}
+
+function slotName(slot: ProjectedMatchup['home']) {
+    return slot.kind === 'seed'
+        ? `${slot.team.seed}. ${slot.team.teamName}${slot.team.tied ? ' (tied)' : ''}`
+        : slot.kind === 'winner' ? slot.label : 'Bye'
+}
 
 export function LeaguePlayoffs({ standings, playoffEntrants }: { standings: StandingRow[]; playoffEntrants: number | null | undefined }) {
     const { current, currentLeague } = useLeagueContext()
@@ -42,13 +66,11 @@ export function LeaguePlayoffs({ standings, playoffEntrants }: { standings: Stan
     const requestRef = useRef(0)
     const bracket = resource.key === resourceKey ? resource.bracket : null
     const status: LoadStatus = resource.key === resourceKey ? resource.status : 'loading'
-    const { width, height } = useWindowDimensions()
-    const { padX, usableWidth } = usePageMetrics()
+    const { padX } = usePageMetrics()
 
     const myMemberId = current?.id
     const currentId = current?.id
     const currentLeagueId = currentLeague?.id
-    const compactLandscape = width >= 600 && height < 500
     const projection = projectPlayoffs(standings, currentLeague ? { playoffEntrants: playoffEntrants ?? null } : null, bracket)
 
     useEffect(() => {
@@ -87,10 +109,7 @@ export function LeaguePlayoffs({ standings, playoffEntrants }: { standings: Stan
         return () => { requestRef.current += 1 }
     }, [attempt, currentId, currentLeagueId, resourceKey, canRead, capture, isCurrent, epoch, cacheKey, standings])
 
-    const rounds: Round[] = projection.kind === 'unavailable' ? [] : projection.rounds.map(round => ({ key: String(round.number), label: round.label, matchups: round.matchups, final: round.label === 'Championship' }))
-    const columns = rounds.length > 1 && usableWidth >= rounds.length * ROUND_COLUMN_W + (rounds.length - 1) * spacing['3xl']
-    const liveIndex = rounds.findIndex((round) => round.matchups.some((matchup) => !('home' in matchup) && !matchup.isFinalized))
-    const stacked = liveIndex > 0 ? [rounds[liveIndex], ...rounds.filter((_, index) => index !== liveIndex)] : rounds
+    const rounds: Round[] = projection.kind === 'unavailable' ? [] : projection.rounds.map(round => ({ key: String(round.number), label: round.label, matchups: round.matchups }))
 
     return (
         <View style={{ flex: 1 }}>
@@ -105,46 +124,38 @@ export function LeaguePlayoffs({ standings, playoffEntrants }: { standings: Stan
                         onAction={() => setAttempt((value) => value + 1)}
                     />
                 ) : rounds.length === 0 ? (
-                    <View style={[styles.emptyBracket, { paddingHorizontal: padX }]}>
-                        <Text style={textStyles.rowTitle}>Playoff projection unavailable</Text>
-                        <Text style={textStyles.body}>{projection.kind === 'unavailable' ? projection.reason : ''}</Text>
-                    </View>
+                    <ScrollView contentContainerStyle={[styles.content, { paddingHorizontal: padX }]}>
+                        <Card padding="none" elevated="none" style={styles.boardCard}>
+                            <SectionBand label="Playoffs" />
+                            <View style={styles.emptyBody}>
+                                <Text style={textStyles.rowTitle}>Playoff projection unavailable</Text>
+                                <Text style={textStyles.meta}>{projection.kind === 'unavailable' ? projection.reason : ''}</Text>
+                            </View>
+                        </Card>
+                    </ScrollView>
                 ) : (
-                    <ScrollView contentContainerStyle={[styles.scroll, { paddingHorizontal: padX, maxWidth: rounds.length * ROUND_COLUMN_W + (rounds.length - 1) * spacing['3xl'] + 2 * padX }, compactLandscape && styles.scrollCompact]}>
+                    <ScrollView contentContainerStyle={[styles.content, { paddingHorizontal: padX }]}>
                         <Card padding="none" elevated="none" style={styles.boardCard}>
                         <SectionBand label="Playoffs" />
-                        <View style={styles.boardBody}>
                         {projection.kind === 'projected' ? (
-                            <View style={{ gap: spacing.sm }}>
+                            <View style={styles.notice}>
                                 <Text style={textStyles.rowTitle}>Projected bracket — based on current standings</Text>
-                                <Text style={textStyles.body}>{`${projection.seeds.length} playoff teams · ${projection.byes.length} first-round byes${projection.byes.length ? ` (${projection.byes.map(team => `seed ${team.seed}`).join(', ')})` : ''}`}</Text>
-                                <Text style={textStyles.meta}>Seeds use win percentage, points per game, max points, then fewest points against.</Text>
+                                <Text style={textStyles.meta}>{`${projection.seeds.length} playoff teams · ${projection.byes.length} first-round byes${projection.byes.length ? ` (${projection.byes.map(team => `seed ${team.seed}`).join(', ')})` : ''}`}</Text>
                                 {projection.unresolvedTies.map(group => (
-                                    <Text key={group.seeds[0]} style={textStyles.body}>{`Seeds ${group.seeds.join(', ')} tied, decided by tiebreaker. ${group.teams.map(team => team.teamName).join(', ')} have provisional positions.`}</Text>
+                                    <Text key={group.seeds[0]} style={textStyles.meta}>{`Seeds ${group.seeds.join(', ')} tied, decided by tiebreaker.`}</Text>
                                 ))}
                             </View>
                         ) : null}
                         {bracket?.champion ? (
-                            <View style={[styles.championBanner, compactLandscape && styles.championBannerCompact]}>
+                            <View style={styles.championRow}>
                                 <Text style={textStyles.sectionLabel}>Champion</Text>
                                 <Text style={styles.championName}>{bracket.champion}</Text>
                             </View>
                         ) : null}
-                        {columns ? (
-                            <View style={styles.columns}>
-                                {rounds.map((round) => (
-                                    <View key={round.key} style={styles.column}>
-                                        <RoundSection round={round} myMemberId={myMemberId} compact={compactLandscape} inColumn />
-                                    </View>
-                                ))}
-                            </View>
-                        ) : (
-                            <View style={styles.stack}>
-                                {stacked.map((round) => (
-                                    <RoundSection key={round.key} round={round} myMemberId={myMemberId} compact={compactLandscape} />
-                                ))}
-                            </View>
-                        )}
+                        <View style={styles.rounds}>
+                            {rounds.map((round) => (
+                                <RoundSection key={round.key} round={round} myMemberId={myMemberId} />
+                            ))}
                         </View>
                         </Card>
                     </ScrollView>
@@ -154,220 +165,91 @@ export function LeaguePlayoffs({ standings, playoffEntrants }: { standings: Stan
     )
 }
 
-function RoundSection({ round, myMemberId, compact, inColumn = false }: { round: Round; myMemberId?: string; compact: boolean; inColumn?: boolean }) {
+function RoundSection({ round, myMemberId }: { round: Round; myMemberId?: string }) {
+    const weeks = roundWeeks(round)
+    const state = roundStatus(round)
     return (
-        <View style={[styles.round, inColumn && styles.roundInColumn]}>
-            <Text style={[textStyles.sectionLabel, styles.roundLabel]} role="heading" aria-level={2} accessibilityRole="header">
-                {round.label}
-            </Text>
-            <View style={[styles.roundCards, inColumn && styles.roundCardsInColumn]}>
+        <View>
+            <SectionBand
+                label={weeks ? `${round.label} · ${weeks}` : round.label}
+                detail={<Badge size="status" variant="solid" label={state.label} color={state.color} textColor={state.textColor} />}
+            />
+            <View role="list" aria-label={`${round.label} matchups`}>
                 {round.matchups.map((matchup) => (
-                    <MatchupCard
-                        key={matchup.id}
-                        matchup={matchup}
-                        myMemberId={myMemberId}
-                        isFinal={round.final}
-                        compact={compact}
-                    />
+                    isActualMatchup(matchup)
+                        ? <ActualMatchupRow key={matchup.id} matchup={matchup} myMemberId={myMemberId} />
+                        : <ProjectedMatchupRow key={matchup.id} matchup={matchup} />
                 ))}
             </View>
         </View>
     )
 }
 
-function MatchupCard({
-    matchup,
-    myMemberId,
-    isFinal = false,
-    compact,
-}: {
-    matchup: BracketMatchup | ProjectedMatchup
-    myMemberId?: string
-    isFinal?: boolean
-    compact: boolean
-}) {
+function ActualMatchupRow({ matchup, myMemberId }: { matchup: BracketMatchup; myMemberId?: string }) {
     const router = useRouter()
-    if ('home' in matchup) return <ProjectedMatchupCard matchup={matchup} compact={compact} isFinal={isFinal} />
     const homeWon = matchup.isFinalized && matchup.winnerId === matchup.homeId
     const awayWon = matchup.isFinalized && matchup.winnerId === matchup.awayId
-    const inProgress = !matchup.isFinalized && matchup.homePoints != null
-
+    const played = matchup.homePoints != null && matchup.awayPoints != null
+    const label = `Open ${matchup.homeName} versus ${matchup.awayName}`
     return (
-        <MotionPressable style={[styles.card, compact && styles.cardCompact, isFinal && styles.cardFinal]}
+        <MotionPressable
+            style={styles.matchupRow}
             onPress={() => router.push(`/matchup?matchupId=${matchup.id}`)}
-            role="button" accessibilityRole="button"
-            aria-label={`Open ${matchup.homeName} versus ${matchup.awayName}`}
-            accessibilityLabel={`Open ${matchup.homeName} versus ${matchup.awayName}`}>
-            <View style={[styles.cardHeader, compact && styles.cardHeaderCompact]}>
-                <Text style={styles.weekLabel}>{(matchup.endWeekNumber ?? matchup.weekNumber) === matchup.weekNumber
-                    ? `Week ${matchup.weekNumber}` : `Weeks ${matchup.weekNumber}–${matchup.endWeekNumber}`}</Text>
-                <Badge size="status" variant="solid"
-                    label={matchup.isFinalized ? 'Final' : inProgress ? 'Live' : 'Upcoming'}
-                    color={!matchup.isFinalized && inProgress ? uiColors.successSurfaceStrong : colors.bgMuted}
-                    textColor={matchup.isFinalized ? colors.textSecondary : inProgress ? uiColors.successTextLive : colors.textPlaceholder}
-                />
-            </View>
-
-            <TeamRow
-                name={matchup.homeName}
-                points={matchup.homePoints}
-                won={homeWon}
-                lost={awayWon}
-                isMe={matchup.homeId === myMemberId}
-                compact={compact}
-            />
-
-            <View style={styles.divider} />
-
-            <TeamRow
-                name={matchup.awayName}
-                points={matchup.awayPoints}
-                won={awayWon}
-                lost={homeWon}
-                isMe={matchup.awayId === myMemberId}
-                compact={compact}
-            />
+            role="button"
+            accessibilityRole="button"
+            aria-label={label}
+            accessibilityLabel={label}
+        >
+            <Text numberOfLines={1} style={[styles.teamName, styles.homeName, homeWon && styles.won, awayWon && styles.lost, matchup.homeId === myMemberId && !homeWon && !awayWon && styles.me]}>{matchup.homeName}</Text>
+            <Text style={styles.versus}>vs</Text>
+            <Text numberOfLines={1} style={[styles.teamName, styles.awayName, awayWon && styles.won, homeWon && styles.lost, matchup.awayId === myMemberId && !homeWon && !awayWon && styles.me]}>{matchup.awayName}</Text>
+            {played ? <Text style={[styles.score, homeWon && styles.scoreWon]}>{`${formatPoints(matchup.homePoints ?? 0)} – ${formatPoints(matchup.awayPoints ?? 0)}`}</Text> : null}
         </MotionPressable>
     )
 }
 
-function ProjectedMatchupCard({ matchup, compact, isFinal }: { matchup: ProjectedMatchup; compact: boolean; isFinal: boolean }) {
-    const slotName = (slot: ProjectedMatchup['home']) => slot.kind === 'seed' ? `${slot.team.seed}. ${slot.team.teamName}${slot.team.tied ? ' (tied)' : ''}` : slot.kind === 'winner' ? slot.label : 'Bye'
+function ProjectedMatchupRow({ matchup }: { matchup: ProjectedMatchup }) {
     return (
-        <View style={[styles.card, compact && styles.cardCompact, isFinal && styles.cardFinal]}>
-            <View style={styles.cardHeader}>
-                <Text style={styles.weekLabel}>{matchup.bye ? 'First-round bye' : 'Projected matchup'}</Text>
-            </View>
-            <TeamRow name={slotName(matchup.home)} points={null} won={false} lost={false} isMe={false} compact={compact} projected />
-            <View style={styles.divider} />
-            <TeamRow name={slotName(matchup.away)} points={null} won={false} lost={false} isMe={false} compact={compact} projected />
-        </View>
-    )
-}
-
-function TeamRow({
-    name,
-    points,
-    won,
-    lost,
-    isMe,
-    compact,
-    projected = false,
-}: {
-    name: string
-    points: number | null
-    won: boolean
-    lost: boolean
-    isMe: boolean
-    compact: boolean
-    projected?: boolean
-}) {
-    return (
-        <View style={[styles.teamRow, compact && styles.teamRowCompact, won && styles.teamRowWon, lost && styles.teamRowLost]}>
-            <View style={styles.teamLeft}>
-                {won && <Text style={styles.winIndicator}>▶</Text>}
-                <Text
-                    style={[
-                        styles.teamName,
-                        compact && styles.teamNameCompact,
-                        won && styles.teamNameWon,
-                        lost && styles.teamNameLost,
-                        isMe && !won && !lost && styles.teamNameMe,
-                    ]}
-                    numberOfLines={1}
-                >
-                    {name}
-                    {isMe ? <Text style={styles.meTag}> (you)</Text> : null}
-                </Text>
-            </View>
-            {!projected ? <Text
-                style={[
-                    styles.teamPoints,
-                    compact && styles.teamPointsCompact,
-                    won && styles.teamPointsWon,
-                    lost && styles.teamPointsLost,
-                ]}
-            >
-                {formatPoints(points)}
-            </Text> : null}
+        <View style={styles.matchupRow} role="listitem" accessibilityLabel={`${slotName(matchup.home)} versus ${slotName(matchup.away)}`}>
+            <Text numberOfLines={1} style={[styles.teamName, styles.homeName]}>{slotName(matchup.home)}</Text>
+            <Text style={styles.versus}>vs</Text>
+            <Text numberOfLines={1} style={[styles.teamName, styles.awayName]}>{slotName(matchup.away)}</Text>
         </View>
     )
 }
 
 const styles = StyleSheet.create({
-    boardCard: { width: '100%', alignSelf: 'center', overflow: 'hidden' },
-    boardBody: { padding: spacing.lg, gap: spacing.lg },
-    emptyBracket: { width: '100%', maxWidth: layout.formMaxWidth, alignSelf: 'center', paddingTop: spacing.lg, gap: spacing.sm },
-    scroll: { paddingTop: spacing.xl, paddingBottom: spacing['5xl'], gap: spacing.lg, width: '100%', alignSelf: 'center' },
-    scrollCompact: { paddingTop: spacing.md, gap: spacing.sm, paddingBottom: spacing['4xl'] },
-    stack: { gap: spacing.lg },
-    columns: { flexDirection: 'row', alignItems: 'stretch', gap: spacing['3xl'] },
-    column: { flex: 1, minWidth: 0 },
-    round: { gap: spacing.sm },
-    roundInColumn: { flex: 1 },
-    roundCards: { gap: spacing.md },
-    roundCardsInColumn: { flex: 1, justifyContent: 'space-around' },
-    roundLabel: { marginLeft: spacing.xs },
-
-    championBanner: {
+    boardCard: { width: '100%', maxWidth: layout.formMaxWidth + 2 * layout.pagePadX.regular, alignSelf: 'center', overflow: 'hidden' },
+    content: { paddingTop: spacing.md, paddingBottom: spacing.md, width: '100%', alignSelf: 'center' },
+    emptyBody: { paddingHorizontal: spacing.lg, paddingVertical: spacing.lg, gap: spacing.xs },
+    notice: { paddingHorizontal: spacing.lg, paddingVertical: spacing.md, gap: spacing.xs, borderBottomWidth: borderWidth.thin, borderBottomColor: colors.separator },
+    rounds: { width: '100%' },
+    matchupRow: {
+        minHeight: table.rowHeight,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.sm,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.sm,
+        borderBottomWidth: StyleSheet.hairlineWidth,
+        borderBottomColor: colors.borderLight,
+    },
+    teamName: { ...typeScale.row, fontWeight: fontWeight.semibold, color: colors.textPrimary, flex: 1, minWidth: 0 },
+    homeName: { textAlign: 'right' },
+    awayName: { textAlign: 'left' },
+    versus: { ...typeScale.small, color: colors.textMuted, flexShrink: 0 },
+    me: { color: colors.primaryDark },
+    won: { color: uiColors.successTextStrong, fontWeight: fontWeight.bold },
+    lost: { color: colors.textMuted },
+    score: { ...typeScale.small, fontVariant: ['tabular-nums'] as const, color: colors.textSecondary, flexShrink: 0, minWidth: 88, textAlign: 'right' },
+    scoreWon: { color: uiColors.successTextStrong, fontWeight: fontWeight.bold },
+    championRow: {
         backgroundColor: uiColors.warningSurface,
-        borderRadius: radii.lg,
-        borderCurve: 'continuous' as const,
-        borderWidth: 1,
-        borderColor: uiColors.warningBorder,
-        padding: spacing['3xl'],
-        alignItems: 'center',
-        gap: spacing.xs,
+        borderBottomWidth: borderWidth.thin,
+        borderBottomColor: uiColors.warningBorder,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.md,
+        gap: spacing.xxs,
     },
-    championBannerCompact: { padding: spacing.lg },
     championName: { ...typeScale.headline, fontWeight: fontWeight.bold, color: colors.textPrimary },
-
-    card: {
-        backgroundColor: colors.bgCard,
-        borderRadius: radii.lg,
-        borderCurve: 'continuous' as const,
-        borderWidth: 1,
-        borderColor: colors.borderLight,
-        overflow: 'hidden',
-    },
-    cardCompact: {},
-    cardFinal: { borderColor: uiColors.warningBorder, borderWidth: 1.5 },
-
-    cardHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: spacing.lg,
-        paddingVertical: spacing.sm,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.separator,
-    },
-    cardHeaderCompact: { paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
-    weekLabel: { ...textStyles.meta, fontWeight: fontWeight.semibold },
-
-    divider: { height: 1, backgroundColor: colors.separator, marginHorizontal: spacing.lg },
-
-    teamRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        minHeight: 48,
-        paddingHorizontal: spacing.lg,
-        paddingVertical: spacing.sm,
-    },
-    teamRowCompact: { minHeight: 40, paddingVertical: spacing.xs },
-    teamRowWon: { backgroundColor: colors.successLight },
-    teamRowLost: {},
-    teamLeft: { flexDirection: 'row', alignItems: 'center', flex: 1, gap: spacing.sm },
-    winIndicator: { ...typeScale.micro, color: uiColors.successTextLive },
-    teamName: { ...typeScale.row, fontWeight: fontWeight.semibold, color: colors.textPrimary, flex: 1 },
-    teamNameCompact: { ...typeScale.body },
-    teamNameWon: { color: uiColors.successTextStrong, fontWeight: fontWeight.bold },
-    teamNameLost: { color: colors.textMuted },
-    teamNameMe: { color: colors.primaryDark },
-    meTag: { ...typeScale.small, color: colors.textPlaceholder, fontWeight: fontWeight.regular },
-    teamPoints: { ...typeScale.title, fontWeight: fontWeight.bold, color: uiColors.tableText, minWidth: 60, textAlign: 'right', fontVariant: ['tabular-nums'] as const },
-    teamPointsCompact: { ...typeScale.body, minWidth: 52 },
-    teamPointsWon: { color: uiColors.successTextStrong },
-    teamPointsLost: { color: colors.textMuted },
 })

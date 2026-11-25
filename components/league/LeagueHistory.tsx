@@ -118,7 +118,7 @@ export function LeagueHistory({ seasons, onRefresh, refreshing = false }: {
 }
 
 const styles = StyleSheet.create({
-    content: { paddingTop: spacing.md, paddingBottom: spacing['3xl'] },
+    content: { paddingTop: spacing.md, paddingBottom: spacing.md },
     column: { width: '100%', maxWidth: layout.contentMaxWidth, alignSelf: 'center', gap: spacing.md },
     back: { alignSelf: 'flex-start' },
     summary: { gap: spacing.sm },
