@@ -62,7 +62,7 @@
   ],
   "migrations": {
     "dir": "supabase/migrations",
-    "through": "20261224000000_lineup_refill_after_roster_change.sql",
-    "sha256": "d3c1ee536b3834159942aece3cf33b0cde9b7ed376e57228baaffdf34e70221a"
+    "through": "20261225000000_player_listed_size_and_draft.sql",
+    "sha256": "e8b2ec5e2b059248275ae4c43907dbbf3ed050a75a19fd7d993f6d3e3ef37f4b"
   }
 }

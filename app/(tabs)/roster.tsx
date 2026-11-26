@@ -807,7 +807,7 @@ export default function RosterScreen() {
             <PageHeader
                 tabs={(
                     <View style={styles.summary}>
-                        <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={[styles.summaryText, { minHeight: textStyles.meta.lineHeight, opacity: !data ? 0 : 1 }]} aria-busy={!data} accessibilityState={{ busy: !data }}>
+                        <Text numberOfLines={1} style={[styles.summaryText, { minHeight: textStyles.meta.lineHeight, opacity: !data ? 0 : 1 }]} aria-busy={!data} accessibilityState={{ busy: !data }}>
                             {data ? `${active.length}/${limits?.rosterSize ?? '—'} active · ${ir.length}/${limits?.irSlots ?? '—'} IR · ${taxi.length}/${limits?.taxiSlots ?? '—'} taxi` : ''}
                         </Text>
                         <View style={styles.headerActions}>
@@ -908,12 +908,15 @@ const styles = StyleSheet.create({
 
     summary: {
         flexDirection: 'row',
+        flexWrap: 'wrap',
         alignItems: 'center',
-        gap: spacing.md,
+        justifyContent: 'space-between',
+        columnGap: spacing.md,
+        rowGap: spacing.xs,
         minWidth: 0,
     },
     summaryText: { ...textStyles.meta, flexShrink: 1, minWidth: 0, fontWeight: fontWeight.semibold, fontVariant: ['tabular-nums'] as const },
-    headerActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: spacing.sm, flexShrink: 0 },
+    headerActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: spacing.sm, flexShrink: 0, marginLeft: 'auto' },
 
 
     body: { flex: 1, minHeight: 0 },

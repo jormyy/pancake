@@ -6,13 +6,13 @@ import { PlayerEligibilityContext } from '@/contexts/player-eligibility-context'
 import { compactBadgeTokens } from '@/components/ui/Badge'
 import { colors, spacing } from '@/constants/tokens'
 
-export function PlayerEligibilityTags({ yearsExp, careerGames, onTaxi = false }: { yearsExp?: number | null; careerGames?: number | null; onTaxi?: boolean }) {
+export function PlayerEligibilityTags({ yearsExp, careerGames, onTaxi = false, showRookie = true }: { yearsExp?: number | null; careerGames?: number | null; onTaxi?: boolean; showRookie?: boolean }) {
     const taxiSlots = useContext(PlayerEligibilityContext)
     const eligible = isTaxiEligible(yearsExp ?? null, careerGames ?? null)
     const taxiLabel = `T:${careerGames ?? '—'}`
     const taxiDescription = `${eligible ? 'Taxi eligible' : careerGames == null ? 'On taxi, eligibility unknown' : 'On taxi, no longer eligible'}, ${careerGames == null ? 'career games unknown' : `${careerGames} career regular-season games`}`
     return <View style={styles.tags} testID="player-eligibility-tags">
-        {yearsExp === 0 ? <Badge size="compact" label="R" accessibilityLabel="Rookie" color={colors.textMuted} /> : null}
+        {showRookie && yearsExp === 0 ? <Badge size="compact" label="R" accessibilityLabel="Rookie" color={colors.textMuted} /> : null}
         {taxiSlots > 0 && (eligible || onTaxi) ? <Badge size="compact" label={taxiLabel} accessibilityLabel={taxiDescription} color={onTaxi && !eligible && careerGames != null ? colors.warningDark : colors.primaryDark} /> : null}
     </View>
 }

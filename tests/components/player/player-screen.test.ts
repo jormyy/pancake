@@ -4,7 +4,6 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import PlayerDetailScreen from '@/app/player/[id]'
 import { PlayerHeader } from '@/components/player/PlayerHeader'
 import { StatsOverview } from '@/components/player/StatsOverview'
-import { NextProjectionCard } from '@/components/player/NextProjectionCard'
 import { headerPlayer, memberTransactionState } from '@/tests/helpers/fixtures'
 import { usePlayerScreenData } from '@/hooks/use-player-screen-data'
 import { notifyMemberClaimsChanged } from '@/lib/claim-updates'
@@ -76,7 +75,6 @@ it('reveals the header and averages while other resources are still pending', as
     await act(async () => { screen = create(React.createElement(PlayerDetailScreen)) })
     expect(screen!.root.findAllByType(PlayerHeader)).toHaveLength(1)
     expect(screen!.root.findAllByType(StatsOverview)).toHaveLength(1)
-    expect(screen!.root.findAllByType(NextProjectionCard)).toHaveLength(1)
     state.data = { ...state.data, initialSettled: true, seasonLoading: false, projectionSettled: true }
     await act(async () => { screen!.update(React.createElement(PlayerDetailScreen)) })
     const header = screen!.root.findByType(PlayerHeader)

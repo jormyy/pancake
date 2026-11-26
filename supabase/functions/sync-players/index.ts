@@ -8,6 +8,7 @@ import { syncCareerGames } from './career.ts'
 import { importPlayerChunk } from './imports.ts'
 import { prepareEspnIdentities, syncNBAIds } from './nbaIds.ts'
 import { syncSleeperLinks } from './sleeperLinks.ts'
+import { applyListedDetails, espnSizeRecords, verifyUndraftedProfiles } from './listedDetails.ts'
 import { completeRosterCycle, releaseUnlistedPlayers, type HeldReleases, type ListedPlayer } from './release.ts'
 
 const SLEEPER_BASE_URL = Deno.env.get('SLEEPER_BASE_URL') ?? 'https://api.sleeper.app/v1'
@@ -33,10 +34,11 @@ serveInternal('sync-players', async (req) => {
     const cycle = imported.listing ? await completeRosterCycle(imported.listing.records, imported.listing.gaps, [...imported.failures, ...nbaIds.failures], nbaIds, startedAt) : { released: 0, failure: null }
     players.released += cycle.released
     if (cycle.failure) players.failures.push(cycle.failure)
+    const undrafted = await verifyIndexUndrafted(nbaIds.draftUnlisted, Math.min(12000, Math.max(0, 60000 - (performance.now() - started))))
     const sleeper = await syncSleeperLinks(Math.max(0, 100000 - (performance.now() - started)))
     const news = await syncDynastyNews()
     const career = await syncCareerGames(new Date(), { budgetMs: Math.max(0, 110000 - (performance.now() - started)) })
-    const failures = [...players.failures, ...nbaIds.failures, ...sleeper.failures, ...news.failures, ...career.failures]
+    const failures = [...players.failures, ...nbaIds.failures, ...undrafted.failures, ...sleeper.failures, ...news.failures, ...career.failures]
     const failure = failures.length > 0
       ? `sync-players had ${failures.length} failure(s): ${failures.join('; ')}`
       : null
@@ -51,6 +53,9 @@ serveInternal('sync-players', async (req) => {
         ambiguousSkipped: players.ambiguousSkipped,
         injuryWarnings: players.injuryWarnings,
         nbaIdsMapped: nbaIds.mapped,
+        sizesUpdated: imported.sizesUpdated,
+        draftsUpdated: nbaIds.draftsUpdated,
+        undraftedVerified: undrafted.updated,
         identityBridges: prepared?.linked ?? 0,
         sleeperIdsLinked: sleeper.linked,
         identityRefreshDeferred: sleeper.deferred,
@@ -62,7 +67,7 @@ serveInternal('sync-players', async (req) => {
         newsFailures: news.failures,
         failure,
       },
-      rowsAffected: (prepared?.linked ?? 0) + players.updated + players.inserted + players.released + nbaIds.mapped + nbaIds.merged + sleeper.linked + sleeper.birthdatesUpdated + news.upserted + career.updated,
+      rowsAffected: (prepared?.linked ?? 0) + players.updated + players.inserted + players.released + nbaIds.mapped + nbaIds.merged + imported.sizesUpdated + nbaIds.draftsUpdated + undrafted.updated + sleeper.linked + sleeper.birthdatesUpdated + news.upserted + career.updated,
       failure,
     }
   }, req)
@@ -70,10 +75,10 @@ serveInternal('sync-players', async (req) => {
 })
 
 type PlayerImportTotals = {
-  updated: number; inserted: number; ambiguousSkipped: number; injuryWarnings: number; failures: string[]
+  sizesUpdated: number; updated: number; inserted: number; ambiguousSkipped: number; injuryWarnings: number; failures: string[]
   listing: { records: ListedPlayer[]; gaps: string[] } | null
 }
-type PlayerSyncTotals = Omit<PlayerImportTotals, 'listing'> & { released: number; releaseSkipped: string[]; releaseHeld: HeldReleases }
+type PlayerSyncTotals = Omit<PlayerImportTotals, 'listing' | 'sizesUpdated'> & { released: number; releaseSkipped: string[]; releaseHeld: HeldReleases }
 
 async function importPlayersFromEspn(listing: Awaited<ReturnType<typeof fetchEspnPlayerListing>>): Promise<PlayerImportTotals> {
   console.log('[sync-players] Fetching from ESPN...')
@@ -96,12 +101,18 @@ async function importPlayersFromEspn(listing: Awaited<ReturnType<typeof fetchEsp
       failures.push(...result.failures)
     } catch (error) { failures.push(`import chunk ${offset}: ${errorMessage(error)}`) }
   }
+  let sizesUpdated = 0
+  try {
+    const sizes = await applyListedDetails(supabase, 'espn', espnSizeRecords(records))
+    sizesUpdated = sizes.updated
+    console.log(`[sync-players] ESPN sizes: ${sizes.updated} updated, ${sizes.matched} matched, ${sizes.missing.length} unmatched.`)
+  } catch (error) { failures.push(errorMessage(error)) }
   console.log(`[sync-players] ESPN: ${updated} updated, ${inserted} inserted, ${ambiguousSkipped} ambiguous skipped, ${failures.length} import failure(s).`)
-  return { updated, inserted, ambiguousSkipped, injuryWarnings, failures, listing: { records, gaps } }
+  return { sizesUpdated, updated, inserted, ambiguousSkipped, injuryWarnings, failures, listing: { records, gaps } }
 }
 
 async function releaseEspnOmissions(imported: PlayerImportTotals, indexFailures: string[]): Promise<PlayerSyncTotals> {
-  const { listing, ...totals } = imported
+  const { listing, sizesUpdated: _sizes, ...totals } = imported
   // Sleeper's master list names free agents with no team, so it needs no release sweep.
   if (!listing) return { ...totals, released: 0, releaseSkipped: [], releaseHeld: { unproven: 0, unclaimed: 0 } }
   const release = await releaseUnlistedPlayers(listing.records, listing.gaps, totals.failures, indexFailures)
@@ -112,6 +123,19 @@ async function releaseEspnOmissions(imported: PlayerImportTotals, indexFailures:
   }
   return { ...totals, released: release.released, releaseSkipped: release.blockers, releaseHeld: release.held,
     failures: [...totals.failures, ...release.failures] }
+}
+
+async function verifyIndexUndrafted(unlisted: string[], budgetMs: number) {
+  try {
+    const candidates: { nba_id: string; display_name: string | null }[] = []
+    for (let offset = 0; offset < unlisted.length; offset += 200) {
+      const { data, error } = await supabase.from('players').select('nba_id, display_name')
+        .in('nba_id', unlisted.slice(offset, offset + 200)).is('draft_status', null)
+      if (error) throw error
+      candidates.push(...(data ?? []).flatMap(row => row.nba_id ? [{ nba_id: row.nba_id, display_name: row.display_name }] : []))
+    }
+    return await verifyUndraftedProfiles(supabase, candidates, budgetMs)
+  } catch (error) { return { updated: 0, failures: [`Draft profiles: ${errorMessage(error)}`] } }
 }
 
 // Dormant Sleeper fallback path (PLAYER_SYNC_SOURCE=sleeper).
@@ -150,7 +174,7 @@ async function syncPlayers(): Promise<PlayerImportTotals> {
     } catch (error) { failures.push(`import chunk ${offset}: ${errorMessage(error)}`) }
   }
   console.log(`[sync-players] Sleeper: ${updated} updated, ${inserted} inserted, ${ambiguousSkipped} ambiguous skipped, ${failures.length} import failure(s).`)
-  return { updated, inserted, ambiguousSkipped, injuryWarnings: 0, failures, listing: null }
+  return { sizesUpdated: 0, updated, inserted, ambiguousSkipped, injuryWarnings: 0, failures, listing: null }
 }
 
 // Sleeper sometimes returns "Scrambled" as a catch-all when injury data is uncertain — treat as null

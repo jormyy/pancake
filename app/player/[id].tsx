@@ -6,12 +6,12 @@ import { listenForMemberClaimsChanges, memberClaimsRevision } from '@/lib/claim-
 import { IRResolutionModal } from '@/components/IRResolutionModal'
 import { DropPlayerPickerModal } from '@/components/DropPlayerPickerModal'
 import { GameLogTable } from '@/components/player/GameLogTable'
-import { PlayerHeader, playerAvailability, playerSummaryLine, taxiStatusLine, type PlayerHeaderAction } from '@/components/player/PlayerHeader'
+import { PlayerHeader, playerAvailability, playerBioLine, playerSummaryLine, type PlayerHeaderAction } from '@/components/player/PlayerHeader'
+import { PlayerEligibilityTags } from '@/components/player/PlayerEligibilityTags'
 import { SeasonSelector } from '@/components/player/SeasonSelector'
 import { StatsOverview } from '@/components/player/StatsOverview'
 import { readPlayerHeader } from '@/components/player/navigation'
 import { TransactionHistory } from '@/components/player/TransactionHistory'
-import { NextProjectionCard } from '@/components/player/NextProjectionCard'
 import { breakpoints, colors, controlSize, fontWeight, layout, spacing, textStyles, typeScale } from '@/constants/tokens'
 import { BackButton, Page, usePageMetrics } from '@/components/ui'
 import { Button } from '@/components/ui/Button'
@@ -78,13 +78,12 @@ export default function PlayerDetailScreen() {
 
 
     const {
-        player: loadedPlayer, loading, canRead, readEpoch, isCurrentRead, rosterRevision, includesLive, liveGame,
+        player: loadedPlayer, loading, canRead, readEpoch, isCurrentRead, rosterRevision, includesLive,
         playerError,
         availableSeasons, selectedSeason, handleSeasonSelect,
         seasonAverages, seasonLoading, seasonError, gameLogLoading, gameLogError,
         gameLog, hasMoreGames, loadMoreGames,
         fantasyPointsMap, avgFantasyPoints,
-        nextProjection, projectionError, projectionSettled,
         transactions, transactionsError, opened, toggleSection, news, newsLoading, newsError, historyLoading, retryGames, retryNews, retryHistory,
     } = usePlayerScreenData(id, leagueId, { ownerKey: current?.id ? JSON.stringify([sessionOwner(), current.id]) : undefined, authorized: membershipValidated, scoringSettings: currentLeague?.scoring_settings })
 
@@ -201,6 +200,7 @@ export default function PlayerDetailScreen() {
         id, display_name: 'Player', first_name: null, last_name: null, nba_team: null,
         position: null, eligible_positions: [], jersey_number: null, injury_status: null,
         dynasty_rank: null, headshot_url: null, nba_id: null, years_exp: null, status: null,
+        career_regular_season_games: null, height_inches: null,
     }
     const showFantasy = leagueId != null
     const showTransactions = leagueId != null
@@ -221,14 +221,14 @@ export default function PlayerDetailScreen() {
         playerError ? 'Player details could not refresh.' : null,
         rosterStatusError ? 'Roster status could not refresh.' : null,
         seasonError && seasonError !== gameLogError ? 'Season stats could not refresh.' : null,
-        projectionError ? 'Projection could not refresh.' : null,
         transactionsError ? 'Transaction history could not refresh.' : null,
     ].filter((message): message is string => message != null)
 
     const injuryDetails = loadedPlayer?.injury_status && (loadedPlayer.injury_reason || loadedPlayer.injury_expected_return)
         ? [loadedPlayer.injury_status, loadedPlayer.injury_reason, loadedPlayer.injury_expected_return].filter(Boolean).join(' · ') : null
     const summaryLine = playerSummaryLine(player)
-    const taxiLine = taxiStatusLine(player, limits?.taxiSlots ?? 0)
+    const bioLine = playerBioLine(player)
+    const onTaxi = (rosterStatus?.status === 'mine' || rosterStatus?.status === 'taken') && rosterStatus.isOnTaxi === true
     const statColumns = 5
     const seasonControl = availableSeasons.length > 1 ? (
         <SeasonSelector
@@ -251,11 +251,12 @@ export default function PlayerDetailScreen() {
             <SectionBand label="Player info" />
             <View style={styles.cardBody}>
                 {availability.label ? <Text style={[styles.infoLine, styles.availability, { color: availability.tone }]} numberOfLines={1} testID="player-availability">{availability.label}</Text> : null}
-                {summaryLine ? <Text style={styles.infoLine}>{summaryLine}</Text> : null}
-                {taxiLine ? <Text style={textStyles.meta} numberOfLines={1} testID="player-taxi-line">{taxiLine}</Text> : null}
+                <View style={styles.summaryRow} testID="player-summary-line">
+                    {summaryLine ? <Text style={styles.infoLine}>{summaryLine}</Text> : null}
+                    <PlayerEligibilityTags yearsExp={player.years_exp} careerGames={player.career_regular_season_games} onTaxi={onTaxi} showRookie={false} />
+                </View>
+                {bioLine ? <Text style={textStyles.meta} testID="player-bio-line">{bioLine}</Text> : null}
                 {injuryDetails ? <Text style={textStyles.meta}>{injuryDetails}</Text> : null}
-                <NextProjectionCard plain reserveSpace projection={nextProjection} loading={!projectionSettled} liveGame={liveGame}
-                    liveFantasyPoints={liveGame ? fantasyPointsMap?.get(liveGame.gameId) : null} />
             </View>
         </Card>
     )
@@ -424,7 +425,8 @@ const styles = StyleSheet.create({
     newsItem: { paddingVertical: spacing.md, gap: spacing.xs },
     card: { overflow: 'hidden' },
     cardBody: { padding: spacing.lg, gap: spacing.md },
-    infoLine: { ...textStyles.rowTitle, color: colors.textSecondary },
+    infoLine: { ...textStyles.rowTitle, color: colors.textSecondary, flexShrink: 1 },
+    summaryRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.xs },
     availability: { fontWeight: fontWeight.bold },
     bandDetail: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
     bandHint: { ...textStyles.meta, color: colors.textMuted },

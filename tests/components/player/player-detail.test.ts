@@ -2,15 +2,13 @@ import { Badge } from '@/components/Badge'
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { PlayerHeader, playerAvailability, taxiStatusLine } from '@/components/player/PlayerHeader'
+import { PlayerHeader, playerAvailability, playerBioLine } from '@/components/player/PlayerHeader'
 import { SeasonSelector } from '@/components/player/SeasonSelector'
 import { SeasonSelector as WebSeasonSelector } from '@/components/player/SeasonSelector.web'
 import { StatsOverview } from '@/components/player/StatsOverview'
-import { NextProjectionCard } from '@/components/player/NextProjectionCard'
 import { GameLogTable } from '@/components/player/GameLogTable'
 import { headerPlayer } from '@/tests/helpers/fixtures'
 import type { GameLogEntry, PlayerSeasonAverages } from '@/lib/players'
-import type { LeagueProjectionRow } from '@/lib/projections'
 vi.mock('@/hooks/use-league-timezone', () => ({ useLeagueTimezone: () => 'America/Los_Angeles' }))
 
 vi.mock('react-native', () => ({
@@ -196,30 +194,6 @@ describe('player decision summary', () => {
         expect(screen.root.findAllByProps({ testID: 'player-summary-line' })).toHaveLength(0)
     })
 
-    it('never calls a started game next and shows live points from the log', async () => {
-        const projection = { next_game_date: '2026-10-24', next_game_time: '2026-10-24T17:00:00Z',
-            next_game_opponent: 'vs BOS', projection_fantasy_points: 42.8 } as LeagueProjectionRow
-        await render(React.createElement(NextProjectionCard, { projection,
-            liveGame: { ...game(), live: true, nbaGameId: 'game' }, liveFantasyPoints: 12.4 }))
-        expect(text()).toContain('Live vs BOS · 12 FP so far')
-        expect(text()).not.toContain('42.8 proj')
-        await act(async () => screen.update(React.createElement(NextProjectionCard, {
-            projection: { ...projection, next_game_date: '2026-10-25', next_game_time: '2026-10-25T23:00:00Z', next_game_opponent: '@ DEN' },
-            liveGame: { ...game(), live: true, nbaGameId: 'game' }, liveFantasyPoints: 12.4,
-        })))
-        expect(text()).not.toContain('@ DEN')
-        expect(text()).toBe('Live vs BOS · 12 FP so far')
-    })
-
-    it('removes the next projection at tipoff without polling', async () => {
-        const projection = { next_game_date: '2026-10-24', next_game_time: '2026-10-24T18:00:01Z',
-            next_game_opponent: 'vs BOS', projection_fantasy_points: 42.8 } as LeagueProjectionRow
-        await render(React.createElement(NextProjectionCard, { projection }))
-        expect(text()).toContain('42.8 proj')
-        await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
-        expect(screen.toJSON()).toBeNull()
-    })
-
     it('keeps ten decision stats, with fantasy points first and one season control', async () => {
         await render(React.createElement(StatsOverview, {
             averages, seasonYear: 2027, avgFantasyPoints: 42.3, columns: 5,
@@ -234,31 +208,6 @@ describe('player decision summary', () => {
         expect(screen.root.findAllByType('select')).toHaveLength(1)
     })
 
-    it('shows missing projection points without turning them into zero', async () => {
-        const projection = { next_game_date: '2026-10-24', next_game_time: '2026-10-24T23:00:00Z',
-            next_game_opponent: 'vs BOS', projection_fantasy_points: null, projection_source_label: 'Season Avg',
-            projection_fetched_at: '2026-10-23T12:00:00Z', projection_is_fresh: false } as LeagueProjectionRow
-        await render(React.createElement(NextProjectionCard, { projection }))
-        expect(text()).toContain('— proj')
-        expect(text()).not.toContain('0.0 FP')
-        expect(text()).not.toContain('Season Avg')
-        expect(text()).not.toContain('Out of date')
-        expect(text()).not.toContain('Updated')
-    })
-
-    it('shows the next opponent, date and projection without expanding details', async () => {
-        const projection = {
-            next_game_date: '2026-10-24', projection_date: '2026-10-23', next_game_opponent: 'vs BOS',
-            next_game_time: '2026-10-24T23:00:00Z', projection_fantasy_points: 42.8,
-            projection_source_label: 'FantasyPros', projection_is_fresh: false,
-        } as LeagueProjectionRow
-        await render(React.createElement(NextProjectionCard, { projection }))
-        expect(text()).toMatch(/^vs BOS Sat .+ · 42.8 proj/)
-        expect(screen.root.findAllByType(type('Text'))[0].props.numberOfLines).toBe(1)
-        expect(text()).not.toContain('FantasyPros')
-        expect(text()).toContain('42.8 proj')
-        expect(text()).toContain('proj')
-    })
 })
 
 it.each([false, true])('keeps minutes and game paging with compact=%s', async compact => {
@@ -287,18 +236,6 @@ it.each([false, true])('keeps minutes and game paging with compact=%s', async co
 
 it('shows the owning team as the availability for your player', async () => {
     expect(playerAvailability({ status: 'mine', rosterPlayerId: 'roster' }, 'Maple Hoops').label).toBe('Maple Hoops')
-})
-
-it('keeps the projection space when the late card arrives or disappears', async () => {
-    await render(React.createElement(NextProjectionCard, { projection: null, loading: true, reserveSpace: true }))
-    const slot = screen.root.findByProps({ testID: 'player-projection-slot' })
-    const initialStyle = slot.props.style
-    const projection = { next_game_date: '2099-10-24', next_game_time: '2099-10-24T23:00:00Z', next_game_opponent: 'vs BOS', projection_fantasy_points: 42.8 } as LeagueProjectionRow
-    await act(async () => screen.update(React.createElement(NextProjectionCard, { projection, reserveSpace: true })))
-    expect(screen.root.findByProps({ testID: 'player-projection-slot' }).props.style).toBe(initialStyle)
-    expect(text()).toContain('42.8 proj')
-    await act(async () => screen.update(React.createElement(NextProjectionCard, { projection: null, reserveSpace: true })))
-    expect(screen.root.findByProps({ testID: 'player-projection-slot' }).props.style).toBe(initialStyle)
 })
 
 it('keeps failed recent games recoverable and distinguishes empty and completed logs', async () => {
@@ -332,9 +269,9 @@ it('names the taxi squad beside the owning team', () => {
     expect(playerAvailability({ status: 'taken', ownerTeamName: 'Owls' }).label).toBe('Owls')
 })
 
-it('describes taxi eligibility from career games when the league has taxi slots', () => {
-    expect(taxiStatusLine({ years_exp: 2, career_regular_season_games: 34 }, 2)).toBe('Taxi eligible · 34 of 65 games')
-    expect(taxiStatusLine({ years_exp: 4, career_regular_season_games: 80 }, 2)).toBe('Not taxi eligible · 80 games')
-    expect(taxiStatusLine({ years_exp: 0, career_regular_season_games: 0 }, 2)).toBe('Taxi eligible')
-    expect(taxiStatusLine({ years_exp: 2, career_regular_season_games: 34 }, 0)).toBeNull()
+it('shows listed size with draft details and omits unknown fields', () => {
+    expect(playerBioLine({ height_inches: 80, weight_lb: 222, draft_status: 'drafted', draft_year: 2026, draft_round: 1, draft_overall_pick: 21 })).toBe('6′8″, 222 lb · 2026 draft · Rd 1, #21')
+    expect(playerBioLine({ height_inches: 79, weight_lb: null, draft_status: 'undrafted', draft_year: null, draft_round: null, draft_overall_pick: null })).toBe('6′7″ · Undrafted')
+    expect(playerBioLine({ height_inches: null, weight_lb: 206, draft_status: null, draft_year: null, draft_round: null, draft_overall_pick: null })).toBe('206 lb')
+    expect(playerBioLine({ height_inches: null, weight_lb: null, draft_status: null, draft_year: 2024, draft_round: 2, draft_overall_pick: 39 })).toBe('')
 })

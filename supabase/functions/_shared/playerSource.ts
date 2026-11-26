@@ -6,7 +6,7 @@ import { runBounded } from './runBounded.ts'
 import { normalizeName } from './nameMatch.ts'
 import { currentSeasonYear } from './season.ts'
 import { errorMessage } from './responses.ts'
-import { sourceBirthdate, sourceYearsExperience } from './playerSourceDetails.ts'
+import { sourceBirthdate, sourceHeightInches, sourceWeightPounds, sourceYearsExperience } from './playerSourceDetails.ts'
 import { sourceInjuryDetails, type InjuryDetails } from './injurySourceDetails.ts'
 
 const ESPN_SITE_BASE_URL = Deno.env.get('ESPN_SITE_BASE_URL') ??
@@ -63,6 +63,8 @@ type SourcePlayerRecord = {
   injury_status?: string | null
   years_exp: number | null
   birthdate: string | null
+  height_inches: number | null
+  weight_lb: number | null
 }
 
 export function mapEspnTeam(abbreviation: string | null | undefined): string | null {
@@ -97,6 +99,8 @@ type EspnAthlete = {
   draft?: { year?: number }
   debutYear?: number
   dateOfBirth?: string
+  height?: number
+  weight?: number
 }
 
 type EspnRosterPayload = {
@@ -218,6 +222,8 @@ function buildEspnRecords(
         ...(injuriesByName ? { injury_status: injuriesById.get(espnId) ?? (nameCounts.get(name) === 1 ? injuriesByName.get(name) ?? null : null) } : {}),
         years_exp: sourceYearsExperience(athlete, roster.seasonYear ?? currentSeasonYear()),
         birthdate: sourceBirthdate(athlete.dateOfBirth),
+        height_inches: sourceHeightInches(athlete.height),
+        weight_lb: sourceWeightPounds(athlete.weight),
       })
     }
   }

@@ -380,6 +380,7 @@
     "public.advance_playoff_bracket_atomic(uuid)": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.advance_season_atomic(uuid)": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.apply_daily_lineup(date,uuid,uuid,uuid,jsonb)": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
+    "public.apply_player_listed_details(text,jsonb)": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.apply_pre_tipoff_lineup(timestamp with time zone,uuid,uuid,uuid,uuid,jsonb,text)": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.apply_season_boundary_after_grace(uuid,uuid,text,timestamp with time zone)": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.assert_current_league_season_for_lineup(uuid,uuid)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},

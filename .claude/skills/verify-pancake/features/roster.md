@@ -35,6 +35,7 @@ Preconditions:
 - **Auto IR.** Use the [Auto Lineup IR](auto-lineup-ir.md) journey to seed a case, trigger the optimizer, and check the IR resolution sheet’s `Swap with injured player` option.
 - **Taxi.** Select Activate beside Player016, read the permanent-promotion warning, and confirm. Require the player on the active roster.
 - **Drop.** Open unlocked Player014, choose Drop, then confirm with the Drop button. Require removal from the roster and a stored transaction.
+- **Header.** Require the active, IR and taxi counts at the left and Edit lineup with Waivers as one group flush right. At 320 wide the group wraps below the counts as one row, still flush right, and `document.documentElement.scrollWidth` equals the viewport width.
 - **Widths.** Capture your roster and the other roster at both required widths. Scroll to IR and taxi before claiming those groups work.
 
 ## Gotchas

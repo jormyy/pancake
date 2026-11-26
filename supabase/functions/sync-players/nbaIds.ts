@@ -7,6 +7,7 @@ import { fetchAllPlayers } from './players.ts'
 import { currentSeasonYear } from '../_shared/season.ts'
 import { planNbaLinks, type NbaLinkPlayer } from './nbaLinkPlan.ts'
 import { corroborateRoster } from './rosterIdentity.ts'
+import { applyListedDetails, indexDraftRecords } from './listedDetails.ts'
 
 const NBA_CDN_BASE_URL = Deno.env.get('NBA_CDN_BASE_URL') ?? 'https://cdn.nba.com/static/json'
 const NBA_PLAYER_INDEX_URL = `${NBA_CDN_BASE_URL}/staticData/playerIndex.json`
@@ -74,7 +75,7 @@ export async function prepareEspnIdentities(records: Parameters<typeof corrobora
 
 // The index includes all active NBA players with their PERSON_ID, first name, and last name
 // (last name includes suffix, e.g. "Jackson Jr.", "Payton II").
-export async function syncNBAIds(now = new Date(), prepared?: NbaIndex): Promise<{ mapped: number; merged: number; failures: string[]; roster: { provider_id: string; nba_team: string }[]; rosterGaps: string[] }> {
+export async function syncNBAIds(now = new Date(), prepared?: NbaIndex): Promise<{ mapped: number; merged: number; failures: string[]; roster: { provider_id: string; nba_team: string }[]; rosterGaps: string[]; draftsUpdated: number; draftUnlisted: string[] }> {
   console.log('[sync-players] Syncing NBA person IDs from CDN index...')
 
   const data = prepared ?? await fetchNbaIndex()
@@ -205,5 +206,13 @@ export async function syncNBAIds(now = new Date(), prepared?: NbaIndex): Promise
     }
   }
 
-  return { mapped, merged: mergedBeforeUpdate, failures, roster: rosterRecords.map(({ provider_id, nba_team }) => ({ provider_id, nba_team })), rosterGaps }
+  const drafts = indexDraftRecords(headers, rows)
+  let draftsUpdated = 0
+  try {
+    const applied = await applyListedDetails(supabase, 'nba_index', drafts.drafted)
+    draftsUpdated = applied.updated
+    if (applied.conflicts) console.warn(`[sync-players] NBA index lists a draft for ${applied.conflicts} player(s) stored as undrafted; the index draft replaced it.`)
+  } catch (error) { failures.push(error instanceof Error ? error.message : String(error)) }
+
+  return { draftsUpdated, draftUnlisted: drafts.unlisted, mapped, merged: mergedBeforeUpdate, failures, roster: rosterRecords.map(({ provider_id, nba_team }) => ({ provider_id, nba_team })), rosterGaps }
 }

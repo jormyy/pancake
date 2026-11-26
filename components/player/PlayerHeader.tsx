@@ -25,6 +25,12 @@ type PlayerHeaderPlayer = {
     career_regular_season_games?: number | null
     birthdate?: string | null
     years_exp: number | null
+    height_inches?: number | null
+    weight_lb?: number | null
+    draft_status?: string | null
+    draft_year?: number | null
+    draft_round?: number | null
+    draft_overall_pick?: number | null
 }
 
 export type PlayerHeaderAction = {
@@ -62,16 +68,13 @@ type Props = {
     detail?: ReactNode
 }
 
-const TAXI_CAREER_GAME_LIMIT = 65
-
-export function taxiStatusLine(player: Pick<PlayerHeaderPlayer, 'years_exp' | 'career_regular_season_games'>, taxiSlots: number) {
-    if (taxiSlots <= 0) return null
-    const games = player.career_regular_season_games ?? null
-    if (player.years_exp === 0) return games ? `Taxi eligible · ${games} games` : 'Taxi eligible'
-    if (games == null) return null
-    return games < TAXI_CAREER_GAME_LIMIT
-        ? `Taxi eligible · ${games} of ${TAXI_CAREER_GAME_LIMIT} games`
-        : `Not taxi eligible · ${games} games`
+export function playerBioLine(player: Pick<PlayerHeaderPlayer, 'height_inches' | 'weight_lb' | 'draft_status' | 'draft_year' | 'draft_round' | 'draft_overall_pick'>) {
+    const height = player.height_inches != null ? `${Math.floor(player.height_inches / 12)}′${player.height_inches % 12}″` : null
+    const weight = player.weight_lb != null ? `${player.weight_lb} lb` : null
+    const draft = player.draft_status === 'undrafted' ? 'Undrafted'
+        : player.draft_status === 'drafted' && player.draft_year != null && player.draft_round != null && player.draft_overall_pick != null
+            ? `${player.draft_year} draft · Rd ${player.draft_round}, #${player.draft_overall_pick}` : null
+    return [[height, weight].filter(Boolean).join(', ') || null, draft].filter(Boolean).join(' · ')
 }
 
 export function playerAvailability(rosterStatus: Props['rosterStatus'], ownTeamName?: string | null) {
