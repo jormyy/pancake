@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Platform, Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native'
 import { useRouter } from 'expo-router'
 import type { DynastyTradeAnalysis } from '@pancake/core'
+import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { MultiTeamTradeBuilder } from '@/components/trades/MultiTeamTradeBuilder'
 import { TradeAnalysisSummary } from '@/components/trades/TradeAnalysisSummary'
 import { borderWidth, colors, componentTokens, controlSize, fontWeight, foundation, layout, radii, spacing, textStyles, typeScale } from '@/constants/tokens'
@@ -61,6 +62,7 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
     const [networkUnavailable, setNetworkUnavailable] = useState(false)
     const [membersRetryToken, setMembersRetryToken] = useState(0)
     const [multiTeamMode, setMultiTeamMode] = useState(false)
+    const [overviewExpanded, setOverviewExpanded] = useState(false)
     const [editedSnapshot, setEditedSnapshot] = useState<{ routeSignature: string; value: Snapshot } | null>(null)
     const prefillRef = useRef('')
     const composer = useMultiTeamTradeComposer({
@@ -220,6 +222,25 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
         push({ pathname: '/(modals)/propose-trade', params: { analyzerDraftId: draftId } })
     }, [canMakeOffer, composer.participantIds, items, leagueId, myMemberId, push])
     const shownAnalysis = analysis ?? (!networkAvailable ? cachedSnapshot?.analysis ?? null : null)
+    const viewAnalysisAction = !sideBySide && (items.length > 0 || shownAnalysis)
+        ? <Button title="View analysis" variant="secondary" size="sm" onPress={() => setShowAnalysis(true)}
+            disabled={!shownAnalysis && !error && !loading} accessibilityLabel="View trade analysis" />
+        : null
+    const dealSummaryRow = <View style={styles.summaryRow}>
+        <Pressable style={styles.compactSummary}
+            onPress={() => setOverviewExpanded(!overviewExpanded)}
+            accessibilityRole="button"
+            accessibilityLabel={`${overviewExpanded ? 'Hide' : 'Show'} deal summary. ${composer.participantViews.length} teams and ${items.length} routed assets.`}
+            accessibilityState={{ expanded: overviewExpanded }}
+            testID="trade-deal-summary"
+            id="trade-deal-summary">
+            <Text style={styles.compactSummaryMeta} numberOfLines={1}>
+                {composer.participantViews.length} teams · {items.length} {items.length === 1 ? 'asset' : 'assets'}
+            </Text>
+            <MaterialIcons name={overviewExpanded ? 'expand-less' : 'expand-more'} size={24} color={colors.textSecondary} />
+        </Pressable>
+        {viewAnalysisAction}
+    </View>
     const assetLabels = useMemo(() => new Map([
         ...(prefillTrade?.routedItems ?? []).flatMap((item): [string, string][] => item.kind === 'player'
             ? [[`player:${item.playerId}`, item.playerName]]
@@ -252,6 +273,9 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
         onPlayerDestinationChange: composer.setParticipantPlayerDestination,
         onPickDestinationChange: composer.setParticipantPickDestination,
         onFaabChange: composer.setParticipantFaab,
+        showSummary: false,
+        overviewExpanded,
+        onOverviewExpandedChange: setOverviewExpanded,
     }
 
     const verdict = (
@@ -283,8 +307,10 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
             }} />
             <Button title="Revalue" variant="secondary" size="sm" onPress={retryAnalysis}
                 disabled={!networkAvailable || loading} accessibilityLabel="Revalue trade analysis" />
-            {!historical ? <Button title="Make offer" size="sm" onPress={makeOffer} disabled={!canMakeOffer}
-                accessibilityLabel="Make Offer from this analysis" /> : null}
+            {!historical ? <View id="analyzer-make-offer">
+                <Button title="Make offer" size="sm" onPress={makeOffer} disabled={!canMakeOffer}
+                    accessibilityLabel="Make Offer from this analysis" />
+            </View> : null}
         </View>
         <ScrollView contentContainerStyle={styles.content}>{verdict}</ScrollView>
         </View>
@@ -306,14 +332,9 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
                             </View>
                         )}
                 </View> : null}
-                <View style={styles.modeRow}>
+                <View style={styles.modeSwitch}>
                     <ModeButton label="2-Team" active={!multiTeamMode} onPress={() => setMode(false)} />
                     <ModeButton label="Multi-Team" active={multiTeamMode} onPress={() => setMode(true)} />
-                    <Pressable style={[styles.makeOffer, !canMakeOffer && styles.disabled]} disabled={!canMakeOffer}
-                        onPress={makeOffer} accessibilityRole="button" accessibilityState={{ disabled: !canMakeOffer }}
-                        accessibilityLabel={networkAvailable ? 'Make Offer from this analysis' : 'Make Offer unavailable offline'} id="analyzer-make-offer">
-                        <Text style={styles.makeOfferText}>Make offer</Text>
-                    </Pressable>
                 </View>
                 {offerHelp && (items.length > 0 || !networkAvailable || isTradingClosed(currentLeague)) ? <Text style={styles.offerHelp} id="analyzer-offer-help">{offerHelp}</Text> : null}
                 <NativeScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.teamTrack} contentContainerStyle={styles.teamChips}>
@@ -326,12 +347,16 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
                         </Pressable>
                     })}
                 </NativeScrollView>
-                {(items.length > 0 || shownAnalysis) && !sideBySide ? <View style={styles.analysisActions}>
-                    <Button title="View analysis" variant="secondary" size="sm" onPress={() => setShowAnalysis(true)}
-                        disabled={!shownAnalysis && !error && !loading} accessibilityLabel="View trade analysis" />
-                </View> : null}
-                {composer.participantViews.length >= 2 ? <MultiTeamTradeBuilder {...builderProps} /> : (
-                    <Text style={styles.emptyPrompt}>{multiTeamMode ? 'Choose two or more teams.' : 'Choose a team.'}</Text>
+                {composer.participantViews.length >= 2 ? (
+                    <>
+                        {sideBySide ? null : dealSummaryRow}
+                        <MultiTeamTradeBuilder {...builderProps} />
+                    </>
+                ) : (
+                    <>
+                        <Text style={styles.emptyPrompt}>{multiTeamMode ? 'Choose two or more teams.' : 'Choose a team.'}</Text>
+                        {viewAnalysisAction ? <View style={styles.fallbackActions}>{viewAnalysisAction}</View> : null}
+                    </>
                 )}
             </View>
             {sideBySide ? <View style={[styles.rail, Platform.OS === 'web' && styles.railSticky]}>{verdict}</View> : null}
@@ -349,7 +374,7 @@ const styles = StyleSheet.create({
     scroll: { flex: 1 },
     content: { paddingBottom: spacing['3xl'] },
     contentWide: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'center', gap: spacing['3xl'] },
-    main: { width: '100%', maxWidth: BUILDER_WIDTH, alignSelf: 'center', gap: spacing.md },
+    main: { width: '100%', maxWidth: BUILDER_WIDTH, alignSelf: 'center' },
     mainWide: { flexShrink: 0, alignSelf: 'flex-start' },
     rail: { width: layout.railWidth, paddingTop: spacing.md },
     // Keeps the verdict in view while the builder scrolls (web only).
@@ -361,19 +386,34 @@ const styles = StyleSheet.create({
     intro: { paddingHorizontal: spacing.lg, gap: spacing.xs },
     copy: { ...textStyles.body },
     offline: { ...typeScale.small, fontWeight: fontWeight.bold, color: colors.warningDark },
-    modeRow: { flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.lg },
-    modeButton: { minHeight: controlSize.minTouch, minWidth: componentTokens.tradeAnalyzer.teamTabWidth, paddingHorizontal: spacing.lg, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bgMuted, borderRadius: radii.md, borderWidth: borderWidth.thin, borderColor: colors.borderLight },
+    modeSwitch: { flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.lg, paddingTop: spacing.lg, paddingBottom: spacing.sm },
+    modeButton: { flex: 1, minHeight: controlSize.minTouch, paddingHorizontal: spacing.lg, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bgMuted, borderRadius: radii.md, borderCurve: 'continuous' as const, borderWidth: borderWidth.thin, borderColor: colors.borderLight },
     modeButtonActive: { backgroundColor: colors.primary, borderColor: colors.primary },
     teamTrack: { flexGrow: 0, minHeight: foundation.minTouch },
-    teamChips: { flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.lg },
-    teamChip: { minHeight: foundation.minTouch, flexShrink: 0, justifyContent: 'center', paddingHorizontal: spacing.lg, backgroundColor: colors.bgMuted, borderRadius: radii.full },
-    emptyPrompt: { ...textStyles.meta, paddingHorizontal: spacing.lg },
+    teamChips: { flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.lg, paddingVertical: spacing.xs },
+    teamChip: { minHeight: foundation.minTouch, flexShrink: 0, justifyContent: 'center', paddingHorizontal: spacing.lg, backgroundColor: colors.bgMuted, borderRadius: radii['3xl'], borderCurve: 'continuous' as const },
+    emptyPrompt: { ...textStyles.meta, marginTop: spacing.md, paddingHorizontal: spacing.lg },
+    fallbackActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: spacing.md, marginTop: spacing.md, paddingHorizontal: spacing.lg },
     teamChipActive: { backgroundColor: colors.primary },
+    summaryRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginTop: spacing.md, marginBottom: spacing.md, paddingHorizontal: spacing.lg },
+    compactSummary: {
+        flex: 1,
+        minHeight: controlSize.minTouch,
+        minWidth: 0,
+        paddingHorizontal: spacing.lg,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: spacing.md,
+        borderWidth: borderWidth.thin,
+        borderRadius: radii.xl,
+        borderCurve: 'continuous' as const,
+        borderColor: colors.borderLight,
+        backgroundColor: colors.bgCard,
+    },
+    compactSummaryMeta: { ...typeScale.small, minWidth: 0, flex: 1, fontWeight: fontWeight.semibold, color: colors.textPrimary },
     teamChipText: { ...typeScale.small, fontWeight: fontWeight.bold, color: colors.textSecondary },
     teamChipTextActive: { color: colors.textWhite },
-    makeOffer: { minHeight: foundation.minTouch, paddingHorizontal: spacing.lg, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary, borderRadius: radii.md },
-    makeOfferText: { ...typeScale.row, color: colors.textWhite, fontWeight: fontWeight.bold },
-    disabled: { opacity: 0.45 },
     offerHelp: { ...textStyles.meta, textAlign: 'center' },
     cancel: { minHeight: controlSize.button.md.height, minWidth: componentTokens.tradeAnalyzer.teamTabWidth, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bgMuted, borderRadius: radii.md },
     cancelText: { ...typeScale.row, fontWeight: fontWeight.semibold, color: colors.textSecondary },

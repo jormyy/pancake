@@ -47,6 +47,10 @@ type MultiTeamTradeBuilderProps = {
     onExpirationDaysChange?: (value: string) => void
     reviewOnly?: boolean
     onAnalyze?: () => void
+    /** The analyzer draws the deal summary row itself, above the builder. */
+    showSummary?: boolean
+    overviewExpanded?: boolean
+    onOverviewExpandedChange?: (expanded: boolean) => void
     /** Lets the screen keep the chosen sender tab when it swaps to Review and back. */
     activeParticipantId?: string
     onActiveParticipantChange?: (memberId: string) => void
@@ -82,6 +86,9 @@ export function MultiTeamTradeBuilder({
     onExpirationDaysChange,
     reviewOnly = false,
     onAnalyze,
+    showSummary = true,
+    overviewExpanded: controlledOverviewExpanded,
+    onOverviewExpandedChange,
     activeParticipantId: controlledActiveId,
     onActiveParticipantChange,
 }: MultiTeamTradeBuilderProps) {
@@ -93,7 +100,9 @@ export function MultiTeamTradeBuilder({
     const [localActiveId, setLocalActiveId] = useState(participants[0]?.memberId ?? '')
     const activeParticipantId = controlledActiveId ?? localActiveId
     const setActiveParticipantId = onActiveParticipantChange ?? setLocalActiveId
-    const [overviewExpanded, setOverviewExpanded] = useState(false)
+    const [localOverviewExpanded, setLocalOverviewExpanded] = useState(false)
+    const overviewExpanded = controlledOverviewExpanded ?? localOverviewExpanded
+    const setOverviewExpanded = onOverviewExpandedChange ?? setLocalOverviewExpanded
     const notesBytes = utf8ByteLength(notes)
     const expiresAt = reviewOnly && showTerms ? buildTradeComposerPayload({
         offerPlayerIds: [], requestPlayerIds: [], offerPickIds: [], requestPickIds: [],
@@ -209,6 +218,7 @@ export function MultiTeamTradeBuilder({
                     participants={overviewParticipants}
                     items={overviewItems}
                     columns={useColumns}
+                    style={styles.overviewOnly}
                 />
                 {showTerms ? <View style={styles.reviewTerms}>
                     <Text style={styles.reviewTermsValue}>
@@ -232,38 +242,38 @@ export function MultiTeamTradeBuilder({
         >
             {useColumns ? (
                 <>
-                    <MultiTeamTradeOverview pickContext={pickContext} participants={overviewParticipants} items={overviewItems} columns onRemoveItem={removeItem} />
-                    {onAnalyze ? <View style={styles.summaryRow}><Button title="Analyze" variant="secondary" size="sm" onPress={onAnalyze} disabled={items.length === 0}
+                    <MultiTeamTradeOverview pickContext={pickContext} participants={overviewParticipants} items={overviewItems} columns onRemoveItem={removeItem} style={styles.overviewTop} />
+                    {showSummary && onAnalyze ? <View style={styles.summaryRow}><Button title="Analyze" variant="secondary" size="sm" onPress={onAnalyze} disabled={items.length === 0}
                         accessibilityLabel="Analyze trade proposal" /></View> : null}
                 </>
             ) : (
                 <>
-                    <View style={styles.summaryRow}>
-                    <Pressable
-                        style={styles.compactSummary}
-                        onPress={() => setOverviewExpanded((expanded) => !expanded)}
-                        accessibilityRole="button"
-                        accessibilityLabel={`${overviewExpanded ? 'Hide' : 'Show'} deal summary. ${participants.length} teams and ${items.length} routed assets.`}
-                        accessibilityState={{ expanded: overviewExpanded }}
-                        testID="trade-deal-summary"
-                        id="trade-deal-summary"
-                    >
-                        <View style={styles.compactSummaryCopy}>
-                            <Text style={styles.compactSummaryMeta}>
-                                {participants.length} teams · {items.length} {items.length === 1 ? 'asset' : 'assets'}
-                            </Text>
-                        </View>
-                        <MaterialIcons
-                            name={overviewExpanded ? 'expand-less' : 'expand-more'}
-                            size={24}
-                            color={colors.textSecondary}
-                        />
-                    </Pressable>
-                    {onAnalyze ? <Button title="Analyze" variant="secondary" size="sm" onPress={onAnalyze} disabled={items.length === 0}
-                        accessibilityLabel="Analyze trade proposal" /> : null}
-                    </View>
+                    {showSummary ? <View style={styles.summaryRow}>
+                        <Pressable
+                            style={styles.compactSummary}
+                            onPress={() => setOverviewExpanded(!overviewExpanded)}
+                            accessibilityRole="button"
+                            accessibilityLabel={`${overviewExpanded ? 'Hide' : 'Show'} deal summary. ${participants.length} teams and ${items.length} routed assets.`}
+                            accessibilityState={{ expanded: overviewExpanded }}
+                            testID="trade-deal-summary"
+                            id="trade-deal-summary"
+                        >
+                            <View style={styles.compactSummaryCopy}>
+                                <Text style={styles.compactSummaryMeta}>
+                                    {participants.length} teams · {items.length} {items.length === 1 ? 'asset' : 'assets'}
+                                </Text>
+                            </View>
+                            <MaterialIcons
+                                name={overviewExpanded ? 'expand-less' : 'expand-more'}
+                                size={24}
+                                color={colors.textSecondary}
+                            />
+                        </Pressable>
+                        {onAnalyze ? <Button title="Analyze" variant="secondary" size="sm" onPress={onAnalyze} disabled={items.length === 0}
+                            accessibilityLabel="Analyze trade proposal" /> : null}
+                    </View> : null}
                     {overviewExpanded ? (
-                        <MultiTeamTradeOverview pickContext={pickContext} participants={overviewParticipants} items={overviewItems} compact onRemoveItem={removeItem} />
+                        <MultiTeamTradeOverview pickContext={pickContext} participants={overviewParticipants} items={overviewItems} compact onRemoveItem={removeItem} style={styles.overview} />
                     ) : null}
                 </>
             )}
@@ -417,6 +427,9 @@ const styles = StyleSheet.create({
         color: colors.textPrimary,
     },
     summaryRow: { flexDirection: 'row', alignItems: 'center', marginHorizontal: spacing.lg, marginTop: spacing.md, marginBottom: spacing.md, gap: spacing.md },
+    overview: { marginHorizontal: spacing.lg, marginBottom: spacing.md },
+    overviewTop: { marginHorizontal: spacing.lg, marginTop: spacing.md, marginBottom: spacing.md },
+    overviewOnly: { marginHorizontal: spacing.lg },
     compactSummary: {
         flex: 1,
         minHeight: controlSize.minTouch,
