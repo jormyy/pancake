@@ -9,12 +9,14 @@ export function TradeNeedsCard({
     awaitingVote,
     outgoing,
     proposeDisabled,
+    proposeLabel = 'Propose trade',
     onPropose,
 }: {
     incoming: number
     awaitingVote: number
     outgoing: number
     proposeDisabled: boolean
+    proposeLabel?: string
     onPropose: () => void
 }) {
     const total = incoming + awaitingVote + outgoing
@@ -36,23 +38,25 @@ export function TradeNeedsCard({
                 <View key={row.key} style={[styles.row, index > 0 && styles.rowDivider]}
                     accessible accessibilityLabel={`${row.count} ${row.label}`}>
                     <Text style={styles.count}>{row.count}</Text>
-                    <Text style={styles.rowLabel}>{row.label}</Text>
+                    <Text style={styles.rowLabel} numberOfLines={1}>{row.label}</Text>
                 </View>
             )) : (
                 <View style={styles.empty}>
                     <Text style={styles.emptyTitle}>All caught up</Text>
                     <Text style={styles.emptyCopy}>No offers are waiting on you. Start one any time.</Text>
-                    <Button
-                        title="Propose trade"
-                        icon="swap-horiz"
-                        size="lg"
-                        fullWidth
-                        onPress={onPropose}
-                        disabled={proposeDisabled}
-                        accessibilityLabel="Propose trade"
-                    />
                 </View>
             )}
+            <View style={styles.action}>
+                <Button
+                    title={proposeLabel}
+                    icon="swap-horiz"
+                    size="lg"
+                    fullWidth
+                    onPress={onPropose}
+                    disabled={proposeDisabled}
+                    accessibilityLabel="Propose trade"
+                />
+            </View>
         </View>
     )
 }
@@ -65,7 +69,6 @@ const styles = StyleSheet.create({
         borderRadius: radii.xl,
         borderCurve: 'continuous',
         overflow: 'hidden',
-        marginBottom: spacing.md,
     },
     clear: { ...textStyles.meta, color: colors.textSecondary },
     row: {
@@ -94,4 +97,5 @@ const styles = StyleSheet.create({
         textAlign: 'center',
     },
     emptyCopy: { ...typeScale.body, color: colors.textMuted, textAlign: 'center' },
+    action: { paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
 })

@@ -338,13 +338,31 @@ export function TradeCard({
     const summary = (
         <>
             {model.meta.length > 0 ? <Text style={styles.meta} numberOfLines={2}>{model.meta.join(' · ')}</Text> : null}
-            <View style={[styles.sides, tab === 'history' && { flexDirection: 'column' }]}>
+            <View style={[styles.sides, tab === 'history' && styles.sidesStacked]}>
                 <AssetList onOpen={onOpen} items={model.receives} label={model.receiveLabel} pickContext={pickContext} stacked={tab === 'history'} showContext={tab !== 'history' && !brief && !trade.isMultiTeam} />
                 <AssetList onOpen={onOpen} items={model.gives} label={model.giveLabel} pickContext={pickContext} stacked={tab === 'history'} showContext={tab !== 'history' && !brief && !trade.isMultiTeam} />
             </View>
-            {trade.notes && !brief ? <Text style={styles.notes} numberOfLines={2}>“{trade.notes}”</Text> : null}
         </>
     )
+    const note = trade.notes && !brief ? trade.notes : null
+    const footer = note || onOpen ? (
+        <View style={styles.footer}>
+            {note ? <Text style={styles.notes} numberOfLines={1}>“{note}”</Text> : null}
+            {onOpen ? (
+                <MotionPressable
+                    style={[styles.linkButton, styles.footerLink]}
+                    onPress={onOpen}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Show details of trade with ${model.opponentName}`}
+                    accessibilityState={{ selected }}
+                    testID={`trade-details-${trade.id}`}
+                    id={`trade-details-${trade.id}`}
+                >
+                    <Text style={styles.linkButtonText}>Details</Text>
+                </MotionPressable>
+            ) : null}
+        </View>
+    ) : null
 
     return (
         <View style={[styles.card, embedded && styles.cardEmbedded, selected && !embedded && styles.cardSelected]} testID={reviewMode ? 'trade-review-card' : undefined}>
@@ -353,7 +371,7 @@ export function TradeCard({
                 <Text style={styles.cardOpponent} numberOfLines={2}>{model.opponentName}</Text>
                 <View style={styles.cardHeaderControls}>
                     {!reviewMode ? <MotionPressable
-                        style={[styles.analyzeBtn, acting && styles.analyzeBtnDisabled]}
+                        style={[styles.linkButton, acting && styles.linkButtonDisabled]}
                         onPress={onAnalyze}
                         disabled={acting}
                         accessibilityRole="button"
@@ -362,26 +380,14 @@ export function TradeCard({
                         testID={`trade-analyze-${trade.id}`}
                         id={`trade-analyze-${trade.id}`}
                     >
-                        <Text style={styles.analyzeBtnText}>Revalue</Text>
+                        <Text style={styles.linkButtonText}>Revalue</Text>
                     </MotionPressable> : null}
                     {reviewMode === 'propose' || trade.status !== 'pending' || model.isProposer || tab !== 'offers' ? <StatusChip model={model} /> : null}
                 </View>
             </View>
 
             <View style={styles.summary}>{summary}</View>
-            {onOpen ? (
-                <MotionPressable
-                    style={styles.analyzeBtn}
-                    onPress={onOpen}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Show details of trade with ${model.opponentName}`}
-                    accessibilityState={{ selected }}
-                    testID={`trade-details-${trade.id}`}
-                    id={`trade-details-${trade.id}`}
-                >
-                    <Text style={styles.analyzeBtnText}>Details</Text>
-                </MotionPressable>
-            ) : null}
+            {footer}
 
             {!reviewMode ? <SavedTradeEstimate trade={trade} myMemberId={myMemberId} /> : null}
 
@@ -401,12 +407,13 @@ const styles = StyleSheet.create({
         borderColor: colors.borderLight,
         borderRadius: radii.xl,
         borderCurve: 'continuous' as const,
-        padding: spacing.lg,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.md,
         backgroundColor: colors.bgCard,
-        gap: spacing.md,
+        gap: spacing.sm,
     },
     cardSelected: { borderColor: colors.primary, borderWidth: 1.5 },
-    cardEmbedded: { borderWidth: 0, borderRadius: 0, backgroundColor: colors.transparent },
+    cardEmbedded: { borderWidth: 0, borderRadius: radii.none, backgroundColor: colors.transparent },
     cardHeader: {
         flexDirection: 'row',
         flexWrap: 'wrap',
@@ -415,7 +422,7 @@ const styles = StyleSheet.create({
     },
     cardOpponent: { ...textStyles.rowTitle, ...typeScale.title, flex: 1, minWidth: 0 },
     cardHeaderControls: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexShrink: 0 },
-    analyzeBtn: {
+    linkButton: {
         minHeight: controlSize.minTouch,
         paddingHorizontal: spacing.md,
         borderRadius: radii.md,
@@ -423,12 +430,13 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
-    analyzeBtnDisabled: { opacity: 0.5 },
-    analyzeBtnText: { ...typeScale.small, fontWeight: fontWeight.bold, color: colors.primaryDark },
-    summary: { gap: spacing.md },
+    linkButtonDisabled: { opacity: 0.5 },
+    linkButtonText: { ...typeScale.small, fontWeight: fontWeight.bold, color: colors.primaryDark },
+    summary: { gap: spacing.sm },
     meta: { ...textStyles.meta },
-    sides: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.lg },
-    assetBlock: { flexGrow: 1, flexBasis: 200, minWidth: 0, gap: spacing.xs },
+    sides: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
+    sidesStacked: { flexDirection: 'column', gap: spacing.sm },
+    assetBlock: { flexGrow: 1, flexBasis: 200, minWidth: 0, gap: spacing.xxs },
     stackedAssetBlock: { flexGrow: 0, flexBasis: 'auto' },
     assetLabel: { ...textStyles.sectionLabel },
     assetEmpty: { ...textStyles.meta, color: colors.textPlaceholder },
@@ -448,7 +456,9 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     assetIconText: { ...typeScale.micro, fontWeight: fontWeight.extrabold, color: colors.textSecondary },
-    notes: { ...textStyles.meta, fontStyle: 'italic', color: colors.textSecondary },
+    footer: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: controlSize.minTouch },
+    footerLink: { marginLeft: 'auto', flexShrink: 0 },
+    notes: { ...textStyles.meta, fontStyle: 'italic', color: colors.textSecondary, flexShrink: 1, minWidth: 0 },
     actions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
     actionBtn: {
         minHeight: controlSize.minTouch,

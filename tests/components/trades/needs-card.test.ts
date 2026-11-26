@@ -55,3 +55,14 @@ it('disables the propose action when trading is closed', async () => {
     expect(button().props.disabled).toBe(true)
 })
 
+it('keeps the one-tap propose action under the needs rows', async () => {
+    const onPropose = vi.fn()
+    await renderCard({ incoming: 1, outgoing: 2, proposeLabel: 'Locked', onPropose })
+    const actions = screen!.root.findAllByType('Button' as React.ElementType)
+    expect(actions).toHaveLength(1)
+    expect(button().props.title).toBe('Locked')
+    expect(button().props.fullWidth).toBe(true)
+    expect(button().props.accessibilityLabel).toBe('Propose trade')
+    await act(async () => { button().props.onPress() })
+    expect(onPropose).toHaveBeenCalledTimes(1)
+})
