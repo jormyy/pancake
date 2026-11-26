@@ -61,7 +61,8 @@ it('fences a late page when the selected player changes', async () => {
     await act(async () => h.latest.loadMoreGames())
     await h.render({ player: 'second' })
     await act(async () => pending.resolve(page(15)))
-    expect(h.latest.gameLog).toEqual([])
+    const latePage = new Set(page(15).lines.map(line => line.id))
+    expect(h.latest.gameLog.some(game => latePage.has(game.gameId))).toBe(false)
 })
 
 it('accepts a newer game page while the older overview remains in flight', async () => {

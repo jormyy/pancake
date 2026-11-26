@@ -435,7 +435,7 @@ const styles = StyleSheet.create({
     summary: { gap: spacing.sm },
     meta: { ...textStyles.meta },
     sides: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
-    sidesStacked: { flexDirection: 'column', gap: spacing.sm },
+    sidesStacked: { flexDirection: 'column', flexWrap: 'nowrap', gap: spacing.sm },
     assetBlock: { flexGrow: 1, flexBasis: 200, minWidth: 0, gap: spacing.xxs },
     stackedAssetBlock: { flexGrow: 0, flexBasis: 'auto' },
     assetLabel: { ...textStyles.sectionLabel },
