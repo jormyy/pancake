@@ -37,7 +37,7 @@ it('uses the stored pick year in roster, trade, trade block and accessible selec
         React.createElement(RosterPickItem, { pick, myTeamName: 'A' }),
         React.createElement(AssetList, { items: [pick], label: 'You receive' }),
         React.createElement(TradeBlockPickRow, { item: { _type: 'blockPick', pick }, listed: false, busy: false, myTeamName: 'A', onList: vi.fn() }),
-        React.createElement(TradeAssetColumn, { title: 'Give', subtitle: 'A', side: 'give', twoColumn: false, roster: [], picks: [pick], avgMap: new Map(), avgStatsMap: new Map(), selectedPlayerIds: new Set<string>(), selectedPickIds: new Set<string>(), onTogglePlayer: vi.fn(), onTogglePick: vi.fn(), emptyText: 'None' }),
+        React.createElement(TradeAssetColumn, { roster: [], picks: [pick], avgMap: new Map(), avgStatsMap: new Map(), selectedPlayerIds: new Set<string>(), selectedPickIds: new Set<string>(), onTogglePlayer: vi.fn(), onTogglePick: vi.fn(), emptyText: 'None' }),
     )) })
     expect(text().match(/2028 Round 1/g)).toHaveLength(4)
     expect(text()).not.toContain('2027')
@@ -87,7 +87,7 @@ it('lets the trade builder select fifth-year picks at 390 pixels', async () => {
         ...pick, id: `${seasonYear}-${round}`, pickId: `${seasonYear}-${round}`, seasonYear: storedDraftYear(seasonYear), round,
     })))
     await act(async () => { screen = create(React.createElement(TradeAssetColumn, {
-        title: 'Give', subtitle: 'A', side: 'give', twoColumn: false, roster: [], picks,
+        roster: [], picks,
         avgMap: new Map(), avgStatsMap: new Map(), selectedPlayerIds: new Set<string>(), selectedPickIds: new Set<string>(),
         onTogglePlayer: vi.fn(), onTogglePick, emptyText: 'None',
     })) })

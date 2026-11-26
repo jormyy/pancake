@@ -3,15 +3,14 @@ import { act, create } from 'react-test-renderer'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DynastyHub } from '@/components/dynasty/DynastyHub'
 import TradeAnalyzer from '@/components/trades/TradeAnalyzer'
-import { analyzeDynastyTrade } from '@pancake/core'
 import type { TradeParticipantView } from '@/lib/trade-ui-model'
 import type { MultiTeamTradeItemPayload } from '@/lib/trades'
 import {
-    dynastyEngineContext,
-    dynastyAnalyzerLatestRouteCacheKey,
     dynastyAnalyzerLatestScopeCacheKey,
     dynastyAnalyzerSnapshotCacheKey,
 } from '@/lib/dynasty-decisions'
+import { trade } from '../helpers/fixtures'
+import { TRADE_FORMULA_VERSION } from '@/core/src/dynasty/tradeScoring'
 
 const mocks = vi.hoisted(() => ({
     getLeagueMembers: vi.fn(),
@@ -125,58 +124,21 @@ describe('dynasty tools UI', () => {
         await act(async () => { renderer.unmount() })
     })
 
-    it('chooses a team before opening one compact analysis', async () => {
-        mocks.getLeagueMembers.mockResolvedValue([{ id: 'other', team_name: 'Other Team' }])
-        let renderer!: ReturnType<typeof create>
-        await act(async () => { renderer = create(React.createElement(TradeAnalyzer)) })
-        expect(JSON.stringify(renderer.toJSON())).toContain('Choose a team.')
-        expect(renderer.root.findAllByProps({ accessibilityLabel: 'View trade analysis' })).toHaveLength(0)
-        expect(renderer.root.findAllByProps({ accessibilityLabel: 'Trade strategy' })).toHaveLength(0)
-        await act(async () => {
-            renderer.root.findByProps({ accessibilityLabel: 'Analyze with Other Team' }).props.onPress()
-        })
-        expect(mocks.composer.setParticipantIds).toHaveBeenCalledWith(['member', 'other'])
-        const analysis = analyzeDynastyTrade(dynastyEngineContext('league', 2026, { points: 1 }), 'overall', [{
-            fromMemberId: 'member', toMemberId: 'other',
-            asset: { kind: 'faab', id: 'faab', label: '$5 FAAB', amount: 5, budget: 100, freeAgentQuality: 0.5 },
-        }])
-        mocks.composer.participantIds = ['member', 'other']
-        mocks.composer.participantViews = ['member', 'other'].map(memberId => ({
-            memberId, destinationIds: [], defaultDestinationId: '', roster: [], picks: [],
-            selectedPlayerIds: new Set(), selectedPickIds: new Set(),
-            playerDestinationIds: {}, pickDestinationIds: {}, faabInputs: {},
-        }))
-        mocks.composer.buildMultiTeamItems = vi.fn(() => [
-            { kind: 'faab' as const, fromMemberId: 'member', toMemberId: 'other', faabAmount: 5 },
-        ])
-        mocks.useDynastyTradeAnalysis.mockReturnValue({ analysis, seasonYear: 2026, loading: false, error: null })
-        await act(async () => { renderer.update(React.createElement(TradeAnalyzer)) })
-        expect(JSON.stringify(renderer.toJSON())).not.toContain('Choose a team.')
-        expect(JSON.stringify(renderer.toJSON())).not.toContain('Estimated trade value')
-        await act(async () => {
-            renderer.root.findByProps({ accessibilityLabel: 'View trade analysis' }).props.onPress()
-        })
-        const outlooks = renderer.root.findAllByProps({ accessibilityLabel: 'Dynasty trade analysis' })
-        expect(outlooks).toHaveLength(1)
-        expect(renderer.root.findAllByProps({ accessibilityLabel: 'Trade strategy' })).toHaveLength(0)
-        await act(async () => { renderer.unmount() })
-    })
-
-    it('finds the last complete 12-team snapshot on a cold offline start', async () => {
+    it('finds the last complete 12-team revaluation on a cold offline start', async () => {
         const scope = {
             userId: 'user', memberId: 'member', leagueId: 'league', seasonYear: 2042,
             scoringSignature: '[["points",1]]', teams: 12, faabBudget: 100,
         }
         const route = 'member>other:player:player-1'
         const scopeKey = dynastyAnalyzerLatestScopeCacheKey(scope)
-        const latestRouteKey = dynastyAnalyzerLatestRouteCacheKey(scope)
-        const snapshotKey = dynastyAnalyzerSnapshotCacheKey(scope, route)
+        const snapshotKey = dynastyAnalyzerSnapshotCacheKey(scope, `revaluation:history:${route}`)
+        mocks.composer.buildMultiTeamItems.mockReturnValue([{ kind: 'player', playerId: 'player-1', fromMemberId: 'member', toMemberId: 'other' }])
         mocks.useOnlineStatus.mockReturnValue(false)
         mocks.readPersistentCache.mockImplementation((key: string) => {
             if (key === scopeKey) return scope
-            if (key === latestRouteKey) return route
             if (key === snapshotKey) return {
-                analysis: { assets: [{ assetId: 'player-1' }], teams: [] },
+                modelVersion: TRADE_FORMULA_VERSION,
+                analysis: { strategy: 'overall', assets: [], teams: [] },
                 participantNames: {}, savedAt: '2026-08-17T00:00:00Z',
                 leagueId: 'league', memberId: 'member',
             }
@@ -184,10 +146,10 @@ describe('dynasty tools UI', () => {
         })
 
         let renderer!: ReturnType<typeof create>
-        await act(async () => { renderer = create(React.createElement(TradeAnalyzer)) })
+        await act(async () => { renderer = create(React.createElement(TradeAnalyzer, { prefillTrade: trade({ id: 'history' }) })) })
 
-        expect(mocks.readPersistentCache).toHaveBeenCalledWith(latestRouteKey)
         expect(mocks.readPersistentCache).toHaveBeenCalledWith(snapshotKey)
+        expect(renderer.root.findAllByProps({ accessibilityLabel: 'Dynasty trade analysis' })).toHaveLength(1)
         expect(mocks.readPersistentCache.mock.calls.some(([key]) => String(key).includes(':4:100'))).toBe(false)
         await act(async () => { renderer.unmount() })
     })

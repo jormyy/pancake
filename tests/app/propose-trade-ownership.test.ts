@@ -45,6 +45,7 @@ const mocks = vi.hoisted(() => ({
     showSuccess: vi.fn(),
     submitMultiTeamTradeComposer: vi.fn(),
     submitTradeComposer: vi.fn(),
+    setParticipantIds: vi.fn(),
     tradeItems: [] as MockTradeItem[],
 }))
 
@@ -58,7 +59,7 @@ vi.mock('react-native', () => ({
     View: 'View',
     useWindowDimensions: () => ({ width: 390, height: 844 }),
 }))
-vi.mock('react-native-safe-area-context', () => ({ SafeAreaView: 'SafeAreaView' }))
+vi.mock('react-native-safe-area-context', () => ({ SafeAreaView: 'SafeAreaView', useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }))
 vi.mock('expo-modules-core', () => ({ uuid: { v4: () => crypto.randomUUID() } }))
 vi.mock('@/hooks/use-auth', () => ({ useAuth: () => ({ user: { id: mocks.userId } }) }))
 vi.mock('expo-router', () => ({
@@ -95,7 +96,7 @@ vi.mock('@/hooks/use-multi-team-trade-composer', () => ({
         selectedParticipantIds: new Set(mocks.participantIds.slice(1)),
         setParticipantDestination: vi.fn(),
         setParticipantFaab: vi.fn(),
-        setParticipantIds: vi.fn(),
+        setParticipantIds: mocks.setParticipantIds,
         setParticipantPickDestination: vi.fn(),
         setParticipantPlayerDestination: vi.fn(),
         toggleParticipant: vi.fn(),
@@ -237,7 +238,6 @@ describe('propose trade async ownership', () => {
         })
         let renderer!: ReactTestRenderer
         await act(async () => { renderer = create(React.createElement(ProposeTradeScreen)); await Promise.resolve() })
-        if (form === 'multi') await act(async () => { renderer.root.findByProps({ testID: 'trade-mode-multi' }).props.onPress() })
         await act(async () => { renderer.root.findByProps({ testID: 'trade-submit' }).props.onPress() })
         await act(async () => { await renderer.root.findByProps({ testID: 'trade-confirm-submit' }).props.onPress() })
         const rejectedKey = send.mock.calls[0][0].requestId
@@ -264,7 +264,6 @@ describe('propose trade async ownership', () => {
         let renderer!: ReactTestRenderer
         try {
             await act(async () => { renderer = create(React.createElement(ProposeTradeScreen)); await Promise.resolve() })
-            if (form === 'multi') await act(async () => { renderer.root.findByProps({ testID: 'trade-mode-multi' }).props.onPress() })
             await act(async () => { renderer.root.findByProps({ testID: 'trade-submit' }).props.onPress() })
             await act(async () => { await renderer.root.findByProps({ testID: 'trade-confirm-submit' }).props.onPress() })
             const first = send.mock.calls[0][0]
@@ -377,7 +376,6 @@ describe('propose trade async ownership', () => {
         let renderer!: ReactTestRenderer
         try {
             await act(async () => { renderer = create(React.createElement(ProposeTradeScreen)); await Promise.resolve() })
-            await act(async () => { renderer.root.findByProps({ testID: 'trade-mode-multi' }).props.onPress() })
             await act(async () => { renderer.root.findByProps({ testID: 'trade-submit' }).props.onPress() })
             await act(async () => { await renderer.root.findByProps({ testID: 'trade-confirm-submit' }).props.onPress() })
             const first = structuredClone(mocks.submitMultiTeamTradeComposer.mock.calls[0][0])
@@ -402,7 +400,6 @@ describe('propose trade async ownership', () => {
         ]
         let renderer!: ReactTestRenderer
         await act(async () => { renderer = create(React.createElement(ProposeTradeScreen)); await Promise.resolve() })
-        await act(async () => { renderer.root.findByProps({ testID: 'trade-mode-multi' }).props.onPress() })
 
         const review = renderer.root.findByProps({ testID: 'trade-submit' })
         expect(review.props.accessibilityLabel).toBe('Review trade proposal')
@@ -439,9 +436,6 @@ describe('propose trade async ownership', () => {
         }
         let renderer!: ReactTestRenderer
         await act(async () => { renderer = create(React.createElement(ProposeTradeScreen)); await Promise.resolve() })
-        if (mode === 'Multi-Team') {
-            await act(async () => { renderer.root.findByProps({ testID: 'trade-mode-multi' }).props.onPress() })
-        }
 
         expect(renderer.root.findByProps({ testID: 'trade-submit' }).props.disabled).toBe(disabled)
         await act(async () => { renderer.unmount() })
@@ -460,8 +454,8 @@ describe('propose trade async ownership', () => {
         ])
         let renderer!: ReactTestRenderer
         await act(async () => { renderer = create(React.createElement(ProposeTradeScreen)); await Promise.resolve() })
-        await act(async () => { renderer.root.findByProps({ testID: 'trade-mode-multi' }).props.onPress() })
 
+        expect(renderer.root.findByProps({ testID: 'trade-add-team' }).props.disabled).toBe(true)
         const candidate = renderer.root.findByProps({ testID: `trade-participant-${candidateId}` })
         expect(candidate.props.disabled).toBe(true)
         expect(candidate.props.accessibilityState).toEqual({ selected: false, disabled: true })
@@ -781,9 +775,9 @@ it.each(['editTradeId', 'counterTradeId'])('locks the original two-team counterp
     ])
     let renderer!: ReactTestRenderer
     await act(async () => { renderer = create(React.createElement(ProposeTradeScreen)); await Promise.resolve() })
-    const otherTeam = renderer.root.findByProps({ testID: 'trade-participant-member-c' })
-    expect(otherTeam.props.disabled).toBe(true)
-    await act(async () => { otherTeam.props.onPress() })
+    expect(renderer.root.findAllByProps({ testID: 'trade-participant-member-c' })).toHaveLength(0)
+    expect(renderer.root.findAllByProps({ testID: 'trade-add-team' })).toHaveLength(0)
+    expect(renderer.root.findAllByProps({ testID: 'trade-remove-participant-member-b' })).toHaveLength(0)
     const originalTeam = renderer.root.findByProps({ testID: 'trade-participant-member-b' })
     expect(originalTeam.props.accessibilityState.selected).toBe(true)
     await act(async () => { renderer.unmount() })
@@ -801,7 +795,6 @@ it.each(['two', 'multi'])('prunes removed placements and offered drops before th
     )
     let screen!: ReactTestRenderer
     await act(async () => { screen = create(React.createElement(ProposeTradeScreen)) })
-    if (form === 'multi') await act(async () => screen.root.findByProps({ testID: 'trade-mode-multi' }).props.onPress())
     await act(async () => screen.root.findByProps({ testID: 'trade-submit' }).props.onPress())
     const editor = () => screen.root.findAllByType('TradeRosterPlanEditor' as React.ElementType)[0]
     await act(async () => editor().props.onChange({ taxiPlayerIds: ['incoming-taxi'], irPlayerIds: ['incoming-ir', 'player-b'], dropPlayerIds: ['drop', 'keep-drop', 'not-mine'] }))
@@ -916,4 +909,35 @@ it('reopens the saved trade editor offline without fetching members or enabling 
     await act(async () => { screen = create(React.createElement(ProposeTradeScreen)) })
     try { expect(screen.root.findAllByProps({ testID: 'trade-participant-member-b' })).toHaveLength(0) }
     finally { await act(async () => screen.unmount()) }
+})
+
+describe('trade partners', () => {
+    beforeEach(() => {
+        mocks.getLeagueMembers.mockResolvedValue([
+            { id: 'member-a', user_id: 'user-a', team_name: 'Team A' },
+            { id: 'member-b', team_name: 'Team B' },
+            { id: 'member-c', team_name: 'Team C' },
+        ])
+    })
+
+    it('turns a two-team trade into a three-team trade when a team is added', async () => {
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(ProposeTradeScreen)); await Promise.resolve() })
+        expect(renderer.root.findAllByProps({ testID: 'trade-participant-member-b' })[0].props.accessibilityState.selected).toBe(true)
+        mocks.setParticipantIds.mockClear()
+        await act(async () => { renderer.root.findByProps({ testID: 'trade-participant-member-c' }).props.onPress() })
+        expect(mocks.setParticipantIds).toHaveBeenLastCalledWith(['member-a', 'member-b', 'member-c'])
+        await act(async () => { renderer.unmount() })
+    })
+
+    it('returns to a two-team trade when a multi-team partner is removed', async () => {
+        mocks.params = {}
+        mocks.participantIds = ['member-a', 'member-b', 'member-c']
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(ProposeTradeScreen)); await Promise.resolve() })
+        mocks.setParticipantIds.mockClear()
+        await act(async () => { renderer.root.findByProps({ testID: 'trade-remove-participant-member-c' }).props.onPress() })
+        expect(mocks.setParticipantIds).toHaveBeenLastCalledWith(['member-a', 'member-b'])
+        await act(async () => { renderer.unmount() })
+    })
 })

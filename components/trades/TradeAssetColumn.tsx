@@ -12,7 +12,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { View, Text, StyleSheet } from 'react-native'
 
 
-import { colors, componentTokens, controlSize, fontWeight, radii, spacing, textStyles, uiColors, typeScale } from '@/constants/tokens'
+import { colors, componentTokens, controlSize, fontWeight, radii, spacing, textStyles, typeScale } from '@/constants/tokens'
 import { yearShort } from '@/lib/format'
 import { getEligiblePositions } from '@/lib/players'
 import { playerSeasonContextText } from '@/lib/player-context'
@@ -27,7 +27,6 @@ function PlayerRow({
     blocked,
     locks,
     checking,
-    destinationLabel,
     onToggle,
     testID,
 }: {
@@ -38,7 +37,6 @@ function PlayerRow({
     blocked: boolean
     locks: AssetLock[]
     checking: boolean
-    destinationLabel?: string | null
     onToggle: () => void
     testID?: string
 }) {
@@ -55,10 +53,7 @@ function PlayerRow({
         <View style={[styles.playerRow, selected && styles.playerRowSelected]}>
             <TradePlayerLink compact playerId={p.id} name={p.display_name} nbaId={p.nba_id} team={p.nba_team} positions={positions}
                 birthdate={p.birthdate} yearsExp={p.years_exp} careerGames={p.career_regular_season_games} injuryStatus={p.injury_status}
-                stats={<View>
-                    <Text style={styles.playerContext} numberOfLines={1}>{blocked && !selected ? 'Already routed' : statText}</Text>
-                    {selected && destinationLabel ? <Text style={styles.routeMeta} numberOfLines={1}>To {destinationLabel}</Text> : null}
-                </View>} />
+                stats={<Text style={styles.playerContext} numberOfLines={1}>{blocked && !selected ? 'Already routed' : statText}</Text>} />
             <LockedAssetNotice locks={locks} />
             <AssetSelectionRow locks={locks} style={[styles.playerAction, disabled && styles.playerActionDisabled]}
                 onPress={onToggle} disabled={disabled} accessibilityRole="button"
@@ -77,7 +72,6 @@ function PickRow({
     blocked,
     locks,
     checking,
-    destinationLabel,
     onToggle,
     testID,
 }: {
@@ -86,7 +80,6 @@ function PickRow({
     blocked: boolean
     locks: AssetLock[]
     checking: boolean
-    destinationLabel?: string | null
     onToggle: () => void
     testID?: string
 }) {
@@ -112,11 +105,6 @@ function PickRow({
                 </View>
                 <Text style={styles.playerMeta} numberOfLines={1}>via {pick.originalTeamName}</Text>
                 {blocked && !selected ? <Text style={styles.playerContext}>Already routed</Text> : null}
-                {selected && destinationLabel ? (
-                    <Text style={styles.routeMeta} numberOfLines={1}>
-                        To {destinationLabel}
-                    </Text>
-                ) : null}
             </View>
             {selected && (
                 <View style={styles.removeBadge} aria-hidden>
@@ -129,10 +117,6 @@ function PickRow({
 
 export function TradeAssetColumn({
     memberId,
-    title,
-    subtitle,
-    side,
-    twoColumn,
     roster,
     picks,
     avgMap,
@@ -141,18 +125,12 @@ export function TradeAssetColumn({
     selectedPickIds,
     blockedPlayerIds,
     blockedPickIds,
-    playerDestinationLabel,
-    pickDestinationLabel,
     onTogglePlayer,
     onTogglePick,
     emptyText,
     testIdPrefix,
 }: {
     memberId?: string
-    title: string
-    subtitle: string
-    side: 'give' | 'receive'
-    twoColumn: boolean
     roster: RosterPlayer[]
     picks: TradePickItem[]
     avgMap: Map<string, number>
@@ -161,8 +139,6 @@ export function TradeAssetColumn({
     selectedPickIds: Set<string>
     blockedPlayerIds?: ReadonlySet<string>
     blockedPickIds?: ReadonlySet<string>
-    playerDestinationLabel?: (id: string) => string | null
-    pickDestinationLabel?: (id: string) => string | null
     onTogglePlayer: (id: string) => void
     onTogglePick: (id: string) => void
     emptyText: string
@@ -176,24 +152,9 @@ export function TradeAssetColumn({
     const checking = ownAssets && !locksView.data
     const locks = readTradeAssetLocks(locksView.data)
     const locksFor = (kind: AssetLock['assetKind'], id: string) => locks.filter(lock => lock.assetKind === kind && lock.assetId === id)
-    const selectedCount =
-        roster.filter((rp) => selectedPlayerIds.has(rp.players.id)).length +
-        picks.filter((p) => selectedPickIds.has(p.pickId)).length
 
     return (
-        <View style={[styles.column, !twoColumn && styles.columnStacked]}>
-            <View style={styles.columnHeader}>
-                <View style={styles.flex1}>
-                    <Text style={[styles.columnTitle, side === 'receive' && styles.columnTitleReceive]} numberOfLines={1}>{title}</Text>
-                    <Text style={styles.columnSubtitle} numberOfLines={1}>{subtitle}</Text>
-                </View>
-                {selectedCount > 0 ? (
-                    <View style={[styles.columnCount, side === 'receive' && styles.columnCountReceive]}>
-                        <Text style={styles.columnCountText}>{selectedCount}</Text>
-                    </View>
-                ) : null}
-            </View>
-
+        <View style={styles.column}>
             {roster.length === 0 ? (
                 <Text style={styles.emptyRowText}>{emptyText}</Text>
             ) : (
@@ -207,7 +168,6 @@ export function TradeAssetColumn({
                         avgMinutes={avgStatsMap.get(rp.players.id)?.avg_minutes_played}
                         selected={selectedPlayerIds.has(rp.players.id)}
                         blocked={blockedPlayerIds?.has(rp.players.id) ?? false}
-                        destinationLabel={playerDestinationLabel?.(rp.players.id)}
                         onToggle={() => onTogglePlayer(rp.players.id)}
                         testID={testIdPrefix ? `${testIdPrefix}-player-${rp.players.id}` : undefined}
                     />
@@ -225,7 +185,6 @@ export function TradeAssetColumn({
                             locks={locksFor('pick', pick.pickId)}
                             selected={selectedPickIds.has(pick.pickId)}
                             blocked={blockedPickIds?.has(pick.pickId) ?? false}
-                            destinationLabel={pickDestinationLabel?.(pick.pickId)}
                             onToggle={() => onTogglePick(pick.pickId)}
                             testID={testIdPrefix ? `${testIdPrefix}-pick-${pick.pickId}` : undefined}
                         />
@@ -237,42 +196,17 @@ export function TradeAssetColumn({
 }
 
 const styles = StyleSheet.create({
-    column: { flex: 1, minWidth: 0 },
-    columnStacked: { flexGrow: 0, flexShrink: 0, flexBasis: 'auto', width: '100%' },
-    columnHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: spacing.md,
-        paddingHorizontal: spacing.xl,
-        paddingTop: spacing.md,
-        paddingBottom: spacing.md,
-    },
-    flex1: { flex: 1, minWidth: 0 },
-    columnTitle: { ...textStyles.sectionLabel, color: colors.textPrimary },
-    columnTitleReceive: { color: colors.primaryDark },
-    columnSubtitle: { ...typeScale.caption, color: colors.textMuted, marginTop: spacing.xxs, fontWeight: fontWeight.semibold },
-    columnCount: {
-        flexShrink: 0,
-        minWidth: 22,
-        height: 22,
-        paddingHorizontal: spacing.sm,
-        borderRadius: radii.full,
-        backgroundColor: uiColors.neutralSolid,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    columnCountReceive: { backgroundColor: colors.primary },
-    columnCountText: { ...typeScale.caption, fontWeight: fontWeight.bold, color: colors.onAccent },
+    column: { width: '100%', minWidth: 0 },
     subSectionLabel: {
         ...textStyles.sectionLabel,
-        paddingHorizontal: spacing.xl,
+        paddingHorizontal: componentTokens.playerRow.compact.paddingHorizontal,
         paddingTop: spacing.lg,
         paddingBottom: spacing.sm,
     },
     playerRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: spacing.xl,
+        paddingHorizontal: componentTokens.playerRow.compact.paddingHorizontal,
         minHeight: componentTokens.playerRow.compact.minHeight,
         paddingVertical: componentTokens.playerRow.compact.paddingVertical,
         gap: componentTokens.playerRow.compact.gap,
@@ -298,10 +232,8 @@ const styles = StyleSheet.create({
     playerInfo: { flex: 1, minWidth: 0, gap: spacing.xxs },
     playerName: { ...textStyles.rowTitle, flexShrink: 1, minWidth: 0 },
     playerNameSelected: { color: colors.primaryDark },
-    playerMetaRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.xs },
     playerMeta: { ...textStyles.meta },
     playerContext: { ...typeScale.caption, color: colors.primaryDark, fontWeight: fontWeight.semibold },
-    routeMeta: { ...typeScale.caption, color: colors.textSecondary, fontWeight: fontWeight.semibold },
     removeBadge: {
         flexShrink: 0,
         width: 24,
@@ -314,7 +246,7 @@ const styles = StyleSheet.create({
     },
     emptyRowText: {
         ...typeScale.body,
-        paddingHorizontal: spacing.xl,
+        paddingHorizontal: componentTokens.playerRow.compact.paddingHorizontal,
         paddingVertical: spacing.lg,
         color: colors.textPlaceholder,
     },

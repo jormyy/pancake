@@ -18,7 +18,9 @@ import { EmptyState } from '@/components/EmptyState'
 import { ErrorBanner } from '@/components/ui'
 import { MultiTeamTradeBuilder } from '@/components/trades/MultiTeamTradeBuilder'
 import { TradeAnalysisSummary } from '@/components/trades/TradeAnalysisSummary'
-import { colors, controlSize, fontWeight, foundation, layout, radii, spacing, textStyles, typeScale } from '@/constants/tokens'
+import { TradePartnersCard } from '@/components/trades/TradePartnersCard'
+import { TradeValueCard } from '@/components/trades/TradeValueCard'
+import { colors, controlSize, fontWeight, layout, radii, spacing, typeScale } from '@/constants/tokens'
 import { PageHeader, usePageMetrics } from '@/components/ui/Page'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
@@ -67,18 +69,13 @@ function PageFrame({ style, children }: { style: StyleProp<ViewStyle>; children:
         : <SafeAreaView style={style} edges={['top']}>{children}</SafeAreaView>
 }
 
-// The builder needs this width to show team columns side by side.
-const BUILDER_WIDTH = 900
-
 export default function ProposeTradeScreen() {
     const recoveryReady = useRef(false)
     useEffect(() => holdPwaUpdate('trade editor', () => recoveryReady.current), [])
     const { user } = useAuth()
     const { current, currentLeague, online } = useLeagueContext()
     const limits = rosterLimits(currentLeague)
-    const { usableWidth } = usePageMetrics()
-    // The verdict moves beside the builder only when the builder keeps its columns.
-    const sideBySide = usableWidth >= BUILDER_WIDTH + layout.railWidth
+    const { padX } = usePageMetrics()
     const params = useLocalSearchParams<{
         recipientMemberId?: string
         editTradeId?: string
@@ -92,7 +89,7 @@ export default function ProposeTradeScreen() {
     const leagueId = currentLeague?.id ?? ''
     const [members, setMembers] = useState<TradeComposerMember[]>([])
     const [selectedRecipientId, setSelectedRecipientId] = useState<string | null>(params.recipientMemberId ?? null)
-    const [multiTeamMode, setMultiTeamMode] = useState(false)
+    const [sourceMultiTeam, setSourceMultiTeam] = useState(false)
     const [notes, setNotes] = useState('')
     const [expirationDays, setExpirationDays] = useState('3')
     const [loading, setLoading] = useState(true)
@@ -105,9 +102,7 @@ export default function ProposeTradeScreen() {
     const [legalityError, setLegalityError] = useState<string | null>(null)
     const [submitting, setSubmitting] = useState(false)
     const [reviewing, setReviewing] = useState(false)
-    const [analyzing, setAnalyzing] = useState(false)
-    // The sender tab outlives the editor so Review and back lands on the same side.
-    const [senderTab, setSenderTab] = useState<string | undefined>(undefined)
+    const [valueDetailsOpen, setValueDetailsOpen] = useState(false)
     const ownerIdentity = user?.id && myMemberId && leagueId ? `${user.id}:${leagueId}:${myMemberId}` : null
     const contextCacheKey = ownerIdentity ? `pancake:trade-editor-context:v1:${ownerIdentity}` : null
     const { canRead, capture, isCurrent, canAct, markReady, blockActions, epoch, ready } = useModalActivity(ownerIdentity)
@@ -139,17 +134,17 @@ export default function ProposeTradeScreen() {
     const [draftReady, setDraftReady] = useState(false)
     const [prefillSettledKey, setPrefillSettledKey] = useState<string | null>(null)
     const { mode, editTradeId, counterTradeId, sourceTradeId } = getTradeComposerMode(params)
-    const canUseMultiTeamMode = mode === 'propose'
+    const canEditPartners = mode === 'propose'
     const faabEnabled = currentLeague?.waiver_mode === 'faab'
     const composer = useMultiTeamTradeComposer({
-        enabled: ready && Boolean(myMemberId && leagueId && (multiTeamMode || selectedRecipientId)),
+        enabled: ready && Boolean(myMemberId && leagueId),
         myMemberId,
         leagueId,
         myTeamName: current?.team_name ?? 'Your team',
         members,
         faabEnabled,
         allowInactiveTrades: currentLeague?.allow_inactive_trades,
-        recipientMemberId: !multiTeamMode ? selectedRecipientId ?? undefined : undefined,
+        recipientMemberId: selectedRecipientId ?? undefined,
     })
     const {
         loadedParticipantKey,
@@ -158,11 +153,13 @@ export default function ProposeTradeScreen() {
         participantViews,
         prefillFromTrade,
         prefillFromItems,
-        reset,
         selectParticipantAsset,
         setParticipantIds,
-        toggleParticipant,
     } = composer
+    const multiTeamMode = (!canEditPartners && sourceMultiTeam) || participantIds.length > 2
+    const partnerIds = useMemo(() => multiTeamMode
+        ? participantIds.filter((memberId) => memberId !== myMemberId)
+        : selectedRecipientId ? [selectedRecipientId] : [], [multiTeamMode, myMemberId, participantIds, selectedRecipientId])
 
     useEffect(() => {
         mountedRef.current = true
@@ -179,7 +176,8 @@ export default function ProposeTradeScreen() {
             setNotes('')
             setExpirationDays('3')
             setRosterPlan({ taxiPlayerIds: [], irPlayerIds: [], dropPlayerIds: [] })
-            setSenderTab(undefined)
+            setSourceMultiTeam(false)
+            setValueDetailsOpen(false)
             setMembers([])
             setMembersError(null)
             restoredDraftRef.current = false
@@ -188,7 +186,6 @@ export default function ProposeTradeScreen() {
         retainedAttemptRef.current = null
         setSubmitting(false)
         setReviewing(false)
-        setAnalyzing(false)
     }, [ownerIdentity])
 
     const loadMembers = useCallback(async () => {
@@ -251,7 +248,6 @@ export default function ProposeTradeScreen() {
         analyzerDraftKeyRef.current = params.analyzerDraftId
         const draft = takeTradeAnalyzerDraft(params.analyzerDraftId)
         if (!draft || draft.leagueId !== leagueId || draft.actorMemberId !== myMemberId) return
-        setMultiTeamMode(draft.participantMemberIds.length > 2)
         setSelectedRecipientId(draft.participantMemberIds.length === 2
             ? draft.participantMemberIds.find((id) => id !== myMemberId) ?? null
             : null)
@@ -275,7 +271,7 @@ export default function ProposeTradeScreen() {
         const draft = readTradeComposerDraft(ownerIdentity, mode, sourceTradeId, draftSeasonId)
         if (draft) {
             restoredDraftRef.current = true
-            setMultiTeamMode(draft.multiTeamMode)
+            setSourceMultiTeam(draft.multiTeamMode)
             setSelectedRecipientId(draft.selectedRecipientId)
             setNotes(draft.notes)
             setExpirationDays(draft.expirationDays)
@@ -303,7 +299,7 @@ export default function ProposeTradeScreen() {
                 if (cancelled || !isCurrent(generation) || !ownsOwner(capturedOwner) || !trade || restoredDraftRef.current) return
                 tradePrefillKey.current = `${ownerIdentity}:${sourceTradeId}`
                 const prefill = prefillTradeComposerFromTrade(mode, trade)
-                setMultiTeamMode(trade.isMultiTeam)
+                setSourceMultiTeam(trade.isMultiTeam)
                 setSelectedRecipientId(trade.isMultiTeam ? null : prefill.selectedRecipientId)
                 setNotes(prefill.notes)
                 setExpirationDays(prefill.expirationDays)
@@ -349,19 +345,23 @@ export default function ProposeTradeScreen() {
         selectedRecipientId,
     ])
 
-    const setMode = useCallback((useMultiTeam: boolean) => {
-        if (!canUseMultiTeamMode) return
-        setMultiTeamMode(useMultiTeam)
+    const addPartner = useCallback((memberId: string) => {
+        if (!canEditPartners || memberId === myMemberId || partnerIds.includes(memberId) ||
+            partnerIds.length + 1 >= MAX_TRADE_PARTICIPANTS) return
+        if (partnerIds.length === 0) {
+            setSelectedRecipientId(memberId)
+            return
+        }
         setSelectedRecipientId(null)
-        routePrefillKeyRef.current = null
-        reset()
-    }, [canUseMultiTeamMode, reset])
+        setParticipantIds([myMemberId, ...partnerIds, memberId])
+    }, [canEditPartners, myMemberId, partnerIds, setParticipantIds])
 
-    const selectTeam = useCallback((memberId: string) => {
-        if (mode !== 'propose' && !multiTeamMode) return
-        if (multiTeamMode) toggleParticipant(memberId)
-        else setSelectedRecipientId(memberId)
-    }, [mode, multiTeamMode, toggleParticipant])
+    const removePartner = useCallback((memberId: string) => {
+        if (!canEditPartners) return
+        const remaining = partnerIds.filter((partnerId) => partnerId !== memberId)
+        setSelectedRecipientId(remaining.length === 1 ? remaining[0] : null)
+        setParticipantIds([myMemberId, ...remaining])
+    }, [canEditPartners, myMemberId, partnerIds, setParticipantIds])
 
     const items = useMemo(() => buildMultiTeamItems(), [buildMultiTeamItems])
     useEffect(() => {
@@ -594,8 +594,6 @@ export default function ProposeTradeScreen() {
     ])
 
     const multiTeamBuilderProps = {
-        activeParticipantId: senderTab,
-        onActiveParticipantChange: setSenderTab,
         participants: composer.participantViews,
         items,
         myMemberId,
@@ -616,13 +614,11 @@ export default function ProposeTradeScreen() {
         onTogglePlayer: composer.toggleParticipantPlayer,
         onTogglePick: composer.toggleParticipantPick,
         onRemoveAsset: composer.removeParticipantAsset,
-        onDestinationChange: composer.setParticipantDestination,
         onPlayerDestinationChange: composer.setParticipantPlayerDestination,
         onPickDestinationChange: composer.setParticipantPickDestination,
         onFaabChange: composer.setParticipantFaab,
         onNotesChange: setNotes,
         onExpirationDaysChange: setExpirationDays,
-        onAnalyze: () => setAnalyzing(true),
     }
 
     if (!current) {
@@ -638,26 +634,6 @@ export default function ProposeTradeScreen() {
     const prefillReady = !sourceTradeId || restoredDraftRef.current || prefillSettledKey === `${ownerIdentity}:${sourceTradeId}`
     const editorReady = Boolean(membersError || (draftReady && !loading && prefillReady && recipientReady &&
         (participantIds.length < 2 || composer.assetsLoaded || composer.rosterError)))
-    const verdict = (
-        <TradeAnalysisSummary players={Object.values(composer.participantRosters).flat()} analysis={tradeAnalysis.analysis} calculatedAt={tradeAnalysis.quote?.createdAt} participantName={composer.participantName}
-            loading={tradeAnalysis.loading} inset={!sideBySide} />
-    )
-
-    if (analyzing) return <PageFrame style={styles.container}>
-        <PageHeader title="Trade analysis" onBack={() => setAnalyzing(false)} backLabel="Back to trade editor"
-            actions={<>
-                <HeaderAction title="Edit assets" secondary onPress={() => setAnalyzing(false)} />
-                <HeaderAction title="Review" disabled={!canSubmit} onPress={() => { setAnalyzing(false); setReviewing(true) }}
-                    accessibilityLabel="Review trade proposal" />
-            </>} />
-        <DeferredContent ready={!tradeAnalysis.loading} style={styles.scrollRegion}>
-            <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-                {verdict}
-                {tradeAnalysis.error ? <ErrorBanner message={tradeAnalysis.error} onRetry={tradeAnalysis.retry} /> : null}
-            </ScrollView>
-        </DeferredContent>
-    </PageFrame>
-
     if (reviewing) {
         const draft = tradeDraft({ items, participants: participantViews, memberId: myMemberId,
             participantName: composer.participantName, notes,
@@ -690,8 +666,7 @@ export default function ProposeTradeScreen() {
                 )}
             />
             <DeferredContent ready={editorReady} key={ownerIdentity} style={styles.scrollRegion}>
-            <ScrollView key="editor" style={styles.scroll} contentContainerStyle={[styles.scrollContent, sideBySide && styles.scrollContentWide]} keyboardShouldPersistTaps="handled">
-              <View style={[styles.main, sideBySide && styles.mainWide]}>
+            <ScrollView key="editor" style={styles.scroll} contentContainerStyle={[styles.scrollContent, { paddingHorizontal: padX }]} keyboardShouldPersistTaps="handled">
                 {tradingClosed ? (
                     <View style={styles.lockBanner}>
                         <Text style={styles.lockBannerText}>Trades are locked only from the trade deadline until the champion is finalized.</Text>
@@ -717,40 +692,6 @@ export default function ProposeTradeScreen() {
                         <Text style={styles.lockBannerText}>{participantLimitMessage}</Text>
                     </View>
                 ) : null}
-                {canUseMultiTeamMode ? (
-                    <View style={styles.modeSwitch}>
-                        <ModeButton label="2-Team" active={!multiTeamMode} onPress={() => setMode(false)} />
-                        <ModeButton label="Multi-Team" active={multiTeamMode} onPress={() => setMode(true)} />
-                    </View>
-                ) : null}
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.teamChips}
-                    style={styles.teamTrack} aria-busy={loading} accessibilityState={{ busy: loading }}>
-                    {members.map((member) => {
-                        const active = multiTeamMode
-                            ? composer.selectedParticipantIds.has(member.id)
-                            : selectedRecipientId === member.id
-                        const participantDisabled = mode !== 'propose' && !multiTeamMode ||
-                            multiTeamMode && !active && participantIds.length >= MAX_TRADE_PARTICIPANTS
-                        return (
-                            <Pressable
-                                key={member.id}
-                                style={[styles.teamChip, active && styles.teamChipActive,
-                                    participantDisabled && styles.teamChipDisabled]}
-                                onPress={() => selectTeam(member.id)}
-                                disabled={participantDisabled}
-                                accessibilityRole="button"
-                                accessibilityLabel={`${active ? 'Remove' : 'Trade with'} ${member.team_name ?? 'Unnamed team'}`}
-                                accessibilityState={{ selected: active, disabled: participantDisabled }}
-                                testID={`trade-participant-${member.id}`}
-                                id={`trade-participant-${member.id}`}
-                            >
-                                <Text style={[styles.teamChipText, active && styles.teamChipTextActive]} numberOfLines={1}>
-                                    {member.team_name ?? 'Unnamed'}
-                                </Text>
-                            </Pressable>
-                        )
-                    })}
-                </ScrollView>
                 {membersError ? (
                     <>
                         <ErrorBanner message={membersError} onRetry={() => setMembersAttempt(value => value + 1)} />
@@ -758,14 +699,40 @@ export default function ProposeTradeScreen() {
                             description="Retry to load the league members available for this trade."
                             fullScreen={false} framed />
                     </>
-                ) : composer.participantViews.length >= 2 ? (
-                    <MultiTeamTradeBuilder {...multiTeamBuilderProps} />
-                ) : !loading ? (
-                    <Text style={styles.emptyPrompt}>{multiTeamMode ? 'Choose two or more teams.' : 'Choose a team.'}</Text>
-                ) : null}
-                <View style={styles.bottomSpace} />
-              </View>
-              {sideBySide ? <View style={styles.rail}>{verdict}</View> : null}
+                ) : (
+                    <>
+                        <TradeValueCard
+                            analysis={tradeAnalysis.analysis}
+                            loading={tradeAnalysis.loading}
+                            error={tradeAnalysis.error}
+                            empty={items.length === 0}
+                            myMemberId={myMemberId}
+                            participantIds={participantIds}
+                            participantName={composer.participantName}
+                            detailsOpen={valueDetailsOpen}
+                            onToggleDetails={() => setValueDetailsOpen(open => !open)}
+                            onRetry={tradeAnalysis.retry}
+                        />
+                        {valueDetailsOpen && items.length > 0 ? (
+                            <TradeAnalysisSummary players={Object.values(composer.participantRosters).flat()} analysis={tradeAnalysis.analysis}
+                                calculatedAt={tradeAnalysis.quote?.createdAt} participantName={composer.participantName}
+                                loading={tradeAnalysis.loading} inset={false} />
+                        ) : null}
+                        <TradePartnersCard
+                            partnerIds={partnerIds}
+                            members={members}
+                            editable={canEditPartners}
+                            canAdd={participantIds.length < MAX_TRADE_PARTICIPANTS && partnerIds.length + 1 < MAX_TRADE_PARTICIPANTS}
+                            loading={loading}
+                            teamName={composer.participantName}
+                            onAdd={addPartner}
+                            onRemove={removePartner}
+                        />
+                        {composer.participantViews.length >= 2 ? (
+                            <MultiTeamTradeBuilder {...multiTeamBuilderProps} />
+                        ) : null}
+                    </>
+                )}
             </ScrollView>
             </DeferredContent>
         </PageFrame>
@@ -774,27 +741,11 @@ export default function ProposeTradeScreen() {
 
 export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFallback'
 
-function ModeButton({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
-    return (
-        <Pressable
-            style={[styles.modeButton, active && styles.modeButtonActive]}
-            onPress={onPress}
-            accessibilityRole="button"
-            accessibilityLabel={`Use ${label.toLowerCase()} trade mode`}
-            accessibilityState={{ selected: active }}
-            testID={label === 'Multi-Team' ? 'trade-mode-multi' : 'trade-mode-two'}
-            id={label === 'Multi-Team' ? 'trade-mode-multi' : 'trade-mode-two'}
-        >
-            <Text style={[styles.modeButtonText, active && styles.modeButtonTextActive]}>{label}</Text>
-        </Pressable>
-    )
-}
-
-function HeaderAction({ title, onPress, disabled = false, secondary = false, accessibilityLabel, targetId }: { title: string; onPress: () => void; disabled?: boolean; secondary?: boolean; accessibilityLabel?: string; targetId?: string }) {
+function HeaderAction({ title, onPress, disabled = false, accessibilityLabel, targetId }: { title: string; onPress: () => void; disabled?: boolean; accessibilityLabel?: string; targetId?: string }) {
     return (
         <Pressable
             onPress={onPress}
-            style={[styles.submitButton, secondary && styles.submitButtonSecondary, disabled && styles.submitButtonDisabled]}
+            style={[styles.submitButton, disabled && styles.submitButtonDisabled]}
             disabled={disabled}
             accessibilityRole="button"
             accessibilityState={{ disabled }}
@@ -802,7 +753,7 @@ function HeaderAction({ title, onPress, disabled = false, secondary = false, acc
             testID={targetId}
             id={targetId}
         >
-            <Text style={[styles.submitText, secondary && styles.submitTextSecondary, disabled && styles.submitTextDisabled]} numberOfLines={1}>{title}</Text>
+            <Text style={[styles.submitText, disabled && styles.submitTextDisabled]} numberOfLines={1}>{title}</Text>
         </Pressable>
     )
 }
@@ -811,68 +762,30 @@ const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgScreen },
     scroll: { flex: 1 },
     scrollRegion: { flex: 1, minHeight: 0 },
-    scrollContent: { width: '100%', maxWidth: BUILDER_WIDTH, minWidth: 0, alignSelf: 'center' },
-    scrollContentWide: {
-        maxWidth: BUILDER_WIDTH + spacing['3xl'] + layout.railWidth,
-        flexDirection: 'row',
-        alignItems: 'flex-start',
-        gap: spacing['3xl'],
+    scrollContent: {
+        width: '100%',
+        maxWidth: layout.contentMaxWidth,
+        minWidth: 0,
+        alignSelf: 'center',
+        gap: spacing.md,
+        paddingTop: spacing.md,
+        paddingBottom: spacing['5xl'],
     },
-    main: { width: '100%', minWidth: 0 },
-    mainWide: { width: BUILDER_WIDTH, flexShrink: 0 },
-    rail: { width: layout.railWidth, paddingTop: spacing.xl },
     submitButton: {
         backgroundColor: colors.primary,
         paddingHorizontal: spacing.xl,
         minHeight: controlSize.minTouch,
         borderRadius: radii.md,
         borderCurve: 'continuous' as const,
-        minWidth: 72,
+        minWidth: controlSize.minTouch + spacing['3xl'],
         flexShrink: 0,
         alignItems: 'center',
         justifyContent: 'center',
     },
-    submitButtonSecondary: { backgroundColor: colors.bgMuted, borderWidth: 1, borderColor: colors.borderLight },
-    submitTextSecondary: { color: colors.textPrimary },
     submitButtonDisabled: { backgroundColor: colors.bgMuted, borderWidth: 1, borderColor: colors.borderLight, opacity: 0.55 },
     submitText: { ...typeScale.row, color: colors.textWhite, fontWeight: fontWeight.bold },
     submitTextDisabled: { color: colors.textPlaceholder },
-    modeSwitch: { flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.lg, paddingTop: spacing.lg, paddingBottom: spacing.sm },
-    modeButton: {
-        flex: 1,
-        minHeight: controlSize.minTouch,
-        paddingHorizontal: spacing.lg,
-        borderRadius: radii.md,
-        borderCurve: 'continuous' as const,
-        backgroundColor: colors.bgMuted,
-        borderWidth: 1,
-        borderColor: colors.borderLight,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    modeButtonActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-    modeButtonText: { ...typeScale.small, color: colors.textSecondary, fontWeight: fontWeight.bold },
-    modeButtonTextActive: { color: colors.textWhite },
-    teamTrack: { flexGrow: 0, minHeight: foundation.minTouch },
-    teamChips: { paddingHorizontal: spacing.lg, paddingVertical: spacing.xs, gap: spacing.sm, flexDirection: 'row' },
-    emptyPrompt: { ...textStyles.meta, padding: spacing.lg },
-    teamChip: {
-        paddingHorizontal: spacing.lg,
-        minHeight: foundation.minTouch,
-        flexShrink: 0,
-        borderRadius: radii['3xl'],
-        borderCurve: 'continuous' as const,
-        backgroundColor: colors.bgMuted,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    teamChipActive: { backgroundColor: colors.primary },
-    teamChipDisabled: { opacity: 0.45 },
-    teamChipText: { ...typeScale.small, flexShrink: 1, fontWeight: fontWeight.semibold, color: colors.textSecondary, textAlign: 'center' },
-    teamChipTextActive: { color: colors.textWhite },
     lockBanner: {
-        marginHorizontal: spacing.xl,
-        marginTop: spacing.xl,
         padding: spacing.lg,
         borderRadius: radii.lg,
         borderWidth: 1,
@@ -882,5 +795,4 @@ const styles = StyleSheet.create({
     lockBannerText: { ...typeScale.small, fontWeight: fontWeight.semibold, color: colors.warningDark, textAlign: 'center' },
     emptyCenter: { alignItems: 'center', padding: spacing['5xl'] },
     emptyText: { ...typeScale.body, color: colors.textPlaceholder, textAlign: 'center' },
-    bottomSpace: { height: spacing['5xl'] },
 })

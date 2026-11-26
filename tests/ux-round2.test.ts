@@ -37,13 +37,18 @@ it('omits a missing estimate', async () => {
     expect(tree.toJSON()).toBeNull()
 })
 
-it('keeps all four Trades sections in order and supports a direct link to each', () => {
+it('keeps the three Trades sections in order and supports a direct link to each', () => {
     expect(TRADE_TABS.map(option => [option.label, option.value]))
-        .toEqual([['Offers', 'offers'], ['Block', 'block'], ['History', 'history'], ['Analyzer', 'analyzer']])
+        .toEqual([['Offers', 'offers'], ['Block', 'block'], ['History', 'history']])
     for (const option of TRADE_TABS) {
         expect(normalizeTradeTab(option.value)).toBe(option.value)
         expect(normalizeTradeTab([option.value])).toBe(option.value)
     }
+})
+
+it('sends a saved Analyzer link to Offers', () => {
+    expect(normalizeTradeTab('analyzer')).toBe('offers')
+    expect(normalizeTradeTab(['analyzer'])).toBe('offers')
 })
 
 it('leaves age and experience off player rows', async () => {

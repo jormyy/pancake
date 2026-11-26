@@ -59,7 +59,6 @@ const renderBuilder = async (notes: string) => {
             onTogglePlayer: vi.fn(),
             onTogglePick: vi.fn(),
             onRemoveAsset: vi.fn(),
-            onDestinationChange: vi.fn(),
             onPlayerDestinationChange: vi.fn(),
             onPickDestinationChange: vi.fn(),
             onFaabChange: vi.fn(),
@@ -71,29 +70,6 @@ const renderBuilder = async (notes: string) => {
 }
 
 describe('trade notes input', () => {
-    it('uses measured content width for the compact builder layout', async () => {
-        const { renderer } = await renderBuilder('')
-        const root = renderer.root.findAll((node) => typeof node.props.onLayout === 'function')[0]
-        const overviews = () => renderer.root.findAll((node) => String(node.type) === 'MultiTeamTradeOverview')
-
-        expect(root).toBeDefined()
-        expect(overviews()).toHaveLength(0)
-
-        await act(async () => {
-            root?.props.onLayout({ nativeEvent: { layout: { width: 700 } } })
-        })
-
-        const summary = renderer.root.findByProps({
-            accessibilityLabel: 'Show deal summary. 2 teams and 0 routed assets.',
-        })
-        expect(summary.props.accessibilityState).toEqual({ expanded: false })
-        expect(overviews()).toHaveLength(0)
-
-        await act(async () => { summary.props.onPress() })
-        expect(overviews()[0].props.compact).toBe(true)
-        await act(async () => { renderer.unmount() })
-    })
-
     it('accepts and counts the 2,000-byte boundary', async () => {
         const { renderer, onNotesChange } = await renderBuilder('é'.repeat(1_000))
         const input = renderer.root.findByProps({ testID: 'trade-notes-input' })

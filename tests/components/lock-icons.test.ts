@@ -67,7 +67,7 @@ it.each(['roster', 'taxi', 'roster pick', 'drop picker', 'review', 'player page'
 
 it('preserves trade player and pick disabled states with independently pressable icons', async () => {
     data.locks = [trade, pickLock]
-    await render(React.createElement(TradeAssetColumn, { memberId: 'me', title: 'You', subtitle: '', side: 'give', twoColumn: false, roster: [locked], picks: [pick], avgMap: new Map(), avgStatsMap: new Map(), selectedPlayerIds: new Set<string>(), selectedPickIds: new Set<string>(), onTogglePlayer: noop, onTogglePick: noop, emptyText: '' }))
+    await render(React.createElement(TradeAssetColumn, { memberId: 'me', roster: [locked], picks: [pick], avgMap: new Map(), avgStatsMap: new Map(), selectedPlayerIds: new Set<string>(), selectedPickIds: new Set<string>(), onTogglePlayer: noop, onTogglePick: noop, emptyText: '' }))
     check(2)
     for (const row of screen.root.findAllByType('Pressable' as React.ElementType).filter(row => /(?:for|to) trade$/.test(row.props.accessibilityLabel))) expect(row.props.disabled).toBe(true)
     const icon = screen.root.findAllByProps({ accessibilityLabel: 'Locked by a pending trade' })[0]

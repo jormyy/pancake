@@ -343,10 +343,10 @@ function TradesScreen() {
         {rosterLegality.modalProps.visible ? <IRResolutionModal {...rosterLegality.modalProps} /> : null}
     </Page>
 
-    if (ownedAnalyzerTrade || tab === 'analyzer') return <Page title="Trade analysis">
-        <PageHeader tabs={tradeTabs} />
+    if (ownedAnalyzerTrade) return <Page title="Trade value">
+        <PageHeader title="Trade value" showTitle onBack={() => setAnalyzerTrade(null)} backLabel="Back to trades" />
         <Suspense fallback={<View style={styles.loading} aria-busy accessibilityState={{ busy: true }} />}>
-            <TradeAnalyzer key={`${user?.id}:${leagueId}:${myMemberId}`} prefillTrade={ownedAnalyzerTrade} />
+            <TradeAnalyzer key={`${user?.id}:${leagueId}:${myMemberId}:${ownedAnalyzerTrade.id}`} prefillTrade={ownedAnalyzerTrade} />
         </Suspense>
         {resourceStatus}
     </Page>

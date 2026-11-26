@@ -4,14 +4,14 @@ import { playerSeasonContextText } from '@/lib/player-context'
 import { pickLabel } from '@/lib/picks'
 import type { TradePickContext } from '@/lib/trade-pick-label'
 import { DeferredContent } from '@/components/ui/DeferredContent'
-import MaterialIcons from '@expo/vector-icons/MaterialIcons'
-import { useEffect, useMemo, useState } from 'react'
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native'
+import { useMemo, useState } from 'react'
+import { Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native'
 import { MAX_TRADE_EXPIRATION_DAYS, MAX_TRADE_NOTES_BYTES, utf8ByteLength } from '@pancake/core'
 import { MultiTeamTradeOverview, type TradeFlowItem } from '@/components/trades/MultiTeamTradeOverview'
-import { Button } from '@/components/ui/Button'
+import { Card } from '@/components/ui/Card'
+import { SectionBand } from '@/components/ui/SectionBand'
 import { ParticipantTradePanel } from '@/components/trades/ParticipantTradePanel'
-import { breakpoints, colors, controlSize, fontWeight, layout, radii, spacing, textStyles, uiColors, typeScale } from '@/constants/tokens'
+import { breakpoints, colors, componentTokens, controlSize, fontWeight, layout, radii, spacing, textStyles, uiColors, typeScale } from '@/constants/tokens'
 import type { TradeParticipantView } from '@/lib/trade-ui-model'
 import { buildTradeComposerPayload } from '@/lib/trade-composer'
 import type { LeagueStatus } from '@/types/database'
@@ -39,21 +39,12 @@ type MultiTeamTradeBuilderProps = {
     onTogglePlayer: (memberId: string, playerId: string) => void
     onTogglePick: (memberId: string, pickId: string) => void
     onRemoveAsset: (memberId: string, asset: 'player' | 'pick', assetId: string) => void
-    onDestinationChange: (memberId: string, toMemberId: string) => void
     onPlayerDestinationChange: (memberId: string, playerId: string, toMemberId: string) => void
     onPickDestinationChange: (memberId: string, pickId: string, toMemberId: string) => void
     onFaabChange: (memberId: string, toMemberId: string, value: string) => void
     onNotesChange?: (value: string) => void
     onExpirationDaysChange?: (value: string) => void
     reviewOnly?: boolean
-    onAnalyze?: () => void
-    /** The analyzer draws the deal summary row itself, above the builder. */
-    showSummary?: boolean
-    overviewExpanded?: boolean
-    onOverviewExpandedChange?: (expanded: boolean) => void
-    /** Lets the screen keep the chosen sender tab when it swaps to Review and back. */
-    activeParticipantId?: string
-    onActiveParticipantChange?: (memberId: string) => void
 }
 
 export function MultiTeamTradeBuilder({
@@ -78,43 +69,24 @@ export function MultiTeamTradeBuilder({
     onTogglePlayer,
     onTogglePick,
     onRemoveAsset,
-    onDestinationChange,
     onPlayerDestinationChange,
     onPickDestinationChange,
     onFaabChange,
     onNotesChange,
     onExpirationDaysChange,
     reviewOnly = false,
-    onAnalyze,
-    showSummary = true,
-    overviewExpanded: controlledOverviewExpanded,
-    onOverviewExpandedChange,
-    activeParticipantId: controlledActiveId,
-    onActiveParticipantChange,
 }: MultiTeamTradeBuilderProps) {
     const timezone = useLeagueTimezone()
     const { width } = useWindowDimensions()
     const [contentWidth, setContentWidth] = useState(Math.min(width, 900))
     const shellContentWidth = width >= breakpoints.compact ? width - layout.sidebarWidth : width
     const useColumns = Math.min(contentWidth, shellContentWidth) >= 880
-    const [localActiveId, setLocalActiveId] = useState(participants[0]?.memberId ?? '')
-    const activeParticipantId = controlledActiveId ?? localActiveId
-    const setActiveParticipantId = onActiveParticipantChange ?? setLocalActiveId
-    const [localOverviewExpanded, setLocalOverviewExpanded] = useState(false)
-    const overviewExpanded = controlledOverviewExpanded ?? localOverviewExpanded
-    const setOverviewExpanded = onOverviewExpandedChange ?? setLocalOverviewExpanded
     const notesBytes = utf8ByteLength(notes)
     const expiresAt = reviewOnly && showTerms ? buildTradeComposerPayload({
         offerPlayerIds: [], requestPlayerIds: [], offerPickIds: [], requestPickIds: [],
         notes, offerFaabInput: '0', requestFaabInput: '0', expirationDaysInput: expirationDays,
         leagueStatus, tradeDeadline,
     }).payload.expiresAt : null
-
-    useEffect(() => {
-        if (!participants.some((participant) => participant.memberId === activeParticipantId)) {
-            setActiveParticipantId(participants[0]?.memberId ?? '')
-        }
-    }, [activeParticipantId, participants, setActiveParticipantId])
 
     const overviewItems = useMemo<TradeFlowItem[]>(() => items.map((item) => {
         const player = item.kind === 'player'
@@ -153,14 +125,6 @@ export function MultiTeamTradeBuilder({
     }), [assetLabels, items, participants, avgMap, avgStatsMap])
     const pickContext: TradePickContext = { viewerMemberId: myMemberId, memberNames: Object.fromEntries(participants.map(participant => [participant.memberId, participantName(participant.memberId)])) }
 
-    const removeItem = (key: string) => {
-        const item = items[overviewItems.findIndex((entry) => entry.key === key)]
-        if (!item) return
-        if (item.kind === 'player') onRemoveAsset(item.fromMemberId, 'player', item.playerId)
-        else if (item.kind === 'pick') onRemoveAsset(item.fromMemberId, 'pick', item.pickId)
-        else onFaabChange(item.fromMemberId, item.toMemberId, '')
-    }
-
     if (rosterError) {
         return (
             <Pressable
@@ -180,17 +144,17 @@ export function MultiTeamTradeBuilder({
             participant={participant}
             myMemberId={myMemberId}
             faabEnabled={faabEnabled}
-            useColumns={useColumns}
             avgMap={avgMap}
             avgStatsMap={avgStatsMap}
+            assetLabels={assetLabels}
             participantName={participantName}
             onTogglePlayer={onTogglePlayer}
             onTogglePick={onTogglePick}
+            onRemoveAsset={onRemoveAsset}
             blockedPlayerIds={new Set(participants.filter((entry) => entry.memberId !== participant.memberId)
                 .flatMap((entry) => [...entry.selectedPlayerIds]))}
             blockedPickIds={new Set(participants.filter((entry) => entry.memberId !== participant.memberId)
                 .flatMap((entry) => [...entry.selectedPickIds]))}
-            onDestinationChange={onDestinationChange}
             onPlayerDestinationChange={onPlayerDestinationChange}
             onPickDestinationChange={onPickDestinationChange}
             onFaabChange={onFaabChange}
@@ -236,153 +200,72 @@ export function MultiTeamTradeBuilder({
 
     return (
         <DeferredContent ready={!rosterLoading}>
-        <View
-            style={styles.root}
-            onLayout={(event) => setContentWidth(event.nativeEvent.layout.width)}
-        >
-            {useColumns ? (
-                <>
-                    <MultiTeamTradeOverview pickContext={pickContext} participants={overviewParticipants} items={overviewItems} columns onRemoveItem={removeItem} style={styles.overviewTop} />
-                    {showSummary && onAnalyze ? <View style={styles.summaryRow}><Button title="Analyze" variant="secondary" size="sm" onPress={onAnalyze} disabled={items.length === 0}
-                        accessibilityLabel="Analyze trade proposal" /></View> : null}
-                </>
-            ) : (
-                <>
-                    {showSummary ? <View style={styles.summaryRow}>
-                        <Pressable
-                            style={styles.compactSummary}
-                            onPress={() => setOverviewExpanded(!overviewExpanded)}
-                            accessibilityRole="button"
-                            accessibilityLabel={`${overviewExpanded ? 'Hide' : 'Show'} deal summary. ${participants.length} teams and ${items.length} routed assets.`}
-                            accessibilityState={{ expanded: overviewExpanded }}
-                            testID="trade-deal-summary"
-                            id="trade-deal-summary"
-                        >
-                            <View style={styles.compactSummaryCopy}>
-                                <Text style={styles.compactSummaryMeta}>
-                                    {participants.length} teams · {items.length} {items.length === 1 ? 'asset' : 'assets'}
-                                </Text>
-                            </View>
-                            <MaterialIcons
-                                name={overviewExpanded ? 'expand-less' : 'expand-more'}
-                                size={24}
-                                color={colors.textSecondary}
-                            />
-                        </Pressable>
-                        {onAnalyze ? <Button title="Analyze" variant="secondary" size="sm" onPress={onAnalyze} disabled={items.length === 0}
-                            accessibilityLabel="Analyze trade proposal" /> : null}
-                    </View> : null}
-                    {overviewExpanded ? (
-                        <MultiTeamTradeOverview pickContext={pickContext} participants={overviewParticipants} items={overviewItems} compact onRemoveItem={removeItem} style={styles.overview} />
-                    ) : null}
-                </>
-            )}
+        <View style={styles.root}>
             {overviewItems.some((item) => item.detail) ? (
                 <Text style={styles.routeWarning} accessibilityRole="alert">
-                    Remove unavailable routes from the deal summary before making an offer.
+                    Remove unavailable players or picks before you review this trade.
                 </Text>
             ) : null}
-            {!useColumns ? (
-                <View
-                    style={styles.senderTabs}
-                    role="tablist"
-                    accessibilityRole="tablist"
-                >
-                    {participants.map((participant) => {
-                        const active = participant.memberId === activeParticipantId
-                        return (
-                            <Pressable
-                                key={participant.memberId}
-                                style={[styles.senderTab, active && styles.senderTabActive]}
-                                onPress={() => setActiveParticipantId(participant.memberId)}
-                                role="tab"
-                                aria-selected={active}
-                                accessibilityRole="tab"
-                                accessibilityState={{ selected: active }}
-                                accessibilityLabel={`Edit assets sent by ${participant.memberId === myMemberId ? 'you' : participantName(participant.memberId)}`}
-                                testID={`trade-sender-${participant.memberId}`}
-                                id={`trade-sender-${participant.memberId}`}
-                            >
-                                <Text style={[styles.senderTabText, active && styles.senderTabTextActive]} numberOfLines={1}>
-                                    {participant.memberId === myMemberId ? 'You' : participantName(participant.memberId)}
-                                </Text>
-                            </Pressable>
-                        )
-                    })}
-                </View>
-            ) : null}
-            {useColumns ? (
-                <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    style={styles.scroller}
-                    contentContainerStyle={styles.columns}
-                >
-                    {panels}
-                </ScrollView>
-            ) : (
-                <View style={styles.stack}>
-                    {panels.find((panel) => panel.key === activeParticipantId) ?? panels[0]}
-                </View>
-            )}
-            {showTerms ? <>
-            <Text style={styles.sectionLabel}>NOTES (optional)</Text>
-            <TextInput
-                style={[styles.notesInput, notesError && styles.notesInputInvalid]}
-                placeholder="Add a message to your trade offer..."
-                placeholderTextColor={colors.inputPlaceholder}
-                value={notes}
-                onChangeText={(value) => {
-                    const nextBytes = utf8ByteLength(value)
-                    if (nextBytes <= MAX_TRADE_NOTES_BYTES || nextBytes < notesBytes) onNotesChange?.(value)
-                }}
-                multiline
-                numberOfLines={3}
-                accessibilityLabel={notesError
-                    ? `Trade notes. ${notesError}`
-                    : `Trade notes. ${notesBytes} of ${MAX_TRADE_NOTES_BYTES} UTF-8 bytes.`
-                }
-                aria-invalid={Boolean(notesError)}
-                testID="trade-notes-input"
-            />
-            <View style={styles.notesMeta}>
-                {notesError ? (
-                    <Text
-                        style={styles.notesError}
-                        accessibilityRole="alert"
-                        accessibilityLiveRegion="polite"
-                        testID="trade-notes-error"
-                    >
-                        {notesError}
-                    </Text>
-                ) : null}
-                <Text
-                    style={[styles.notesCount, notesError && styles.notesCountInvalid]}
-                    accessibilityLabel={`Trade notes byte count: ${notesBytes} of ${MAX_TRADE_NOTES_BYTES}`}
-                    testID="trade-notes-count"
-                >
-                    {notesBytes} / {MAX_TRADE_NOTES_BYTES} bytes
-                </Text>
-            </View>
-            <View style={styles.termsRow}>
-                <View style={styles.termField}>
-                    <Text style={styles.termLabel}>Expires in days</Text>
+            {panels}
+            {showTerms ? <Card padding="none" elevated="none" style={styles.termsCard}>
+                <SectionBand label="Offer terms" />
+                <View style={styles.termsBody}>
                     <TextInput
-                        style={[styles.termInput, expirationError && styles.termInputInvalid]}
-                        value={expirationDays}
+                        style={[styles.notesInput, notesError && styles.notesInputInvalid]}
+                        placeholder="Add a message to your trade offer..."
+                        placeholderTextColor={colors.inputPlaceholder}
+                        value={notes}
                         onChangeText={(value) => {
-                            if (/^\d*$/.test(value) && value.length <= String(MAX_TRADE_EXPIRATION_DAYS).length) {
-                                onExpirationDaysChange?.(value)
-                            }
+                            const nextBytes = utf8ByteLength(value)
+                            if (nextBytes <= MAX_TRADE_NOTES_BYTES || nextBytes < notesBytes) onNotesChange?.(value)
                         }}
-                        maxLength={String(MAX_TRADE_EXPIRATION_DAYS).length}
-                        keyboardType="numeric"
-                        accessibilityLabel={expirationError
-                            ? `Trade offer expiration in days. ${expirationError}`
-                            : 'Trade offer expiration in days'
+                        multiline
+                        numberOfLines={3}
+                        accessibilityLabel={notesError
+                            ? `Trade notes. ${notesError}`
+                            : `Trade notes. ${notesBytes} of ${MAX_TRADE_NOTES_BYTES} UTF-8 bytes.`
                         }
-                        aria-invalid={Boolean(expirationError)}
+                        aria-invalid={Boolean(notesError)}
+                        testID="trade-notes-input"
                     />
+                    <View style={styles.notesMeta}>
+                        {notesError ? (
+                            <Text
+                                style={styles.notesError}
+                                accessibilityRole="alert"
+                                accessibilityLiveRegion="polite"
+                                testID="trade-notes-error"
+                            >
+                                {notesError}
+                            </Text>
+                        ) : null}
+                        <Text
+                            style={[styles.notesCount, notesError && styles.notesCountInvalid]}
+                            accessibilityLabel={`Trade notes byte count: ${notesBytes} of ${MAX_TRADE_NOTES_BYTES}`}
+                            testID="trade-notes-count"
+                        >
+                            {notesBytes} / {MAX_TRADE_NOTES_BYTES} bytes
+                        </Text>
+                    </View>
+                    <View style={styles.termField}>
+                        <Text style={styles.termLabel} numberOfLines={1}>Expires in days</Text>
+                        <TextInput
+                            style={[styles.termInput, expirationError && styles.termInputInvalid]}
+                            value={expirationDays}
+                            onChangeText={(value) => {
+                                if (/^\d*$/.test(value) && value.length <= String(MAX_TRADE_EXPIRATION_DAYS).length) {
+                                    onExpirationDaysChange?.(value)
+                                }
+                            }}
+                            maxLength={String(MAX_TRADE_EXPIRATION_DAYS).length}
+                            keyboardType="numeric"
+                            accessibilityLabel={expirationError
+                                ? `Trade offer expiration in days. ${expirationError}`
+                                : 'Trade offer expiration in days'
+                            }
+                            aria-invalid={Boolean(expirationError)}
+                        />
+                    </View>
                     {expirationError ? (
                         <Text
                             style={styles.termError}
@@ -394,16 +277,15 @@ export function MultiTeamTradeBuilder({
                         </Text>
                     ) : null}
                 </View>
-            </View>
-            </> : null}
+            </Card> : null}
         </View>
         </DeferredContent>
     )
 }
 
 const styles = StyleSheet.create({
-    routeWarning: { ...typeScale.small, marginHorizontal: spacing.lg, marginTop: spacing.md, color: colors.warningDark },
-    root: { width: '100%', maxWidth: '100%', minWidth: 0 },
+    routeWarning: { ...typeScale.small, color: colors.warningDark },
+    root: { width: '100%', maxWidth: '100%', minWidth: 0, gap: spacing.md },
     reviewRoot: { width: '100%', maxWidth: '100%', minWidth: 0, paddingBottom: spacing.md },
     reviewHeading: { paddingHorizontal: spacing.lg, paddingTop: spacing.md },
     reviewTitle: {
@@ -426,67 +308,11 @@ const styles = StyleSheet.create({
         fontWeight: fontWeight.semibold,
         color: colors.textPrimary,
     },
-    summaryRow: { flexDirection: 'row', alignItems: 'center', marginHorizontal: spacing.lg, marginTop: spacing.md, marginBottom: spacing.md, gap: spacing.md },
-    overview: { marginHorizontal: spacing.lg, marginBottom: spacing.md },
-    overviewTop: { marginHorizontal: spacing.lg, marginTop: spacing.md, marginBottom: spacing.md },
     overviewOnly: { marginHorizontal: spacing.lg },
-    compactSummary: {
-        flex: 1,
-        minHeight: controlSize.minTouch,
-        minWidth: 0,
-        paddingHorizontal: spacing.lg,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: spacing.md,
-        borderWidth: 1,
-        borderRadius: radii.xl,
-        borderColor: colors.borderLight,
-        backgroundColor: colors.bgCard,
-    },
-    compactSummaryCopy: { minWidth: 0, flex: 1 },
-    compactSummaryMeta: {
-        ...typeScale.small,
-        marginTop: spacing.xxs,
-        fontWeight: fontWeight.semibold,
-        color: colors.textPrimary,
-    },
-    sectionLabel: {
-        ...textStyles.sectionLabel,
-        paddingHorizontal: spacing.lg,
-        paddingTop: spacing.md,
-        paddingBottom: spacing.md,
-    },
-    stack: { gap: spacing.md, marginBottom: spacing.md, paddingHorizontal: spacing.lg },
-    scroller: { marginBottom: spacing.md },
-    // flexGrow lets team panels share the full builder width instead of
-    // sitting at their minimum width inside the sideways scroller.
-    columns: { flexGrow: 1, flexDirection: 'row', gap: spacing.md, paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },
-    senderTabs: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: spacing.md,
-        marginHorizontal: spacing.lg,
-        marginBottom: spacing.md,
-        padding: spacing.sm,
-        borderRadius: radii.xl,
-        backgroundColor: colors.bgSubtle,
-    },
-    senderTab: {
-        flex: 1,
-        minWidth: controlSize.minTouch,
-        minHeight: controlSize.minTouch,
-        paddingHorizontal: spacing.md,
-        borderRadius: radii.md,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    senderTabActive: { backgroundColor: colors.bgCard },
-    senderTabText: { ...textStyles.rowTitle, color: colors.textMuted, textAlign: 'center' },
-    senderTabTextActive: { color: colors.primaryDark },
+    termsCard: { overflow: 'hidden' },
+    termsBody: { padding: componentTokens.sectionBand.paddingHorizontal, gap: spacing.sm },
     notesInput: {
         ...typeScale.title,
-        marginHorizontal: spacing.lg,
         borderWidth: 1,
         borderColor: uiColors.borderNeutral,
         borderRadius: radii.lg,
@@ -499,9 +325,6 @@ const styles = StyleSheet.create({
     },
     notesInputInvalid: { borderColor: colors.danger },
     notesMeta: {
-        minHeight: 20,
-        marginHorizontal: spacing.lg,
-        marginTop: spacing.xs,
         flexDirection: 'row',
         alignItems: 'flex-start',
         justifyContent: 'space-between',
@@ -510,11 +333,12 @@ const styles = StyleSheet.create({
     notesError: { ...typeScale.small, flex: 1, color: colors.dangerDark, fontWeight: fontWeight.semibold },
     notesCount: { ...typeScale.small, marginLeft: 'auto', color: colors.textMuted, fontWeight: fontWeight.semibold },
     notesCountInvalid: { color: colors.dangerDark },
-    termsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, marginHorizontal: spacing.lg },
-    termField: { flexGrow: 1, flexBasis: 150, minWidth: 150, gap: spacing.xs },
-    termLabel: { ...textStyles.sectionLabel, ...typeScale.micro },
+    termField: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minWidth: 0 },
+    termLabel: { ...textStyles.rowTitle, flex: 1, minWidth: 0 },
     termInput: {
         ...typeScale.title,
+        flexShrink: 0,
+        width: controlSize.minTouch + spacing['6xl'],
         minHeight: controlSize.minTouch,
         borderWidth: 1,
         borderColor: uiColors.borderNeutral,
@@ -523,6 +347,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: spacing.md,
         fontWeight: fontWeight.bold,
         color: colors.textPrimary,
+        textAlign: 'right',
     },
     termInputInvalid: { borderColor: colors.danger },
     termError: { ...typeScale.small, color: colors.dangerDark, fontWeight: fontWeight.semibold },
