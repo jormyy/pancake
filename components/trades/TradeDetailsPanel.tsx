@@ -64,7 +64,6 @@ export function TradeDetailsPanel({
                 <MultiTeamTradeOverview
                     pickContext={pickContext}
                     compact
-                    framed={false}
                     participants={trade.participants.map((participant) => ({
                         memberId: participant.memberId,
                         label: participant.memberId === myMemberId ? 'You' : participant.teamName,

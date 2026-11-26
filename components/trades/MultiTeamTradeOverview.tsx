@@ -33,8 +33,6 @@ type MultiTeamTradeOverviewProps = {
     items: TradeFlowItem[]
     compact?: boolean
     columns?: boolean
-    /** False when the parent already draws the card, as on the trade details panel. */
-    framed?: boolean
     onRemoveItem?: (key: string) => void
     pickContext?: TradePickContext
     showPickDirection?: boolean
@@ -42,7 +40,7 @@ type MultiTeamTradeOverviewProps = {
     style?: StyleProp<ViewStyle>
 }
 
-export function MultiTeamTradeOverview({ participants, items, compact = false, columns = false, framed = true, onRemoveItem, pickContext, showPickDirection = true, pickOrder = 'round-year', style }: MultiTeamTradeOverviewProps) {
+export function MultiTeamTradeOverview({ participants, items, compact = false, columns = false, onRemoveItem, pickContext, showPickDirection = true, pickOrder = 'round-year', style }: MultiTeamTradeOverviewProps) {
     const { incomingByMember, participantLabels } = useMemo(() => {
         const labels = new Map(participants.map((participant) => [participant.memberId, participant.label]))
         const incoming = new Map<string, TradeFlowItem[]>()
@@ -63,7 +61,7 @@ export function MultiTeamTradeOverview({ participants, items, compact = false, c
                 return (
                     <View
                         key={participant.memberId}
-                        style={[styles.section, framed && styles.sectionFramed, columns && styles.sectionColumn]}
+                        style={[styles.section, columns && styles.sectionColumn]}
                     >
                         <SectionBand
                             label={label}
@@ -86,7 +84,7 @@ export function MultiTeamTradeOverview({ participants, items, compact = false, c
                             <View key={item.key} style={[styles.assetRow, compact && styles.assetRowCompact, index > 0 && styles.assetDivider]}>
                                 {item.player ? <TradePlayerLink {...item.player} stats={[typeof item.player.stats === 'string' ? item.player.stats : null, `From ${participantLabels.get(item.fromMemberId) ?? 'Unknown team'}`, item.detail].filter(Boolean).join(' · ')} /> : (
                                     <View style={styles.assetCopy}>
-                                        {item.pick ? <TradePickLabel pick={item.pick} context={pickContext} showDirection={showPickDirection} /> : <Text style={styles.assetLabel} numberOfLines={1}>{item.label}</Text>}
+                                        {item.pick ? <TradePickLabel pick={item.pick} context={pickContext} showDirection={showPickDirection} lines={2} /> : <Text style={styles.assetLabel} numberOfLines={1}>{item.label}</Text>}
                                         <Text style={styles.assetSource} numberOfLines={1}>
                                             From {participantLabels.get(item.fromMemberId) ?? 'Unknown team'}
                                             {item.detail ? ` · ${item.detail}` : ''}
@@ -113,8 +111,9 @@ export function MultiTeamTradeOverview({ participants, items, compact = false, c
 const styles = StyleSheet.create({
     root: { gap: spacing.md, minWidth: 0 },
     rootColumns: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start' },
-    section: { minWidth: 0, overflow: 'hidden' },
-    sectionFramed: {
+    section: {
+        minWidth: 0,
+        overflow: 'hidden',
         borderWidth: borderWidth.thin,
         borderColor: colors.borderLight,
         borderRadius: radii.xl,

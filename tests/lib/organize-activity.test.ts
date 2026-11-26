@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import { organizeActivity, type TransactionRow } from '@/lib/transactions'
+import { organizeActivity, tradeActivityPlayerIds, withTradeAverages, type TransactionRow } from '@/lib/transactions'
 
 const at = '2026-11-25T08:00:00.123Z'
 const row = (id: string, transactionType: string, memberId: string | null, playerId: string | null, extra: Partial<TransactionRow> = {}): TransactionRow => ({
@@ -26,4 +26,17 @@ it('merges each FAAB win into its claim and keeps each team together, with lost 
 it('leaves rows from different moments in their order', () => {
     const rows = [row('x', 'fa_add', 'a', 'p1'), row('y', 'fa_drop', 'b', 'p2', { occurredAt: '2026-11-20T00:00:00.000Z' })]
     expect(organizeActivity(rows).map(item => item.id)).toEqual(['x', 'y'])
+})
+
+it('fills completed-trade players with the shared season averages and keeps missing players distinct from zero', () => {
+    const traded = (playerId: string) => ({ kind: 'player' as const, playerId, playerName: playerId, tradeValue: null, fromMemberId: 'a', toMemberId: 'b', fromTeamName: 'A', toTeamName: 'B' })
+    const trade = row('t', 'trade_completed', 'a', null, { tradePlayers: [traded('star'), traded('bench'), traded('rookie')] })
+    const add = row('w', 'fa_add', 'a', 'p1')
+    expect(tradeActivityPlayerIds([add, trade])).toEqual(['bench', 'rookie', 'star'])
+    const stats = { avgMap: new Map([['star', 41.27], ['bench', 0]]), avgStatsMap: new Map([['star', { avg_minutes_played: 34.6 }], ['bench', { avg_minutes_played: 0 }]]) }
+    const [plain, enriched] = withTradeAverages([add, trade], stats as never)
+    expect(plain).toBe(add)
+    expect(enriched.tradePlayers?.map(({ playerId, avgFantasyPoints, avgMinutesPlayed }) => [playerId, avgFantasyPoints, avgMinutesPlayed])).toEqual([
+        ['star', 41.27, 34.6], ['bench', 0, 0], ['rookie', null, null],
+    ])
 })

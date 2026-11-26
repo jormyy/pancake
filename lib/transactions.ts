@@ -1,3 +1,4 @@
+import type { RosterStatsMaps } from '@/lib/roster-stats'
 import type { TradeItem, TradePickItem } from '@/lib/trades'
 
 export { TRANSACTION_LABELS, activityEventCategory } from '@/lib/shared/transaction-labels'
@@ -76,4 +77,19 @@ export function organizeActivity(rows: TransactionRow[]): TransactionRow[] {
     }
     result.push(...organizeBatch(batch))
     return result
+}
+
+export function tradeActivityPlayerIds(rows: TransactionRow[]): string[] {
+    return [...new Set(rows.flatMap(row => row.tradePlayers?.map(player => player.playerId) ?? []))].sort()
+}
+
+export function withTradeAverages(rows: TransactionRow[], stats: RosterStatsMaps): TransactionRow[] {
+    return rows.map(row => row.tradePlayers?.length ? {
+        ...row,
+        tradePlayers: row.tradePlayers.map(player => ({
+            ...player,
+            avgFantasyPoints: stats.avgMap.get(player.playerId) ?? null,
+            avgMinutesPlayed: stats.avgStatsMap.get(player.playerId)?.avg_minutes_played ?? null,
+        })),
+    } : row)
 }

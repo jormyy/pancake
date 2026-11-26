@@ -8,6 +8,7 @@ import { readScreenView , invalidateScreenViews } from '@/lib/cache/screen-cache
 import { screenScope } from '@/lib/cache/screen-scope'
 import { sessionOwner } from '@/lib/session-cache-registry'
 import { mergeAnnouncementActivity, type LeagueAnnouncement } from '@/lib/league-announcements'
+import { useTradeActivityAverages } from '@/hooks/use-trade-activity-averages'
 import type { StandingRow } from '@/lib/scoring'
 import type { WaiverPriorityRow } from '@/lib/waivers'
 import type { TransactionRow } from '@/lib/transactions'
@@ -57,6 +58,7 @@ export function useLeagueTabResources(leagueId: string | undefined, memberId: st
         } catch (cause) { if (request.current === sequence) setActivityLoadMoreError(cause instanceof Error ? cause.message : 'Could not load more activity.') }
         finally { if (request.current === sequence) { pending.current = false; setActivityLoadingMore(false) } }
     }, [scope, authorized, focused, selected.hasMore, tab, view.refreshing])
-    const transactions = useMemo(() => mergeAnnouncementActivity(selected.rows, view.data?.announcements ?? [], selected.hasMore), [selected.rows, selected.hasMore, view.data])
+    const merged = useMemo(() => mergeAnnouncementActivity(selected.rows, view.data?.announcements ?? [], selected.hasMore), [selected.rows, selected.hasMore, view.data])
+    const transactions = useTradeActivityAverages(leagueId, merged)
     return { schedule: view.data?.schedule ?? [], seasons: view.data?.seasons ?? [], activeDraft: view.data?.activeDraft ?? null, activeDraftLoaded: view.loaded, activeDraftError: view.error?.message ?? null, activityHasMore: selected.hasMore, activityLoadMoreError, activityLoadingMore, currentLeaguePicks: view.data?.picks ?? [], ensureTab, invalidateTab, isTabLoading: view.loading, isTabLoaded: view.loaded, isTabRefreshing: view.refreshing, isOnline: !view.offline, loadMoreActivity, mockRooms: view.data?.rooms ?? [], refreshTab, refreshMockRooms, standings: view.data?.standings ?? [], tabError: view.error?.message, transactions, waiverOrder: view.data?.waiverOrder ?? [] }
 }
