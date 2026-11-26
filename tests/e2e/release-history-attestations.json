@@ -3837,6 +3837,13 @@
       "statementCount": 9,
       "statementsSha256": "9af08b72bd1273983199a74bb66daf62371efa542b7225772488a6eedb871176",
       "sha256": "f7ca56a279be436d3c26d3cdcd5f69d265aab790ec79b2dc5f9614f7a20abca2"
+    },
+    {
+      "name": "undo_trade_acceptance_rule",
+      "version": "20261226000000",
+      "statementCount": 10,
+      "statementsSha256": "314b80022fe15ccc66c3af7228df249956fc417c3b5a17abae73e7a901e82e85",
+      "sha256": "b00e750bd27b3f1b1ab5581ed4f1f427909eb7e0625afcab7afce6b70051090b"
     }
   ]
 }

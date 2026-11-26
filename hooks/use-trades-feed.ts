@@ -11,5 +11,10 @@ export function useTradesFeed(memberId: string, leagueId: string, online = true,
             participants: trade.participants.map(participant => participant.memberId === memberId ? { ...participant, dropPlayerIds: plan.dropPlayerIds, rosterMoves: plan.rosterMoves ?? [] } : participant),
         }))
     }, [updateTrades, memberId])
-    return { ...feed, updateRosterPlan }
+    const clearMyAcceptance = useCallback((tradeId: string) => {
+        updateTrades(trades => trades.map(trade => trade.id !== tradeId ? trade : { ...trade,
+            participants: trade.participants.map(participant => participant.memberId === memberId ? { ...participant, acceptedAt: null } : participant),
+        }))
+    }, [updateTrades, memberId])
+    return { ...feed, updateRosterPlan, clearMyAcceptance }
 }

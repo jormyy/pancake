@@ -16,7 +16,7 @@ import { MotionPressable } from '@/components/Motion'
 import { playerEligiblePositions, playerSeasonContextText } from '@/lib/player-context'
 
 import { MultiTeamTradeOverview, type TradeFlowItem } from '@/components/trades/MultiTeamTradeOverview'
-import { tradeDisplayPerspective } from '@/lib/trade-perspective'
+import { canUndoAcceptance, tradeDisplayPerspective } from '@/lib/trade-perspective'
 import type { TradeVetoMode } from '@/types/app'
 import type { TradeTabKey } from '@/lib/trade-ui-model'
 
@@ -42,7 +42,7 @@ export type TradeCardActions = {
     onReject: () => void
     onVeto: () => void
     onWithdraw: () => void
-    onWithdrawAcceptance?: () => void
+    onUndoAcceptance?: () => void
 }
 
 export type TradeCardContext = {
@@ -74,10 +74,7 @@ export function tradeCardModel({ trade, myMemberId, tab, holdReady = false, trad
     const canVeto = tab === 'offers' && !isTradeParty && trade.status === 'accepted' && !trade.myVetoed && canVetoBySettings
     const alreadyVetoed = tab === 'offers' && !isTradeParty && trade.status === 'accepted' && trade.myVetoed && canVetoBySettings
     const canRespond = tab === 'offers' && needsMemberAcceptance(trade, myMemberId)
-    const myParticipant = participants.find((participant) => participant.memberId === myMemberId)
-    const acceptedByMe = myParticipant ? myParticipant.acceptedAt != null : isProposer
-    const unanimous = participants.length > 0 && participants.every((participant) => participant.acceptedAt != null)
-    const canRetractAcceptance = holdReady && tab === 'offers' && trade.status === 'pending' && trade.isMultiTeam && participants.length > 2 && isTradeParty && acceptedByMe && !unanimous
+    const canUndo = holdReady && tab === 'offers' && canUndoAcceptance(trade, myMemberId)
     const canReject = canRespond && (!trade.isMultiTeam || !isProposer)
     const canEdit = tab === 'offers' && isProposer && trade.status === 'pending'
     const meta = [
@@ -103,7 +100,7 @@ export function tradeCardModel({ trade, myMemberId, tab, holdReady = false, trad
         statusColors: TRADE_STATUS_COLORS[trade.status] ?? TRADE_STATUS_COLORS.pending,
         meta,
         canRespond,
-        canRetractAcceptance,
+        canUndoAcceptance: canUndo,
         canReject,
         canEdit,
         canVeto,
@@ -257,12 +254,12 @@ export function TradeActionButtons({
         })
         buttons.push({ key: 'withdraw', label: 'Withdraw', a11y: `Withdraw trade with ${opponent}`, onPress: actions.onWithdraw })
     }
-    if (model.canRetractAcceptance) {
+    if (model.canUndoAcceptance) {
         buttons.push({
-            key: 'withdraw-acceptance',
-            label: 'Withdraw acceptance',
-            a11y: `Withdraw your acceptance of the trade with ${opponent}`,
-            onPress: actions.onWithdrawAcceptance ?? (() => undefined),
+            key: 'undo-acceptance',
+            label: 'Undo acceptance',
+            a11y: `Undo your acceptance of the trade with ${opponent}`,
+            onPress: actions.onUndoAcceptance ?? (() => undefined),
         })
     }
     if (model.canVeto) {
@@ -274,13 +271,13 @@ export function TradeActionButtons({
         })
     }
     if (buttons.length === 0) return null
-    const shared = buttons.length > 1 && buttons.some((button) => button.key === 'withdraw-acceptance')
+    const shared = buttons.length > 1 && buttons.some((button) => button.key === 'undo-acceptance')
     return (
         <View style={[styles.actions, shared && styles.actionsShared]}>
             {buttons.map((button) => (
                 <MotionPressable
                     key={button.key}
-                    style={[styles.actionBtn, shared && styles.actionBtnShared, shared && button.key !== 'withdraw-acceptance' && styles.actionBtnFixed, button.primary ? styles.actionBtnPrimary : styles.actionBtnSecondary, button.key === 'accept' && actions.acceptDisabled && styles.actionBtnDisabled]}
+                    style={[styles.actionBtn, shared && styles.actionBtnShared, shared && button.key !== 'undo-acceptance' && styles.actionBtnFixed, button.primary ? styles.actionBtnPrimary : styles.actionBtnSecondary, button.key === 'accept' && actions.acceptDisabled && styles.actionBtnDisabled]}
                     onPress={button.onPress}
                     disabled={actions.acting || button.key === 'accept' && actions.acceptDisabled}
                     accessibilityRole="button"
@@ -288,7 +285,7 @@ export function TradeActionButtons({
                     accessibilityState={{ disabled: actions.acting || button.key === 'accept' && actions.acceptDisabled }}
                     {...ids(button.key)}
                 >
-                    <Text style={[button.primary ? styles.actionTextPrimary : styles.actionTextSecondary, button.key === 'accept' && actions.acceptDisabled && styles.actionTextDisabled, shared && styles.actionTextShared]} numberOfLines={shared && button.key === 'withdraw-acceptance' ? 2 : 1}>{button.label}</Text>
+                    <Text style={[button.primary ? styles.actionTextPrimary : styles.actionTextSecondary, button.key === 'accept' && actions.acceptDisabled && styles.actionTextDisabled, shared && styles.actionTextShared]} numberOfLines={shared && button.key === 'undo-acceptance' ? 2 : 1}>{button.label}</Text>
                 </MotionPressable>
             ))}
         </View>
@@ -314,7 +311,7 @@ export function TradeCard({
     onReject,
     onVeto,
     onWithdraw,
-    onWithdrawAcceptance,
+    onUndoAcceptance,
     onAnalyze,
     onOpen,
     reviewMode,
@@ -337,7 +334,7 @@ export function TradeCard({
     onReject: () => void
     onVeto: () => void
     onWithdraw: () => void
-    onWithdrawAcceptance?: () => void
+    onUndoAcceptance?: () => void
     /** Opens the Trade Analyzer prefilled with this trade; rendered in the card header. */
     onAnalyze: () => void
     /** Shows the full trade: a side pane on wide screens, a sheet on phones. */
@@ -409,7 +406,7 @@ export function TradeCard({
             {!reviewMode ? <TradeActionButtons
                 trade={trade}
                 model={model}
-                actions={{ acting: acting || decisionsDisabled, reviewBeforeAccept: Boolean(onOpen), onAccept, onReject, onVeto, onWithdraw, onWithdrawAcceptance }}
+                actions={{ acting: acting || decisionsDisabled, reviewBeforeAccept: Boolean(onOpen), onAccept, onReject, onVeto, onWithdraw, onUndoAcceptance }}
                 withTestIds
             /> : null}
         </View>

@@ -31,6 +31,7 @@ export type WaiverClaim = {
 
 export type RosterHoldConflict = {
     tradeId: string
+    version: number
     holderTeamName: string
     partnerTeamNames: string[]
     canWithdraw: boolean

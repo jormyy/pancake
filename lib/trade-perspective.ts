@@ -74,7 +74,7 @@ export function needsMemberAcceptance(
     return trade.recipientMemberId === memberId && trade.proposerMemberId !== memberId
 }
 
-export function canWithdrawAcceptance(
+export function canUndoAcceptance(
     trade: Pick<TradePerspectiveInput, 'status' | 'proposerMemberId' | 'recipientMemberId' | 'participants'>,
     memberId: string,
 ): boolean {

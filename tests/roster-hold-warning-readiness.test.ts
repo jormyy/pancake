@@ -42,10 +42,11 @@ const offerFor = (acceptedMember: string, waitingMember: string) => trade({
 
 const conflict = {
     tradeId: 'trade-1',
+    version: 2,
     holderTeamName: 'Team A',
     partnerTeamNames: ['Team B'],
     canWithdraw: true,
-    message: 'Your accepted trade with Team B needs this roster spot. Add a drop or withdraw your acceptance.',
+    message: 'Your accepted trade with Team B needs this roster spot. Add a drop or undo your acceptance.',
 }
 
 function TradeProbe({ offer, memberId }: { offer: ReturnType<typeof trade>; memberId: string }) {
@@ -58,14 +59,14 @@ function TradeProbe({ offer, memberId }: { offer: ReturnType<typeof trade>; memb
         onReject: vi.fn(),
         onVeto: vi.fn(),
         onWithdraw: vi.fn(),
-        onWithdrawAcceptance: () => actions.retractAcceptance(offer.id),
+        onUndoAcceptance: () => actions.undoAcceptance(offer),
     } })
 }
 
 function ClaimProbe({ memberId }: { memberId: string }) {
     const hold = useRosterHoldCheck({ memberId, addPlayerId: 'target' })
-    return React.createElement(RosterHoldWarning, { conflicts: hold.conflicts, onWithdraw: hold.withdraw,
-        withdrawingTradeId: hold.withdrawingTradeId, notice: hold.withdrawNotice })
+    return React.createElement(RosterHoldWarning, { conflicts: hold.conflicts, onUndoAcceptance: hold.undoAcceptance,
+        undoingTradeId: hold.undoingTradeId, notice: hold.undoNotice })
 }
 
 let renderer: ReactTestRenderer | undefined
@@ -83,7 +84,7 @@ describe('old backend without the roster-hold endpoints', () => {
 
         await act(async () => { renderer = create(React.createElement(TradeProbe, { offer, memberId: 'old-a' })) })
         await flush()
-        expect(labelsOf(renderer!)).not.toContain('Withdraw your acceptance of the trade with 3-team trade')
+        expect(labelsOf(renderer!)).not.toContain('Undo your acceptance of the trade with 3-team trade')
         await act(async () => { renderer!.unmount() })
         renderer = undefined
 
@@ -98,13 +99,13 @@ describe('old backend without the roster-hold endpoints', () => {
         await act(async () => { renderer = create(React.createElement(ClaimProbe, { memberId: 'old-a' })) })
         await flush()
         expect(JSON.stringify(renderer!.toJSON())).not.toContain(conflict.message)
-        expect(labelsOf(renderer!)).not.toContain('Withdraw acceptance of the trade with Team B')
+        expect(labelsOf(renderer!)).not.toContain('Undo acceptance of the trade with Team B')
         expect(mocks.apiPost).not.toHaveBeenCalled()
     })
 })
 
 describe('ready backend with the roster-hold endpoints', () => {
-    it('shows Withdraw acceptance and sends the retract while the other actions stay put', async () => {
+    it('shows Undo acceptance and sends the undo with the offer version while the other actions stay put', async () => {
         mocks.apiReadPost.mockImplementation(async (path: string, body: { addPlayerId?: string }) => {
             if (path !== '/waivers/roster-hold-check') throw new Error(`unexpected ${path}`)
             return body.addPlayerId ? { conflicts: [conflict] } : { conflicts: [] }
@@ -113,14 +114,14 @@ describe('ready backend with the roster-hold endpoints', () => {
 
         await act(async () => { renderer = create(React.createElement(TradeProbe, { offer, memberId: 'ready-a' })) })
         await flush()
-        expect(labelsOf(renderer!)).toContain('Withdraw your acceptance of the trade with 3-team trade')
+        expect(labelsOf(renderer!)).toContain('Undo your acceptance of the trade with 3-team trade')
         await act(async () => {
             renderer!.root.findAllByType(type('Pressable'))
-                .find(node => node.props.accessibilityLabel === 'Withdraw your acceptance of the trade with 3-team trade')!
+                .find(node => node.props.accessibilityLabel === 'Undo your acceptance of the trade with 3-team trade')!
                 .props.onPress()
         })
         await flush()
-        expect(mocks.apiPost).toHaveBeenCalledWith('/trades/trade-1/retract-acceptance', { memberId: 'ready-a' })
+        expect(mocks.apiPost).toHaveBeenCalledWith('/trades/trade-1/retract-acceptance', { memberId: 'ready-a', version: 1 })
         await act(async () => { renderer!.unmount() })
         renderer = undefined
 
@@ -135,13 +136,13 @@ describe('ready backend with the roster-hold endpoints', () => {
         await act(async () => { renderer = create(React.createElement(ClaimProbe, { memberId: 'ready-a' })) })
         await flush()
         expect(JSON.stringify(renderer!.toJSON())).toContain(conflict.message)
-        expect(labelsOf(renderer!)).toContain('Withdraw acceptance of the trade with Team B')
+        expect(labelsOf(renderer!)).toContain('Undo acceptance of the trade with Team B')
         await act(async () => {
             renderer!.root.findAllByType(type('Pressable'))
-                .find(node => node.props.accessibilityLabel === 'Withdraw acceptance of the trade with Team B')!
+                .find(node => node.props.accessibilityLabel === 'Undo acceptance of the trade with Team B')!
                 .props.onPress()
         })
         await flush()
-        expect(mocks.apiPost).toHaveBeenCalledWith('/trades/trade-1/retract-acceptance', { memberId: 'ready-a' })
+        expect(mocks.apiPost).toHaveBeenCalledWith('/trades/trade-1/retract-acceptance', { memberId: 'ready-a', version: 2 })
     })
 })

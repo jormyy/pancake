@@ -1,5 +1,5 @@
 {
-  "syncCommit": "5f146adc9773fce411c7155512af8476a721167d",
+  "syncCommit": "1696d672cb9d372538ddc29a4b7fe8a7c0cd5a90",
   "tlc": {
     "version": "1.7.4",
     "url": "https://github.com/tlaplus/tlaplus/releases/download/v1.7.4/tla2tools.jar",
@@ -62,7 +62,7 @@
   ],
   "migrations": {
     "dir": "supabase/migrations",
-    "through": "20261225000000_player_listed_size_and_draft.sql",
-    "sha256": "e8b2ec5e2b059248275ae4c43907dbbf3ed050a75a19fd7d993f6d3e3ef37f4b"
+    "through": "20261226000000_undo_trade_acceptance_rule.sql",
+    "sha256": "172eccec8605bbf0d0c27177f8582274097cce05b657617824360bed62fefddd"
   }
 }

@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261225000000",
+  "candidateVersion": "20261226000000",
   "common": {
     "functions": [
       {
@@ -2843,6 +2843,10 @@
     {
       "filename": "20261225000000_player_listed_size_and_draft.sql",
       "sha256": "f7ca56a279be436d3c26d3cdcd5f69d265aab790ec79b2dc5f9614f7a20abca2"
+    },
+    {
+      "filename": "20261226000000_undo_trade_acceptance_rule.sql",
+      "sha256": "b00e750bd27b3f1b1ab5581ed4f1f427909eb7e0625afcab7afce6b70051090b"
     }
   ],
   "preMigration": {

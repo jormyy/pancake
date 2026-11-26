@@ -254,11 +254,6 @@
       "count": 25
     }
   },
-  "hooks/use-roster-hold-check.ts": {
-    "pancake/scoped-resource": {
-      "count": 6
-    }
-  },
   "hooks/use-roster-hold-ready.ts": {
     "pancake/scoped-resource": {
       "count": 1

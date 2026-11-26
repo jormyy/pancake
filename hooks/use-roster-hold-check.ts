@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { useScope } from '@/hooks/use-scope'
 import { checkRosterHold, rosterHoldPartnerLabel, type RosterHoldConflict } from '@/lib/waivers'
 import { confirmAction, showAlert } from '@/lib/alert'
 import { getErrorMessage } from '@/lib/shared/errors'
@@ -20,13 +21,13 @@ export function useRosterHoldCheck({
 }) {
     const [conflicts, setConflicts] = useState<RosterHoldConflict[]>([])
     const [checking, setChecking] = useState(false)
-    const [withdrawingTradeId, setWithdrawingTradeId] = useState<string | null>(null)
-    const [withdrawNotice, setWithdrawNotice] = useState<string | null>(null)
-    const sequence = useRef(0)
+    const [undoingTradeId, setUndoingTradeId] = useState<string | null>(null)
+    const [undoNotice, setUndoNotice] = useState<string | null>(null)
+    const scope = useScope(memberId)
     const dropKey = (dropPlayerIds ?? []).join(',')
 
     const run = useCallback(async () => {
-        const requestId = ++sequence.current
+        const ticket = scope.latest()
         if (!enabled || !memberId) {
             setConflicts([])
             setChecking(false)
@@ -40,42 +41,46 @@ export function useRosterHoldCheck({
                 toIr,
                 toTaxi,
             })
-            if (sequence.current === requestId) setConflicts(next)
+            ticket.commit(() => setConflicts(next))
             return next
         } catch {
-            if (sequence.current === requestId) setConflicts([])
+            ticket.commit(() => setConflicts([]))
             return []
         } finally {
-            if (sequence.current === requestId) setChecking(false)
+            ticket.commit(() => setChecking(false))
         }
-    }, [addPlayerId, dropKey, enabled, memberId, toIr, toTaxi])
+    }, [addPlayerId, dropKey, enabled, memberId, scope, toIr, toTaxi])
 
     useEffect(() => { void run() }, [run])
-    useEffect(() => () => { sequence.current += 1 }, [])
     useEffect(() => {
-        if (!withdrawNotice) return
-        const timer = setTimeout(() => setWithdrawNotice(null), 5000)
+        if (!undoNotice) return
+        const timer = setTimeout(() => setUndoNotice(null), 5000)
         return () => clearTimeout(timer)
-    }, [withdrawNotice])
+    }, [undoNotice])
 
-    const withdraw = useCallback((tradeId: string, partnerTeamNames: string[] = []) => {
+    const undoAcceptance = useCallback((conflict: RosterHoldConflict) => {
         if (!memberId) return
-        const label = rosterHoldPartnerLabel(partnerTeamNames)
+        const label = rosterHoldPartnerLabel(conflict.partnerTeamNames)
         const withLabel = label ? ` with ${label}` : ''
-        confirmAction('Withdraw acceptance', `Withdraw your acceptance of the trade${withLabel}? Other teams keep their answers and you can accept again.`, async () => {
-            setWithdrawingTradeId(tradeId)
+        confirmAction('Undo acceptance', `Undo your acceptance of the trade${withLabel}? The offer stays open, other teams keep their answers, and you can accept again.`, async () => {
+            const ticket = scope.ticket()
+            setUndoingTradeId(conflict.tradeId)
             try {
-                const { retractTradeAcceptance } = await import('@/lib/trades')
-                await retractTradeAcceptance(tradeId, memberId)
-                setWithdrawNotice(`Acceptance withdrawn. Your trade${withLabel} stays open.`)
+                const { undoTradeAcceptance } = await import('@/lib/trades')
+                await undoTradeAcceptance(conflict.tradeId, memberId, conflict.version)
+                ticket.commit(() => {
+                    setConflicts((current) => current.filter((row) => row.tradeId !== conflict.tradeId))
+                    setUndoNotice(`Acceptance undone. Your trade${withLabel} stays open.`)
+                })
                 await run()
             } catch (error) {
-                showAlert('Error', getErrorMessage(error))
+                if (ticket.live()) showAlert('Error', getErrorMessage(error))
+                await run()
             } finally {
-                setWithdrawingTradeId(null)
+                ticket.commit(() => setUndoingTradeId(null))
             }
-        }, 'Withdraw acceptance')
-    }, [memberId, run])
+        }, 'Undo acceptance')
+    }, [memberId, run, scope])
 
-    return { conflicts, checking, recheck: run, withdraw, withdrawingTradeId, withdrawNotice }
+    return { conflicts, checking, recheck: run, undoAcceptance, undoingTradeId, undoNotice }
 }

@@ -594,6 +594,7 @@ export async function handleTradeRoute(req: Request, path: string): Promise<Resp
       p_trade_id: action.tradeId,
       p_member_id: memberId,
       p_user_id: userId,
+      p_expected_version: optionalIntegerField(body, 'version', { min: 1 }) ?? undefined,
     })
     if (error) throwDb(error)
     return json({ ok: true, tradeId: action.tradeId })

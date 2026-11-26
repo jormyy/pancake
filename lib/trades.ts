@@ -497,8 +497,8 @@ export async function withdrawTrade(tradeId: string, memberId: string): Promise<
     await apiPost(`/trades/${tradeId}/withdraw`, { memberId })
 }
 
-export async function retractTradeAcceptance(tradeId: string, memberId: string): Promise<void> {
-    await apiPost(`/trades/${tradeId}/retract-acceptance`, { memberId })
+export async function undoTradeAcceptance(tradeId: string, memberId: string, version: number): Promise<void> {
+    await apiPost(`/trades/${tradeId}/retract-acceptance`, { memberId, version })
 }
 
 export async function vetoTrade(tradeId: string, memberId: string): Promise<void> {

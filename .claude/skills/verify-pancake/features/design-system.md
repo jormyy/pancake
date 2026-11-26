@@ -31,7 +31,7 @@ Preconditions:
   - Lineup: Roster, Edit lineup and pins, the Player008 pin trigger on phones, Pin E2E Player008 to start. Require Player008 in a starter slot.
   - Matchup: League, Schedule, Open Week 6. Require the matchup with both teams.
   - Claim: Players, Open E2E Player052, Claim, Submit waiver claim. Require the Claim Submitted toast.
-  - Trade: Trades, Accept trade with E2E Team 2, Accept. Require the offer under Outgoing with Withdraw acceptance.
+  - Trade: Trades, Accept trade with E2E Team 2, Accept. Require the two-team trade accepted with no Undo acceptance button.
 
 ## Gotchas
 

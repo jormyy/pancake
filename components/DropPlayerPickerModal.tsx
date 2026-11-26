@@ -26,13 +26,13 @@ type Props = {
     onAdd?: () => void
     onAddToTaxi?: () => void
     holdConflicts?: RosterHoldConflict[]
-    onWithdrawHold?: (tradeId: string, partnerTeamNames: string[]) => void
-    withdrawingHoldTradeId?: string | null
+    onUndoHold?: (conflict: RosterHoldConflict) => void
+    undoingHoldTradeId?: string | null
     holdNotice?: string | null
     onCancel: () => void
 }
 
-export function DropPlayerPickerModal({ visible, title, roster, dropping, onDrop, onCancel, irMoveCandidates = [], onMoveToIR, onAdd, onAddToTaxi, holdConflicts = [], onWithdrawHold, withdrawingHoldTradeId = null, holdNotice = null, destinations }: Props) {
+export function DropPlayerPickerModal({ visible, title, roster, dropping, onDrop, onCancel, irMoveCandidates = [], onMoveToIR, onAdd, onAddToTaxi, holdConflicts = [], onUndoHold, undoingHoldTradeId = null, holdNotice = null, destinations }: Props) {
     const dropGroups = useMemo(() => groupRosterOptions(orderRosterOptions(roster)), [roster])
     const irOptions = useMemo(() => orderRosterOptions(irMoveCandidates), [irMoveCandidates])
     const close = () => {
@@ -41,7 +41,7 @@ export function DropPlayerPickerModal({ visible, title, roster, dropping, onDrop
     return (
         <Sheet visible={visible} onClose={close} title={title}>
             <Text style={styles.subtitle}>{onAdd ? 'Choose where to add this player.' : 'Roster full'}</Text>
-            <RosterHoldWarning conflicts={holdConflicts} onWithdraw={onWithdrawHold} withdrawingTradeId={withdrawingHoldTradeId} notice={holdNotice} />
+            <RosterHoldWarning conflicts={holdConflicts} onUndoAcceptance={onUndoHold} undoingTradeId={undoingHoldTradeId} notice={holdNotice} />
             {onAdd || onAddToTaxi ? <View style={styles.row}>
                 {onAdd ? <Button title="Add" onPress={onAdd} disabled={dropping !== null || holdConflicts.length > 0} /> : null}
                 {onAddToTaxi ? <Button title="Add to taxi" onPress={onAddToTaxi} disabled={dropping !== null || holdConflicts.length > 0} /> : null}

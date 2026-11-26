@@ -471,9 +471,9 @@ function PlayerSearchSection() {
                 irMoveCandidates={quickAdd.irMoveCandidates}
                 onMoveToIR={quickAdd.handleMoveToIRAndAdd}
                 holdConflicts={holdCheck.conflicts}
-                onWithdrawHold={holdCheck.withdraw}
-                withdrawingHoldTradeId={holdCheck.withdrawingTradeId}
-                holdNotice={holdCheck.withdrawNotice}
+                onUndoHold={holdCheck.undoAcceptance}
+                undoingHoldTradeId={holdCheck.undoingTradeId}
+                holdNotice={holdCheck.undoNotice}
                 onCancel={() => quickAdd.setDropPickerPlayer(null)}
             />
 

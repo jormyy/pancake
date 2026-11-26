@@ -415,7 +415,7 @@ export default function ClaimPlayerScreen() {
 
     function renderHoldWarning() {
         return <RosterHoldWarning conflicts={holdCheck.conflicts} onPickDrop={myRoster.length > 0 ? focusDropChooser : undefined}
-            onWithdraw={holdCheck.withdraw} withdrawingTradeId={holdCheck.withdrawingTradeId} notice={holdCheck.withdrawNotice} />
+            onUndoAcceptance={holdCheck.undoAcceptance} undoingTradeId={holdCheck.undoingTradeId} notice={holdCheck.undoNotice} />
     }
 
     function renderClaimSummary() {

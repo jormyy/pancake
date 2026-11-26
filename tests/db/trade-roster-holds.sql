@@ -103,7 +103,7 @@ BEGIN
   PERFORM pg_temp.reject_immediate(
     format('INSERT INTO public.roster_players(league_id,league_season_id,member_id,player_id,acquired_via) VALUES(%L,%L,%L,%L,''verification'')',
       f.league_id, f.season_id, f.member_ids[1], p5),
-    '%Your accepted trade with Rules team 2 needs this roster spot. Drop a player or withdraw your acceptance.%',
+    '%Your accepted trade with Rules team 2 needs this roster spot. Drop a player or withdraw your offer.%',
     'the proposer hold blocks a roster growth');
   PERFORM pg_temp.check_rules(
     NOT EXISTS (SELECT 1 FROM public.roster_players WHERE league_id = f.league_id AND player_id = p5),
@@ -213,7 +213,7 @@ BEGIN
     'overlapping pending holds do not add together');
   PERFORM pg_temp.reject_rules(
     format('SELECT public.accept_trade_atomic(%L,%L)', offer_one, f.member_ids[3]),
-    '%Rules team 1''s accepted trade with Rules team 2 and Rules team 3 needs the roster spot this trade would use. Rules team 1 has to make room or withdraw that acceptance first.%',
+    '%Rules team 1''s accepted trade with Rules team 2 and Rules team 3 needs the roster spot this trade would use. Rules team 1 has to make room or undo that acceptance first.%',
     'a unanimous-making acceptance is blocked when another hold no longer fits');
   PERFORM pg_temp.check_rules(
     (SELECT status = 'pending' FROM public.trades WHERE id = offer_one)
@@ -233,7 +233,7 @@ BEGIN
     'reacceptance after a retraction completes the trade');
   PERFORM pg_temp.reject_rules(
     format('SELECT public.retract_trade_acceptance_atomic(%L,%L,%L)', offer_one, f.member_ids[1], f.user_ids[1]),
-    '%Every team has accepted this trade, so acceptance can no longer be withdrawn.%',
+    '%Every team has accepted this trade, so acceptance can no longer be undone.%',
     'a stale retraction after unanimity is rejected');
   PERFORM pg_temp.reject_rules(
     format('SELECT public.retract_trade_acceptance_atomic(%L,%L,%L)', offer_two, f.member_ids[3], f.user_ids[3]),
@@ -297,7 +297,7 @@ BEGIN
   claims_before := (SELECT count(*) FROM public.waiver_claims WHERE league_id = f.league_id);
   PERFORM pg_temp.reject_rules(
     format('SELECT public.create_waiver_claim_atomic(%L,%L,%L,NULL,%L,0)', f.league_id, f.member_ids[1], p5, f.user_ids[1]),
-    '%Your accepted trade with Rules team 2 needs this roster spot. Add a drop or withdraw your acceptance.%',
+    '%Your accepted trade with Rules team 2 needs this roster spot. Add a drop or withdraw your offer.%',
     'a waiver claim without a drop is blocked by the hold');
   PERFORM pg_temp.check_rules(
     (SELECT count(*) FROM public.waiver_claims WHERE league_id = f.league_id) = claims_before,
@@ -305,7 +305,7 @@ BEGIN
   PERFORM pg_temp.reject_immediate(
     format('INSERT INTO public.roster_players(league_id,league_season_id,member_id,player_id,acquired_via) VALUES(%L,%L,%L,%L,''verification'')',
       f.league_id, f.season_id, f.member_ids[1], p5),
-    '%Your accepted trade with Rules team 2 needs this roster spot. Drop a player or withdraw your acceptance.%',
+    '%Your accepted trade with Rules team 2 needs this roster spot. Drop a player or withdraw your offer.%',
     'a roster growth is blocked by the hold');
   PERFORM pg_temp.check_rules(
     (SELECT count(*) FROM public.roster_players WHERE league_id = f.league_id AND member_id = f.member_ids[1]) = roster_before
@@ -314,7 +314,7 @@ BEGIN
   PERFORM pg_temp.reject_immediate(
     format('SELECT public.toggle_ir_atomic(%L,false,%L)',
       (SELECT id FROM public.roster_players WHERE league_id = f.league_id AND player_id = p6), f.user_ids[1]),
-    '%Your accepted trade with Rules team 2 needs this roster spot. Drop a player or withdraw your acceptance.%',
+    '%Your accepted trade with Rules team 2 needs this roster spot. Drop a player or withdraw your offer.%',
     'an IR return is blocked by the hold');
   PERFORM pg_temp.check_rules(
     (SELECT is_on_ir FROM public.roster_players WHERE league_id = f.league_id AND player_id = p6),
@@ -322,7 +322,7 @@ BEGIN
   PERFORM pg_temp.reject_immediate(
     format('SELECT public.toggle_taxi_atomic(%L,false,%L)',
       (SELECT id FROM public.roster_players WHERE league_id = f.league_id AND player_id = p7), f.user_ids[1]),
-    '%Your accepted trade with Rules team 2 needs this roster spot. Drop a player or withdraw your acceptance.%',
+    '%Your accepted trade with Rules team 2 needs this roster spot. Drop a player or withdraw your offer.%',
     'a taxi return is blocked by the hold');
   PERFORM pg_temp.check_rules(
     (SELECT is_on_taxi FROM public.roster_players WHERE league_id = f.league_id AND player_id = p7),
@@ -579,7 +579,6 @@ DECLARE
   p3 uuid := gen_random_uuid();
   p4 uuid := gen_random_uuid();
   v_trade_id uuid;
-  items jsonb;
 BEGIN
   SELECT * INTO f FROM pg_temp.rules_fixture(2, 9710);
   UPDATE public.leagues
@@ -593,24 +592,121 @@ BEGIN
     VALUES (f.league_id, f.season_id, f.member_ids[1], p1, 'verification'),
            (f.league_id, f.season_id, f.member_ids[2], p2, 'verification'),
            (f.league_id, f.season_id, f.member_ids[2], p3, 'verification');
-  items := jsonb_build_array(
-    jsonb_build_object('fromMemberId', f.member_ids[2], 'toMemberId', f.member_ids[1], 'playerId', p2),
-    jsonb_build_object('fromMemberId', f.member_ids[1], 'toMemberId', f.member_ids[2], 'faabAmount', 5));
   v_trade_id := public.propose_trade_atomic(
     f.league_id, f.season_id, f.member_ids[1], f.member_ids[2],
     '{}'::uuid[], ARRAY[p2], '{}'::uuid[], '{}'::uuid[], NULL, NULL, 5, 0);
-  PERFORM public.retract_trade_acceptance_atomic(v_trade_id, f.member_ids[1], f.user_ids[1]);
+  PERFORM pg_temp.check_rules(
+    NOT private.can_undo_trade_acceptance(v_trade_id, f.member_ids[1])
+    AND (public.trade_roster_hold_check(f.member_ids[1], f.user_ids[1], p4)->0->>'canWithdraw')::boolean = false,
+    'a two-team proposer cannot undo and the roster warning offers no undo');
+  PERFORM pg_temp.reject_rules(
+    format('SELECT public.retract_trade_acceptance_atomic(%L,%L,%L,1)', v_trade_id, f.member_ids[1], f.user_ids[1]),
+    '%Undo acceptance is only for trades with three or more teams.%',
+    'a two-team undo is rejected');
   PERFORM pg_temp.check_rules(
     (SELECT status = 'pending' FROM public.trades WHERE id = v_trade_id)
-    AND (SELECT accepted_at IS NULL FROM public.trade_participants
-      WHERE trade_participants.trade_id = v_trade_id AND member_id = f.member_ids[1])
-    AND (SELECT jsonb_array_length(public.trade_roster_hold_check(f.member_ids[1], f.user_ids[1])) = 0),
-    'a proposer retraction releases the hold and keeps the trade pending');
-  PERFORM public.accept_trade_atomic(v_trade_id, f.member_ids[1]);
-  PERFORM pg_temp.check_rules(
-    (SELECT accepted_at IS NOT NULL FROM public.trade_participants
+    AND (SELECT accepted_at IS NOT NULL FROM public.trade_participants
       WHERE trade_participants.trade_id = v_trade_id AND member_id = f.member_ids[1]),
-    'the proposer can accept again after retracting');
+    'the rejected two-team undo keeps the offer and the acceptance');
+  PERFORM public.withdraw_trade_atomic(v_trade_id, f.member_ids[1], f.user_ids[1]);
+  PERFORM pg_temp.check_rules(
+    (SELECT status = 'withdrawn' FROM public.trades WHERE id = v_trade_id)
+    AND (SELECT jsonb_array_length(public.trade_roster_hold_check(f.member_ids[1], f.user_ids[1])) = 0),
+    'withdrawing the two-team offer releases the hold');
+END $$;
+
+DO $$
+DECLARE
+  f record;
+  v_players uuid[];
+  v1 uuid;
+  v2 uuid;
+  v3 uuid;
+  items jsonb;
+  stamp_one timestamptz;
+  items_before jsonb;
+BEGIN
+  SELECT * INTO f FROM pg_temp.rules_fixture(3, 9715);
+  UPDATE public.leagues
+     SET roster_size = 20, ir_slots = 0, taxi_slots = 0,
+         trade_veto_mode = 'disabled', trade_veto_window_hours = 0,
+         allow_inactive_trades = true
+   WHERE id = f.league_id;
+  SELECT array_agg(gen_random_uuid()) INTO v_players FROM generate_series(1, 6);
+  INSERT INTO public.players(id, first_name, last_name, position, eligible_positions)
+    SELECT id, 'Undo', id::text, 'PG', ARRAY['PG'] FROM unnest(v_players) id;
+  INSERT INTO public.roster_players(league_id, league_season_id, member_id, player_id, acquired_via)
+    VALUES (f.league_id, f.season_id, f.member_ids[1], v_players[1], 'verification'),
+           (f.league_id, f.season_id, f.member_ids[2], v_players[2], 'verification'),
+           (f.league_id, f.season_id, f.member_ids[3], v_players[3], 'verification'),
+           (f.league_id, f.season_id, f.member_ids[3], v_players[4], 'verification'),
+           (f.league_id, f.season_id, f.member_ids[1], v_players[5], 'verification'),
+           (f.league_id, f.season_id, f.member_ids[2], v_players[6], 'verification');
+  items := jsonb_build_array(
+    jsonb_build_object('fromMemberId', f.member_ids[1], 'toMemberId', f.member_ids[2], 'playerId', v_players[1]),
+    jsonb_build_object('fromMemberId', f.member_ids[2], 'toMemberId', f.member_ids[3], 'playerId', v_players[2]),
+    jsonb_build_object('fromMemberId', f.member_ids[3], 'toMemberId', f.member_ids[1], 'playerId', v_players[3]));
+  v1 := public.propose_multi_team_trade_atomic(
+    f.league_id, f.season_id, f.member_ids[1], ARRAY[f.member_ids[2], f.member_ids[3]], items);
+  PERFORM public.accept_trade_atomic(v1, f.member_ids[2]);
+  PERFORM pg_temp.reject_rules(
+    format('SELECT public.retract_trade_acceptance_atomic(%L,%L,%L,1)', v1, f.member_ids[3], f.user_ids[3]),
+    '%You have not accepted this trade.%',
+    'a team that has not accepted cannot undo');
+  v2 := private.replace_multi_team_trade_offer(
+    v1, f.member_ids[1], f.user_ids[1], 'edit', ARRAY[f.member_ids[2], f.member_ids[3]],
+    items || jsonb_build_array(jsonb_build_object('fromMemberId', f.member_ids[3], 'toMemberId', f.member_ids[2], 'playerId', v_players[4])));
+  PERFORM pg_temp.check_rules(
+    (SELECT version = 2 AND status = 'pending' FROM public.trades WHERE id = v2)
+    AND (SELECT status = 'edited' FROM public.trades WHERE id = v1),
+    'the edit creates version 2');
+  PERFORM public.accept_trade_atomic(v2, f.member_ids[2]);
+  PERFORM pg_temp.check_rules(
+    private.can_undo_trade_acceptance(v2, f.member_ids[2])
+    AND private.can_undo_trade_acceptance(v2, f.member_ids[1])
+    AND NOT private.can_undo_trade_acceptance(v2, f.member_ids[3]),
+    'the rule allows each accepted team while the third team decides');
+  stamp_one := (SELECT accepted_at FROM public.trade_participants WHERE trade_id = v2 AND member_id = f.member_ids[1]);
+  items_before := (SELECT jsonb_agg(to_jsonb(item) ORDER BY item.id) FROM public.trade_items item WHERE item.trade_id = v2);
+  PERFORM pg_temp.reject_rules(
+    format('SELECT public.retract_trade_acceptance_atomic(%L,%L,%L,1)', v1, f.member_ids[2], f.user_ids[2]),
+    '%This offer changed. Reopen it to see the current version.%',
+    'an undo from the replaced offer is rejected');
+  PERFORM pg_temp.reject_rules(
+    format('SELECT public.retract_trade_acceptance_atomic(%L,%L,%L,1)', v2, f.member_ids[2], f.user_ids[2]),
+    '%This offer changed. Reopen it to see the current version.%',
+    'an undo carrying the old version is rejected');
+  PERFORM pg_temp.check_rules(
+    (SELECT count(*) = 2 FROM public.trade_participants WHERE trade_id = v2 AND accepted_at IS NOT NULL),
+    'stale undos keep the version 2 acceptances');
+  PERFORM public.retract_trade_acceptance_atomic(v2, f.member_ids[2], f.user_ids[2], 2);
+  PERFORM pg_temp.check_rules(
+    (SELECT status = 'pending' FROM public.trades WHERE id = v2)
+    AND (SELECT accepted_at IS NULL FROM public.trade_participants WHERE trade_id = v2 AND member_id = f.member_ids[2])
+    AND (SELECT accepted_at = stamp_one FROM public.trade_participants WHERE trade_id = v2 AND member_id = f.member_ids[1])
+    AND (SELECT jsonb_agg(to_jsonb(item) ORDER BY item.id) FROM public.trade_items item WHERE item.trade_id = v2) = items_before,
+    'undo clears only the caller and keeps the offer and the other acceptance');
+  PERFORM public.accept_trade_atomic(v2, f.member_ids[2]);
+  PERFORM public.accept_trade_atomic(v2, f.member_ids[3]);
+  PERFORM pg_temp.reject_rules(
+    format('SELECT public.retract_trade_acceptance_atomic(%L,%L,%L,2)', v2, f.member_ids[2], f.user_ids[2]),
+    '%Every team has accepted this trade, so acceptance can no longer be undone.%',
+    'an undo after the final acceptance is rejected');
+  PERFORM pg_temp.check_rules(
+    (SELECT status = 'accepted' FROM public.trades WHERE id = v2)
+    AND (SELECT count(*) = 3 FROM public.trade_participants WHERE trade_id = v2 AND accepted_at IS NOT NULL),
+    'the accepted trade keeps every acceptance');
+  v3 := public.propose_multi_team_trade_atomic(
+    f.league_id, f.season_id, f.member_ids[1], ARRAY[f.member_ids[2], f.member_ids[3]], jsonb_build_array(
+      jsonb_build_object('fromMemberId', f.member_ids[1], 'toMemberId', f.member_ids[2], 'playerId', v_players[5]),
+      jsonb_build_object('fromMemberId', f.member_ids[2], 'toMemberId', f.member_ids[3], 'playerId', v_players[6]),
+      jsonb_build_object('fromMemberId', f.member_ids[3], 'toMemberId', f.member_ids[1], 'faabAmount', 1)));
+  PERFORM public.accept_trade_atomic(v3, f.member_ids[2]);
+  PERFORM public.withdraw_trade_atomic(v3, f.member_ids[1], f.user_ids[1]);
+  PERFORM pg_temp.reject_rules(
+    format('SELECT public.retract_trade_acceptance_atomic(%L,%L,%L,1)', v3, f.member_ids[2], f.user_ids[2]),
+    '%This trade is no longer pending.%',
+    'an undo on a withdrawn trade is rejected');
 END $$;
 
 DO $$
@@ -713,7 +809,7 @@ BEGIN
     AND (v_conflict->0->>'canWithdraw')::boolean = true,
     'the conflict names the holder and its partners');
   PERFORM pg_temp.check_rules(
-    (v_conflict->0->>'message') = 'Rules team 1''s accepted trade with Rules team 2, Rules team 3 and Rules team 4 needs the roster spot this trade would use. Rules team 1 has to make room or withdraw that acceptance first.',
+    (v_conflict->0->>'message') = 'Rules team 1''s accepted trade with Rules team 2, Rules team 3 and Rules team 4 needs the roster spot this trade would use. Rules team 1 has to make room or undo that acceptance first.',
     'the actor-perspective message names the holder and its partners');
   PERFORM pg_temp.check_rules(
     (SELECT accepted_at IS NULL FROM public.trade_participants

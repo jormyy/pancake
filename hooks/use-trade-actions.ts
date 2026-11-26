@@ -1,6 +1,6 @@
 import { tradeAcceptanceSummary } from '@/components/trades/acceptance-summary'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { acceptTrade, getTradeRosterPreview, retractTradeAcceptance, setTradeRosterPlan, setTradeTaxiDestinations, rejectTrade, vetoTrade, withdrawTrade, type Trade, type TradeRosterPlan } from '@/lib/trades'
+import { acceptTrade, getTradeRosterPreview, undoTradeAcceptance, setTradeRosterPlan, setTradeTaxiDestinations, rejectTrade, vetoTrade, withdrawTrade, type Trade, type TradeRosterPlan } from '@/lib/trades'
 import { confirmAction, showAlert } from '@/lib/alert'
 import type { TradeVetoMode } from '@/types/app'
 import { getErrorMessage } from '@/lib/shared/errors'
@@ -11,6 +11,7 @@ export function useTradeActions({
     leagueId,
     onAction,
     onRosterPlanSaved,
+    onAcceptanceUndone,
     beforeAccept,
     onRosterError,
     enabled = true,
@@ -21,6 +22,7 @@ export function useTradeActions({
     beforeAccept?: () => Promise<boolean>
     onRosterError?: (error: unknown) => Promise<boolean>
     onRosterPlanSaved?: (tradeId: string, plan: TradeRosterPlan) => void
+    onAcceptanceUndone?: (tradeId: string) => void
     enabled?: boolean
     tradeVetoMode?: TradeVetoMode
     tradeVetoWindowHours?: number
@@ -121,16 +123,20 @@ export function useTradeActions({
         confirmAction('Withdraw Trade', 'Are you sure you want to withdraw this offer?',
             () => runTerminalAction(tradeId, withdrawTrade, 'Could not withdraw trade.'), 'Withdraw')
     }, [runTerminalAction])
-    const retractAcceptance = useCallback((tradeId: string) => {
-        confirmAction('Withdraw acceptance', 'Withdraw your acceptance of this trade? Other teams keep their answers and you can accept again.',
-            () => runTerminalAction(tradeId, retractTradeAcceptance, 'Could not withdraw acceptance.', {
+    const undoAcceptance = useCallback((trade: Trade) => {
+        confirmAction('Undo acceptance', 'Undo your acceptance of this trade? The offer stays open, other teams keep their answers, and you can accept again.',
+            () => runTerminalAction(trade.id, (tradeId, ownMemberId) => undoTradeAcceptance(tradeId, ownMemberId, trade.version), 'Could not undo acceptance.', {
+                onComplete: () => {
+                    onAcceptanceUndone?.(trade.id)
+                    return onAction()
+                },
                 onError: async (error) => {
-                    showAlert('Error', getErrorMessage(error) ?? 'Could not withdraw acceptance.')
+                    showAlert('Error', getErrorMessage(error) ?? 'Could not undo acceptance.')
                     await Promise.resolve().then(onAction).catch(() => undefined)
                     return true
                 },
-            }), 'Withdraw acceptance')
-    }, [onAction, runTerminalAction])
+            }), 'Undo acceptance')
+    }, [onAcceptanceUndone, onAction, runTerminalAction])
     const veto = useCallback((tradeId: string) => {
         confirmAction('Veto Trade', 'Are you sure you want to veto this accepted trade?',
             () => runTerminalAction(tradeId, vetoTrade, 'Could not veto trade.'), 'Veto')
@@ -142,7 +148,7 @@ export function useTradeActions({
         setRosterPlan,
         busyTradeId,
         reject,
-        retractAcceptance,
+        undoAcceptance,
         veto,
         withdraw,
     }
