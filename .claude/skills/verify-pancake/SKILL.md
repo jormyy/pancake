@@ -227,17 +227,16 @@ The seeder prints the trade, claim, and player ids as JSON; read them from that 
 Run the database recipes first: `npm run test:db:trade-roster-holds` and `npm run test:db:trade-roster-holds-concurrency`.
 The recipe proves the hold starts at acceptance, the proposer is held on send, overlapping pending offers do not add, every blocked write path names its conflict, and every terminal state releases the hold.
 When the change touches acceptance, holds, the roster capacity trigger, or waiver claims, also run `npm run check:formal:trade-roster-holds` and `npm run test:db:trade-hold-model-replay`, as [formal-trade-roster-holds](../formal-trade-roster-holds/SKILL.md) describes.
-The concurrency recipe races final acceptance against retraction in both orders and accepts only a unanimous accepted trade or a pending trade without a cleared unanimous acceptance.
+The concurrency recipe races the last team's acceptance against another team's Undo acceptance on three-team offers and accepts only a unanimous accepted trade or a pending trade with only that team's acceptance cleared.
 
 For `three-team`, the near-full team has accepted and the middle team has accepted; the full team still has to accept.
 Sign in as the full team, open the offer, and require the roster-hold warning to name the accepted trade and offer a drop or a withdrawal.
 Add a drop, accept, and require `trades.status='accepted'` plus the planned drop in `trade_participants.drop_player_ids`.
-Retract the acceptance from the offer screen and require `accepted_at` cleared, the trade still pending, and the other acceptances kept.
-Accept again and require the trade to become accepted.
+Before the full team accepts, sign in as the middle team, tap Undo acceptance, and require its `accepted_at` cleared, the trade still pending, and the proposer's acceptance kept. Accept again as the middle team, then as the full team, and require the trade to become accepted.
 
 For `overlapping`, the same team has accepted two pending offers.
 Require both offers to show that team accepted and neither hold to add to the other.
-Make one offer unanimous and require the 409 `roster_hold` response with the other offer's conflict, then retract the other acceptance and require the first offer to complete.
+Make one offer unanimous and require the 409 `roster_hold` response with the other offer's conflict, then have the other offer's proposer withdraw it and require the first offer to complete. Two-team offers have no Undo acceptance.
 
 For `waiver-before-hold`, a waiver claim was entered before the trade hold existed.
 Run the waiver processor and require the claim to fail with the roster-hold message, no FAAB or priority change, and the next claim to proceed.

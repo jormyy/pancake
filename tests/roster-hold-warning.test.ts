@@ -30,7 +30,7 @@ vi.mock('@/lib/roster', () => ({ getRoster: mocks.read }))
 vi.mock('@/lib/players', () => ({ getPlayer: async () => ({ id: 'target', display_name: 'Target', injury_status: null }) }))
 vi.mock('@/lib/waivers', () => ({ claimProcessDateLabel: () => 'Tomorrow', claimProcessTimeLabel: () => 'tomorrow', getMyWaiverPriority: async () => 1, scheduledClaimLabel: () => 'Tomorrow', getWaiverClearsAt: async () => null, submitWaiverClaim: mocks.claim, checkRosterHold: mocks.checkRosterHold,
     rosterHoldPartnerLabel: (names: string[]) => names.length === 0 ? '' : names.length === 1 ? names[0] : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}` }))
-vi.mock('@/lib/trades', () => ({ retractTradeAcceptance: mocks.retract }))
+vi.mock('@/lib/trades', () => ({ undoTradeAcceptance: mocks.retract }))
 vi.mock('@/lib/roster-add-flow', () => ({ loadAddLimitState: async () => null }))
 vi.mock('@/lib/format', () => ({ isIneligibleIR: () => false, playerHeadshotUrl: () => null }))
 vi.mock('@/lib/alert', () => ({ showAlert: mocks.alert, showSuccess: vi.fn(), confirmAction: mocks.confirm }))
@@ -41,10 +41,11 @@ vi.mock('@/components/IRResolutionModal', () => ({ IRResolutionModal: 'IRResolut
 
 const conflict = {
     tradeId: 'trade-1',
+    version: 2,
     holderTeamName: 'Team A',
     partnerTeamNames: ['Team B'],
     canWithdraw: true,
-    message: 'Your accepted trade with Team B needs this roster spot. Add a drop or withdraw your acceptance.',
+    message: 'Your accepted trade with Team B needs this roster spot. Add a drop or undo your acceptance.',
 }
 const type = (value: string) => value as React.ElementType
 let screen: ReactTestRenderer | undefined
@@ -69,19 +70,19 @@ it('shows each hold conflict inline and disables submit until it clears', async 
     expect(mocks.checkRosterHold).toHaveBeenCalledWith('member', { addPlayerId: 'target', dropPlayerIds: [], toIr: false, toTaxi: false })
 })
 
-it('withdraws the acceptance, rechecks, and re-enables submit', async () => {
+it('undoes the acceptance, rechecks, and re-enables submit', async () => {
     mocks.checkRosterHold.mockResolvedValueOnce([conflict]).mockResolvedValue([])
     await act(async () => { screen = create(React.createElement(ClaimPlayerScreen)) })
-    const withdraw = screen!.root.findByProps({ accessibilityLabel: 'Withdraw acceptance of the trade with Team B' })
-    await act(async () => { withdraw.props.onPress() })
+    const undo = screen!.root.findByProps({ accessibilityLabel: 'Undo acceptance of the trade with Team B' })
+    await act(async () => { undo.props.onPress() })
     await flush()
-    expect(mocks.confirm).toHaveBeenCalledWith('Withdraw acceptance',
-        'Withdraw your acceptance of the trade with Team B? Other teams keep their answers and you can accept again.',
-        expect.any(Function), 'Withdraw acceptance')
-    expect(mocks.retract).toHaveBeenCalledWith('trade-1', 'member')
+    expect(mocks.confirm).toHaveBeenCalledWith('Undo acceptance',
+        'Undo your acceptance of the trade with Team B? The offer stays open, other teams keep their answers, and you can accept again.',
+        expect.any(Function), 'Undo acceptance')
+    expect(mocks.retract).toHaveBeenCalledWith('trade-1', 'member', 2)
     expect(mocks.checkRosterHold).toHaveBeenCalledTimes(2)
     expect(JSON.stringify(screen!.toJSON())).not.toContain(conflict.message)
-    expect(JSON.stringify(screen!.toJSON())).toContain('Acceptance withdrawn. Your trade with Team B stays open.')
+    expect(JSON.stringify(screen!.toJSON())).toContain('Acceptance undone. Your trade with Team B stays open.')
     expect(submit().props.disabled).toBe(false)
 })
 
@@ -89,22 +90,22 @@ it('names every trade partner in the confirmation and the notice', async () => {
     const many = { ...conflict, partnerTeamNames: ['jet lee', 'Justin', 'Castle'] }
     mocks.checkRosterHold.mockResolvedValueOnce([many]).mockResolvedValue([])
     await act(async () => { screen = create(React.createElement(ClaimPlayerScreen)) })
-    await act(async () => { screen!.root.findByProps({ accessibilityLabel: 'Withdraw acceptance of the trade with jet lee, Justin, Castle' }).props.onPress() })
+    await act(async () => { screen!.root.findByProps({ accessibilityLabel: 'Undo acceptance of the trade with jet lee, Justin, Castle' }).props.onPress() })
     await flush()
-    expect(mocks.confirm).toHaveBeenCalledWith('Withdraw acceptance',
-        'Withdraw your acceptance of the trade with jet lee, Justin and Castle? Other teams keep their answers and you can accept again.',
-        expect.any(Function), 'Withdraw acceptance')
-    expect(JSON.stringify(screen!.toJSON())).toContain('Acceptance withdrawn. Your trade with jet lee, Justin and Castle stays open.')
+    expect(mocks.confirm).toHaveBeenCalledWith('Undo acceptance',
+        'Undo your acceptance of the trade with jet lee, Justin and Castle? The offer stays open, other teams keep their answers, and you can accept again.',
+        expect.any(Function), 'Undo acceptance')
+    expect(JSON.stringify(screen!.toJSON())).toContain('Acceptance undone. Your trade with jet lee, Justin and Castle stays open.')
 })
 
-it('shows the server message when the withdrawal fails', async () => {
+it('shows the server message when the undo fails', async () => {
     mocks.checkRosterHold.mockResolvedValue([conflict])
     mocks.retract.mockRejectedValue(new RequestError('You have not accepted this trade.'))
     await act(async () => { screen = create(React.createElement(ClaimPlayerScreen)) })
-    await act(async () => { screen!.root.findByProps({ accessibilityLabel: 'Withdraw acceptance of the trade with Team B' }).props.onPress() })
+    await act(async () => { screen!.root.findByProps({ accessibilityLabel: 'Undo acceptance of the trade with Team B' }).props.onPress() })
     await flush()
     expect(mocks.alert).toHaveBeenCalledWith('Error', 'You have not accepted this trade.')
-    expect(JSON.stringify(screen!.toJSON())).not.toContain('Acceptance withdrawn')
+    expect(JSON.stringify(screen!.toJSON())).not.toContain('Acceptance undone')
 })
 
 it('offers the drop chooser as the other remedy', async () => {
@@ -115,27 +116,27 @@ it('offers the drop chooser as the other remedy', async () => {
     expect(screen!.root.findAllByProps({ accessibilityLabel: 'Select Player A to drop' })).toHaveLength(1)
 })
 
-it('omits the withdraw remedy when the trade is already unanimous', async () => {
+it('omits Undo acceptance when the server rule does not allow it', async () => {
     mocks.checkRosterHold.mockResolvedValue([{ ...conflict, canWithdraw: false, message: 'Your accepted trade with Team B needs this roster spot. Add a drop.' }])
     await act(async () => { screen = create(React.createElement(ClaimPlayerScreen)) })
-    expect(screen!.root.findAllByProps({ accessibilityLabel: 'Withdraw acceptance of the trade with Team B' })).toHaveLength(0)
+    expect(screen!.root.findAllByProps({ accessibilityLabel: 'Undo acceptance of the trade with Team B' })).toHaveLength(0)
     expect(screen!.root.findAllByProps({ accessibilityLabel: 'Pick a drop for this pickup' }).length).toBeGreaterThan(0)
 })
 
 it('renders the warning component with its remedies', async () => {
-    const onPickDrop = vi.fn(), onWithdraw = vi.fn()
+    const onPickDrop = vi.fn(), onUndoAcceptance = vi.fn()
     await act(async () => {
-        screen = create(React.createElement(RosterHoldWarning, { conflicts: [conflict], onPickDrop, onWithdraw }))
+        screen = create(React.createElement(RosterHoldWarning, { conflicts: [conflict], onPickDrop, onUndoAcceptance }))
     })
     expect(JSON.stringify(screen!.toJSON())).toContain(conflict.message)
     await act(async () => { screen!.root.findByProps({ accessibilityLabel: 'Pick a drop for this pickup' }).props.onPress() })
-    await act(async () => { screen!.root.findByProps({ accessibilityLabel: 'Withdraw acceptance of the trade with Team B' }).props.onPress() })
+    await act(async () => { screen!.root.findByProps({ accessibilityLabel: 'Undo acceptance of the trade with Team B' }).props.onPress() })
     expect(onPickDrop).toHaveBeenCalledOnce()
-    expect(onWithdraw).toHaveBeenCalledWith('trade-1', ['Team B'])
+    expect(onUndoAcceptance).toHaveBeenCalledWith(conflict)
 })
 
 it('shows the server message for a roster_hold rejection', () => {
-    const message = 'Your accepted trade with Team B needs this roster spot. Add a drop or withdraw your acceptance.'
+    const message = 'Your accepted trade with Team B needs this roster spot. Add a drop or undo your acceptance.'
     reportPickupError(new RequestError(message, { code: 'roster_hold' }))
     expect(mocks.alert).toHaveBeenCalledWith('Roster spot needed', message)
 })

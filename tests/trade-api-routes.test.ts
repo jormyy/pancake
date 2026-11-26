@@ -71,16 +71,22 @@ it('carries retained taxi moves in an atomic acceptance', async () => {
     }))
 })
 
-it('retracts an acceptance through the atomic route', async () => {
+it('undoes an acceptance for the viewed offer version through the atomic route', async () => {
     mocks.rpc.mockResolvedValue({ data: { ok: true, tradeId }, error: null })
-    const response = await send('retract-acceptance', { memberId })
+    const response = await send('retract-acceptance', { memberId, version: 3 })
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({ ok: true, tradeId })
     expect(mocks.rpc).toHaveBeenCalledWith('retract_trade_acceptance_atomic', {
         p_trade_id: tradeId,
         p_member_id: memberId,
         p_user_id: '22222222-2222-4222-8222-222222222222',
+        p_expected_version: 3,
     })
+})
+
+it('rejects a malformed offer version before the database call', async () => {
+    await expect(send('retract-acceptance', { memberId, version: 0 })).rejects.toThrow(/version/)
+    expect(mocks.rpc).not.toHaveBeenCalled()
 })
 
 it('returns SQL reasons unchanged for a draft preview', async () => {

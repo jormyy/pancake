@@ -67,7 +67,7 @@ Start the stack the way [verify-pancake](../verify-pancake/SKILL.md) or `docs/ve
 | `Views`, `RosterGuard` | `private.trade_hold_conflicts`, `private.trade_hold_counts`; the old rule is `private.assert_accepted_trade_capacity` at `a3b4d277` |
 | `TeamProposes` | `private.create_trade_offer`, which sets the proposer's `accepted_at` with no hold check, at both revisions |
 | `TeamAccepts`, `PartnerFinalYes` | `private.accept_trade_participant_atomic` through `private.assert_trade_assets_acceptance_ready` and `private.assert_trade_acceptance_holds` |
-| `TeamWithdraws` | `public.retract_trade_acceptance_atomic`, which did not exist before #187 |
+| `TeamWithdraws` | `public.retract_trade_acceptance_atomic`, which did not exist before #187; since `20261226000000` it only clears the caller's acceptance on a pending offer of three or more teams that another team has not accepted, a subset of what the model allows. A two-team proposer releases its hold through `PartnerDeclines` |
 | `TeamEntersClaim` | `public.create_waiver_claim_atomic`; at `a3b4d277` it had no roster room check |
 | `WaiversRun` | `public.process_next_waiver_claim_atomic`; the roster insert fires `private.guard_accepted_trade_capacity` |
 | `TradeCompletes` | `public.complete_accepted_trade_atomic` |

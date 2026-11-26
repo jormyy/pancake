@@ -111,6 +111,7 @@ function TradesScreen() {
         refresh: load,
         loadMore: loadMoreOffers,
         updateRosterPlan,
+        clearMyAcceptance,
     } = useTradesFeed(myMemberId, leagueId, online && tab === 'offers' && focused, { autoLoad: true, accountId: user?.id ?? null })
     const {
         trades: historyTrades,
@@ -130,6 +131,7 @@ function TradesScreen() {
         leagueId,
         onAction: load,
         onRosterPlanSaved: updateRosterPlan,
+        onAcceptanceUndone: clearMyAcceptance,
         enabled: !decisionsDisabled,
         tradeVetoMode: currentLeague?.trade_veto_mode,
         tradeVetoWindowHours: currentLeague?.trade_veto_window_hours,
@@ -218,7 +220,7 @@ function TradesScreen() {
                     isCommissioner={isCommissioner} acting={tradeActions.busyTradeId !== null} decisionsDisabled={decisionsDisabled}
                     onAccept={openTradeDetails} onReject={tradeActions.reject}
                     onVeto={tradeActions.veto} onWithdraw={tradeActions.withdraw}
-                    onWithdrawAcceptance={tradeActions.retractAcceptance}
+                    onUndoAcceptance={tradeActions.undoAcceptance}
                     holdReady={holdReady}
                     onAnalyze={openAnalyzer}
                     embedded={gridColumns === 1}
@@ -227,7 +229,7 @@ function TradesScreen() {
     }, [blockAvgMap, blockAvgStatsMap, blockBusyId, decisionsDisabled, currentLeague?.trade_veto_mode, gridColumns, handleListPick, handleListPlayer,
         handleRemoveBlockItem, handleSaveBlockNote, isCommissioner, listedPickIds, listedPlayerIds, myMemberId, myTeamName,
         openAnalyzer, openTradeDetails, tab, tradeActions.busyTradeId, tradeActions.reject,
-        holdReady, tradeActions.retractAcceptance, tradeActions.veto, tradeActions.withdraw])
+        holdReady, tradeActions.undoAcceptance, tradeActions.veto, tradeActions.withdraw])
     const renderItem = useCallback(({ item, index }: { item: TradeListItem; index: number }) => {
         const row = renderRow(item)
         if (gridColumns > 1) return row
@@ -304,7 +306,7 @@ function TradesScreen() {
         onReject: () => tradeActions.reject(openTrade.id),
         onVeto: () => tradeActions.veto(openTrade.id),
         onWithdraw: () => tradeActions.withdraw(openTrade.id),
-        onWithdrawAcceptance: () => tradeActions.retractAcceptance(openTrade.id),
+        onUndoAcceptance: () => tradeActions.undoAcceptance(openTrade),
     } : null
     const list = (
         <FlashList onScroll={statusScroll.onScroll} scrollEventThrottle={16} data={listData} keyExtractor={tradeListKey} getItemType={tradeListItemType}

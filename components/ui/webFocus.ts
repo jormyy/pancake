@@ -36,3 +36,38 @@ export function scheduleWebFocusRecovery(focus: () => void): () => void {
         for (const timeoutId of timeoutIds) window.clearTimeout(timeoutId)
     }
 }
+
+export function keepScrollOnFocusReturn(opener: HTMLElement, windowMs = 1500, settleMs = 250): () => void {
+    if (typeof window === 'undefined') return () => {}
+    const onFocus = () => {
+        stop()
+        const saved = new Map<HTMLElement, number>()
+        for (let node = opener.parentElement; node; node = node.parentElement) {
+            if (node.scrollHeight > node.clientHeight) saved.set(node, node.scrollTop)
+        }
+        const onScroll = (event: Event) => {
+            const node = event.target
+            if (!(node instanceof HTMLElement)) return
+            const top = saved.get(node)
+            if (top === undefined) return
+            document.removeEventListener('scroll', onScroll, true)
+            const shift = node.scrollTop - top
+            if (!shift) return
+            const box = node.getBoundingClientRect()
+            const target = opener.getBoundingClientRect()
+            const shownNow = target.top >= box.top && target.bottom <= box.bottom
+            const clippedBefore = target.top + shift < box.top || target.bottom + shift > box.bottom
+            const partlyShownBefore = target.bottom + shift > box.top && target.top + shift < box.bottom
+            if (shownNow && clippedBefore && partlyShownBefore) node.scrollTop = top
+        }
+        document.addEventListener('scroll', onScroll, true)
+        window.setTimeout(() => document.removeEventListener('scroll', onScroll, true), settleMs)
+    }
+    const timer = window.setTimeout(() => stop(), windowMs)
+    const stop = () => {
+        window.clearTimeout(timer)
+        opener.removeEventListener('focus', onFocus)
+    }
+    opener.addEventListener('focus', onFocus)
+    return stop
+}

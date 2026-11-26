@@ -244,7 +244,7 @@ BEGIN
   PERFORM public.process_roster_floor_service(f.league_id, f.season_id);
   EXECUTE 'SET CONSTRAINTS ALL IMMEDIATE';
   PERFORM pg_temp.check_rules(pg_temp.floor_active(f.league_id, f.season_id, f.member_ids[1]) = 15, 'the hold blocks the first week');
-  PERFORM public.retract_trade_acceptance_atomic(v_trade, f.member_ids[1], f.user_ids[1]);
+  PERFORM public.withdraw_trade_atomic(v_trade, f.member_ids[1], f.user_ids[1]);
   PERFORM pg_temp.check_rules(jsonb_array_length(public.trade_roster_hold_check(f.member_ids[1], f.user_ids[1])) = 0, 'the withdrawal releases the hold');
   v_end := (now() AT TIME ZONE 'America/New_York')::date;
   UPDATE public.season_weeks SET week_end = v_end - 7 WHERE season_year = 9906 AND week_number = 1;

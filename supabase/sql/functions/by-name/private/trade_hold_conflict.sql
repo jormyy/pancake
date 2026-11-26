@@ -21,6 +21,9 @@ DECLARE
   v_holder_name text;
   v_label text;
   v_message text;
+  v_offer boolean := NOT p_can_withdraw AND EXISTS (
+    SELECT 1 FROM trades trade
+     WHERE trade.id = p_trade_id AND trade.status = 'pending'::trade_status AND trade.proposer_member_id = p_member_id);
 BEGIN
   SELECT member.team_name INTO v_holder_name FROM league_members member WHERE member.id = p_member_id;
 
@@ -43,7 +46,7 @@ BEGIN
     END IF;
     v_message := v_label || ' needs this roster spot. '
       || CASE WHEN p_remedy = 'add' THEN 'Add a drop' ELSE 'Drop a player' END
-      || CASE WHEN p_can_withdraw THEN ' or withdraw your acceptance.' ELSE '.' END;
+      || CASE WHEN p_can_withdraw THEN ' or undo your acceptance.' WHEN v_offer THEN ' or withdraw your offer.' ELSE '.' END;
   ELSE
     IF v_names IS NULL OR cardinality(v_names) = 0 THEN
       v_label := v_holder_name || '''s accepted trade';
@@ -56,11 +59,12 @@ BEGIN
     END IF;
     v_message := v_label || ' needs the roster spot this trade would use. '
       || v_holder_name || ' has to make room'
-      || CASE WHEN p_can_withdraw THEN ' or withdraw that acceptance first.' ELSE ' first.' END;
+      || CASE WHEN p_can_withdraw THEN ' or undo that acceptance first.' WHEN v_offer THEN ' or withdraw that offer first.' ELSE ' first.' END;
   END IF;
 
   RETURN jsonb_build_object(
     'tradeId', p_trade_id,
+    'version', (SELECT trade.version FROM trades trade WHERE trade.id = p_trade_id),
     'holderTeamName', v_holder_name,
     'partnerTeamNames', COALESCE(to_jsonb(v_names), '[]'::jsonb),
     'canWithdraw', p_can_withdraw,

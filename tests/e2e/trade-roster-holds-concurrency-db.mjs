@@ -4,9 +4,9 @@ import assert from 'node:assert/strict'
 
 const url = process.env.SUPABASE_DB_URL
 assert(url && ['127.0.0.1', 'localhost'].includes(new URL(url).hostname), 'Use an isolated local database')
-const [league, season, p1, p2, p3, ...rest] = Array.from({ length: 9 }, () => randomUUID())
-const users = rest.slice(0, 2)
-const members = rest.slice(2, 4)
+const [league, season, p1, p2, p3, p4, ...rest] = Array.from({ length: 12 }, () => randomUUID())
+const users = rest.slice(0, 3)
+const members = rest.slice(3, 6)
 const sharedLeague = randomUUID()
 const sharedSeason = randomUUID()
 const sharedUsers = Array.from({ length: 3 }, () => randomUUID())
@@ -34,30 +34,41 @@ const one = async (sql) => {
 
 const race = (statements) => Promise.all(statements.map((statement) => query(`BEGIN; SET LOCAL statement_timeout='20s'; ${statement} SELECT pg_sleep(0.05); COMMIT;`)))
 
-const propose = () => one(`SELECT public.propose_trade_atomic(${quote(league)},${quote(season)},${quote(members[0])},${quote(members[1])},
-  '{}'::uuid[], ARRAY[${quote(p2)}]::uuid[], '{}'::uuid[], '{}'::uuid[], NULL, NULL, 5, 0)`)
+const propose = async () => {
+  const tradeId = await one(`SELECT public.propose_multi_team_trade_atomic(${quote(league)},${quote(season)},${quote(members[0])},
+    ARRAY[${quote(members[1])},${quote(members[2])}]::uuid[], jsonb_build_array(
+      jsonb_build_object('fromMemberId',${quote(members[1])},'toMemberId',${quote(members[0])},'playerId',${quote(p2)}),
+      jsonb_build_object('fromMemberId',${quote(members[0])},'toMemberId',${quote(members[2])},'playerId',${quote(p1)}),
+      jsonb_build_object('fromMemberId',${quote(members[2])},'toMemberId',${quote(members[1])},'playerId',${quote(p4)})))`)
+  await one(`SELECT public.accept_trade_atomic(${quote(tradeId)},${quote(members[1])})`)
+  return tradeId
+}
 
 const state = async (tradeId) => {
   const row = await one(`SELECT json_build_object(
     'status', trade.status,
-    'proposerAccepted', proposer.accepted_at IS NOT NULL,
-    'recipientAccepted', recipient.accepted_at IS NOT NULL)
+    'undoerAccepted', (SELECT accepted_at IS NOT NULL FROM trade_participants WHERE trade_id=trade.id AND member_id=${quote(members[1])}),
+    'accepted', (SELECT count(*) FROM trade_participants WHERE trade_id=trade.id AND accepted_at IS NOT NULL),
+    'teams', (SELECT count(*) FROM trade_participants WHERE trade_id=trade.id))
     FROM trades trade
-    JOIN trade_participants proposer ON proposer.trade_id=trade.id AND proposer.member_id=${quote(members[0])}
-    JOIN trade_participants recipient ON recipient.trade_id=trade.id AND recipient.member_id=${quote(members[1])}
     WHERE trade.id=${quote(tradeId)}`)
   return JSON.parse(row)
 }
 
-const assertLegal = (tradeId, label) => async () => {
+let finalWins = 0
+let undoWins = 0
+const assertLegal = async (tradeId, undone, label) => {
   const current = await state(tradeId)
   if (current.status === 'accepted') {
-    assert.equal(current.proposerAccepted, true, `${label}: accepted trade keeps the proposer acceptance`)
-    assert.equal(current.recipientAccepted, true, `${label}: accepted trade keeps the recipient acceptance`)
+    assert.equal(current.accepted, current.teams, `${label}: accepted trade keeps every acceptance`)
+    assert.ok(!undone, `${label}: an undo succeeded on a trade that became accepted`)
+    finalWins++
     return
   }
   assert.equal(current.status, 'pending', `${label}: unexpected status ${current.status}`)
-  assert.ok(!(current.proposerAccepted && current.recipientAccepted), `${label}: a unanimous pending trade is illegal`)
+  assert.ok(current.accepted < current.teams, `${label}: a unanimous pending trade is illegal`)
+  assert.equal(current.undoerAccepted, !undone, `${label}: the undo result disagrees with the stored acceptance`)
+  if (undone) undoWins++
 }
 
 try {
@@ -65,56 +76,49 @@ try {
     INSERT INTO auth.users(id,aud,role,email,encrypted_password,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at)
       SELECT id::uuid,'authenticated','authenticated',id||'@example.test','x',now(),'{}','{}',now(),now() FROM unnest(ARRAY[${users.map(quote).join(',')}]) id;
     INSERT INTO leagues(id,name,slug,commissioner_id,status,roster_size,ir_slots,taxi_slots,trade_veto_mode,allow_inactive_trades)
-      VALUES(${quote(league)},'Hold race',${quote(league)},${quote(users[0])},'active',2,0,0,'disabled',true);
+      VALUES(${quote(league)},'Undo race',${quote(league)},${quote(users[0])},'active',2,0,0,'disabled',true);
     INSERT INTO league_seasons(id,league_id,season_year,is_current) VALUES(${quote(season)},${quote(league)},9712,true);
     ${members.map((id, index) => `INSERT INTO league_members(id,league_id,user_id,role,team_name) VALUES(${quote(id)},${quote(league)},${quote(users[index])},'${index === 0 ? 'commissioner' : 'manager'}','Hold race team ${index + 1}');`).join('\n')}
     INSERT INTO players(id,first_name,last_name,position,eligible_positions)
-      VALUES(${quote(p1)},'Hold','One','PG',ARRAY['PG']),(${quote(p2)},'Hold','Two','PG',ARRAY['PG']),(${quote(p3)},'Hold','Three','PG',ARRAY['PG']);
+      VALUES(${quote(p1)},'Hold','One','PG',ARRAY['PG']),(${quote(p2)},'Hold','Two','PG',ARRAY['PG']),(${quote(p3)},'Hold','Three','PG',ARRAY['PG']),(${quote(p4)},'Hold','Four','PG',ARRAY['PG']);
     INSERT INTO roster_players(league_id,league_season_id,member_id,player_id,acquired_via)
       VALUES(${quote(league)},${quote(season)},${quote(members[0])},${quote(p1)},'verification'),
             (${quote(league)},${quote(season)},${quote(members[1])},${quote(p2)},'verification'),
-            (${quote(league)},${quote(season)},${quote(members[1])},${quote(p3)},'verification');
+            (${quote(league)},${quote(season)},${quote(members[1])},${quote(p3)},'verification'),
+            (${quote(league)},${quote(season)},${quote(members[2])},${quote(p4)},'verification');
     COMMIT;`)
 
+  const undo = (tradeId) => `SELECT public.retract_trade_acceptance_atomic(${quote(tradeId)},${quote(members[1])},${quote(users[1])},1);`
+  const finalAccept = (tradeId) => `SELECT public.accept_trade_atomic(${quote(tradeId)},${quote(members[2])});`
   const iterations = 24
   for (let index = 0; index < iterations; index++) {
     const tradeId = await propose()
-    const results = await race([
-      `SELECT public.accept_trade_atomic(${quote(tradeId)},${quote(members[1])});`,
-      `SELECT public.retract_trade_acceptance_atomic(${quote(tradeId)},${quote(members[0])},${quote(users[0])});`,
-    ])
-    const accepted = results[0]
-    const retracted = results[1]
+    const [accepted, undone] = await race([finalAccept(tradeId), undo(tradeId)])
     assert.ok(
       accepted.code === 0 || /league is busy|already accepted|no longer pending|Every team has accepted/i.test(accepted.error),
       `iteration ${index}: unexpected acceptance failure ${accepted.error}`,
     )
     assert.ok(
-      retracted.code === 0 || /league is busy|Every team has accepted|You have not accepted/i.test(retracted.error),
-      `iteration ${index}: unexpected retraction failure ${retracted.error}`,
+      undone.code === 0 || /league is busy|Every team has accepted|You have not accepted/i.test(undone.error),
+      `iteration ${index}: unexpected undo failure ${undone.error}`,
     )
-    await assertLegal(tradeId, `iteration ${index}`)()
+    await assertLegal(tradeId, undone.code === 0, `iteration ${index}`)
     await one(`DELETE FROM trades WHERE id=${quote(tradeId)}`)
   }
 
   const reverseIterations = 24
   for (let index = 0; index < reverseIterations; index++) {
     const tradeId = await propose()
-    const results = await race([
-      `SELECT public.retract_trade_acceptance_atomic(${quote(tradeId)},${quote(members[0])},${quote(users[0])});`,
-      `SELECT public.accept_trade_atomic(${quote(tradeId)},${quote(members[1])});`,
-    ])
-    const retracted = results[0]
-    const accepted = results[1]
+    const [undone, accepted] = await race([undo(tradeId), finalAccept(tradeId)])
     assert.ok(
-      retracted.code === 0 || /league is busy|Every team has accepted|You have not accepted/i.test(retracted.error),
-      `reverse iteration ${index}: unexpected retraction failure ${retracted.error}`,
+      undone.code === 0 || /league is busy|Every team has accepted|You have not accepted/i.test(undone.error),
+      `reverse iteration ${index}: unexpected undo failure ${undone.error}`,
     )
     assert.ok(
       accepted.code === 0 || /league is busy|already accepted|no longer pending|Every team has accepted/i.test(accepted.error),
       `reverse iteration ${index}: unexpected acceptance failure ${accepted.error}`,
     )
-    await assertLegal(tradeId, `reverse iteration ${index}`)()
+    await assertLegal(tradeId, undone.code === 0, `reverse iteration ${index}`)
     await one(`DELETE FROM trades WHERE id=${quote(tradeId)}`)
   }
 
@@ -138,6 +142,13 @@ try {
   const proposeShared = (to, request) => one(`SELECT public.propose_trade_atomic(${quote(sharedLeague)},${quote(sharedSeason)},${quote(sharedMembers[0])},${quote(to)},
     ARRAY[${quote(sx)}]::uuid[], ARRAY[${request.map(quote).join(',')}]::uuid[], '{}'::uuid[], '{}'::uuid[], NULL, NULL, 0, 0)`)
 
+  const proposeSharedThree = () => one(`SELECT public.propose_multi_team_trade_atomic(${quote(sharedLeague)},${quote(sharedSeason)},${quote(sharedMembers[0])},
+    ARRAY[${quote(sharedMembers[2])},${quote(sharedMembers[1])}]::uuid[], jsonb_build_array(
+      jsonb_build_object('fromMemberId',${quote(sharedMembers[0])},'toMemberId',${quote(sharedMembers[2])},'playerId',${quote(sx)}),
+      jsonb_build_object('fromMemberId',${quote(sharedMembers[2])},'toMemberId',${quote(sharedMembers[0])},'playerId',${quote(su)}),
+      jsonb_build_object('fromMemberId',${quote(sharedMembers[2])},'toMemberId',${quote(sharedMembers[0])},'playerId',${quote(sv)}),
+      jsonb_build_object('fromMemberId',${quote(sharedMembers[1])},'toMemberId',${quote(sharedMembers[2])},'faabAmount',1)))`)
+
   const assertSharedLegal = async (t1, t2, label) => {
     const current = JSON.parse(await one(`SELECT json_build_object(
       'accepted', (SELECT count(*) FROM trades WHERE id IN (${quote(t1)},${quote(t2)}) AND status='accepted'),
@@ -153,10 +164,10 @@ try {
   const sharedIterations = 12
   for (let index = 0; index < sharedIterations; index++) {
     const t1 = await proposeShared(sharedMembers[1], [sy, sz])
-    const t2 = await proposeShared(sharedMembers[2], [su, sv])
+    const t2 = await proposeSharedThree()
     const results = await race([
       `SELECT public.accept_trade_atomic(${quote(t1)},${quote(sharedMembers[1])});`,
-      `SELECT public.retract_trade_acceptance_atomic(${quote(t2)},${quote(sharedMembers[0])},${quote(sharedUsers[0])});`,
+      `SELECT public.retract_trade_acceptance_atomic(${quote(t2)},${quote(sharedMembers[0])},${quote(sharedUsers[0])},1);`,
     ])
     assert.ok(
       results[0].code === 0 || /league is busy|already accepted|no longer pending|Every team has accepted|needs the roster spot/i.test(results[0].error),
@@ -164,7 +175,7 @@ try {
     )
     assert.ok(
       results[1].code === 0 || /league is busy|Every team has accepted|You have not accepted|no longer pending/i.test(results[1].error),
-      `shared retract iteration ${index}: unexpected retraction failure ${results[1].error}`,
+      `shared retract iteration ${index}: unexpected undo failure ${results[1].error}`,
     )
     await assertSharedLegal(t1, t2, `shared retract iteration ${index}`)
     await one(`DELETE FROM trades WHERE id IN (${quote(t1)},${quote(t2)})`)
@@ -189,8 +200,8 @@ try {
     await one(`DELETE FROM trades WHERE id IN (${quote(t1)},${quote(t2)})`)
   }
 
-  console.log(`PASS: ${iterations + reverseIterations} acceptance/retraction races end only in a unanimous accepted trade or a pending trade without a cleared unanimous acceptance; ${sharedIterations * 2} shared-asset races never accept two trades moving the same player or leave a roster over the limit`)
+  console.log(`PASS: ${iterations + reverseIterations} three-team final-acceptance/undo races (final acceptance won ${finalWins}, undo won ${undoWins}) end only in a unanimous accepted trade with every acceptance kept or a pending trade whose undo matches the stored acceptance; ${sharedIterations * 2} shared-asset races never accept two trades moving the same player or leave a roster over the limit`)
 } finally {
-  const cleanup = await query(`DELETE FROM leagues WHERE id IN (${quote(league)},${quote(sharedLeague)}); DELETE FROM trades WHERE league_id IN (${quote(league)},${quote(sharedLeague)}); DELETE FROM players WHERE id IN (${[p1, p2, p3, sx, sy, sz, su, sv].map(quote).join(',')}); DELETE FROM auth.users WHERE id IN (${[...users, ...sharedUsers].map(quote).join(',')});`)
+  const cleanup = await query(`DELETE FROM leagues WHERE id IN (${quote(league)},${quote(sharedLeague)}); DELETE FROM trades WHERE league_id IN (${quote(league)},${quote(sharedLeague)}); DELETE FROM players WHERE id IN (${[p1, p2, p3, p4, sx, sy, sz, su, sv].map(quote).join(',')}); DELETE FROM auth.users WHERE id IN (${[...users, ...sharedUsers].map(quote).join(',')});`)
   assert.equal(cleanup.code, 0, cleanup.error)
 }

@@ -5,7 +5,8 @@
 CREATE OR REPLACE FUNCTION public.retract_trade_acceptance_atomic(
   p_trade_id uuid,
   p_member_id uuid,
-  p_user_id uuid
+  p_user_id uuid,
+  p_expected_version integer DEFAULT NULL
 )
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -20,14 +21,27 @@ BEGIN
   PERFORM set_config('pancake.trade_write','true',true);
   PERFORM set_config('lock_timeout','100ms',true);
   v_trade := private.begin_trade_action(p_trade_id, p_member_id, p_user_id, 'retract');
-  __request_context := private.request_begin('public.retract_trade_acceptance_atomic', jsonb_build_array(p_trade_id, p_member_id, p_user_id), NULL, NULL);
+  __request_context := private.request_begin('public.retract_trade_acceptance_atomic', jsonb_build_array(p_trade_id, p_member_id, p_user_id, p_expected_version), NULL, NULL);
   IF (__request_context->>'replay')::boolean THEN RETURN __request_context->'result'; END IF;
   <<request_write>>
 DECLARE
   v_rows int;
 BEGIN
+  IF v_trade.status IN ('edited'::trade_status, 'countered'::trade_status)
+    OR (p_expected_version IS NOT NULL AND v_trade.version <> p_expected_version) THEN
+    RAISE EXCEPTION 'This offer changed. Reopen it to see the current version.' USING ERRCODE = 'PT409';
+  END IF;
+
+  IF v_trade.status IN ('accepted'::trade_status, 'completed'::trade_status) THEN
+    RAISE EXCEPTION 'Every team has accepted this trade, so acceptance can no longer be undone.' USING ERRCODE = 'PT409';
+  END IF;
+
   IF v_trade.status <> 'pending'::trade_status THEN
-    RAISE EXCEPTION 'Every team has accepted this trade, so acceptance can no longer be withdrawn.' USING ERRCODE = 'PT409';
+    RAISE EXCEPTION 'This trade is no longer pending.' USING ERRCODE = 'PT409';
+  END IF;
+
+  IF (SELECT count(*) FROM trade_participants WHERE trade_id = p_trade_id) < 3 THEN
+    RAISE EXCEPTION 'Undo acceptance is only for trades with three or more teams.' USING ERRCODE = 'PT409';
   END IF;
 
   IF NOT EXISTS (
@@ -37,11 +51,8 @@ BEGIN
     RAISE EXCEPTION 'You have not accepted this trade.' USING ERRCODE = 'PT409';
   END IF;
 
-  IF NOT EXISTS (
-    SELECT 1 FROM trade_participants
-     WHERE trade_id = p_trade_id AND accepted_at IS NULL
-  ) THEN
-    RAISE EXCEPTION 'Every team has accepted this trade, so acceptance can no longer be withdrawn.' USING ERRCODE = 'PT409';
+  IF NOT private.can_undo_trade_acceptance(p_trade_id, p_member_id) THEN
+    RAISE EXCEPTION 'Every team has accepted this trade, so acceptance can no longer be undone.' USING ERRCODE = 'PT409';
   END IF;
 
   UPDATE trade_participants

@@ -7380,7 +7380,12 @@ export type Database = {
       }
       retention_dashboard: { Args: never; Returns: Json }
       retract_trade_acceptance_atomic: {
-        Args: { p_member_id: string; p_trade_id: string; p_user_id: string }
+        Args: {
+          p_expected_version?: number
+          p_member_id: string
+          p_trade_id: string
+          p_user_id: string
+        }
         Returns: Json
       }
       revoke_push_token_atomic: {

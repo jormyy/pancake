@@ -6,15 +6,15 @@ import type { RosterHoldConflict } from '@/lib/waivers'
 export function RosterHoldWarning({
     conflicts,
     onPickDrop,
-    onWithdraw,
-    withdrawingTradeId = null,
+    onUndoAcceptance,
+    undoingTradeId = null,
     notice = null,
     testID = 'roster-hold-warning',
 }: {
     conflicts: RosterHoldConflict[]
     onPickDrop?: () => void
-    onWithdraw?: (tradeId: string, partnerTeamNames: string[]) => void
-    withdrawingTradeId?: string | null
+    onUndoAcceptance?: (conflict: RosterHoldConflict) => void
+    undoingTradeId?: string | null
     notice?: string | null
     testID?: string
 }) {
@@ -36,12 +36,12 @@ export function RosterHoldWarning({
                                     <Button title="Pick a drop" size="sm" variant="secondary" onPress={onPickDrop}
                                         accessibilityLabel="Pick a drop for this pickup" />
                                 ) : null}
-                                {conflict.canWithdraw && onWithdraw ? (
-                                    <Button title="Withdraw acceptance" size="sm" variant="secondary"
-                                        onPress={() => onWithdraw(conflict.tradeId, conflict.partnerTeamNames)}
-                                        loading={withdrawingTradeId === conflict.tradeId}
-                                        disabled={withdrawingTradeId !== null}
-                                        accessibilityLabel={`Withdraw acceptance of the trade with ${conflict.partnerTeamNames.join(', ')}`} />
+                                {conflict.canWithdraw && onUndoAcceptance ? (
+                                    <Button title="Undo acceptance" size="sm" variant="secondary"
+                                        onPress={() => onUndoAcceptance(conflict)}
+                                        loading={undoingTradeId === conflict.tradeId}
+                                        disabled={undoingTradeId !== null}
+                                        accessibilityLabel={`Undo acceptance of the trade with ${conflict.partnerTeamNames.join(', ')}`} />
                                 ) : null}
                             </View>
                         </View>

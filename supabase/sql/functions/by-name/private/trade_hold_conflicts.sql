@@ -145,7 +145,8 @@ BEGIN
     END IF;
     IF v_conflict THEN
       v_conflicts := v_conflicts || private.trade_hold_conflict(
-        p_league_id, p_season_id, p_member_id, v_trade_id, true, p_remedy, p_actor_member_id);
+        p_league_id, p_season_id, p_member_id, v_trade_id,
+        private.can_undo_trade_acceptance(v_trade_id, p_member_id), p_remedy, p_actor_member_id);
     END IF;
   END LOOP;
 

@@ -4,7 +4,7 @@ import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWind
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { breakpoints, colors, controlSize, componentTokens, elevation, radii, scrim, spacing } from '@/constants/tokens'
 import { trapDialogTabFocus, type DialogKeyboardEvent } from './dialogFocus'
-import { scheduleWebFocusRecovery } from './webFocus'
+import { keepScrollOnFocusReturn, scheduleWebFocusRecovery } from './webFocus'
 
 type WebKeyDownProps = { onKeyDown?: (event: DialogKeyboardEvent) => void }
 
@@ -39,6 +39,12 @@ export function Sheet({
             if (dialog instanceof HTMLElement && !dialog.contains(document.activeElement)) dialog.focus()
         })
     }, [visible, dialogId])
+
+    useEffect(() => {
+        if (!visible || Platform.OS !== 'web' || typeof document === 'undefined') return
+        const opener = document.activeElement
+        return () => { if (opener instanceof HTMLElement && opener !== document.body) keepScrollOnFocusReturn(opener) }
+    }, [visible])
 
     const keyProps: WebKeyDownProps = Platform.OS === 'web'
         ? { onKeyDown: (event) => trapDialogTabFocus(dialogId, event) }
