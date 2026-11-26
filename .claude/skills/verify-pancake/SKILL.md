@@ -168,6 +168,13 @@ test -s "$EVIDENCE/webkit-trade-player-stats-375-propose-name-back.png"
 test -s "$EVIDENCE/webkit-trade-player-stats-1440-accept-roster-plan-back.png"
 ```
 
+## Trade grouping and builder steadiness
+
+Use the `trade-grouping` journey in [Trades](features/trades.md) on a fresh launch.
+Run two- and three-team drafts at 390×844, 375×812 and 320×568, plus `--details=1` once.
+Require zero route mismatches on Propose Trade and Review, no sideways scroll, and at most 2 px of panel movement except a receipt-marked `bottomClamp`.
+Run the same command against a launch of the previous main revision for the before evidence.
+
 ## Dynasty pick calendar-year repair
 
 Use the `dynasty-pick-calendar-years` journey in [League](features/league.md) for the guarded data repair.

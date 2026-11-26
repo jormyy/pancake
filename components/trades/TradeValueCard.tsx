@@ -20,6 +20,7 @@ export function tradeVerdict(analysis: DynastyTradeAnalysis, myMemberId: string,
 export function TradeValueCard({
     analysis,
     loading,
+    updating = false,
     error,
     empty,
     myMemberId,
@@ -31,6 +32,7 @@ export function TradeValueCard({
 }: {
     analysis: DynastyTradeAnalysis | null
     loading: boolean
+    updating?: boolean
     error?: string | null
     empty: boolean
     myMemberId: string
@@ -68,7 +70,7 @@ export function TradeValueCard({
             <View style={styles.body} accessibilityLiveRegion="polite" testID="trade-value">
                 {shown ? (
                     <>
-                        <Text style={styles.verdict} numberOfLines={1}>{tradeVerdict(shown, myMemberId, participantName)}</Text>
+                        <Text style={styles.verdict} numberOfLines={1}>{updating ? 'Updating values…' : tradeVerdict(shown, myMemberId, participantName)}</Text>
                         {ordered.length === 2 ? (
                             <TwoTeamBar left={ordered[0]} right={ordered[1]} leftName={name(ordered[0].memberId)} rightName={name(ordered[1].memberId)} />
                         ) : (

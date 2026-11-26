@@ -107,7 +107,7 @@ vi.mock('@/hooks/use-multi-team-trade-composer', () => ({
 vi.mock('@/hooks/use-dynasty-trade-analysis', () => ({
     useDynastyTradeAnalysis: () => ({ analysis: null, loading: false, error: null }),
 }))
-vi.mock('@/components/trades/TradeCard', () => ({ TradeCard: 'TradeCard' }))
+vi.mock('@/components/trades/TradeCard', () => ({ TradeCard: 'TradeCard', TradeRouteOverview: 'TradeRouteOverview' }))
 vi.mock('@/lib/trade-legality', () => ({ previewTradeLegality: mocks.preview }))
 vi.mock('@/lib/supabase', () => ({ supabase: {} }))
 vi.mock('@/lib/roster', () => ({ getRoster: async () => mocks.roster }))
@@ -413,6 +413,35 @@ describe('propose trade async ownership', () => {
             await renderer.root.findByProps({ testID: 'trade-confirm-submit' }).props.onPress()
         })
         expect(mocks.submitMultiTeamTradeComposer).toHaveBeenCalledTimes(1)
+        await act(async () => { renderer.unmount() })
+    })
+
+    it('groups the draft by receiving team above its value, and keeps the value under the review card', async () => {
+        mocks.tradeItems = [
+            { kind: 'player', fromMemberId: 'member-a', toMemberId: 'member-b', playerId: 'player-a' },
+            { kind: 'player', fromMemberId: 'member-b', toMemberId: 'member-a', playerId: 'player-b' },
+        ]
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(ProposeTradeScreen)); await Promise.resolve() })
+
+        const routes = renderer.root.findByType('TradeRouteOverview' as React.ElementType)
+        expect(routes.props.myMemberId).toBe('member-a')
+        expect(routes.props.trade.routedItems.map((item: { playerId: string; fromMemberId: string; toMemberId: string }) => [item.playerId, item.fromMemberId, item.toMemberId]))
+            .toEqual([['player-a', 'member-a', 'member-b'], ['player-b', 'member-b', 'member-a']])
+        const lead = routes.parent!
+        expect(lead.findAllByProps({ testID: 'trade-value' })).not.toHaveLength(0)
+        expect(lead.children.indexOf(routes)).toBeLessThan(lead.children.findIndex(child => typeof child !== 'string' && child.findAllByProps({ testID: 'trade-value' }).length > 0))
+        expect(lead.findAllByType('MultiTeamTradeBuilder' as React.ElementType)).toHaveLength(0)
+
+        await act(async () => { renderer.root.findByProps({ testID: 'trade-submit' }).props.onPress() })
+        const review = renderer.root.findByProps({ testID: 'trade-legality-screen' })
+        const card = review.findByType('TradeCard' as React.ElementType)
+        expect(card.props.reviewMode).toBe('propose')
+        const content = card.parent!
+        const valueIndex = content.children.findIndex(child => typeof child !== 'string' && child.findAllByProps({ testID: 'trade-value' }).length > 0)
+        expect(valueIndex).toBe(content.children.indexOf(card) + 1)
+        expect(review.findAllByProps({ accessibilityLabel: 'Show trade value details' })).toHaveLength(0)
+        expect(mocks.submitTradeComposer).not.toHaveBeenCalled()
         await act(async () => { renderer.unmount() })
     })
 

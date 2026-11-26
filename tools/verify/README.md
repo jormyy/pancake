@@ -39,6 +39,7 @@ It supplies an isolated session and ignores personal browser profiles and saved 
 It reports submission; require Home’s seeded team before declaring sign-in successful.
 Pass a zero-based seed index after `login` to use another generated manager.
 Other arguments pass directly to `agent-browser`.
+`trade-grouping.mjs EVIDENCE --label=NAME --teams=2|3 --width=W --height=H [--details=1]` drives Propose Trade and Review in its own WebKit touch context, compares grouped routes with the stored draft, measures the builder's position through add, remove and reroute, and writes a receipt. It never sends a trade.
 Use `node tools/verify/capture.mjs EVIDENCE FEATURE LABEL` to save a snapshot, screenshot, layout, and database observation together.
 
 `seed-auto-ir.mjs EVIDENCE --case=NAME` reshapes E2E Team 1 into one Auto Lineup IR case and prints the involved players, counts, and expected moves or notices as JSON.

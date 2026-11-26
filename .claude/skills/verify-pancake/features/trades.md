@@ -12,6 +12,7 @@ Managers build offers, review assets, analyze trades, and manage received or sen
 - `trade-block` manages trade-block listings.
 - `trade-player-stats` opens existing profiles and keeps selection separate.
 - `trade-roster-holds` warns about, retracts, and releases the roster room an accepted trade needs.
+- `trade-grouping` shows Propose Trade and Review grouped by receiving team and keeps the builder steady while editing.
 
 ## How to get to it (user POV)
 
@@ -80,9 +81,19 @@ Capture names must be unique within a viewport; column-selection evidence uses a
 `tradePlayerOrder` records the three imported values and expected identities; the visible builder observation proves their order.
 
 
+**Trade grouping.** Run `node tools/verify/trade-grouping.mjs "$EVIDENCE" --label=<name> --teams=2|3 --width=<w> --height=<h> [--details=1]`.
+It opens its own headless WebKit touch context, signs in through the form, builds a draft through visible controls, and never sends it.
+Propose Trade shows `You get` and `<team> gets` sections above Trade value; every row says `From <team>`. Review shows the same sections inside the Draft card, with Trade value directly under it and no Details toggle.
+The helper compares every shown section and row with the draft stored in `sessionStorage` (`pancake:trade-composer-draft`) on both screens. The three-team draft sends two assets from different teams to you.
+Add, remove and reroute run with the edited sender panel scrolled below the summary. The helper samples the panel heading on every frame the page paints (after the app's resize observer) and fails on more than 2 px of movement or any sideways scroll.
+Removing from the very last panel at the bottom of the page lets the browser clamp the scroll by the removed row's height; the receipt marks it `bottomClamp` and the old build behaves the same.
+`--details=1` opens Trade value details first, which used to collapse into a spinner during each update.
+Each run writes `trade-grouping-<label>-<teams>team-<width>[-details]-receipt.json` and before/after screenshots and snapshots for every step.
+
 ## Gotchas
 
 - The fixtures include received offers for both managers, completed two-team and multi-team history, and a rostered player without statistics.
 - Do not test acceptance by directly updating a trade’s status.
 - Review ownership and destination for every asset; two columns that merely render are insufficient proof.
 - Capture builder and review at both widths. The team columns must remain readable.
+- The routing sheet names your own team by team name, while the grouped sections call it `You`.
