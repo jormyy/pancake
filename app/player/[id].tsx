@@ -6,7 +6,7 @@ import { listenForMemberClaimsChanges, memberClaimsRevision } from '@/lib/claim-
 import { IRResolutionModal } from '@/components/IRResolutionModal'
 import { DropPlayerPickerModal } from '@/components/DropPlayerPickerModal'
 import { GameLogTable } from '@/components/player/GameLogTable'
-import { PlayerHeader, playerSummaryLine, type PlayerHeaderAction } from '@/components/player/PlayerHeader'
+import { PlayerHeader, playerAvailability, playerSummaryLine, type PlayerHeaderAction } from '@/components/player/PlayerHeader'
 import { SeasonSelector } from '@/components/player/SeasonSelector'
 import { StatsOverview } from '@/components/player/StatsOverview'
 import { readPlayerHeader } from '@/components/player/navigation'
@@ -244,10 +244,12 @@ export default function PlayerDetailScreen() {
         </Pressable>
     )
     const gameLogEmpty = !gameLogLoading && !gameLogError && gameLog.length === 0
+    const availability = playerAvailability(rosterStatus, current?.team_name)
     const infoCard = (
         <Card padding="none" elevated="none" style={styles.card}>
             <SectionBand label="Player info" />
             <View style={styles.cardBody}>
+                {availability.label ? <Text style={[styles.infoLine, styles.availability, { color: availability.tone }]} numberOfLines={1} testID="player-availability">{availability.label}</Text> : null}
                 {summaryLine ? <Text style={styles.infoLine}>{summaryLine}</Text> : null}
                 {injuryDetails ? <Text style={textStyles.meta}>{injuryDetails}</Text> : null}
                 <NextProjectionCard plain reserveSpace projection={nextProjection} loading={!projectionSettled} liveGame={liveGame}
@@ -421,6 +423,7 @@ const styles = StyleSheet.create({
     card: { overflow: 'hidden' },
     cardBody: { padding: spacing.lg, gap: spacing.md },
     infoLine: { ...textStyles.rowTitle, color: colors.textSecondary },
+    availability: { fontWeight: fontWeight.bold },
     bandDetail: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
     bandHint: { ...textStyles.meta, color: colors.textMuted },
     bandAction: { minHeight: controlSize.minTouch, minWidth: controlSize.minTouch, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.sm },

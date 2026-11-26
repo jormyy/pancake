@@ -140,24 +140,15 @@ it.each([true, false])('centres an empty slot on a single line (compact=%s)', as
     expect(Object.assign({}, ...[body.props.style].flat(Infinity).filter(Boolean)).justifyContent).toBe('center')
 })
 
-it('shows a faint projection instead of a dash until the game starts, then the real score', async () => {
+it('shows a dash until the game starts, then the real score, and highlights live players', async () => {
     const props = { ...rowProps(), myPlayer: rowPlayer('Mine', 'TOR'), oppPlayer: rowPlayer('Theirs', 'OKC'), projections: new Map([['Mine', 42.84], ['Theirs', 18]]) }
     await act(async () => { screen = create(React.createElement(MatchupRow, props)) })
     const scores = () => ['Mine', 'Theirs'].map(name => screen.root.findByProps({ accessibilityLabel: `Score breakdown for ${name}` }).findByType('Text' as React.ElementType))
-    expect(scores().map(score => score.props.children)).toEqual(['42.8', '18.0'])
-    for (const score of scores()) expect(Object.assign({}, ...[score.props.style].flat().filter(Boolean))).toMatchObject({ fontWeight: '500' })
-    // Once a game is under way the projection gives way to the live score.
+    expect(scores().map(score => score.props.children)).toEqual(['-', '-'])
     await act(async () => screen.update(React.createElement(MatchupRow, { ...props, liveStats: new Map([['Mine', { didNotPlay: false } as LiveStatLine]]), liveTeams: new Set(['TOR']) })))
-    expect(scores().map(score => score.props.children)).toEqual(['0', '18.0'])
-})
-
-it('keeps the dash without a game, without a projection, and on reserve slots', async () => {
-    const props = { ...rowProps(), myPlayer: rowPlayer('Mine', 'TOR'), oppPlayer: rowPlayer('Theirs', 'OKC'), projections: new Map([['Mine', 30]]) }
-    const scoreTexts = () => ['Mine', 'Theirs'].map(name => screen.root.findByProps({ accessibilityLabel: `Score breakdown for ${name}` }).findByType('Text' as React.ElementType).props.children)
-    await act(async () => { screen = create(React.createElement(MatchupRow, props)) })
-    expect(scoreTexts()).toEqual(['30.0', '-'])
-    await act(async () => screen.update(React.createElement(MatchupRow, { ...props, playingTeams: new Set<string>(), teamMatchups: new Map() })))
-    expect(scoreTexts()).toEqual(['-', '-'])
+    expect(scores().map(score => score.props.children)).toEqual(['0', '-'])
+    const highlighted = screen.root.findAll(node => node.type === ('View' as React.ElementType) && [node.props.style].flat(Infinity).some((style: { borderLeftWidth?: number } | null) => style?.borderLeftWidth != null))
+    expect(highlighted).toHaveLength(1)
     await act(async () => screen.update(React.createElement(MatchupRow, { ...props, slotType: 'IR' })))
-    expect(scoreTexts()).toEqual(['-', '-'])
+    expect(scores().map(score => score.props.children)).toEqual(['-', '-'])
 })

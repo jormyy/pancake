@@ -329,7 +329,7 @@ function PlayerSide({
     const score = (
         <MotionPressable key="score" style={[styles.scoreTarget, compact && styles.scoreTargetCompact]} onPress={onOpenDetails} disabled={!player || !onOpenDetails}
             accessibilityRole="button" accessibilityLabel={player ? `Score breakdown for ${player.displayName}` : 'Empty score'}>
-            <FantasyScore value={player && gameStarted ? fpts ?? 0 : null} projection={player && hasGame && !gameStarted ? projection : undefined}
+            <FantasyScore value={player && gameStarted ? fpts ?? 0 : null}
                 isLive={isLive} isFinal={isFinal} side={side} compact={compact} dense={dense} />
         </MotionPressable>
     )
@@ -399,6 +399,8 @@ function MatchupRowImpl({
     const oppIsFinal = !reserveSlot && oppPlayer?.nbaTeam ? teamMatchups.get(oppPlayer.nbaTeam)?.status === 'Final' : false
     const myFpts = myStats && !myStats.didNotPlay ? computeLiveFantasyPoints(myStats, scoringSettings) : null
     const oppFpts = oppStats && !oppStats.didNotPlay ? computeLiveFantasyPoints(oppStats, scoringSettings) : null
+    const myActive = myIsLive && !myStats?.didNotPlay
+    const oppActive = oppIsLive && !oppStats?.didNotPlay
     const openDetails = onOpenDetails && (myPlayer || oppPlayer)
         ? () => onOpenDetails({ myPlayer, oppPlayer, slotType })
         : undefined
@@ -412,7 +414,7 @@ function MatchupRowImpl({
                     dense && styles.matchupRowDense,
                 ]}
             >
-            <View style={[styles.rowSideLeft, compact && styles.rowSideLeftCompact]}>
+            <View style={[styles.rowSideLeft, compact && styles.rowSideLeftCompact, myActive && styles.sideActive, myActive && styles.sideActiveLeft]}>
                 <PlayerSide
                     side="left"
                     player={myPlayer}
@@ -449,7 +451,7 @@ function MatchupRowImpl({
                 </Text>
             </View>
 
-            <View style={[styles.rowSideRight, compact && styles.rowSideRightCompact]}>
+            <View style={[styles.rowSideRight, compact && styles.rowSideRightCompact, oppActive && styles.sideActive, oppActive && styles.sideActiveRight]}>
                 <PlayerSide
                     side="right"
                     player={oppPlayer}
@@ -504,6 +506,9 @@ const styles = StyleSheet.create({
     },
     rowSideLeft: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', paddingLeft: spacing.sm },
     rowSideRight: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', paddingRight: spacing.sm },
+    sideActive: { alignSelf: 'stretch', backgroundColor: colors.primaryLight },
+    sideActiveLeft: { borderLeftWidth: borderWidth.accent, borderLeftColor: colors.primary, paddingLeft: spacing.sm - borderWidth.accent },
+    sideActiveRight: { borderRightWidth: borderWidth.accent, borderRightColor: colors.primary, paddingRight: spacing.sm - borderWidth.accent },
     rowSideLeftCompact: { paddingLeft: spacing.xs, paddingRight: spacing.xxs },
     rowSideRightCompact: { paddingLeft: spacing.xxs, paddingRight: spacing.xs },
     // Sized to the score itself (three digits) so names get the spare width.

@@ -31,7 +31,7 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null, o
     const [page, setPage] = useState<{ identity: string; year: number; cursor: PlayerGameCursor | null }>({ identity, year: selectedSeason, cursor: null })
     const cursor = page.identity === identity && page.year === selectedSeason ? page.cursor : null
     const sectionScope = (section: PlayerSection) => accountId && memberId && leagueId ? screenScope('player', leagueId, memberId, { playerId, seasonYear: selectedSeason, section, ...(section === 'games' ? { gameLimit: cursor ? 15 : count, ...(cursor ? { gameAfter: cursor } : {}) } : {}) }, accountId) : null
-    const gamesView = useScreenView<PlayerSectionView>(sectionScope('games'), enabled && opened.games === true)
+    const gamesView = useScreenView<PlayerSectionView>(sectionScope('games'), enabled)
     const newsView = useScreenView<PlayerSectionView>(sectionScope('news'), enabled && opened.news === true)
     const historyView = useScreenView<PlayerSectionView>(sectionScope('history'), enabled && opened.history === true)
     const refreshGames = gamesView.refresh
@@ -44,8 +44,8 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null, o
         if (changedVersion) setPage({ identity, year: selectedSeason, cursor: null })
     }, [changedVersion, identity, selectedSeason])
     useEffect(() => {
-        if (staleFirstPage && enabled && opened.games) void refreshGames(true, false)
-    }, [staleFirstPage, enabled, opened.games, refreshGames])
+        if (staleFirstPage && enabled) void refreshGames(true, false)
+    }, [staleFirstPage, enabled, refreshGames])
     if (gamesView.data && !changedVersion && !staleFirstPage) {
         if (!currentGames || currentGames.version !== gamesView.data.context.version) {
             previousGames.current = { identity, season: selectedSeason, version: gamesView.data.context.version, limit: count, pages: new Map() }
