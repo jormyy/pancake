@@ -76,19 +76,14 @@ it('opens the switch with one league and keeps it when another league becomes av
 it.each([
     '/player/123', '/lineup', '/propose-trade', '/claim-player', '/team-roster', '/change-password',
     '/commissioner-settings', '/create-league', '/join-league', '/draft', '/draft-room', '/rookie-draft-room', '/profile', '/notification-settings',
-])('keeps bottom navigation while removing the duplicate header on %s', async pathname => {
+])('keeps the league header and bottom navigation on %s', async pathname => {
     state.pathname = pathname
     await render()
-    expect(controls('Open menu')).toHaveLength(0)
+    expect(controls('Open menu')).toHaveLength(1)
     expect(screen.root.findAll(node => node.type === ('Pressable' as React.ElementType) && node.props.accessibilityRole === 'link')).toHaveLength(5)
     const main = screen.root.find(node => node.type === ('View' as React.ElementType) && node.props.role === 'main')
     const style = Object.assign({}, ...main.props.style.filter(Boolean))
-    expect(style.paddingTop).toBeUndefined()
-    const inset = screen.root.findAll(node => node.type === ('View' as React.ElementType) && node.props.testID === 'back-header-inset')
-    expect(inset).toHaveLength(1)
-    const insetStyle = Object.assign({}, ...[inset[0].props.style].flat(Infinity).filter(Boolean))
-    expect(insetStyle.height).toBe('env(safe-area-inset-top, 0px)')
-    expect(insetStyle.position).toBeUndefined()
+    expect(style.paddingTop).toBeDefined()
 })
 
 it.each(['/', '/roster', '/players', '/trades', '/league', '/bracket'])('keeps the league header on %s', async pathname => {
@@ -135,7 +130,7 @@ it('opens a trade with one header and restores the list header without remountin
     state.params = { tradeId: 'incoming-trade' }
     await render()
     const content = screen.root.findByType('Content' as React.ElementType)
-    expect(controls('Open menu')).toHaveLength(0)
+    expect(controls('Open menu')).toHaveLength(1)
     state.params = {}
     await act(async () => screen.update(React.createElement(WebAppShell, {}, React.createElement('Content'))))
     expect(controls('Open menu')).toHaveLength(1)

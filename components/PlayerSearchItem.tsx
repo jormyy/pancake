@@ -221,7 +221,7 @@ const styles = StyleSheet.create({
         paddingLeft: spacing.sm,
         gap: spacing.md,
     },
-    playerCardNarrow: { paddingRight: spacing.xs, paddingVertical: spacing.none, minHeight: controlSize.minTouch },
+    playerCardNarrow: { paddingRight: spacing.xs, paddingVertical: componentTokens.playerRow.compact.paddingVertical, minHeight: controlSize.minTouch },
     playerCardDense: { paddingVertical: spacing.xs, paddingRight: spacing.xs, gap: spacing.md },
     playerMetaScore: { fontWeight: fontWeight.bold, color: colors.primaryDark },
     playerMetaRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, minWidth: 0 },

@@ -107,14 +107,14 @@ it.each([
     expect(screen.root.findAllByProps({ children: detail })).toHaveLength(1)
     expect(screen.root.findAllByProps({ 'aria-busy': true })).toHaveLength(0)
 })
-it.each(['/profile', '/player/player-a', '/propose-trade'])('hides the global top bar on the pushed route %s', async pathname => {
+it.each(['/profile', '/player/player-a', '/propose-trade'])('keeps the global top bar on the pushed route %s', async pathname => {
     mocks.width = 390
     mocks.pathname = '/'
     await mount()
     expect(screen.root.findAllByProps({ accessibilityLabel: 'Open menu' })).toHaveLength(1)
     mocks.pathname = pathname
     await act(async () => screen.update(React.createElement(WebAppShell, null, null)))
-    expect(screen.root.findAllByProps({ accessibilityLabel: 'Open menu' })).toHaveLength(0)
+    expect(screen.root.findAllByProps({ accessibilityLabel: 'Open menu' })).toHaveLength(1)
     expect(screen.root.findAllByProps({ 'aria-label': 'Primary' })).toHaveLength(1)
 })
 afterEach(async () => { await act(async () => screen?.unmount()); vi.restoreAllMocks() })
