@@ -62,7 +62,7 @@
   ],
   "migrations": {
     "dir": "supabase/migrations",
-    "through": "20261226000000_undo_trade_acceptance_rule.sql",
-    "sha256": "172eccec8605bbf0d0c27177f8582274097cce05b657617824360bed62fefddd"
+    "through": "20261227000000_public_read_allowance.sql",
+    "sha256": "4080b36c5671cb2d2658b3eaa504ad7b0d30de712c3139d614ec9f0a8e4493e0"
   }
 }
