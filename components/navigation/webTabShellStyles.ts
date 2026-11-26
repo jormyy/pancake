@@ -296,12 +296,6 @@ export const styles = StyleSheet.create({
         paddingBottom: `calc(${MOBILE_BOTTOMBAR_HEIGHT}px + env(safe-area-inset-bottom, ${spacing.none}px))`,
     } as unknown as WebOnlyViewStyle,
 
-    backHeaderInset: {
-        flexShrink: 0,
-        height: `env(safe-area-inset-top, ${spacing.none}px)`,
-        backgroundColor: colors.bgScreen,
-    } as unknown as WebOnlyViewStyle,
-
     mobileTopbar: {
         position: 'fixed',
         top: spacing.none,

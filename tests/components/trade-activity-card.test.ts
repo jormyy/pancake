@@ -110,7 +110,7 @@ it('shows a three-team trade with players first and picks ordered by year then r
     ])
     const text = JSON.stringify(row.toJSON())
     for (const team of ['Owls', 'Foxes', 'Bears']) expect(text).toContain(team)
-    expect(text.match(/gets/g)).toHaveLength(3)
+    expect(row.root.findAllByType('Text' as React.ElementType).filter(node => typeof node.props.children === 'string' && node.props.children.endsWith(' gets'))).toHaveLength(3)
     expect(row.root.findAllByType('Pressable' as React.ElementType)).toHaveLength(3)
 })
 

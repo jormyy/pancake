@@ -253,10 +253,12 @@ it('shows the injury detail beside the initial profile and keeps sections closed
     state.data.player = { ...headerPlayer(), id: 'player', injury_status: 'Out', injury_reason: 'Ankle', injury_expected_return: 'Day to day' }
     await act(async () => { screen = create(React.createElement(PlayerDetailScreen)) })
     expect(screen!.root.findByProps({ children: 'Out · Ankle · Day to day' })).toBeDefined()
-    for (const label of ['Game log', 'News', 'League history']) {
+    for (const label of ['News', 'League history']) {
         const toggle = screen!.root.findByProps({ accessibilityLabel: label })
         expect(toggle.props.accessibilityState).toEqual({ expanded: false })
     }
+    expect(screen!.root.findAllByProps({ accessibilityLabel: 'Game log' })).toHaveLength(0)
+    expect(screen!.root.findByProps({ children: 'No games yet' })).toBeDefined()
     await act(async () => screen!.root.findByProps({ accessibilityLabel: 'News' }).props.onPress())
     expect(state.data.toggleSection).toHaveBeenCalledExactlyOnceWith('news')
 })

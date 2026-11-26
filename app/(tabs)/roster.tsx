@@ -815,7 +815,6 @@ export default function RosterScreen() {
                                 <Button
                                     size="inline"
                                     variant="outline"
-                                    style={{ minHeight: controlSize.minTouch }}
                                     title="Edit lineup"
                                     onPress={() => push('/(modals)/lineup')}
                                     accessibilityLabel="Edit lineup and pins"
@@ -908,23 +907,19 @@ const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgScreen },
 
     summary: {
-        minHeight: controlSize.button.md.height,
         flexDirection: 'row',
-        flexWrap: 'wrap',
         alignItems: 'center',
-        alignContent: 'center',
         gap: spacing.md,
-        paddingVertical: spacing.sm,
     },
     summaryText: { ...textStyles.meta, flexShrink: 1, fontWeight: fontWeight.semibold, fontVariant: ['tabular-nums'] as const },
-    headerActions: { flexGrow: 1, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'flex-end', gap: spacing.sm },
+    headerActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: spacing.sm, flexShrink: 0 },
 
 
     body: { flex: 1, minHeight: 0 },
     bodyTwoPane: { flexDirection: 'row', gap: spacing['3xl'] },
     main: { flex: 1, minWidth: 0, minHeight: 0 },
     rail: { width: layout.railWidth, flexGrow: 0, flexShrink: 0 },
-    listContent: { paddingTop: spacing.md, paddingBottom: spacing['3xl'] },
+    listContent: { paddingBottom: spacing['3xl'] },
 
     // One card per roster section, drawn across the flat list's items.
     cardSlice: {

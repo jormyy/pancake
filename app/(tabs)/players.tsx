@@ -580,7 +580,7 @@ const localStyles = StyleSheet.create({
     list: { flex: 1, minHeight: 0 },
     bandDetail: { ...typeScale.caption, color: colors.textMuted },
     pageProgress: { minHeight: controlSize.minTouch, alignItems: 'center', justifyContent: 'center' },
-    toolbar: { gap: spacing.sm, paddingTop: spacing.md },
+    toolbar: { gap: spacing.xs, paddingTop: spacing.none },
     summaryRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.sm, minHeight: textStyles.meta.lineHeight },
     summaryText: { ...textStyles.meta, color: colors.textSecondary, fontWeight: fontWeight.semibold, fontVariant: ['tabular-nums'] as const, flexShrink: 1 },
     toolbarRow: {
