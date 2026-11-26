@@ -64,6 +64,8 @@ Each job re-picks every upcoming day for one team. Deploy `lineup-optimizer` fir
 It adds nullable listed size and draft fields to `players` and the service-only `public.apply_player_listed_details` writer. Older Edge and frontend builds ignore the new fields, so apply it before `sync-players` and the frontend that read them.
 `20261226000000_undo_trade_acceptance_rule.sql` follows it, for 813 migrations.
 It limits `public.retract_trade_acceptance_atomic` to the caller's own acceptance on a pending offer of three or more teams that another team has not accepted, adds an optional `p_expected_version` argument, and returns the offer version from the roster-hold check. The deployed `api` function calls the retract RPC with three named arguments, which still resolve, so apply it before the frontend; the version check takes effect when `api` is next deployed.
+`20261227000000_public_read_allowance.sql` follows it, for 814 migrations.
+It raises `public.public_admit_read` to 240 reads per client per minute and returns the seconds until the minute resets as `retryAfter`. The deployed `api` function keeps its own 60-read limit until it is redeployed, so apply it before `api`.
 Database, then Edge, then merge the frontend.
 
 1. **Migrations.** Apply all five through the guarded dry run and push. They change no roster, lineup, dispatch, or notice. `floor_activated_at` and `ir_activated_at` stay NULL, so the floor defers and the league-wide Auto IR admission stays off. The shared `pre-tipoff` fingerprint keeps its old body, so applying the migrations reopens no open window. After activation, the official league and the other leagues never reopen each other's completed windows.

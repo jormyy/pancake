@@ -16,7 +16,7 @@ function sample(shape: Shape): unknown {
 describe('public v2 projection',()=>{
   it.each(resourceNames)('%s is independent of random private fields',async resource=>{
     const raw=sample(publicContract.resources[resource].properties.items.items) as Record<string,unknown>
-    const handler=createPublicHandler(async()=>({status:200,items:[raw],hasMore:false}),()=>true)
+    const handler=createPublicHandler({admit:async()=>({status:200}),read:async()=>({status:200,items:[raw],hasMore:false})},()=>0)
     const url=`http://localhost/public/v2/${resource}?${resource==='leagues'?'':`league=${league}`}${resource==='rosters'?`&team=${league}`:''}`
     const expected=await (await handler(new Request(url),`/public/v2/${resource}`))!.text()
     let seed=73491
@@ -43,7 +43,7 @@ describe('public v2 projection',()=>{
     expect(result.items?.[0].id).toBe('00000000-0000-4000-8000-000000000000')
   })
   it('makes cursor scopes depend on the league and filters',async()=>{
-    const handler=createPublicHandler(async()=>({status:200,items:[],hasMore:true}))
+    const handler=createPublicHandler({admit:async()=>({status:200}),read:async()=>({status:200,items:[],hasMore:true})})
     const call=(leagueId:string,extra='')=>handler(new Request(`http://localhost/public/v2/teams?league=${leagueId}${extra}`),'/public/v2/teams')
     const cursor=(await (await call(league))!.json()).nextCursor
     expect((await call(league,`&cursor=${encodeURIComponent(cursor)}`))?.status).toBe(200)
@@ -55,7 +55,7 @@ it('free-agent pages and cursors are independent of private pending claims and b
   const base={...sample(shape) as Record<string,unknown>,leagueId:league,id:league,name:'Ada',availability:'free-agent',waiverClearsAt:null,waiverEligible:true}
   const second={...base,id:'22222222-2222-4222-8222-222222222222',name:'Zed',availability:'waivers',waiverClearsAt:'2026-12-01'}
   let secret:Record<string,unknown>={}
-  const handler=createPublicHandler(async(_league,resource,params)=>modelObservation(resource,[{...base,...secret},{...second,...secret}],{league,...params}),()=>true)
+  const handler=createPublicHandler({admit:async()=>({status:200}),read:async(_league,resource,params)=>modelObservation(resource,[{...base,...secret},{...second,...secret}],{league,...params})},()=>0)
   const url=`http://localhost/public/v2/free-agents?league=${league}&limit=1&sort=name`
   const first=await (await handler(new Request(url),'/public/v2/free-agents'))!.text()
   const cursor=JSON.parse(first).nextCursor

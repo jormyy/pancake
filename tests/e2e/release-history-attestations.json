@@ -3844,6 +3844,13 @@
       "statementCount": 10,
       "statementsSha256": "314b80022fe15ccc66c3af7228df249956fc417c3b5a17abae73e7a901e82e85",
       "sha256": "b00e750bd27b3f1b1ab5581ed4f1f427909eb7e0625afcab7afce6b70051090b"
+    },
+    {
+      "name": "public_read_allowance",
+      "version": "20261227000000",
+      "statementCount": 7,
+      "statementsSha256": "d88854d96b765189aefc34b7c06c9b17da01137a61c98c1c0ad1fcd0d4d00e3b",
+      "sha256": "2703b60a3dcf38dc09b3144ac27341439dba377f4e8d558ddec96b8643293d2a"
     }
   ]
 }

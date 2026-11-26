@@ -231,6 +231,7 @@ const documentFonts = {
 const SUPABASE_ORIGIN = process.env.EXPO_PUBLIC_SUPABASE_URL
     ? new URL(process.env.EXPO_PUBLIC_SUPABASE_URL).origin
     : 'https://ceeytbfmwsnzalxlkalc.supabase.co'
+const PUBLIC_PAGES = `${SUPABASE_ORIGIN}/functions/v1/api/public/web`
 
 export default function Root({ children }: PropsWithChildren) {
     useFonts(documentFonts)
@@ -279,11 +280,21 @@ export default function Root({ children }: PropsWithChildren) {
                 <meta name="apple-mobile-web-app-capable" content="yes" />
                 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
                 <meta name="apple-mobile-web-app-title" content="Pancake" />
+                <link rel="alternate" type="text/markdown" title="Pancake public league data" href={PUBLIC_PAGES} />
 
                 <ScrollViewStyleReset />
                 <script dangerouslySetInnerHTML={{ __html: SW_REGISTER }} />
             </head>
             <body>
+                <noscript>
+                    <h1>Pancake public league data</h1>
+                    <p>Every Pancake league is public. Read it without signing in, JavaScript or tools.</p>
+                    <ul>
+                        <li><a href={PUBLIC_PAGES}>Browse public leagues</a></li>
+                        <li>Find a league by name: open {PUBLIC_PAGES}/leagues?query=NAME with NAME replaced by the full name or any part of it.</li>
+                        <li><a href="/llms.txt">llms.txt</a> and the <a href="/agents.md">agent guide</a></li>
+                    </ul>
+                </noscript>
                 <div dangerouslySetInnerHTML={{ __html: BOOT_SHELL_HTML }} />
                 <script dangerouslySetInnerHTML={{ __html: BOOT_SHELL_SCRIPT }} />
                 <AuthDocumentForm pathname={pathname} />

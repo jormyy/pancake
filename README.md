@@ -78,6 +78,7 @@ Follow the [release guide](scripts/release/README.md) and the [database runbook]
 
 The `pancake` CLI reads public data from every league.
 It needs no account or token.
+The same data is readable without tools from the [public league pages](https://ceeytbfmwsnzalxlkalc.supabase.co/functions/v1/api/public/web).
 
 ```sh
 npm install -g ./packages/pancake-cli

@@ -18,5 +18,5 @@ it('keeps database admission out of the read-only data function',async()=>{
   expect(read).toContain('LANGUAGE plpgsql STABLE SECURITY DEFINER')
   expect(read).not.toMatch(/public_api_buckets|public_admit_read|INSERT INTO|UPDATE public|DELETE FROM/)
   expect(admission).not.toContain("VALUES('global'")
-  expect(admission).toContain('reads<60')
+  expect(admission).toContain('reads<240')
 })

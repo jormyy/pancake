@@ -198,7 +198,7 @@ export async function generate(check = false) {
     'packages/pancake-cli/schemas/v2.json': contract,
     'packages/pancake-cli/schemas/options-v2.json': JSON.stringify(Object.fromEntries(Object.entries(policy.resources).map(([name, item]) => [name, { filters: Object.keys(item.filters), filterFields: item.filters, order: item.order, tieBreaker: policy.tieBreaker, direction: item.direction ?? 'asc', sorts: Object.entries(item.fields).filter(([, field]) => !(Array.isArray(field.schema.type)?field.schema.type:[field.schema.type]).some(type=>['object','array'].includes(type))).map(([key]) => key) }])), null, 2)+'\n',
   }
-  for (const name of ['public_read_v2','public_admit_read']) {
+  for (const name of ['public_read_v2']) {
     const start = sql.indexOf(`CREATE OR REPLACE FUNCTION public.${name}(`)
     outputs[`supabase/sql/functions/by-name/public/${name}.sql`] = sql.slice(start,sql.indexOf('\n$$;',start)+4)+'\n'
   }

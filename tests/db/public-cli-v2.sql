@@ -21,10 +21,10 @@ BEGIN
     after_rows:=public.public_read_v2(league,'teams',invalid_params,token_key);
     PERFORM pg_temp.check_rules(after_rows=jsonb_build_object('status',400),'malformed parameters return fixed error '||invalid_params::text);
   END LOOP;
-  FOR admission IN 1..60 LOOP
-    PERFORM public.public_admit_read(encode(extensions.digest(league::text,'sha256'),'hex'));
-  END LOOP;
-  PERFORM pg_temp.check_rules(public.public_admit_read(encode(extensions.digest(league::text,'sha256'),'hex'))=jsonb_build_object('status',429,'retryAfter',60),'client quota rejects excess');
+  SELECT count(*) FILTER (WHERE public.public_admit_read(encode(extensions.digest(league::text,'sha256'),'hex'))=jsonb_build_object('status',200)) INTO admission FROM generate_series(1,240);
+  PERFORM pg_temp.check_rules(admission=240,'client quota admits 240 reads');
+  after_rows:=public.public_admit_read(encode(extensions.digest(league::text,'sha256'),'hex'));
+  PERFORM pg_temp.check_rules(after_rows->>'status'='429' AND (after_rows->>'retryAfter')::integer BETWEEN 1 AND 60,'client quota rejects read 241 with seconds until the minute resets');
   PERFORM pg_temp.check_rules(public.public_admit_read(encode(extensions.digest(season::text,'sha256'),'hex'))=jsonb_build_object('status',200),'client quota does not exhaust another client');
   INSERT INTO public.players(id,first_name,last_name) VALUES(player,'Public','Fixture');
   INSERT INTO public.trades(id,league_id,league_season_id,proposer_member_id,recipient_member_id,status,accepted_at,completed_at)

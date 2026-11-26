@@ -7,6 +7,7 @@ type Rule = { field: string; op: string; value?: unknown }
 export type Definition = { fields: Record<string, { schema: Shape }>; filters: Record<string, string[]>; order: string[]; direction?: string; visibility: Rule[] }
 export const publicContract = contract
 export const policy = definitions
+export const READS_PER_MINUTE = 240
 export const resourceNames = Object.keys(definitions.resources) as Resource[]
 export const definition = (resource: Resource) => definitions.resources[resource] as Definition
 

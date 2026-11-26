@@ -1,7 +1,14 @@
 # Pancake
 
-> Read public fantasy basketball league data anonymously through the Pancake CLI and API.
+> Pancake is a dynasty fantasy basketball app. Every league's public data is readable anonymously as plain Markdown pages, JSON, or the Pancake CLI.
 
-## Public usage
+## Public league pages
 
-- [Agent guide](https://pancakedynasty.vercel.app/agents.md): Installation, discovery, schemas, pagination, errors, and privacy.
+- [Browse public leagues](https://ceeytbfmwsnzalxlkalc.supabase.co/functions/v1/api/public/web): Start here. Every page is Markdown with ordinary links and needs no JavaScript or sign-in.
+- Find a league by name: https://ceeytbfmwsnzalxlkalc.supabase.co/functions/v1/api/public/web/leagues?query=NAME, with NAME replaced by the full name or any part of it. Matching ignores letter case. Several matches are listed for you to choose; no match says so.
+- League home: https://ceeytbfmwsnzalxlkalc.supabase.co/functions/v1/api/public/web/league?league=LEAGUE_ID links to standings, schedule, matchups, scores, teams, rosters, players, free agents, statistics, projections, drafts, picks, trades and transactions.
+- Every page states the league, the season and the time it was read, and links to the same data as JSON.
+
+## Agent reference
+
+- [Agent guide](https://pancakedynasty.vercel.app/agents.md): CLI installation, JSON API, schemas, options, pagination, limits, errors and privacy.
