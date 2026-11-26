@@ -88,7 +88,7 @@ const styles = StyleSheet.create({
     week: { width: table.statColWidth + spacing.md, flexShrink: 0 },
     opponent: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
     opponentHeader: { flex: 1 },
-    opponentName: { flexShrink: 1 },
+    opponentName: { flexShrink: 1, minWidth: 0 },
     placeholder: { color: colors.textMuted },
     result: { width: table.scoreColWidth * 3, flexShrink: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', textAlign: 'right' },
     outcome: { flex: 1, textAlign: 'left', color: colors.textSecondary },
