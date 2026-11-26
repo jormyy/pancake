@@ -112,7 +112,7 @@ export function PageHeader({
         ? ({ role: 'heading', 'aria-level': 1, accessibilityRole: 'header' } as const)
         : {}
     return (
-        <View testID={small ? 'page-header-compact' : 'page-header-standard'} style={[styles.header, tabs ? styles.headerTabs : styles.headerCentered, small && styles.headerCompact, !divider && styles.headerBorderless, { paddingHorizontal: padX }]}>
+        <View testID={small ? 'page-header-compact' : 'page-header-standard'} style={[styles.header, small ? styles.headerCompact : styles.headerStandard, !divider && styles.headerBorderless, { paddingHorizontal: padX }]}>
             {hideTitle && titleIsPageHeading ? <Text style={srOnly} {...headingProps}>{title}</Text> : null}
             {onBack ? <View style={styles.headerBack}><BackButton onPress={onBack} label={Platform.OS === 'web' ? backLabel : hideTitle ? 'Close' : backLabel} icon={hideTitle ? 'close' : 'arrow-back'} /></View> : null}
             <View style={styles.headerMain}>
@@ -133,17 +133,15 @@ const styles = StyleSheet.create({
     column: { flex: 1, minHeight: 0, width: '100%', alignSelf: 'center' },
     header: {
         flexDirection: 'row',
-        alignItems: 'flex-end',
+        alignItems: 'center',
         gap: componentTokens.pageHeader.gap,
-        minHeight: componentTokens.pageHeader.standard.minHeight,
+        marginBottom: spacing.md,
         borderBottomWidth: componentTokens.pageHeader.borderWidth,
         borderBottomColor: colors.borderLight,
     },
-    // Tabs sit on the bottom border; titles and back controls center in the row.
-    headerTabs: { alignItems: 'center', ...componentTokens.pageHeader.tabs, marginBottom: spacing.md },
-    headerCentered: { alignItems: 'center', minHeight: componentTokens.pageHeader.standard.minHeight, paddingVertical: componentTokens.pageHeader.standard.paddingVertical },
-    headerBorderless: { borderBottomWidth: 0 },
+    headerStandard: { minHeight: componentTokens.pageHeader.standard.minHeight, paddingVertical: componentTokens.pageHeader.standard.paddingVertical },
     headerCompact: { minHeight: componentTokens.pageHeader.compact.minHeight, paddingVertical: componentTokens.pageHeader.compact.paddingVertical },
+    headerBorderless: { borderBottomWidth: 0 },
     titleCompact: { ...componentTokens.pageHeader.compact.title },
     headerBack: { alignSelf: 'center' },
     headerMain: { flex: 1, minWidth: 0 },

@@ -89,13 +89,13 @@ export function PlayerHeader({ locks = [], player, rosterStatus, ownTeamName, ac
                     <Text style={[styles.name, compact && styles.nameCompact]} accessibilityLabel={player.display_name}>{player.display_name}</Text>
                     <View style={styles.metaRow} testID="player-position-line">
                         <PlayerDetailsLine team={player.nba_team} positions={eligiblePositions} jersey={player.jersey_number} />
+                        <LockedAssetNotice locks={locks} />
                     </View>
                 </View>
             </View>
-            {showSummary || locks.length > 0 ? (
+            {showSummary ? (
                 <View style={styles.summaryRow} testID="player-summary-line">
-                    {showSummary && summary ? <Text style={styles.summary} numberOfLines={1}>{summary}</Text> : null}
-                    <LockedAssetNotice locks={locks} />
+                    <Text style={styles.summary} numberOfLines={1}>{summary}</Text>
                 </View>
             ) : null}
             {leagueActive ? (

@@ -185,6 +185,18 @@ describe('player decision summary', () => {
         expect(screen.root.findByProps({ testID: 'player-summary-line' }).findAllByType(type('Text'))[0].props.children).toContain('Dynasty #100')
     })
 
+    it('keeps the lock inline with the team line and drops the empty summary row', async () => {
+        const locks = [{ assetKind: 'player', assetId: 'player', sourceKind: 'trade', sourceId: 'hidden', reason: 'Locked by trade hidden.' }] as const
+        await render(React.createElement(PlayerHeader, {
+            player: headerPlayer({ nba_team: 'ATL', eligible_positions: ['PG'] }),
+            rosterStatus: { status: 'mine', rosterPlayerId: 'roster' },
+            leagueActive: true, showSummary: false, locks,
+        }))
+        const line = screen.root.findByProps({ testID: 'player-position-line' })
+        expect(line.findAllByProps({ accessibilityLabel: 'Locked by a pending trade' })).toHaveLength(1)
+        expect(screen.root.findAllByProps({ testID: 'player-summary-line' })).toHaveLength(0)
+    })
+
     it('never calls a started game next and shows live points from the log', async () => {
         const projection = { next_game_date: '2026-10-24', next_game_time: '2026-10-24T17:00:00Z',
             next_game_opponent: 'vs BOS', projection_fantasy_points: 42.8 } as LeagueProjectionRow
