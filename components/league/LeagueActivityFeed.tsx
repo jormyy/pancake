@@ -43,7 +43,7 @@ function ActivityRow({ item, isMe, myMemberId, padX = spacing.lg }: { item: Tran
                         {item.body ?? item.teamName}
                         {isMe ? <Text style={styles.meTag}> (you)</Text> : null}
                     </Text>
-                    {orderTradeAssets(item.tradePlayers ?? []).map(player => <Text key={player.playerId} style={styles.txTeam}>{player.playerName} · {player.fromTeamName} → {player.toTeamName}</Text>)}
+                    {orderTradeAssets(item.tradePlayers ?? []).map(player => <Text key={player.playerId} style={styles.txTeam} numberOfLines={1}>{player.playerName} · {player.fromTeamName} → {player.toTeamName}</Text>)}
                     {orderTradeAssets(item.tradePicks ?? []).map(pick => <TradePickLabel key={pick.pickId} pick={pick} context={{
                         viewerMemberId: myMemberId ?? '',
                         memberNames: { [pick.fromMemberId ?? '']: pick.fromTeamName, [pick.toMemberId ?? '']: pick.toTeamName },
@@ -51,7 +51,7 @@ function ActivityRow({ item, isMe, myMemberId, padX = spacing.lg }: { item: Tran
                 </View>
                 <View style={styles.txRight}>
                     <Badge label={label} color={color} variant="soft" />
-                    <Text style={styles.txTime}>{formatLeagueDateTime(item.occurredAt, timezone)}</Text>
+                    <Text style={styles.txTime} numberOfLines={1}>{formatLeagueDateTime(item.occurredAt, timezone)}</Text>
                 </View>
             </View>
         )
@@ -67,7 +67,7 @@ function ActivityRow({ item, isMe, myMemberId, padX = spacing.lg }: { item: Tran
                 : <PlayerRowContent {...playerProps} playerId={item.playerId} />}
             <View style={styles.txRight}>
                 <Badge label={label} color={color} variant="soft" />
-                <Text style={styles.txTime}>{formatLeagueDateTime(item.occurredAt, timezone)}</Text>
+                <Text style={styles.txTime} numberOfLines={1}>{formatLeagueDateTime(item.occurredAt, timezone)}</Text>
             </View>
         </View>
     )
@@ -200,7 +200,7 @@ const styles = StyleSheet.create({
     txNameRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, flexWrap: 'wrap' },
     txPlayer: { ...textStyles.rowTitle, flexShrink: 1 },
     txTeam: { ...textStyles.meta },
-    txRight: { alignItems: 'flex-end', gap: spacing.xxs },
+    txRight: { alignItems: 'flex-end', gap: spacing.xxs, flexShrink: 0 },
     txTime: { ...typeScale.caption, color: colors.textMuted },
     meTag: { color: colors.textMuted, fontWeight: fontWeight.regular },
     activityFooterAction: {

@@ -11,7 +11,7 @@ import type {
     MockDraftRoomKind,
     MockDraftRoomStatus,
 } from '@/lib/mockDraftRooms'
-import { controlSize, colors, radii, spacing, textStyles, typeScale } from '@/constants/tokens'
+import { controlSize, colors, layout, radii, spacing, textStyles, typeScale } from '@/constants/tokens'
 import { countLabel } from '@/lib/format'
 import {
     DraftChips,
@@ -139,7 +139,7 @@ function RoomAction({
               : 'Start Room'
         return (
             <Pressable
-                style={[buttonStyle, (draftLoading || !canStart) && styles.draftButtonDisabled]}
+                style={[buttonStyle, styles.startButton, (draftLoading || !canStart) && styles.draftButtonDisabled]}
                 onPress={() => onStart(room)}
                 disabled={draftLoading || !canStart}
                 role="button"
@@ -496,6 +496,7 @@ const styles = StyleSheet.create({
     embedded: { gap: spacing.md },
     mockHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md },
     draftButtonDisabled: { opacity: 0.5 },
+    startButton: { minWidth: layout.gameCard.width },
     textInput: {
         height: controlSize.minTouch,
         borderWidth: 1,

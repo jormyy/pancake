@@ -74,7 +74,7 @@ export function MultiTeamTradeOverview({ participants, items, compact = false, c
                                         size={14}
                                         color={participant.statusComplete ? uiColors.successText : colors.textMuted}
                                     />
-                                    <Text style={[styles.statusText, participant.statusComplete && styles.statusTextComplete]}>
+                                    <Text style={[styles.statusText, participant.statusComplete && styles.statusTextComplete]} numberOfLines={1}>
                                         {participant.statusLabel}
                                     </Text>
                                 </View>
@@ -98,7 +98,7 @@ export function MultiTeamTradeOverview({ participants, items, compact = false, c
                                         onPress={() => onRemoveItem(item.key)} accessibilityRole="button"
                                         accessibilityState={{ selected: true }}
                                         accessibilityLabel={`Remove ${item.pick ? tradePickLabel(item.pick, pickContext, showPickDirection) : item.label} sent by ${participantLabels.get(item.fromMemberId) ?? 'Unknown team'} from trade`}>
-                                        <Text style={styles.removeAssetText}>Remove</Text>
+                                        <Text style={styles.removeAssetText} numberOfLines={1}>Remove</Text>
                                     </Pressable>
                                 ) : null}
                             </View>

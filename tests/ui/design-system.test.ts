@@ -42,10 +42,10 @@ it('preserves the shipped phone and lineup measurements', async () => {
     expect(componentTokens.playerRow.metadata.fontSize).toBe(12)
 })
 
-it.each([false, true])('keeps full player names and metadata at compact=%s', async compact => {
+it.each([false, true])('keeps long player names on one line with metadata at compact=%s', async compact => {
     await render(React.createElement(PlayerRow, { name: 'A Very Long Player Name That Must Remain Visible', team: 'LAL', compact }))
     const name = screen.root.findByProps({ testID: 'player-name-line' })
-    expect(name.props.numberOfLines).toBeUndefined()
+    expect(name.props.numberOfLines).toBe(1)
     expect(name.props.children).toBe('A Very Long Player Name That Must Remain Visible')
     expect(screen.root.findByType('Avatar' as React.ElementType).props.size).toBe(compact ? 28 : 32)
     expect(flatten(screen.root.findByProps({ testID: 'player-meta-line' }).props.style).flexWrap).toBe('wrap')

@@ -10,6 +10,7 @@ export const panelStyles = StyleSheet.create({
         paddingHorizontal: spacing.lg,
         justifyContent: 'center',
         alignItems: 'center',
+        flexShrink: 0,
     },
     draftButtonText: { ...typeScale.row, color: colors.textWhite, fontWeight: fontWeight.bold },
     secondaryDraftButton: {
@@ -22,6 +23,7 @@ export const panelStyles = StyleSheet.create({
         paddingHorizontal: spacing.lg,
         justifyContent: 'center',
         alignItems: 'center',
+        flexShrink: 0,
     },
     secondaryDraftButtonText: { ...typeScale.row, color: colors.textSecondary, fontWeight: fontWeight.bold },
     // Left-aligned readable column under the page tabs. Panels add the page's

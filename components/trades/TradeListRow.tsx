@@ -87,7 +87,7 @@ export const TradeBlockListingRow = memo(function TradeBlockListingRow({
                     <Pressable style={styles.blockAction} onPress={() => onRemove(block)}
                         disabled={busy} accessibilityRole="button"
                         accessibilityLabel={`Remove ${label} from trade block`}>
-                        <Text style={styles.blockActionText}>Remove</Text>
+                        <Text style={styles.blockActionText} numberOfLines={1}>Remove</Text>
                     </Pressable>
                 </> : (
                     <Pressable style={styles.blockAction} onPress={() => push({
@@ -98,7 +98,7 @@ export const TradeBlockListingRow = memo(function TradeBlockListingRow({
                             requestPickId: block.asset.kind === 'pick' ? block.asset.pickId : undefined,
                         },
                     })} accessibilityRole="button" accessibilityLabel={`Offer for ${label}`}>
-                        <Text style={styles.blockActionText}>Offer</Text>
+                        <Text style={styles.blockActionText} numberOfLines={1}>Offer</Text>
                     </Pressable>
                 )}
             </View>
@@ -148,12 +148,12 @@ export const TradeBlockPlayerRow = memo(function TradeBlockPlayerRow({
         <View style={[styles.blockRow, !tile && styles.compactBlockRow, tile && styles.tile]}>
             <TradePlayerLink compact playerId={player.id} name={player.display_name} nbaId={player.nba_id} team={player.nba_team} positions={positions}
                 birthdate={player.birthdate} yearsExp={player.years_exp} careerGames={player.career_regular_season_games} injuryStatus={player.injury_status} onTaxi={location === 'taxi'}
-                metadata={<Text style={styles.blockMeta}>{location === 'ir' ? 'IR' : location === 'taxi' ? 'TAXI' : 'Active'}</Text>} stats={context} />
-            <Pressable style={[styles.blockAction, listed && styles.blockActionDisabled]}
+                metadata={<Text style={styles.blockMeta} numberOfLines={1}>{location === 'ir' ? 'IR' : location === 'taxi' ? 'TAXI' : 'Active'}</Text>} stats={context} />
+            <Pressable style={[styles.blockAction, styles.listAction, listed && styles.blockActionDisabled]}
                 onPress={() => onList(item.player)} disabled={listed || busy}
                 accessibilityRole="button" accessibilityLabel={`${listed ? 'Listed' : 'List'} ${player.display_name} on trade block`}
                 accessibilityState={{ disabled: listed || busy }}>
-                <Text style={styles.blockActionText}>{listed ? 'Listed' : 'List'}</Text>
+                <Text style={styles.blockActionText} numberOfLines={1}>{listed ? 'Listed' : 'List'}</Text>
             </Pressable>
         </View>
     )
@@ -178,16 +178,16 @@ export const TradeBlockPickRow = memo(function TradeBlockPickRow({
         <View style={[styles.blockRow, !tile && styles.compactBlockRow, tile && styles.tile]}>
             <View style={styles.pickBadge}><Text style={styles.pickBadgeText}>R{item.pick.round}</Text></View>
             <View style={styles.blockInfo}>
-                <Text style={styles.blockTitle}>{pickLabel(item.pick.seasonYear, item.pick.round)}</Text>
-                <Text style={styles.blockMeta}>
+                <Text style={styles.blockTitle} numberOfLines={1}>{pickLabel(item.pick.seasonYear, item.pick.round)}</Text>
+                <Text style={styles.blockMeta} numberOfLines={1}>
                     {item.pick.originalTeamName === myTeamName ? 'Own pick' : `via ${item.pick.originalTeamName}`}
                 </Text>
             </View>
-            <Pressable style={[styles.blockAction, listed && styles.blockActionDisabled]}
+            <Pressable style={[styles.blockAction, styles.listAction, listed && styles.blockActionDisabled]}
                 onPress={() => onList(item.pick)} disabled={listed || busy}
                 accessibilityRole="button" accessibilityLabel={`${listed ? 'Listed' : 'List'} ${pickLabel(item.pick.seasonYear, item.pick.round)} pick on trade block`}
                 accessibilityState={{ disabled: listed || busy }}>
-                <Text style={styles.blockActionText}>{listed ? 'Listed' : 'List'}</Text>
+                <Text style={styles.blockActionText} numberOfLines={1}>{listed ? 'Listed' : 'List'}</Text>
             </Pressable>
         </View>
     )
@@ -301,6 +301,7 @@ const styles = StyleSheet.create({
         backgroundColor: colors.bgCard,
     },
     pickBadge: {
+        flexShrink: 0,
         width: 36,
         height: 36,
         borderRadius: radii.full,
@@ -310,13 +311,14 @@ const styles = StyleSheet.create({
     },
     pickBadgeText: { ...typeScale.caption, fontWeight: fontWeight.extrabold, color: colors.textSecondary },
     blockInfo: { flex: 1, minWidth: 0, gap: spacing.xxs },
-    blockTitle: { ...textStyles.rowTitle },
+    blockTitle: { ...textStyles.rowTitle, flexShrink: 1, minWidth: 0 },
     blockMetaRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.xs },
     blockMeta: { ...textStyles.meta, flexShrink: 1 },
     blockContext: { ...typeScale.caption, color: colors.primaryDark, fontWeight: fontWeight.semibold },
     blockActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexShrink: 0 },
     blockEditorRow: { paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },
-    blockAction: { minWidth: controlSize.minTouch, minHeight: controlSize.minTouch, alignItems: 'center', justifyContent: 'center', borderRadius: radii.md, borderCurve: 'continuous', borderWidth: 1, borderColor: colors.primaryBorder, paddingHorizontal: spacing.md },
+    blockAction: { flexShrink: 0, minWidth: controlSize.minTouch, minHeight: controlSize.minTouch, alignItems: 'center', justifyContent: 'center', borderRadius: radii.md, borderCurve: 'continuous', borderWidth: 1, borderColor: colors.primaryBorder, paddingHorizontal: spacing.md },
+    listAction: { minWidth: controlSize.minTouch + spacing.lg },
     blockActionDisabled: { borderColor: colors.borderLight, backgroundColor: colors.bgMuted },
     blockActionText: { ...typeScale.small, fontWeight: fontWeight.bold, color: colors.primaryDark },
 })

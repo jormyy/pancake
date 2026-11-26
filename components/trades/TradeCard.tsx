@@ -137,7 +137,7 @@ function TradeItemLine({ item, showContext = true, pickContext, onOpen }: { item
         return (
             <Row {...details} style={[styles.assetRow, onOpen && styles.assetLink]}>
                 <View style={styles.assetIcon}><Text style={styles.assetIconText}>$</Text></View>
-                <Text style={styles.assetName}>${item.amount} FAAB</Text>
+                <Text style={styles.assetName} numberOfLines={1}>${item.amount} FAAB</Text>
             </Row>
         )
     }
@@ -275,7 +275,7 @@ export function TradeActionButtons({
                     accessibilityState={{ disabled: actions.acting || button.key === 'accept' && actions.acceptDisabled }}
                     {...ids(button.key)}
                 >
-                    <Text style={[button.primary ? styles.actionTextPrimary : styles.actionTextSecondary, button.key === 'accept' && actions.acceptDisabled && styles.actionTextDisabled]}>{button.label}</Text>
+                    <Text style={[button.primary ? styles.actionTextPrimary : styles.actionTextSecondary, button.key === 'accept' && actions.acceptDisabled && styles.actionTextDisabled]} numberOfLines={1}>{button.label}</Text>
                 </MotionPressable>
             ))}
         </View>
@@ -358,7 +358,7 @@ export function TradeCard({
                     testID={`trade-details-${trade.id}`}
                     id={`trade-details-${trade.id}`}
                 >
-                    <Text style={styles.linkButtonText}>Details</Text>
+                    <Text style={styles.linkButtonText} numberOfLines={1}>Details</Text>
                 </MotionPressable>
             ) : null}
         </View>
@@ -368,7 +368,7 @@ export function TradeCard({
         <View style={[styles.card, embedded && styles.cardEmbedded, selected && !embedded && styles.cardSelected]} testID={reviewMode ? 'trade-review-card' : undefined}>
             <PendingMutationBadge rowId={trade.id} />
             <View style={styles.cardHeader}>
-                <Text style={styles.cardOpponent} numberOfLines={2}>{model.opponentName}</Text>
+                <Text style={styles.cardOpponent} numberOfLines={1}>{model.opponentName}</Text>
                 <View style={styles.cardHeaderControls}>
                     {!reviewMode ? <MotionPressable
                         style={[styles.linkButton, acting && styles.linkButtonDisabled]}
@@ -380,7 +380,7 @@ export function TradeCard({
                         testID={`trade-analyze-${trade.id}`}
                         id={`trade-analyze-${trade.id}`}
                     >
-                        <Text style={styles.linkButtonText}>Revalue</Text>
+                        <Text style={styles.linkButtonText} numberOfLines={1}>Revalue</Text>
                     </MotionPressable> : null}
                     {reviewMode === 'propose' || trade.status !== 'pending' || model.isProposer || tab !== 'offers' ? <StatusChip model={model} /> : null}
                 </View>
@@ -416,13 +416,13 @@ const styles = StyleSheet.create({
     cardEmbedded: { borderWidth: 0, borderRadius: radii.none, backgroundColor: colors.transparent },
     cardHeader: {
         flexDirection: 'row',
-        flexWrap: 'wrap',
         alignItems: 'center',
         gap: spacing.md,
     },
     cardOpponent: { ...textStyles.rowTitle, ...typeScale.title, flex: 1, minWidth: 0 },
     cardHeaderControls: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexShrink: 0 },
     linkButton: {
+        flexShrink: 0,
         minHeight: controlSize.minTouch,
         paddingHorizontal: spacing.md,
         borderRadius: radii.md,
@@ -448,6 +448,7 @@ const styles = StyleSheet.create({
     assetMeta: { ...typeScale.caption, color: colors.textMuted },
     assetContext: { ...typeScale.caption, color: colors.primaryDark, fontWeight: fontWeight.semibold },
     assetIcon: {
+        flexShrink: 0,
         width: 28,
         height: 28,
         borderRadius: radii.full,
@@ -461,6 +462,7 @@ const styles = StyleSheet.create({
     notes: { ...textStyles.meta, fontStyle: 'italic', color: colors.textSecondary, flexShrink: 1, minWidth: 0 },
     actions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
     actionBtn: {
+        flexShrink: 0,
         minHeight: controlSize.minTouch,
         minWidth: 96,
         paddingHorizontal: spacing.xl,

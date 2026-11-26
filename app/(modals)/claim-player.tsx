@@ -375,7 +375,7 @@ export default function ClaimPlayerScreen() {
                 disabled={submitDisabled}
             >
                 {/* Narrow phones drop "Claim" so the page title still fits beside it. */}
-                <Text style={styles.submitButtonText}>{claimId ? 'Save Claim' : usableWidth < NARROW_HEADER ? 'Submit' : 'Submit Claim'}</Text>
+                <Text style={styles.submitButtonText} numberOfLines={1}>{claimId ? 'Save Claim' : usableWidth < NARROW_HEADER ? 'Submit' : 'Submit Claim'}</Text>
             </Pressable>
         )
     }
@@ -444,7 +444,7 @@ export default function ClaimPlayerScreen() {
                                 accessibilityLabel="FAAB bid amount"
                             />
                         </View>
-                        <Text style={styles.bidBalance}>{transactionState ? `of $${transactionState.faabBalance}` : 'Balance unavailable'}</Text>
+                        <Text style={styles.bidBalance} numberOfLines={1}>{transactionState ? `of $${transactionState.faabBalance}` : 'Balance unavailable'}</Text>
                     </View>
                 ) : null}
             </Card>
@@ -651,8 +651,9 @@ const styles = StyleSheet.create({
     claimMeta: { ...textStyles.meta },
     claimFacts: { ...textStyles.meta, color: colors.textSecondary },
     bidRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-    bidLabel: { ...textStyles.rowTitle, flex: 1 },
+    bidLabel: { ...textStyles.rowTitle, flex: 1, minWidth: 0 },
     bidField: {
+        flexShrink: 0,
         flexDirection: 'row',
         alignItems: 'center',
         minHeight: controlSize.field.md,
@@ -665,7 +666,7 @@ const styles = StyleSheet.create({
     },
     bidCurrency: { ...typeScale.title, fontWeight: fontWeight.bold, color: colors.textMuted },
     bidInput: { width: 64, minHeight: controlSize.field.md, fontSize: controlSize.field.fontSize, fontWeight: fontWeight.bold, color: colors.textPrimary, textAlign: 'right' },
-    bidBalance: { ...textStyles.meta },
+    bidBalance: { ...textStyles.meta, flexShrink: 0 },
 
     dropSection: { gap: spacing.md },
     dropHeading: { gap: spacing.xs },
@@ -686,6 +687,7 @@ const styles = StyleSheet.create({
     rosterName: { ...textStyles.rowTitle },
     rosterMeta: { ...textStyles.meta },
     check: {
+        flexShrink: 0,
         width: 24,
         height: 24,
         borderRadius: radii.full,
@@ -729,6 +731,7 @@ const styles = StyleSheet.create({
     footerBidLabel: { ...textStyles.sectionLabel },
     footerBidInput: { width: 56, minHeight: controlSize.field.md, fontSize: controlSize.field.fontSize, fontWeight: fontWeight.bold, color: colors.textPrimary, textAlign: 'center' },
     submitButton: {
+        flexShrink: 0,
         minHeight: controlSize.button.sm.height,
         paddingHorizontal: controlSize.button.sm.padX,
         backgroundColor: colors.primary,
@@ -762,7 +765,7 @@ const styles = StyleSheet.create({
         borderTopColor: colors.separator,
     },
     blockPlayerName: { ...textStyles.rowTitle, flex: 1, minWidth: 0 },
-    blockPlayerStatus: { ...typeScale.small, fontWeight: fontWeight.bold, color: colors.dangerDark },
+    blockPlayerStatus: { ...typeScale.small, flexShrink: 0, fontWeight: fontWeight.bold, color: colors.dangerDark },
     blockButton: {
         height: controlSize.button.lg.height,
         backgroundColor: colors.primary,

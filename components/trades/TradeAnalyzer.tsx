@@ -381,7 +381,7 @@ const styles = StyleSheet.create({
     railSticky: { position: 'sticky', top: spacing.none } as unknown as ViewStyle,
     verdict: { gap: spacing.md },
     analysisError: { paddingHorizontal: spacing.lg, gap: spacing.sm },
-    analysisActions: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: spacing.lg, gap: spacing.md },
+    analysisActions: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', paddingHorizontal: spacing.lg, gap: spacing.md },
     railActions: { paddingTop: spacing.md },
     intro: { paddingHorizontal: spacing.lg, gap: spacing.xs },
     copy: { ...textStyles.body },

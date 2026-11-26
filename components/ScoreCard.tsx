@@ -64,23 +64,23 @@ export function ScoreCard({ matchup, compact = false, children, onPreviousMatchu
                     <MaterialIcons name="arrow-back" size={controlSize.icon.lg} color={colors.textMuted} />
                 </Pressable> : null}
                 <View testID="matchup-team-left" style={styles.side}>
-                    <Text style={[styles.teamName, compact && styles.teamNameCompact]}>{matchup.myTeamName}</Text>
-                    <Text style={styles.record}>{`${matchup.myWins ?? 0}-${matchup.myLosses ?? 0}`}</Text>
+                    <Text style={[styles.teamName, compact && styles.teamNameCompact]} numberOfLines={1}>{matchup.myTeamName}</Text>
+                    <Text style={styles.record} numberOfLines={1}>{`${matchup.myWins ?? 0}-${matchup.myLosses ?? 0}`}</Text>
                 </View>
 
                 <View testID="matchup-team-right" style={[styles.side, styles.sideRight]}>
-                    <Text style={[styles.teamName, compact && styles.teamNameCompact, styles.teamNameRight]}>{matchup.opponentTeamName}</Text>
-                    <Text style={styles.record}>{`${matchup.opponentWins ?? 0}-${matchup.opponentLosses ?? 0}`}</Text>
+                    <Text style={[styles.teamName, compact && styles.teamNameCompact, styles.teamNameRight]} numberOfLines={1}>{matchup.opponentTeamName}</Text>
+                    <Text style={styles.record} numberOfLines={1}>{`${matchup.opponentWins ?? 0}-${matchup.opponentLosses ?? 0}`}</Text>
                 </View>
                 {onNextMatchup ? <Pressable accessibilityRole="button" accessibilityLabel="Next matchup" onPress={onNextMatchup} style={styles.navigation}>
                     <MaterialIcons name="arrow-forward" size={controlSize.icon.lg} color={colors.textMuted} />
                 </Pressable> : null}
             </View>
             <View style={[styles.scores, compact && styles.scoresCompact]}>
-                <Text style={[styles.score, styles.side, compact && styles.scoreCompact, iWinning ? styles.scoreWin : styles.scoreLose]}>
+                <Text numberOfLines={1} style={[styles.score, styles.side, compact && styles.scoreCompact, iWinning ? styles.scoreWin : styles.scoreLose]}>
                     {formatPoints(matchup.myPoints)}
                 </Text>
-                <Text style={[styles.score, styles.side, styles.teamNameRight, compact && styles.scoreCompact, oppWinning ? styles.scoreWin : styles.scoreLose]}>
+                <Text numberOfLines={1} style={[styles.score, styles.side, styles.teamNameRight, compact && styles.scoreCompact, oppWinning ? styles.scoreWin : styles.scoreLose]}>
                     {formatPoints(matchup.opponentPoints)}
                 </Text>
             </View>
@@ -130,6 +130,8 @@ const styles = StyleSheet.create({
     },
     week: {
         ...typeScale.micro,
+        flexShrink: 1,
+        minWidth: 0,
         fontWeight: fontWeight.extrabold,
         color: colors.primaryDark,
         letterSpacing: textStyles.sectionLabel.letterSpacing,
@@ -146,6 +148,7 @@ const styles = StyleSheet.create({
         paddingTop: spacing.xxs,
     },
     navigation: {
+        flexShrink: 0,
         width: controlSize.minTouch,
         minHeight: controlSize.minTouch,
         alignItems: 'center',
@@ -169,6 +172,7 @@ const styles = StyleSheet.create({
     teamName: {
         ...typeScale.small,
         flexGrow: 1,
+        minWidth: 0,
         width: '100%',
         color: colors.textMuted,
         fontWeight: fontWeight.semibold,

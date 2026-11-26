@@ -33,7 +33,7 @@ export function TradeLegalityScreen({ trade, memberId, teams, loading, saving, e
             actions={<Pressable onPress={onSubmit} disabled={!ready} style={[styles.submit, !ready && styles.disabled]}
                 accessibilityRole="button" accessibilityLabel={action} accessibilityState={{ disabled: !ready, busy: saving }} aria-busy={saving}
                 testID={mode === 'propose' ? 'trade-confirm-submit' : 'trade-confirm-accept'}>
-                <Text style={[textStyles.rowTitle, { color: ready ? colors.textWhite : colors.textDisabled }]}>{saving ? `${mode === 'propose' ? 'Sending' : 'Accepting'}…` : action}</Text>
+                <Text style={[textStyles.rowTitle, { color: ready ? colors.textWhite : colors.textDisabled }]} numberOfLines={1}>{saving ? `${mode === 'propose' ? 'Sending' : 'Accepting'}…` : action}</Text>
             </Pressable>} />
         <ScrollView ref={scrollRef} contentContainerStyle={styles.content} scrollEventThrottle={16}
             onScroll={event => { if (scrollPosition) scrollPosition.current = event.nativeEvent.contentOffset.y }}
@@ -53,7 +53,7 @@ export function TradeLegalityScreen({ trade, memberId, teams, loading, saving, e
 }
 
 const styles = StyleSheet.create({
-    submit: { minHeight: controlSize.minTouch, minWidth: 72, paddingHorizontal: spacing.lg, borderRadius: radii.md, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
+    submit: { flexShrink: 0, minHeight: controlSize.minTouch, minWidth: controlSize.minTouch + spacing['6xl'] + spacing.lg, paddingHorizontal: spacing.lg, borderRadius: radii.md, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
     disabled: { backgroundColor: colors.bgMuted },
     root: { flex: 1, minHeight: 0, backgroundColor: colors.bgScreen },
     content: { width: '100%', maxWidth: 900, alignSelf: 'center', padding: spacing.lg, gap: spacing.lg },

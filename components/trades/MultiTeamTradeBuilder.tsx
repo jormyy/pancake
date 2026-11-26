@@ -303,7 +303,7 @@ export function MultiTeamTradeBuilder({
                                 testID={`trade-sender-${participant.memberId}`}
                                 id={`trade-sender-${participant.memberId}`}
                             >
-                                <Text style={[styles.senderTabText, active && styles.senderTabTextActive]} numberOfLines={2}>
+                                <Text style={[styles.senderTabText, active && styles.senderTabTextActive]} numberOfLines={1}>
                                     {participant.memberId === myMemberId ? 'You' : participantName(participant.memberId)}
                                 </Text>
                             </Pressable>

@@ -18,7 +18,7 @@ export function SectionBand({ label, detail, tone = 'default', variant = 'standa
         : { role: 'heading' as const, 'aria-level': 2, accessibilityRole: 'header' as const, accessibilityLabel: label }
     return <View {...semantics} {...props}
         style={[styles.band, { backgroundColor: colors.backgroundColor }, variant === 'matchup' && styles.matchup, variant === 'action' && [styles.matchup, styles.action], variant === 'plain' && styles.plain, style]}>
-        <Text style={[styles.label, { color: colors.color }, labelStyle]}>{label}</Text>
+        <Text style={[styles.label, { color: colors.color }, labelStyle]} numberOfLines={1}>{label}</Text>
         {detail != null ? <View style={styles.detail}>{detail}</View> : null}
     </View>
 }

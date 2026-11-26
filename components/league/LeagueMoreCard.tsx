@@ -41,7 +41,7 @@ export function LeagueMoreCard({ onSelect, activeTab }: {
                         ]}
                     >
                         <MaterialIcons name={item.icon} size={controlSize.icon.md} color={active ? colors.primaryDark : colors.textSecondary} />
-                        <Text style={[styles.label, active && styles.labelActive]}>{item.label}</Text>
+                        <Text style={[styles.label, active && styles.labelActive]} numberOfLines={1}>{item.label}</Text>
                         <MaterialIcons name="chevron-right" size={controlSize.icon.md} color={colors.textMuted} />
                     </Pressable>
                 )

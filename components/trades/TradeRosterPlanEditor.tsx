@@ -81,7 +81,7 @@ export function TradeRosterPlanEditor({ incoming, roster, value, onChange, disab
                             accessibilityLabel={label} accessibilityState={{ checked, disabled: unavailable }} disabled={unavailable}
                             style={[styles.choice, checked && styles.selected, unavailable && rosterActionDisabledStyle]}
                             onPress={() => { if (!unavailable && !checked) change(row, destination) }}>
-                            <Text style={[textStyles.meta, { color: destination === 'drop' && checked ? colors.dangerDark : colors.textPrimary }]}>
+                            <Text style={[textStyles.meta, { color: destination === 'drop' && checked ? colors.dangerDark : colors.textPrimary }]} numberOfLines={1}>
                                 {destination === 'active' ? 'Regular' : destination === 'ir' ? 'IR' : destination === 'taxi' ? 'Taxi' : 'Drop'}
                             </Text>
                         </Pressable>]
@@ -97,6 +97,6 @@ const styles = StyleSheet.create({
     incoming: { ...textStyles.meta, color: colors.primaryDark },
     planActions: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-end', gap: spacing.sm, flexWrap: 'wrap' },
     choices: { flexDirection: 'row', gap: spacing.xs, alignSelf: 'flex-end' },
-    choice: { minHeight: foundation.minTouch, minWidth: foundation.minTouch, paddingHorizontal: spacing.md, alignItems: 'center', justifyContent: 'center', borderRadius: radii.md },
+    choice: { flexShrink: 0, minHeight: foundation.minTouch, minWidth: foundation.minTouch, paddingHorizontal: spacing.md, alignItems: 'center', justifyContent: 'center', borderRadius: radii.md },
     selected: { backgroundColor: colors.primaryLight },
 })

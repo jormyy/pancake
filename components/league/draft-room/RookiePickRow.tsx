@@ -24,7 +24,7 @@ export function RookiePickRow({
                 isOnClock && styles.pickRowOnClock,
             ]}
         >
-            <Text style={[styles.pickNum, isMe && styles.meText]}>
+            <Text style={[styles.pickNum, isMe && styles.meText]} numberOfLines={1}>
                 {item.overallPick}
             </Text>
             <View style={styles.pickTeam}>
@@ -32,7 +32,7 @@ export function RookiePickRow({
                     {item.teamName}
                 </Text>
                 {item.round > 1 && item.pickInRound === 1 ? (
-                    <Text style={styles.pickRoundStart}>Round {item.round}</Text>
+                    <Text style={styles.pickRoundStart} numberOfLines={1}>Round {item.round}</Text>
                 ) : null}
             </View>
             {item.player ? (
@@ -41,9 +41,9 @@ export function RookiePickRow({
                         positions={item.player.position ? [item.player.position] : []} />
                 </View>
             ) : isSkipped ? (
-                <Text style={styles.pickSkipped}>Skipped</Text>
+                <Text style={styles.pickSkipped} numberOfLines={1}>Skipped</Text>
             ) : (
-                <Text style={[styles.pickPlayer, isOnClock && styles.onClockText]}>
+                <Text style={[styles.pickPlayer, isOnClock && styles.onClockText]} numberOfLines={1}>
                     {isOnClock ? '▶ On the clock' : '—'}
                 </Text>
             )}
@@ -61,12 +61,12 @@ export const rookiePickRowStyles = StyleSheet.create({
     },
     pickRowMe: { backgroundColor: colors.primaryLight },
     pickRowOnClock: { backgroundColor: uiColors.successSurface },
-    pickNum: { ...typeScale.small, width: 28, fontWeight: fontWeight.bold, color: colors.textMuted },
-    pickTeam: { width: '25%', maxWidth: 140, minWidth: 0, gap: spacing.xxs },
+    pickNum: { ...typeScale.small, width: 28, flexShrink: 0, fontWeight: fontWeight.bold, color: colors.textMuted },
+    pickTeam: { width: '25%', maxWidth: 140, minWidth: 0, flexShrink: 0, gap: spacing.xxs },
     pickTeamName: { ...typeScale.small, fontWeight: fontWeight.semibold, color: colors.textPrimary },
     pickRoundStart: { ...textStyles.tableHeader },
-    pickPlayer: { ...typeScale.small, flex: 1, color: colors.textPlaceholder },
-    pickSkipped: { ...typeScale.small, flex: 1, color: colors.textMuted, fontWeight: fontWeight.semibold },
+    pickPlayer: { ...typeScale.small, flex: 1, minWidth: 0, color: colors.textPlaceholder },
+    pickSkipped: { ...typeScale.small, flex: 1, minWidth: 0, color: colors.textMuted, fontWeight: fontWeight.semibold },
     pickPlayerCell: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: spacing.md },
     onClockText: { color: uiColors.successText, fontWeight: fontWeight.bold },
     meText: { color: colors.primaryDark, fontWeight: fontWeight.bold }

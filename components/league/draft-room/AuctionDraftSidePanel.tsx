@@ -52,8 +52,8 @@ export const AuctionDraftSidePanel = memo(function AuctionDraftSidePanel({
                         <Text style={[styles.budgetTeam, budget.memberId === myMemberId && styles.meAccent]} numberOfLines={1}>
                             {budget.teamName}{budget.memberId === myMemberId ? ' (you)' : ''}
                         </Text>
-                        <Text style={styles.budgetWon}>{wonCountByMember.get(budget.memberId) ?? 0} won</Text>
-                        <Text style={[styles.budgetAmount, budget.memberId === myMemberId && styles.meAccent]}>
+                        <Text style={styles.budgetWon} numberOfLines={1}>{wonCountByMember.get(budget.memberId) ?? 0} won</Text>
+                        <Text style={[styles.budgetAmount, budget.memberId === myMemberId && styles.meAccent]} numberOfLines={1}>
                             ${budget.remaining}
                         </Text>
                     </View>
@@ -78,8 +78,8 @@ export const AuctionDraftSidePanel = memo(function AuctionDraftSidePanel({
                                 <PlayerRowContent name={item.player?.displayName ?? 'Unknown'} nbaId={item.player?.nbaId}
                                     team={item.player?.nbaTeam} age={item.player?.age} yearsExp={item.player?.yearsExp} careerGames={item.player?.careerGames} injuryStatus={item.player?.injuryStatus} positions={item.player?.position ? [item.player.position] : []}
                                     stats={draftPlayerMeta([`#${item.nominationOrder}`, draftEventTime(item.nominatedAt, timezone), item.status === 'sold' ? winnerTeam ?? '—' : 'No bid'])} />
-                                {item.status === 'sold' ? <Text style={styles.historyPrice}>${item.finalPrice}</Text> : null}
-                                {item.status === 'no_bid' ? <Text style={styles.historyNoBid}>FA</Text> : null}
+                                {item.status === 'sold' ? <Text style={styles.historyPrice} numberOfLines={1}>${item.finalPrice}</Text> : null}
+                                {item.status === 'no_bid' ? <Text style={styles.historyNoBid} numberOfLines={1}>FA</Text> : null}
                             </View>
                         )
                     }}
@@ -130,16 +130,16 @@ const styles = StyleSheet.create({
     historyCard: { paddingVertical: spacing.none },
     budgetRow: { flexDirection: 'row', alignItems: 'center', minHeight: table.rowHeightCompact, gap: spacing.md },
     divider: { borderTopWidth: 1, borderTopColor: colors.separator },
-    budgetTeam: { ...textStyles.rowTitle, flex: 1 },
-    budgetAmount: { ...typeScale.title, fontWeight: fontWeight.extrabold, color: colors.textPrimary, fontVariant: ['tabular-nums'] as const },
-    budgetWon: { ...textStyles.meta, fontWeight: fontWeight.semibold },
+    budgetTeam: { ...textStyles.rowTitle, flex: 1, minWidth: 0 },
+    budgetAmount: { ...typeScale.title, flexShrink: 0, minWidth: table.statColWidth, textAlign: 'right', fontWeight: fontWeight.extrabold, color: colors.textPrimary, fontVariant: ['tabular-nums'] as const },
+    budgetWon: { ...textStyles.meta, flexShrink: 0, fontWeight: fontWeight.semibold },
     meAccent: { color: colors.primaryDark },
     historyRow: { flexDirection: 'row', alignItems: 'center', minHeight: table.rowHeight, gap: spacing.md },
     flex1: { flex: 1, minWidth: 0 },
     historyPlayer: { ...textStyles.rowTitle },
     historyMeta: { ...textStyles.meta },
-    historyPrice: { ...typeScale.row, fontWeight: fontWeight.extrabold, color: colors.textPrimary, fontVariant: ['tabular-nums'] as const },
-    historyNoBid: { ...typeScale.small, fontWeight: fontWeight.bold, color: colors.textPlaceholder, backgroundColor: colors.bgMuted, paddingHorizontal: spacing.md, paddingVertical: spacing.xxs, borderRadius: radii.sm, borderCurve: 'continuous' },
+    historyPrice: { ...typeScale.row, flexShrink: 0, fontWeight: fontWeight.extrabold, color: colors.textPrimary, fontVariant: ['tabular-nums'] as const },
+    historyNoBid: { ...typeScale.small, flexShrink: 0, fontWeight: fontWeight.bold, color: colors.textPlaceholder, backgroundColor: colors.bgMuted, paddingHorizontal: spacing.md, paddingVertical: spacing.xxs, borderRadius: radii.sm, borderCurve: 'continuous' },
     empty: { alignItems: 'center', paddingVertical: spacing['3xl'] },
     emptyText: { ...textStyles.meta, color: colors.textPlaceholder },
 })

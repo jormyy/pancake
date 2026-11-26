@@ -193,7 +193,7 @@ const styles = StyleSheet.create({
         borderBottomWidth: 1,
         borderBottomColor: colors.separator,
     },
-    addCol: { width: ADD_COL_W, alignItems: 'center' },
+    addCol: { width: ADD_COL_W, alignItems: 'center', flexShrink: 0 },
     addTarget: { width: ADD_COL_W, height: controlSize.minTouch, alignItems: 'center', justifyContent: 'center' },
     addBtn: {
         width: ADD_COL_W,
@@ -214,6 +214,7 @@ const styles = StyleSheet.create({
     addBtnTextBlocked: { color: colors.textPlaceholder },
     playerCard: {
         flex: 1,
+        minWidth: 0,
         flexDirection: 'row',
         alignItems: 'center',
         paddingRight: spacing.lg,
