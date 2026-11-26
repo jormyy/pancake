@@ -1,5 +1,5 @@
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
-import { useRef, type ComponentProps, type RefObject } from 'react'
+import { useRef, type ComponentProps, type ReactNode, type RefObject } from 'react'
 import { ErrorBanner, PageHeader } from '@/components/ui'
 import { colors, controlSize, radii, spacing, textStyles } from '@/constants/tokens'
 import { isTradeRosterLegal } from '@/lib/trade-legality-step'
@@ -8,7 +8,7 @@ import type { Trade, TradeRosterPreview } from '@/lib/trades'
 import { TradeCard } from './TradeCard'
 import { TradeRosterPlanEditor } from './TradeRosterPlanEditor'
 
-export function TradeLegalityScreen({ trade, memberId, teams, loading, saving, error, onRetry, onClose, onSubmit, mode, editor, retrying = false, scrollPosition }: {
+export function TradeLegalityScreen({ trade, memberId, teams, loading, saving, error, onRetry, onClose, onSubmit, mode, editor, retrying = false, scrollPosition, value }: {
     trade: Trade
     memberId: string
     teams: TradeRosterPreview[]
@@ -22,6 +22,7 @@ export function TradeLegalityScreen({ trade, memberId, teams, loading, saving, e
     scrollPosition?: RefObject<number>
     mode: 'propose' | 'accept'
     editor: ComponentProps<typeof TradeRosterPlanEditor>
+    value?: ReactNode
 }) {
     const scrollRef = useRef<ScrollView>(null)
     const own = teams.find(team => team.memberId === memberId)
@@ -40,6 +41,7 @@ export function TradeLegalityScreen({ trade, memberId, teams, loading, saving, e
             onContentSizeChange={() => { if (scrollPosition) scrollRef.current?.scrollTo({ y: scrollPosition.current, animated: false }) }}>
             <TradeCard trade={trade} myMemberId={memberId} tab="offers" acting={saving} reviewMode={mode}
                 onAccept={onSubmit} onReject={onClose} onVeto={onClose} onWithdraw={onClose} onWithdrawAcceptance={onClose} onAnalyze={onClose} />
+            {value}
             <View style={styles.status} accessibilityLiveRegion="polite" testID="trade-roster-status">
                 <Text style={[textStyles.rowTitle, { color: loading ? colors.textSecondary : legal ? colors.successDark : colors.dangerDark }]}>
                     {loading ? 'Checking roster…' : legal ? 'Valid roster' : 'Invalid roster'}

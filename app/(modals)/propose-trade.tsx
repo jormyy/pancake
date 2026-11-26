@@ -20,6 +20,7 @@ import { MultiTeamTradeBuilder } from '@/components/trades/MultiTeamTradeBuilder
 import { TradeAnalysisSummary } from '@/components/trades/TradeAnalysisSummary'
 import { TradePartnersCard } from '@/components/trades/TradePartnersCard'
 import { TradeValueCard } from '@/components/trades/TradeValueCard'
+import { TradeRouteOverview } from '@/components/trades/TradeCard'
 import { colors, controlSize, fontWeight, layout, radii, spacing, typeScale } from '@/constants/tokens'
 import { PageHeader, usePageMetrics } from '@/components/ui/Page'
 import { useLeagueContext } from '@/contexts/league-context'
@@ -27,6 +28,7 @@ import { useAuth } from '@/hooks/use-auth'
 import { useMultiTeamTradeComposer } from '@/hooks/use-multi-team-trade-composer'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 import { useDynastyTradeAnalysis } from '@/hooks/use-dynasty-trade-analysis'
+import { useScrollAnchor } from '@/hooks/use-scroll-anchor'
 import { isMultiTeamTradeSubmittable } from '@/lib/multi-team-trade-state'
 import type { TradeComposerMember } from '@/lib/trade-ui-model'
 import { confirmAction, showAlert, showSuccess } from '@/lib/alert'
@@ -103,6 +105,7 @@ export default function ProposeTradeScreen() {
     const [submitting, setSubmitting] = useState(false)
     const [reviewing, setReviewing] = useState(false)
     const [valueDetailsOpen, setValueDetailsOpen] = useState(false)
+    const builderAnchor = useScrollAnchor()
     const ownerIdentity = user?.id && myMemberId && leagueId ? `${user.id}:${leagueId}:${myMemberId}` : null
     const contextCacheKey = ownerIdentity ? `pancake:trade-editor-context:v1:${ownerIdentity}` : null
     const { canRead, capture, isCurrent, canAct, markReady, blockActions, epoch, ready } = useModalActivity(ownerIdentity)
@@ -417,6 +420,10 @@ export default function ProposeTradeScreen() {
         participants: composer.participantViews,
         items,
     })
+    const [heldAnalysis, setHeldAnalysis] = useState(tradeAnalysis.analysis)
+    if (tradeAnalysis.analysis && tradeAnalysis.analysis !== heldAnalysis) setHeldAnalysis(tradeAnalysis.analysis)
+    const valueAnalysis = items.length === 0 ? null : tradeAnalysis.analysis ?? (tradeAnalysis.loading ? heldAnalysis : null)
+    const valueUpdating = tradeAnalysis.loading && valueAnalysis !== null
     const notesError = validateTradeNotes(notes).error
     const expirationError = validateTradeExpirationDays(expirationDays).error
     const twoTeamDraft = selectedRecipientId
@@ -634,17 +641,33 @@ export default function ProposeTradeScreen() {
     const prefillReady = !sourceTradeId || restoredDraftRef.current || prefillSettledKey === `${ownerIdentity}:${sourceTradeId}`
     const editorReady = Boolean(membersError || (draftReady && !loading && prefillReady && recipientReady &&
         (participantIds.length < 2 || composer.assetsLoaded || composer.rosterError)))
+    const draft = tradeDraft({ items, participants: participantViews, memberId: myMemberId,
+        participantName: composer.participantName, notes,
+        expiresAt: buildTradeComposerPayload({ offerPlayerIds: [], requestPlayerIds: [], offerPickIds: [], requestPickIds: [],
+            notes, offerFaabInput: '0', requestFaabInput: '0', expirationDaysInput: expirationDays,
+            leagueStatus: currentLeague?.status, tradeDeadline: currentLeague?.trade_deadline }).payload.expiresAt ?? null,
+        avgMap: composer.avgMap, avgStatsMap: composer.avgStatsMap })
+    const valueCard = (details: boolean) => (
+        <TradeValueCard
+            analysis={valueAnalysis}
+            loading={tradeAnalysis.loading && !valueUpdating}
+            updating={valueUpdating}
+            error={tradeAnalysis.error}
+            empty={items.length === 0}
+            myMemberId={myMemberId}
+            participantIds={participantIds}
+            participantName={composer.participantName}
+            detailsOpen={details && valueDetailsOpen}
+            onToggleDetails={details ? () => setValueDetailsOpen(open => !open) : undefined}
+            onRetry={tradeAnalysis.retry}
+        />
+    )
     if (reviewing) {
-        const draft = tradeDraft({ items, participants: participantViews, memberId: myMemberId,
-            participantName: composer.participantName, notes,
-            expiresAt: buildTradeComposerPayload({ offerPlayerIds: [], requestPlayerIds: [], offerPickIds: [], requestPickIds: [],
-                notes, offerFaabInput: '0', requestFaabInput: '0', expirationDaysInput: expirationDays,
-                leagueStatus: currentLeague?.status, tradeDeadline: currentLeague?.trade_deadline }).payload.expiresAt ?? null,
-            avgMap: composer.avgMap, avgStatsMap: composer.avgStatsMap })
         return <PageFrame style={styles.container}>
             <TradeLegalityScreen trade={draft} memberId={myMemberId} teams={rosterPreviews}
                 loading={!canSubmit || rosterPreviews.length === 0} saving={submitting} error={legalityError}
                 onRetry={() => setLegalityAttempt(value => value + 1)} onClose={() => setReviewing(false)} onSubmit={handleSubmit} mode="propose" retrying={Boolean(retainedAttempt)}
+                value={valueCard(false)}
                 editor={{ incoming: draft.routedItems.filter(item => item.toMemberId === myMemberId),
                     roster: ownPlanRoster.filter(row => !items.some(item => item.kind === 'player' && item.playerId === row.players.id)),
                     value: rosterPlan, onChange: setRosterPlan, avgMap: composer.avgMap, avgStatsMap: composer.avgStatsMap,
@@ -666,73 +689,65 @@ export default function ProposeTradeScreen() {
                 )}
             />
             <DeferredContent ready={editorReady} key={ownerIdentity} style={styles.scrollRegion}>
-            <ScrollView key="editor" style={styles.scroll} contentContainerStyle={[styles.scrollContent, { paddingHorizontal: padX }]} keyboardShouldPersistTaps="handled">
-                {tradingClosed ? (
-                    <View style={styles.lockBanner}>
-                        <Text style={styles.lockBannerText}>Trades are locked only from the trade deadline until the champion is finalized.</Text>
-                    </View>
+            <ScrollView key="editor" ref={builderAnchor.scrollRef} {...builderAnchor.scrollProps} style={styles.scroll} contentContainerStyle={[styles.scrollContent, { paddingHorizontal: padX }]} keyboardShouldPersistTaps="handled">
+                <View ref={builderAnchor.leadRef} style={styles.lead}>
+                    {tradingClosed ? (
+                        <View style={styles.lockBanner}>
+                            <Text style={styles.lockBannerText}>Trades are locked only from the trade deadline until the champion is finalized.</Text>
+                        </View>
+                    ) : null}
+                    {itemLimitMessage ? (
+                        <View
+                            style={styles.lockBanner}
+                            accessibilityRole="alert"
+                            accessibilityLiveRegion="polite"
+                            testID="trade-item-limit"
+                        >
+                            <Text style={styles.lockBannerText}>{itemLimitMessage}</Text>
+                        </View>
+                    ) : null}
+                    {participantLimitMessage ? (
+                        <View
+                            style={styles.lockBanner}
+                            accessibilityRole="alert"
+                            accessibilityLiveRegion="polite"
+                            testID="trade-participant-limit"
+                        >
+                            <Text style={styles.lockBannerText}>{participantLimitMessage}</Text>
+                        </View>
+                    ) : null}
+                    {membersError ? (
+                        <>
+                            <ErrorBanner message={membersError} onRetry={() => setMembersAttempt(value => value + 1)} />
+                            <EmptyState icon="error-outline" message="Teams unavailable"
+                                description="Retry to load the league members available for this trade."
+                                fullScreen={false} framed />
+                        </>
+                    ) : (
+                        <>
+                            {draft.routedItems.length > 0 ? <TradeRouteOverview trade={draft} myMemberId={myMemberId} /> : null}
+                            {valueCard(true)}
+                            {valueDetailsOpen && items.length > 0 ? (
+                                <TradeAnalysisSummary players={Object.values(composer.participantRosters).flat()} analysis={valueAnalysis}
+                                    calculatedAt={tradeAnalysis.quote?.createdAt} participantName={composer.participantName}
+                                    loading={tradeAnalysis.loading && !valueUpdating} inset={false} />
+                            ) : null}
+                            <TradePartnersCard
+                                partnerIds={partnerIds}
+                                members={members}
+                                editable={canEditPartners}
+                                canAdd={participantIds.length < MAX_TRADE_PARTICIPANTS && partnerIds.length + 1 < MAX_TRADE_PARTICIPANTS}
+                                loading={loading}
+                                teamName={composer.participantName}
+                                onAdd={addPartner}
+                                onRemove={removePartner}
+                            />
+                        </>
+                    )}
+                </View>
+                {!membersError && composer.participantViews.length >= 2 ? (
+                    <MultiTeamTradeBuilder {...multiTeamBuilderProps} />
                 ) : null}
-                {itemLimitMessage ? (
-                    <View
-                        style={styles.lockBanner}
-                        accessibilityRole="alert"
-                        accessibilityLiveRegion="polite"
-                        testID="trade-item-limit"
-                    >
-                        <Text style={styles.lockBannerText}>{itemLimitMessage}</Text>
-                    </View>
-                ) : null}
-                {participantLimitMessage ? (
-                    <View
-                        style={styles.lockBanner}
-                        accessibilityRole="alert"
-                        accessibilityLiveRegion="polite"
-                        testID="trade-participant-limit"
-                    >
-                        <Text style={styles.lockBannerText}>{participantLimitMessage}</Text>
-                    </View>
-                ) : null}
-                {membersError ? (
-                    <>
-                        <ErrorBanner message={membersError} onRetry={() => setMembersAttempt(value => value + 1)} />
-                        <EmptyState icon="error-outline" message="Teams unavailable"
-                            description="Retry to load the league members available for this trade."
-                            fullScreen={false} framed />
-                    </>
-                ) : (
-                    <>
-                        <TradeValueCard
-                            analysis={tradeAnalysis.analysis}
-                            loading={tradeAnalysis.loading}
-                            error={tradeAnalysis.error}
-                            empty={items.length === 0}
-                            myMemberId={myMemberId}
-                            participantIds={participantIds}
-                            participantName={composer.participantName}
-                            detailsOpen={valueDetailsOpen}
-                            onToggleDetails={() => setValueDetailsOpen(open => !open)}
-                            onRetry={tradeAnalysis.retry}
-                        />
-                        {valueDetailsOpen && items.length > 0 ? (
-                            <TradeAnalysisSummary players={Object.values(composer.participantRosters).flat()} analysis={tradeAnalysis.analysis}
-                                calculatedAt={tradeAnalysis.quote?.createdAt} participantName={composer.participantName}
-                                loading={tradeAnalysis.loading} inset={false} />
-                        ) : null}
-                        <TradePartnersCard
-                            partnerIds={partnerIds}
-                            members={members}
-                            editable={canEditPartners}
-                            canAdd={participantIds.length < MAX_TRADE_PARTICIPANTS && partnerIds.length + 1 < MAX_TRADE_PARTICIPANTS}
-                            loading={loading}
-                            teamName={composer.participantName}
-                            onAdd={addPartner}
-                            onRemove={removePartner}
-                        />
-                        {composer.participantViews.length >= 2 ? (
-                            <MultiTeamTradeBuilder {...multiTeamBuilderProps} />
-                        ) : null}
-                    </>
-                )}
             </ScrollView>
             </DeferredContent>
         </PageFrame>
@@ -762,6 +777,7 @@ const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgScreen },
     scroll: { flex: 1 },
     scrollRegion: { flex: 1, minHeight: 0 },
+    lead: { width: '100%', minWidth: 0, gap: spacing.md },
     scrollContent: {
         width: '100%',
         maxWidth: layout.contentMaxWidth,

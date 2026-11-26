@@ -15,7 +15,7 @@ import { MotionPressable } from '@/components/Motion'
 
 import { playerEligiblePositions, playerSeasonContextText } from '@/lib/player-context'
 
-import { type TradeFlowItem } from '@/components/trades/MultiTeamTradeOverview'
+import { MultiTeamTradeOverview, type TradeFlowItem } from '@/components/trades/MultiTeamTradeOverview'
 import { tradeDisplayPerspective } from '@/lib/trade-perspective'
 import type { TradeVetoMode } from '@/types/app'
 import type { TradeTabKey } from '@/lib/trade-ui-model'
@@ -199,6 +199,17 @@ export function tradeFlowItem(item: TradeItem, index: number): TradeFlowItem | n
     }
 }
 
+export function TradeRouteOverview({ trade, myMemberId }: { trade: Trade; myMemberId: string }) {
+    return (
+        <MultiTeamTradeOverview compact showPickDirection={false} pickContext={tradePickContext(trade, myMemberId)}
+            participants={trade.participants.map((participant) => ({
+                memberId: participant.memberId,
+                label: participant.memberId === myMemberId ? 'You' : participant.teamName,
+            }))}
+            items={trade.routedItems.flatMap((item, index) => tradeFlowItem(item, index) ?? [])} />
+    )
+}
+
 export function StatusChip({ model }: { model: Pick<TradeCardModel, 'status' | 'statusColors'> }) {
     return (
         <Badge size="status" variant="solid" label={model.status} color={model.statusColors.bg} textColor={model.statusColors.text} />
@@ -339,10 +350,12 @@ export function TradeCard({
     const summary = (
         <>
             {model.meta.length > 0 ? <Text style={styles.meta} numberOfLines={2}>{model.meta.join(' · ')}</Text> : null}
-            <View style={[styles.sides, tab === 'history' && styles.sidesStacked]}>
-                <AssetList onOpen={onOpen} items={model.receives} label={model.receiveLabel} pickContext={pickContext} stacked={tab === 'history'} showContext={tab !== 'history' && !brief && !trade.isMultiTeam} />
-                <AssetList onOpen={onOpen} items={model.gives} label={model.giveLabel} pickContext={pickContext} stacked={tab === 'history'} showContext={tab !== 'history' && !brief && !trade.isMultiTeam} />
-            </View>
+            {reviewMode === 'propose' ? <TradeRouteOverview trade={trade} myMemberId={myMemberId} /> : (
+                <View style={[styles.sides, tab === 'history' && styles.sidesStacked]}>
+                    <AssetList onOpen={onOpen} items={model.receives} label={model.receiveLabel} pickContext={pickContext} stacked={tab === 'history'} showContext={tab !== 'history' && !brief && !trade.isMultiTeam} />
+                    <AssetList onOpen={onOpen} items={model.gives} label={model.giveLabel} pickContext={pickContext} stacked={tab === 'history'} showContext={tab !== 'history' && !brief && !trade.isMultiTeam} />
+                </View>
+            )}
         </>
     )
     const note = trade.notes && !brief ? trade.notes : null
