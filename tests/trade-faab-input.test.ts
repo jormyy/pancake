@@ -55,6 +55,13 @@ const renderPanel = async (value: string, onFaabChange = vi.fn()) => {
     return { renderer, onFaabChange }
 }
 
+const openAddSheet = async (renderer: ReactTestRenderer) => {
+    await act(async () => { renderer.root.findByProps({ testID: 'trade-add-assets-me' }).props.onPress() })
+}
+
+const proposalText = (renderer: ReactTestRenderer) => renderer.root.findAll((node) => (node.type as unknown) === 'Text')
+    .map((node) => node.children.join(''))
+
 function fabricReplacement(
     maxLength: number,
     currentValue: string,
@@ -67,8 +74,34 @@ function fabricReplacement(
 }
 
 describe('trade FAAB input', () => {
+    it('shows only the add action on an empty side and keeps zero FAAB out of the proposal', async () => {
+        for (const value of ['', '0']) {
+            const { renderer } = await renderPanel(value)
+            expect(renderer.root.findAll((node) => (node.type as unknown) === 'TextInput')).toHaveLength(0)
+            expect(proposalText(renderer)).toEqual(['You send', 'Add players, picks or FAAB'])
+            await openAddSheet(renderer)
+            expect(proposalText(renderer).slice(-2)).toEqual(['FAAB', 'To them'])
+            expect(renderer.root.findByProps({ testID: 'trade-faab-me-them' }).props.value).toBe(value)
+            await act(async () => { renderer.unmount() })
+        }
+    })
+
+    it('lists positive FAAB in the proposal, edits it in Add and removes it back to empty', async () => {
+        const { renderer, onFaabChange } = await renderPanel('25')
+        expect(proposalText(renderer)).toEqual(['You send', '$', '$25 FAAB', 'to them', 'Remove', 'Add players, picks or FAAB'])
+        await act(async () => { renderer.root.findByProps({ testID: 'trade-faab-edit-me-them' }).props.onPress() })
+        const input = renderer.root.findByProps({ testID: 'trade-faab-me-them' })
+        expect(input.props.value).toBe('25')
+        await act(async () => { input.props.onChangeText('40') })
+        expect(onFaabChange).toHaveBeenLastCalledWith('me', 'them', '40')
+        await act(async () => { renderer.root.findByProps({ testID: 'trade-remove-me-faab-them' }).props.onPress() })
+        expect(onFaabChange).toHaveBeenLastCalledWith('me', 'them', '')
+        await act(async () => { renderer.unmount() })
+    })
+
     it('accepts 1,000,000 and prevents increasing to 1,000,001', async () => {
         const { renderer, onFaabChange } = await renderPanel(String(MAX_TRADE_FAAB_AMOUNT))
+        await openAddSheet(renderer)
         const input = renderer.root.findByProps({ testID: 'trade-faab-me-them' })
 
         expect(input.props['aria-invalid']).toBe(false)
@@ -83,6 +116,7 @@ describe('trade FAAB input', () => {
     it('announces a historical oversized prefill and allows monotonic recovery', async () => {
         const historicalPrefill = '2147483647'
         const { renderer, onFaabChange } = await renderPanel(historicalPrefill)
+        await openAddSheet(renderer)
         const input = renderer.root.findByProps({ testID: 'trade-faab-me-them' })
         const error = renderer.root.findByProps({ testID: 'trade-faab-error-me-them' })
 
@@ -104,6 +138,7 @@ describe('trade FAAB input', () => {
 
     it('keeps the native paste cap at the canonical digit count for normal values', async () => {
         const { renderer } = await renderPanel('')
+        await openAddSheet(renderer)
         const input = renderer.root.findByProps({ testID: 'trade-faab-me-them' })
 
         expect(input.props.maxLength).toBe(MAX_TRADE_FAAB_DIGITS)

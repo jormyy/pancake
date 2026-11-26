@@ -70,7 +70,6 @@ export function ParticipantTradePanel({
     const missingPlayerIds = [...participant.selectedPlayerIds].filter((id) => !participant.roster.some((row) => row.players.id === id))
     const picks = orderTradeAssets(participant.picks.filter((pick) => participant.selectedPickIds.has(pick.pickId)))
     const missingPickIds = [...participant.selectedPickIds].filter((id) => !participant.picks.some((pick) => pick.pickId === id))
-    const empty = participant.selectedPlayerIds.size === 0 && participant.selectedPickIds.size === 0
     const search = query.trim().toLowerCase()
     const roster = search
         ? participant.roster.filter((row) => row.players.display_name.toLowerCase().includes(search))
@@ -93,18 +92,21 @@ export function ParticipantTradePanel({
         </Pressable>
     ) : null
 
-    const removeButton = (asset: 'player' | 'pick', id: string, label: string) => (
+    const removeControl = (onPress: () => void, label: string, testID: string) => (
         <Pressable
             style={styles.removeButton}
-            onPress={() => remove(asset, id)}
+            onPress={onPress}
             accessibilityRole="button"
             accessibilityLabel={`Remove ${label} from trade`}
-            testID={`trade-remove-${memberId}-${asset}-${id}`}
-            id={`trade-remove-${memberId}-${asset}-${id}`}
+            testID={testID}
+            id={testID}
         >
             <Text style={styles.removeText} numberOfLines={1}>Remove</Text>
         </Pressable>
     )
+    const removeButton = (asset: 'player' | 'pick', id: string, label: string) =>
+        removeControl(() => remove(asset, id), label, `trade-remove-${memberId}-${asset}-${id}`)
+    const addLabel = faabEnabled ? 'Add players, picks or FAAB' : 'Add players or picks'
 
     const routeDestinationId = routing
         ? routing.asset === 'player' ? participant.playerDestinationIds[routing.id] : participant.pickDestinationIds[routing.id]
@@ -113,7 +115,6 @@ export function ParticipantTradePanel({
     return (
         <Card padding="none" elevated="none" style={styles.card}>
             <SectionBand label={mine ? 'You send' : `${teamName} sends`} />
-            {empty ? <Text style={styles.emptyText}>Nothing yet.</Text> : null}
             {players.map((row) => {
                 const player = row.players
                 return (
@@ -180,31 +181,35 @@ export function ParticipantTradePanel({
                 )
             })}
             {faabEnabled ? participant.destinationIds.map((destinationId) => {
-                const value = participant.faabInputs[destinationId] ?? '0'
-                const error = validateTradeFaabInput(value).error
+                const value = participant.faabInputs[destinationId] ?? ''
+                const { amount, error } = validateTradeFaabInput(value)
+                if (amount <= 0 && !error) return null
+                const toName = participantName(destinationId)
+                const amountLabel = `$${error ? value : amount} FAAB`
                 return (
                     <View key={`faab:${destinationId}`} style={styles.assetRow}>
                         <View style={styles.assetLine}>
-                            <Text style={styles.faabLabel} numberOfLines={1}>FAAB to {participantName(destinationId)}</Text>
-                            <TextInput
-                                style={[styles.faabInput, error && styles.faabInputInvalid]}
-                                value={value}
-                                onChangeText={(nextValue) => {
-                                    if (canUpdateTradeFaabInput(value, nextValue)) onFaabChange(memberId, destinationId, nextValue)
-                                }}
-                                maxLength={Math.max(MAX_TRADE_FAAB_DIGITS, value.length)}
-                                keyboardType="numeric"
-                                accessibilityLabel={error
-                                    ? `FAAB sent by ${teamName} to ${participantName(destinationId)}. ${error}`
-                                    : `FAAB sent by ${teamName} to ${participantName(destinationId)}`}
-                                aria-invalid={Boolean(error)}
-                                testID={`trade-faab-${memberId}-${destinationId}`}
-                                id={`trade-faab-${memberId}-${destinationId}`}
-                            />
+                            <Pressable
+                                style={styles.faabSummary}
+                                onPress={() => setAdding(true)}
+                                accessibilityRole="button"
+                                accessibilityLabel={`Edit ${amountLabel} sent by ${teamName} to ${toName}`}
+                                testID={`trade-faab-edit-${memberId}-${destinationId}`}
+                                id={`trade-faab-edit-${memberId}-${destinationId}`}
+                            >
+                                <View style={styles.faabCircle}>
+                                    <Text style={styles.pickCircleText}>$</Text>
+                                </View>
+                                <View style={styles.assetCopy}>
+                                    <Text style={styles.assetName} numberOfLines={1}>{amountLabel}</Text>
+                                    <Text style={styles.assetMeta} numberOfLines={1}>to {toName}</Text>
+                                </View>
+                            </Pressable>
+                            {removeControl(() => onFaabChange(memberId, destinationId, ''), `${amountLabel} to ${toName}`,
+                                `trade-remove-${memberId}-faab-${destinationId}`)}
                         </View>
                         {error ? (
-                            <Text style={styles.faabError} accessibilityRole="alert" accessibilityLiveRegion="polite"
-                                testID={`trade-faab-error-${memberId}-${destinationId}`}>
+                            <Text style={styles.faabError} accessibilityRole="alert" accessibilityLiveRegion="polite">
                                 {error}
                             </Text>
                         ) : null}
@@ -215,15 +220,15 @@ export function ParticipantTradePanel({
                 style={styles.addRow}
                 onPress={() => setAdding(true)}
                 accessibilityRole="button"
-                accessibilityLabel={`Add players or picks from ${mine ? 'your team' : teamName}`}
+                accessibilityLabel={`${addLabel} from ${mine ? 'your team' : teamName}`}
                 testID={`trade-add-assets-${memberId}`}
                 id={`trade-add-assets-${memberId}`}
             >
                 <MaterialIcons name="add" size={controlSize.icon.md} color={colors.primaryDark} />
-                <Text style={styles.addText} numberOfLines={1}>Add players or picks</Text>
+                <Text style={styles.addText} numberOfLines={1}>{addLabel}</Text>
             </Pressable>
 
-            <Sheet visible={adding} title={mine ? 'Your players and picks' : `${teamName} players and picks`} onClose={closeAdding}>
+            <Sheet visible={adding} title={`${mine ? 'Your' : teamName} ${faabEnabled ? 'players, picks and FAAB' : 'players and picks'}`} onClose={closeAdding}>
                 {adding ? (
                     <View style={styles.sheetBody}>
                         {participant.roster.length > SEARCH_THRESHOLD ? (
@@ -245,6 +250,46 @@ export function ParticipantTradePanel({
                             emptyText={search ? 'No matching players.' : 'No tradeable active players.'}
                             testIdPrefix={`trade-${memberId}`}
                         />
+                        {faabEnabled && !search ? (
+                            <View>
+                                <Text style={styles.faabHeading}>FAAB</Text>
+                                {participant.destinationIds.map((destinationId) => {
+                                    const value = participant.faabInputs[destinationId] ?? ''
+                                    const error = validateTradeFaabInput(value).error
+                                    const toName = participantName(destinationId)
+                                    return (
+                                        <View key={`faab:${destinationId}`} style={styles.faabField}>
+                                            <View style={styles.assetLine}>
+                                                <Text style={styles.faabLabel} numberOfLines={1}>To {toName}</Text>
+                                                <TextInput
+                                                    style={[styles.faabInput, error && styles.faabInputInvalid]}
+                                                    value={value}
+                                                    placeholder="0"
+                                                    placeholderTextColor={colors.inputPlaceholder}
+                                                    onChangeText={(nextValue) => {
+                                                        if (canUpdateTradeFaabInput(value, nextValue)) onFaabChange(memberId, destinationId, nextValue)
+                                                    }}
+                                                    maxLength={Math.max(MAX_TRADE_FAAB_DIGITS, value.length)}
+                                                    keyboardType="numeric"
+                                                    accessibilityLabel={error
+                                                        ? `FAAB sent by ${teamName} to ${toName}. ${error}`
+                                                        : `FAAB sent by ${teamName} to ${toName}`}
+                                                    aria-invalid={Boolean(error)}
+                                                    testID={`trade-faab-${memberId}-${destinationId}`}
+                                                    id={`trade-faab-${memberId}-${destinationId}`}
+                                                />
+                                            </View>
+                                            {error ? (
+                                                <Text style={styles.faabError} accessibilityRole="alert" accessibilityLiveRegion="polite"
+                                                    testID={`trade-faab-error-${memberId}-${destinationId}`}>
+                                                    {error}
+                                                </Text>
+                                            ) : null}
+                                        </View>
+                                    )
+                                })}
+                            </View>
+                        ) : null}
                     </View>
                 ) : null}
             </Sheet>
@@ -284,7 +329,6 @@ const rowPadX = componentTokens.sectionBand.paddingHorizontal
 
 const styles = StyleSheet.create({
     card: { overflow: 'hidden' },
-    emptyText: { ...textStyles.meta, paddingHorizontal: rowPadX, paddingVertical: spacing.md, color: colors.textPlaceholder },
     assetRow: {
         paddingHorizontal: rowPadX,
         paddingVertical: componentTokens.playerRow.compact.paddingVertical,
@@ -343,6 +387,28 @@ const styles = StyleSheet.create({
         backgroundColor: colors.bgMuted,
     },
     routeText: { ...typeScale.caption, flexShrink: 1, minWidth: 0, fontWeight: fontWeight.semibold, color: colors.textSecondary },
+    faabSummary: { flex: 1, minWidth: 0, minHeight: controlSize.minTouch, flexDirection: 'row', alignItems: 'center', gap: componentTokens.playerRow.compact.gap },
+    faabCircle: {
+        flexShrink: 0,
+        width: controlSize.avatar.sm,
+        height: controlSize.avatar.sm,
+        borderRadius: radii.full,
+        backgroundColor: colors.success,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    faabHeading: {
+        ...textStyles.sectionLabel,
+        paddingHorizontal: componentTokens.playerRow.compact.paddingHorizontal,
+        paddingTop: spacing.xs,
+        paddingBottom: spacing.sm,
+    },
+    faabField: {
+        paddingHorizontal: componentTokens.playerRow.compact.paddingHorizontal,
+        paddingVertical: componentTokens.playerRow.compact.paddingVertical,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.separator,
+    },
     faabLabel: { ...textStyles.rowTitle, flex: 1, minWidth: 0 },
     faabInput: {
         ...typeScale.title,

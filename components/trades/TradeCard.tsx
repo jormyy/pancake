@@ -177,8 +177,9 @@ export function tradeFlowItem(item: TradeItem, index: number): TradeFlowItem | n
             tradeValue: item.tradeValue,
             playerId: item.playerId,
             player: { name: item.playerName, nbaId: item.nbaId, team: item.nbaTeam, positions: playerEligiblePositions(item),
-                playerId: item.playerId, yearsExp: item.yearsExp, careerGames: item.careerGames, injuryStatus: item.injuryStatus, stats: playerSeasonContextText(item) },
-            detail: [item.nbaTeam, ...playerEligiblePositions(item), item.toTaxi ? 'To taxi' : null].filter(Boolean).join(' · '),
+                playerId: item.playerId, yearsExp: item.yearsExp, careerGames: item.careerGames, injuryStatus: item.injuryStatus,
+                stats: item.avgFantasyPoints === undefined && item.avgMinutesPlayed === undefined ? undefined : playerSeasonContextText(item) },
+            detail: item.toTaxi ? 'To taxi' : null,
         }
     }
     if (item.kind === 'pick') {
@@ -457,9 +458,9 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     assetIconText: { ...typeScale.micro, fontWeight: fontWeight.extrabold, color: colors.textSecondary },
-    footer: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: controlSize.minTouch },
-    footerLink: { marginLeft: 'auto', flexShrink: 0 },
-    notes: { ...textStyles.meta, fontStyle: 'italic', color: colors.textSecondary, flexShrink: 1, minWidth: 0 },
+    footer: { alignItems: 'flex-start', gap: spacing.xxs },
+    footerLink: { paddingHorizontal: spacing.none, minWidth: controlSize.minTouch, alignItems: 'flex-start' },
+    notes: { ...textStyles.meta, fontStyle: 'italic', color: colors.textSecondary, alignSelf: 'stretch', minWidth: 0 },
     actions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
     actionBtn: {
         flexShrink: 0,

@@ -25,8 +25,9 @@ describe('player context helpers', () => {
         })).toBe('42.3 FP · 31.0 mins')
     })
 
-    it('keeps partial and empty stats readable', () => {
-        expect(playerSeasonContextText({ avgFantasyPoints: 0, avgMinutesPlayed: null, yearsExp: 0 })).toBe('0.0 FP · 0.0 mins')
-        expect(playerSeasonContextText({ avgFantasyPoints: null, avgMinutesPlayed: null, yearsExp: null })).toBe('0.0 FP · 0.0 mins')
+    it('tells missing stats apart from true zeros', () => {
+        expect(playerSeasonContextText({ avgFantasyPoints: 0, avgMinutesPlayed: 0, yearsExp: 5 })).toBe('0.0 FP · 0.0 mins')
+        expect(playerSeasonContextText({ avgFantasyPoints: 0, avgMinutesPlayed: null, yearsExp: 0 })).toBe('0.0 FP · - mins')
+        expect(playerSeasonContextText({ avgFantasyPoints: null, avgMinutesPlayed: null, yearsExp: null })).toBe('No stats yet')
     })
 })
