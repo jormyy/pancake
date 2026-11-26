@@ -6,8 +6,7 @@ import { listenForMemberClaimsChanges, memberClaimsRevision } from '@/lib/claim-
 import { IRResolutionModal } from '@/components/IRResolutionModal'
 import { DropPlayerPickerModal } from '@/components/DropPlayerPickerModal'
 import { GameLogTable } from '@/components/player/GameLogTable'
-import { PlayerHeader, playerAvailability, playerBioLine, playerSummaryLine, type PlayerHeaderAction } from '@/components/player/PlayerHeader'
-import { PlayerEligibilityTags } from '@/components/player/PlayerEligibilityTags'
+import { PlayerHeader, playerAvailability, playerBioLine, playerSummaryLine, taxiGamesLabel, type PlayerHeaderAction } from '@/components/player/PlayerHeader'
 import { SeasonSelector } from '@/components/player/SeasonSelector'
 import { StatsOverview } from '@/components/player/StatsOverview'
 import { readPlayerHeader } from '@/components/player/navigation'
@@ -18,6 +17,7 @@ import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { SectionBand } from '@/components/ui/SectionBand'
 import { useLeagueContext } from '@/contexts/league-context'
+import { PlayerEligibilityContext } from '@/contexts/player-eligibility-context'
 import { useOnlineStatus } from '@/hooks/use-online-status'
 import { usePlayerScreenData } from '@/hooks/use-player-screen-data'
 import { useQuickAdd, type PickupClaimSelection } from '@/hooks/use-quick-add'
@@ -30,7 +30,7 @@ import { showAlert, confirmAction } from '@/lib/alert'
 import { getErrorMessage } from '@/lib/shared/errors'
 import { type MemberTransactionState } from '@/lib/league'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import {
     ScrollView,
     Pressable,
@@ -49,6 +49,7 @@ export default function PlayerDetailScreen() {
     const { id, playerHeader, pickupHint } = useLocalSearchParams<{ id: string; playerHeader?: string; pickupHint?: string }>()
     const tappedPlayer = useMemo(() => readPlayerHeader(id, playerHeader), [id, playerHeader])
     const { current, currentLeague, membershipValidated } = useLeagueContext()
+    const taxiSlots = useContext(PlayerEligibilityContext)
     const online = useOnlineStatus()
     const router = useRouter()
     const { push } = router
@@ -229,6 +230,7 @@ export default function PlayerDetailScreen() {
     const summaryLine = playerSummaryLine(player)
     const bioLine = playerBioLine(player)
     const onTaxi = (rosterStatus?.status === 'mine' || rosterStatus?.status === 'taken') && rosterStatus.isOnTaxi === true
+    const infoLine = [summaryLine, taxiGamesLabel(player.years_exp, player.career_regular_season_games, onTaxi, taxiSlots)].filter(Boolean).join(' · ')
     const statColumns = 5
     const seasonControl = availableSeasons.length > 1 ? (
         <SeasonSelector
@@ -251,10 +253,7 @@ export default function PlayerDetailScreen() {
             <SectionBand label="Player info" />
             <View style={styles.cardBody}>
                 {availability.label ? <Text style={[styles.infoLine, styles.availability, { color: availability.tone }]} numberOfLines={1} testID="player-availability">{availability.label}</Text> : null}
-                <View style={styles.summaryRow} testID="player-summary-line">
-                    {summaryLine ? <Text style={styles.infoLine}>{summaryLine}</Text> : null}
-                    <PlayerEligibilityTags yearsExp={player.years_exp} careerGames={player.career_regular_season_games} onTaxi={onTaxi} showRookie={false} />
-                </View>
+                {infoLine ? <Text style={styles.infoLine} testID="player-summary-line">{infoLine}</Text> : null}
                 {bioLine ? <Text style={textStyles.meta} testID="player-bio-line">{bioLine}</Text> : null}
                 {injuryDetails ? <Text style={textStyles.meta}>{injuryDetails}</Text> : null}
             </View>
@@ -426,7 +425,6 @@ const styles = StyleSheet.create({
     card: { overflow: 'hidden' },
     cardBody: { padding: spacing.lg, gap: spacing.md },
     infoLine: { ...textStyles.rowTitle, color: colors.textSecondary, flexShrink: 1 },
-    summaryRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.xs },
     availability: { fontWeight: fontWeight.bold },
     bandDetail: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
     bandHint: { ...textStyles.meta, color: colors.textMuted },

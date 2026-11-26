@@ -2,7 +2,7 @@ import { Badge } from '@/components/Badge'
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { PlayerHeader, playerAvailability, playerBioLine } from '@/components/player/PlayerHeader'
+import { PlayerHeader, playerAvailability, playerBioLine, taxiGamesLabel } from '@/components/player/PlayerHeader'
 import { SeasonSelector } from '@/components/player/SeasonSelector'
 import { SeasonSelector as WebSeasonSelector } from '@/components/player/SeasonSelector.web'
 import { StatsOverview } from '@/components/player/StatsOverview'
@@ -267,6 +267,14 @@ it('names the taxi squad beside the owning team', () => {
     expect(playerAvailability({ status: 'mine', rosterPlayerId: 'roster', isOnTaxi: true }, 'Maple Hoops').label).toBe('Maple Hoops · Taxi squad')
     expect(playerAvailability({ status: 'taken', ownerTeamName: 'Owls', isOnTaxi: true }).label).toBe('Owls · Taxi squad')
     expect(playerAvailability({ status: 'taken', ownerTeamName: 'Owls' }).label).toBe('Owls')
+})
+
+it('labels taxi games as plain text only when taxi applies', () => {
+    expect(taxiGamesLabel(1, 41, false, 3)).toBe('Taxi: 41 GP')
+    expect(taxiGamesLabel(0, null, false, 3)).toBe('Taxi: GP unknown')
+    expect(taxiGamesLabel(4, 200, true, 3)).toBe('Taxi ineligible: 200 GP')
+    expect(taxiGamesLabel(4, 200, false, 3)).toBeNull()
+    expect(taxiGamesLabel(1, 41, false, 0)).toBeNull()
 })
 
 it('shows listed size with draft details and omits unknown fields', () => {

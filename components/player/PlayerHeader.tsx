@@ -11,6 +11,7 @@ import { borderWidth, colors, componentTokens, controlSize, radii, spacing, text
 import { playerAgeDecimal } from '@/lib/player-context'
 import { PlayerAvatar } from './PlayerAvatar'
 import { getEligiblePositions } from '@/lib/players'
+import { isTaxiEligible } from '@pancake/core'
 
 type PlayerHeaderPlayer = {
     display_name: string
@@ -75,6 +76,13 @@ export function playerBioLine(player: Pick<PlayerHeaderPlayer, 'height_inches' |
         : player.draft_status === 'drafted' && player.draft_year != null && player.draft_round != null && player.draft_overall_pick != null
             ? `${player.draft_year} draft · Rd ${player.draft_round}, #${player.draft_overall_pick}` : null
     return [[height, weight].filter(Boolean).join(', ') || null, draft].filter(Boolean).join(' · ')
+}
+
+export function taxiGamesLabel(yearsExp: number | null | undefined, careerGames: number | null | undefined, onTaxi: boolean, taxiSlots: number) {
+    const eligible = isTaxiEligible(yearsExp ?? null, careerGames ?? null)
+    if (taxiSlots <= 0 || (!eligible && !onTaxi)) return null
+    if (careerGames == null) return 'Taxi: GP unknown'
+    return `${eligible ? 'Taxi' : 'Taxi ineligible'}: ${careerGames} GP`
 }
 
 export function playerAvailability(rosterStatus: Props['rosterStatus'], ownTeamName?: string | null) {
