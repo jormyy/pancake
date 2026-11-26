@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261226000000",
+  "candidateVersion": "20261227000000",
   "common": {
     "functions": [
       {
@@ -2847,6 +2847,10 @@
     {
       "filename": "20261226000000_undo_trade_acceptance_rule.sql",
       "sha256": "b00e750bd27b3f1b1ab5581ed4f1f427909eb7e0625afcab7afce6b70051090b"
+    },
+    {
+      "filename": "20261227000000_public_read_allowance.sql",
+      "sha256": "2703b60a3dcf38dc09b3144ac27341439dba377f4e8d558ddec96b8643293d2a"
     }
   ],
   "preMigration": {

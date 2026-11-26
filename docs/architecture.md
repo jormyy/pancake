@@ -109,6 +109,8 @@ Durable league history is never deleted by retention.
 ## Public API and CLI
 
 Every non-deleted league is public through `GET /public/v2/<resource>`.
+`GET /public/web/<resource>` renders the same page as Markdown with links, and `/public/web` lists leagues.
+The homepage links there from a `noscript` block, so readers without JavaScript can find a league by name.
 The `pancake` CLI in `packages/pancake-cli` reads it and performs no writes.
 [The agent guide](../public/agents.md) covers commands and schemas.
 
@@ -124,7 +126,8 @@ The projection never reads claims, bids, or lineups.
 Manager budget, roster capacity, existing claims, and reservations never affect public free-agent fields.
 The public API never reads the old share tokens or their rate counters.
 
-Admission allows 60 reads per client IP per minute in a separate `public_admit_read` transaction.
+Admission allows 240 reads per client IP per minute in a separate `public_admit_read` transaction.
+A Markdown page takes one admission, then reads the league and the resource.
 The read transaction never updates rate counters or holds their row locks.
 Only `CF-Connecting-IP` identifies the client.
 A self-hosted deployment must overwrite this header at its trusted ingress before using this policy.

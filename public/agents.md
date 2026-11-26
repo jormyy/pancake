@@ -4,6 +4,19 @@ Pancake exposes read-only fantasy basketball data for every non-deleted league.
 No login, token, Supabase key, or commissioner action is required.
 The production API v2 is live.
 
+## Read in a browser or chat assistant
+
+Start at https://ceeytbfmwsnzalxlkalc.supabase.co/functions/v1/api/public/web.
+It lists public leagues as a Markdown page with ordinary links, so it needs no JavaScript or tools.
+Find a league by name with `https://ceeytbfmwsnzalxlkalc.supabase.co/functions/v1/api/public/web/leagues?query=NAME`.
+Use the full name or any part of it; matching ignores letter case.
+Several matches are listed for you to choose from, and no match says so.
+
+Each league home, `https://ceeytbfmwsnzalxlkalc.supabase.co/functions/v1/api/public/web/league?league=LEAGUE_ID`, links to every resource below.
+`/public/web/<resource>` accepts the same query options as `/public/v2/<resource>` and the CLI, and shows the same records.
+Every page states the league, the season and the time it was read, and links to its JSON source.
+Standings rank 1 is the leader. A team's schedule lists its matchups by week; the first week with `finalized` false is its current or next matchup.
+
 ## Install the CLI
 
 The CLI requires Node 22 or later and has no runtime dependencies.
@@ -98,8 +111,9 @@ Offsets above 100,000 return an error.
 
 ## Limits and errors
 
-The API allows 60 reads per client-IP bucket per minute.
-Shared networks can share a bucket. HTTP 429 includes `Retry-After` in seconds.
+The API allows 240 reads per client-IP bucket per minute.
+JSON reads, CLI reads and public pages share the same bucket; each page counts as one read.
+Shared networks can share a bucket. HTTP 429 includes `Retry-After`, the seconds until the minute resets.
 The CLI does not retry 429 or invalid requests.
 It retries transport failures and HTTP 502, 503, and 504 at most twice within one 15-second budget.
 `--no-cache` disables the CLI cache. Cached responses require server revalidation.

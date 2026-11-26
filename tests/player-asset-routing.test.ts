@@ -40,13 +40,14 @@ it.each([
     expect(readFileSync(`public${pathname}`, 'utf8')).not.toMatch(/<!doctype html|<html/i)
 })
 
-it('links discovery to the public Markdown guide on the production site', () => {
+it('links discovery to the public league pages and the Markdown guide on the production site', () => {
     const discovery = readFileSync('public/llms.txt', 'utf8')
     expect(discovery).toMatch(/^# .+\n\n> .+\n/)
     const links = [...discovery.matchAll(/\[[^\]]+\]\(([^)]+)\)/g)].map(match => new URL(match[1]))
     expect(links.length).toBeGreaterThan(0)
     expect(links.map(link => link.href)).toContain('https://pancakedynasty.vercel.app/agents.md')
-    for (const link of links) {
+    expect(links.map(link => link.href)).toContain('https://ceeytbfmwsnzalxlkalc.supabase.co/functions/v1/api/public/web')
+    for (const link of links.filter(link => link.pathname !== '/functions/v1/api/public/web')) {
         expect(link.origin).toBe('https://pancakedynasty.vercel.app')
         expect(readFileSync(`public${link.pathname}`, 'utf8')).toMatch(/^# /)
     }

@@ -48,4 +48,5 @@ Do not claim iOS home-screen behavior from Chromium viewport checks.
 | [Drafts](draft.md) | Auction, rookie draft, mock rooms, draft board |
 | [Settings](settings.md) | Profile, theme, notifications, create/join, password |
 | [PWA](pwa.md) | Update, offline banner, recovery, standalone limitations |
+| [Public league pages](public-web.md) | No-JavaScript discovery, name search, CLI parity, privacy, 240-read limit |
 | [Design system](design-system.md) | Shared type and spacing, flat backdrop, safe areas, 44px targets, fixed journeys |

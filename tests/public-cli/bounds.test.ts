@@ -14,7 +14,7 @@ function sample(shape: Shape): unknown {
 
 it('keeps an accepted long league and its neighbours readable',async()=>{
   const name='A'.repeat(1025)
-  const handler=createPublicHandler(async()=>({status:200,items:[{id:league,name,status:'active'},{id:league,name:'Neighbour',status:'active'}],hasMore:false}),()=>true)
+  const handler=createPublicHandler({admit:async()=>({status:200}),read:async()=>({status:200,items:[{id:league,name,status:'active'},{id:league,name:'Neighbour',status:'active'}],hasMore:false})},()=>0)
   const response=(await handler(new Request('http://localhost/public/v2/leagues'),'/public/v2/leagues'))!
   expect(response.status).toBe(200)
   const body=await response.json()
@@ -35,7 +35,7 @@ it.each(resourceNames)('bounds every public string in %s without losing the reco
   }
   const shape=publicContract.resources[resource].properties.items.items
   const row=fill(shape) as Record<string,unknown>
-  const handler=createPublicHandler(async()=>({status:200,items:[row],hasMore:false}),()=>true)
+  const handler=createPublicHandler({admit:async()=>({status:200}),read:async()=>({status:200,items:[row],hasMore:false})},()=>0)
   const query=resource==='leagues'?'':`league=${league}${resource==='rosters'?`&team=${league}`:''}`
   const response=(await handler(new Request(`http://localhost/public/v2/${resource}?${query}`),`/public/v2/${resource}`))!
   expect(response.status).toBe(200)
@@ -49,7 +49,7 @@ it('keeps every record reachable when bounded strings fill the wire budget',asyn
   const base=sample(shape) as Record<string,unknown>
   for(const name of ['name','nbaId','nbaTeam','injuryStatus','status','injuryReason','headshotUrl'])base[name]='\u0000'.repeat(1024)
   const rows=Array.from({length:100},(_,index)=>({...base,id:`00000000-0000-4000-8000-${String(index).padStart(12,'0')}`,leagueId:league}))
-  const handler=createPublicHandler(async(_league,_resource,params)=>({status:200,items:rows.slice(Number(params.offset),Number(params.offset)+Number(params.limit)),hasMore:Number(params.offset)+Number(params.limit)<rows.length}),()=>true)
+  const handler=createPublicHandler({admit:async()=>({status:200}),read:async(_league,_resource,params)=>({status:200,items:rows.slice(Number(params.offset),Number(params.offset)+Number(params.limit)),hasMore:Number(params.offset)+Number(params.limit)<rows.length})},()=>0)
   let cursor:string|null=null
   const ids:string[]=[]
   for(let page=0;page<10;page++){

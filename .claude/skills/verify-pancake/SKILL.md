@@ -297,3 +297,10 @@ The trigger prints `before`, `after`, and `delta` counts for the fixture league 
 Require `delta.awards`, `delta.transactions`, and `delta.rosterPlayers` equal to the expected add count on the first run.
 Run the trigger again and require all three deltas at zero and every other league’s delta at zero.
 Open Roster and require 16 active players, then repeat at 375×812.
+
+## Public league pages
+
+Use the `public-web` journeys in [Public league pages](features/public-web.md).
+Run `deno test --allow-env --allow-read supabase/functions/api/public/` and `npx vitest run tests/public-cli` first.
+Apply a new migration to the disposable database before `rebuild`, because `rebuild` refuses a stack that lacks a checkout migration.
+Copy changed `supabase/functions/api/public/*.ts` files into the run's `work/` copy to reload the local Edge function.
