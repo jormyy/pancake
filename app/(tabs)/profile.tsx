@@ -246,10 +246,10 @@ export default function ProfileScreen() {
                         </View>
                     </Pressable>
                     <View style={styles.identityText}>
-                        <Text style={[textStyles.pageTitle, { minHeight: textStyles.pageTitle.lineHeight }]}>
+                        <Text style={[textStyles.pageTitle, { minHeight: textStyles.pageTitle.lineHeight }]} numberOfLines={1}>
                             {profile?.display_name ?? ''}
                         </Text>
-                        <Text style={[textStyles.meta, { minHeight: textStyles.meta.lineHeight }]}>{profile?.username ? `@${profile.username}` : ''}</Text>
+                        <Text style={[textStyles.meta, { minHeight: textStyles.meta.lineHeight }]} numberOfLines={1}>{profile?.username ? `@${profile.username}` : ''}</Text>
                     </View>
                 </View>
 
@@ -335,7 +335,7 @@ const styles = StyleSheet.create({
     identity: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg },
     identityText: { flex: 1, minWidth: 0, gap: spacing.xxs },
     themeRow: { padding: spacing.md },
-    avatarWrapper: { position: 'relative' },
+    avatarWrapper: { position: 'relative', flexShrink: 0 },
     avatarBadge: {
         position: 'absolute',
         bottom: spacing.none,

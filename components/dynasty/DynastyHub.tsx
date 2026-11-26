@@ -105,12 +105,12 @@ function RankingRowImpl({
             accessibilityLabel={canOpen ? `Open ${player.displayName}` : player.displayName}
         >
             <View style={styles.rankNumber}>
-                <Text style={styles.rankNumberText}>{player.dynastyRank}</Text>
+                <Text style={styles.rankNumberText} numberOfLines={1}>{player.dynastyRank}</Text>
                 {player.rankChange !== 0 ? <RankMovement value={player.rankChange} /> : null}
             </View>
             {player.isDraftPick ? <>
                 <View style={styles.draftBadge}><MaterialIcons name="style" size={controlSize.icon.md} color={colors.primaryDark} /></View>
-                <View style={styles.rankMain}><Text style={styles.playerName} numberOfLines={1}>{player.displayName}</Text><Text style={styles.valueText}>Value {valueText}</Text><Text style={styles.decisionMeta}>{support}</Text></View>
+                <View style={styles.rankMain}><Text style={styles.playerName} numberOfLines={1}>{player.displayName}</Text><Text style={styles.valueText} numberOfLines={1}>Value {valueText}</Text><Text style={styles.decisionMeta} numberOfLines={1}>{support}</Text></View>
             </> : <PlayerRowContent name={player.displayName} nbaId={player.nbaId} headshotUrl={playerAvatarUri(player)} team={player.sourceTeam ?? player.nbaTeam}
                 positions={positions} age={player.age} yearsExp={player.yearsExp} careerGames={player.careerGames} injuryStatus={player.injuryStatus}
                 stats={`Value ${valueText}${support ? ` · ${support}` : ''}`} />}
@@ -231,7 +231,7 @@ export function DynastyHub({ section }: { section: DynastySection }) {
                             </View>
                         ) : (
                             <Card padding="none" elevated="none" style={styles.rankingCard}>
-                                <SectionBand label="Dynasty rankings" detail={<Text style={styles.bandDetail}>{rankings.players.length}</Text>} />
+                                <SectionBand label="Dynasty rankings" detail={<Text style={styles.bandDetail} numberOfLines={1}>{rankings.players.length}</Text>} />
                                 <FlashList
                                     ref={rankingListRef}
                                     style={styles.list}
@@ -279,7 +279,7 @@ export function DynastyHub({ section }: { section: DynastySection }) {
                         <DeferredContent ready={activeNewsHydrated}>
                         {activeNewsHydrated ? (
                             <Card padding="none" elevated="none" style={styles.listCard}>
-                                <SectionBand label={feed === 'my-news' ? 'My players' : 'All dynasty news'} detail={<Text style={styles.bandDetail}>{activeNews.length}</Text>} />
+                                <SectionBand label={feed === 'my-news' ? 'My players' : 'All dynasty news'} detail={<Text style={styles.bandDetail} numberOfLines={1}>{activeNews.length}</Text>} />
                                 <View style={styles.newsList}>
                                     {activeNews.length === 0 ? (
                                         <EmptyState message={emptyNewsMessage} fullScreen={false} />
@@ -354,6 +354,7 @@ const styles = StyleSheet.create({
     metaText: { ...textStyles.meta, flexShrink: 1 },
     injuryText: { ...textStyles.meta, color: colors.danger },
     draftBadge: {
+        flexShrink: 0,
         width: table.headerHeight,
         height: table.headerHeight,
         borderRadius: radii.full,

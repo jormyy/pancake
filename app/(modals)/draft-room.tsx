@@ -149,7 +149,7 @@ export default function DraftRoomScreen({ resolvedDraftId }: { resolvedDraftId?:
                 {myBudget?.remaining != null ? (
                     // A plain figure, not a chip, so it never reads as a button.
                     <View style={styles.budgetStat} accessible accessibilityLabel={`$${myBudget.remaining} budget left`}>
-                        <Text style={styles.budgetValue}>${myBudget.remaining}</Text>
+                        <Text style={styles.budgetValue} numberOfLines={1}>${myBudget.remaining}</Text>
                         <Text style={styles.budgetLabel}>left</Text>
                     </View>
                 ) : null}
@@ -199,7 +199,7 @@ export default function DraftRoomScreen({ resolvedDraftId }: { resolvedDraftId?:
                                         <View key={pick.id} style={[styles.myPickRow, index > 0 && styles.myPickDivider]}>
                                             <PlayerRowContent name={pick.player?.displayName ?? 'Unknown'} nbaId={pick.player?.nbaId} team={pick.player?.nbaTeam}
                                                 positions={pick.player?.position ? [pick.player.position] : []} age={pick.player?.age} yearsExp={pick.player?.yearsExp} careerGames={pick.player?.careerGames} injuryStatus={pick.player?.injuryStatus} />
-                                            <Text style={styles.myPickPrice}>${pick.finalPrice}</Text>
+                                            <Text style={styles.myPickPrice} numberOfLines={1}>${pick.finalPrice}</Text>
                                         </View>
                                     ))}
                                 </View>
@@ -252,7 +252,7 @@ const styles = StyleSheet.create({
     myPickDivider: { borderTopWidth: 1, borderTopColor: colors.separator },
     myPickName: { ...textStyles.rowTitle, flex: 1, minWidth: 0 },
     myPickMeta: { ...textStyles.meta },
-    myPickPrice: { ...typeScale.row, fontWeight: fontWeight.extrabold, color: colors.textPrimary, fontVariant: ['tabular-nums'] as const },
+    myPickPrice: { ...typeScale.row, flexShrink: 0, fontWeight: fontWeight.extrabold, color: colors.textPrimary, fontVariant: ['tabular-nums'] as const },
 
     // Single column on phones; block card + activity left, budgets/history
     // right once `isDesktop` flips the outer wrapper to a row.
@@ -263,7 +263,7 @@ const styles = StyleSheet.create({
     columnCompact: { gap: spacing.sm },
     columnMainDesktop: { flex: 3, minWidth: 0 },
 
-    budgetStat: { alignItems: 'flex-end', justifyContent: 'center', paddingHorizontal: spacing.xs },
+    budgetStat: { flexShrink: 0, alignItems: 'flex-end', justifyContent: 'center', paddingHorizontal: spacing.xs },
     budgetValue: { ...typeScale.title, fontWeight: fontWeight.extrabold, color: colors.primaryDark },
     budgetLabel: { ...textStyles.meta },
     refreshWarning: {

@@ -13,7 +13,7 @@ vi.mock('react-native', () => ({
     useWindowDimensions: () => ({ width: 390, height: 844 }),
 }))
 vi.mock('expo-router', () => ({ Stack: { Screen: () => null } }))
-vi.mock('@/constants/tokens', () => ({ colors: {} }))
+vi.mock('@/constants/tokens', () => ({ colors: {}, controlSize: { minTouch: 44 }, spacing: { '6xl': 40 } }))
 vi.mock('@/components/commissioner/settings-styles', () => ({ styles: {} }))
 vi.mock('@/components/EmptyState', () => ({ EmptyState: () => null }))
 vi.mock('@/components/ScreenErrorFallback', () => ({ ScreenErrorFallback: () => null }))

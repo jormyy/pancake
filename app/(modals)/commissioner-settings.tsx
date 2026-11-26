@@ -7,11 +7,12 @@ import {
     Pressable,
     ScrollView,
     useWindowDimensions,
+    type ViewStyle,
 } from 'react-native'
 import { Stack } from 'expo-router'
 import type { ReactNode } from 'react'
 import type { TradeVetoMode, WaiverMode } from '@/lib/league'
-import { colors } from '@/constants/tokens'
+import { colors, controlSize, spacing } from '@/constants/tokens'
 import {
     ARCHIVE_LEAGUE_DESCRIPTION,
     type CommissionerAction,
@@ -49,7 +50,7 @@ export default function CommissionerSettingsScreen() {
     // Save stays in reach at the top while the long form scrolls under it.
     const saveAction = loadState === 'ready' || loadState === 'loading' ? (
                 <Pressable
-                    style={[styles.headerSave, (saving || !authorityReady || loadState !== 'ready') && styles.headerSaveDisabled]}
+                    style={[styles.headerSave, saveStyles.stable, (saving || !authorityReady || loadState !== 'ready') && styles.headerSaveDisabled]}
                     onPress={save}
                     disabled={saving || !authorityReady || loadState !== 'ready'}
                     role="button"
@@ -58,7 +59,7 @@ export default function CommissionerSettingsScreen() {
                     accessibilityLabel="Save league settings"
                     accessibilityState={{ disabled: saving || !authorityReady || loadState !== 'ready', busy: saving }}
                 >
-                    <Text style={styles.headerSaveText}>{saving ? 'Saving…' : 'Save'}</Text>
+                    <Text style={styles.headerSaveText} numberOfLines={1}>{saving ? 'Saving…' : 'Save'}</Text>
                 </Pressable>
     ) : null
     const frame = (children: ReactNode) => (
@@ -466,3 +467,7 @@ export default function CommissionerSettingsScreen() {
 }
 
 export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFallback'
+
+const saveStyles: { stable: ViewStyle } = {
+    stable: { flexShrink: 0, minWidth: controlSize.minTouch + spacing['6xl'] },
+}

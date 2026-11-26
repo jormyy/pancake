@@ -15,7 +15,7 @@ export function TradeBlockNoteButton({ label, disabled, onPress }: {
         accessibilityState={{ disabled }} accessibilityLabel={`Edit trade block note for ${label}`}
         onPress={onPress}>
         <MaterialIcons name="edit" size={controlSize.icon.sm} color={colors.primaryDark} />
-        <Text style={styles.noteButtonText}>Note</Text>
+        <Text style={styles.noteButtonText} numberOfLines={1}>Note</Text>
     </Pressable>
 }
 
@@ -45,6 +45,7 @@ export function TradeBlockNoteEditor({ item, label, disabled, onSave, onClose }:
 
 const styles = StyleSheet.create({
     noteButton: {
+        flexShrink: 0,
         minWidth: controlSize.minTouch,
         minHeight: controlSize.minTouch,
         flexDirection: 'row',

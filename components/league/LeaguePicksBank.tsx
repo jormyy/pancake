@@ -101,6 +101,7 @@ function PicksBankRow({
             <View style={[styles.pickLabel, compact && styles.picksBankRoundCompact]}>
             <Text
                 style={[styles.picksBankRound, mine && tableStyles.textMe]}
+                numberOfLines={1}
             >
                 {compact ? `${pick.seasonYear} R${pick.round}` : `R${pick.round}`}
             </Text>
@@ -468,7 +469,7 @@ const styles = StyleSheet.create({
         minHeight: 28,
         paddingVertical: spacing.xs,
     },
-    pickLabel: { width: 56, flexDirection: 'row', alignItems: 'center', gap: spacing.xxs },
+    pickLabel: { width: 56, flexShrink: 0, flexDirection: 'row', alignItems: 'center', gap: spacing.xxs },
     picksBankRound: { ...typeScale.row, flexShrink: 1, fontWeight: fontWeight.bold, color: colors.textSecondary },
     picksBankRoundCompact: { width: 88 },
     picksBankFromWrap: {

@@ -395,14 +395,14 @@ function PlayerSearchSection() {
                         </Pressable>
                     ) : null}
                     <Pressable onPress={() => setFiltersOpen(false)} style={localStyles.sheetDone} accessibilityRole="button">
-                        <Text style={localStyles.sheetDoneText}>{`Show ${resultCountLabel}`}</Text>
+                        <Text style={localStyles.sheetDoneText} numberOfLines={1}>{`Show ${resultCountLabel}`}</Text>
                     </Pressable>
                 </View>
             </Sheet>
 
             <View style={[localStyles.results, { paddingHorizontal: padX }]} aria-busy={listIsInitialLoading || search.results.loadingMore} accessibilityState={{ busy: listIsInitialLoading || search.results.loadingMore }}>
                 <Card padding="none" elevated="none" style={localStyles.listCard}>
-                    <SectionBand label={listLabel} detail={<Text style={localStyles.bandDetail}>{averageLabel}</Text>} />
+                    <SectionBand label={listLabel} detail={<Text style={localStyles.bandDetail} numberOfLines={1}>{averageLabel}</Text>} />
                     <FlashList
                         {...scrollRestoration}
                         style={localStyles.list}
@@ -590,6 +590,7 @@ const localStyles = StyleSheet.create({
         gap: spacing.sm,
     },
     filterButton: {
+        flexShrink: 0,
         flexDirection: 'row',
         alignItems: 'center',
         gap: spacing.sm,
@@ -604,12 +605,13 @@ const localStyles = StyleSheet.create({
     filterButtonActive: { backgroundColor: colors.primaryLight, borderColor: colors.primaryBorder },
     filterButtonText: { ...typeScale.small, fontWeight: fontWeight.bold, color: colors.textSecondary },
     filterButtonTextActive: { color: colors.primaryDark },
-    clearButton: { minHeight: controlSize.minTouch, justifyContent: 'center', paddingHorizontal: spacing.md },
+    clearButton: { flexShrink: 0, minHeight: controlSize.minTouch, justifyContent: 'center', paddingHorizontal: spacing.md },
     clearButtonText: { ...typeScale.small, fontWeight: fontWeight.bold, color: colors.dangerDark },
     sheetFields: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.lg },
     sheetActions: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.xl },
     sortDirInSheet: { flexGrow: 1, flexBasis: 140, minHeight: controlSize.minTouch },
     sheetClear: {
+        flexShrink: 0,
         minHeight: controlSize.minTouch,
         justifyContent: 'center',
         paddingHorizontal: spacing.xl,

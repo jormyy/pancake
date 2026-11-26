@@ -29,12 +29,12 @@ export function CompletedTradeActivityCard({ item, myMemberId, padX }: { item: T
         <View style={{ paddingHorizontal: padX, paddingVertical: spacing.sm }}>
             <View testID={`trade-activity-${item.id}`} style={styles.card}>
                 <View style={styles.header}>
-                    <Text style={styles.title}>Trade completed</Text>
-                    <Text style={styles.time}>{formatLeagueDateTime(item.occurredAt, timezone)}</Text>
+                    <Text style={styles.title} numberOfLines={1}>Trade completed</Text>
+                    <Text style={styles.time} numberOfLines={1}>{formatLeagueDateTime(item.occurredAt, timezone)}</Text>
                 </View>
                 {assets.length === 0 ? (
                     <View style={{ gap: spacing.xs }}>
-                        <Text style={styles.title}>{participants.map(team => team.label).join(' · ')}</Text>
+                        <Text style={styles.title} numberOfLines={1}>{participants.map(team => team.label).join(' · ')}</Text>
                         <Text style={styles.fallback}>{item.body ?? 'Trade asset details are unavailable.'}</Text>
                     </View>
                 ) : participants.length > 2 ? (
@@ -52,7 +52,7 @@ export function CompletedTradeActivityCard({ item, myMemberId, padX }: { item: T
 const styles = StyleSheet.create({
     card: { borderWidth: 1, borderColor: colors.borderLight, borderRadius: radii.md, padding: spacing.md, gap: spacing.sm, minWidth: 0 },
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, flexWrap: 'wrap' },
-    title: { ...textStyles.rowTitle },
-    time: { ...textStyles.meta, color: colors.textMuted },
+    title: { ...textStyles.rowTitle, flexShrink: 1, minWidth: 0 },
+    time: { ...textStyles.meta, color: colors.textMuted, flexShrink: 0 },
     fallback: { ...textStyles.meta },
 })

@@ -118,8 +118,8 @@ export function PageHeader({
             <View style={styles.headerMain}>
                 {tabs ?? (title && !hideTitle ? (
                     <>
-                        <Text style={[componentTokens.pageHeader.standard.title, small && styles.titleCompact]} {...headingProps}>{title}</Text>
-                        {meta || reserveMeta ? <Text style={[textStyles.meta, { minHeight: textStyles.meta.lineHeight }]}>{meta ?? ''}</Text> : null}
+                        <Text style={[componentTokens.pageHeader.standard.title, small && styles.titleCompact]} numberOfLines={1} {...headingProps}>{title}</Text>
+                        {meta || reserveMeta ? <Text style={[textStyles.meta, { minHeight: textStyles.meta.lineHeight }]} numberOfLines={1}>{meta ?? ''}</Text> : null}
                     </>
                 ) : null)}
             </View>

@@ -59,10 +59,10 @@ export function AuctionLivePanel({
                     testID="auction-live-state" accessibilityLabel={liveStateLabel}>
                     <View style={styles.bidRow}>
                         <View style={styles.bidInfo}>
-                            <Text style={[styles.bidAmount, leading && styles.bidAmountLeading]}>
+                            <Text style={[styles.bidAmount, leading && styles.bidAmountLeading]} numberOfLines={1}>
                                 {nomination.currentBidAmount > 0 ? `$${nomination.currentBidAmount}` : '—'}
                             </Text>
-                            <Text style={[styles.bidLeader, leading && styles.bidLeaderLeading]}>
+                            <Text style={[styles.bidLeader, leading && styles.bidLeaderLeading]} numberOfLines={1}>
                                 {leaderText}
                             </Text>
                         </View>
@@ -99,7 +99,7 @@ export function AuctionLivePanel({
                             accessibilityLabel={`Bid $${(bidValid ? bidValue : minimumBid).toLocaleString()}`}
                             accessibilityHint="Bidding requires a live draft connection."
                             disabled={!bidReady || !bidValid || leading || controller.timeLeft === 0}>
-                            <Text style={styles.bidButtonText}>Bid ${(bidValid ? bidValue : minimumBid).toLocaleString()}</Text>
+                            <Text style={styles.bidButtonText} numberOfLines={1}>Bid ${(bidValid ? bidValue : minimumBid).toLocaleString()}</Text>
                         </MotionPressable>
                     </View> : null}
                 </View>
@@ -113,7 +113,7 @@ export function AuctionLivePanel({
         <View style={styles.historyPanel}>
             <View style={styles.historyHeader}>
                 <Text style={styles.historyLabel}>Bid history</Text>
-                <Text style={styles.historyCount}>{bidLabel}</Text>
+                <Text style={styles.historyCount} numberOfLines={1}>{bidLabel}</Text>
             </View>
             {activeBids.length === 0
                 ? <Text style={styles.historyEmpty}>No bids yet. Minimum bid is ${minimumBid}.</Text>
@@ -127,9 +127,9 @@ export function AuctionLivePanel({
                         </View>
                         <View style={styles.historyInfo}>
                             <Text style={styles.historyTeam} numberOfLines={1}>{bid.teamName}</Text>
-                            <Text style={styles.historyMeta}>{draftEventTime(bid.placedAt, timezone) ?? 'Just now'}</Text>
+                            <Text style={styles.historyMeta} numberOfLines={1}>{draftEventTime(bid.placedAt, timezone) ?? 'Just now'}</Text>
                         </View>
-                        <Text style={[styles.historyAmount, high && styles.historyAmountHigh]}>${bid.amount}</Text>
+                        <Text style={[styles.historyAmount, high && styles.historyAmountHigh]} numberOfLines={1}>${bid.amount}</Text>
                     </View>
                 })}</View>}
         </View>
@@ -151,8 +151,8 @@ const styles = StyleSheet.create({
     playerMeta: { ...typeScale.small, color: colors.textMuted },
     bidPanel: { gap: spacing.md },
     bidPanelCompact: { width: 318, maxWidth: '100%', gap: spacing.sm },
-    bidRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-    bidInfo: { gap: spacing.xs },
+    bidRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md },
+    bidInfo: { flex: 1, minWidth: 0, gap: spacing.xs },
     bidAmount: {
     ...typeScale.display,
     fontFamily: fontFamily.display,
@@ -208,11 +208,11 @@ const styles = StyleSheet.create({
         borderRadius: radii.lg, borderCurve: 'continuous', backgroundColor: colors.bgSubtle, borderWidth: 1, borderColor: colors.borderLight },
     historyHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md },
     historyLabel: { ...textStyles.sectionLabel },
-    historyCount: { ...typeScale.caption, fontWeight: fontWeight.bold, color: colors.textMuted },
+    historyCount: { ...typeScale.caption, flexShrink: 0, fontWeight: fontWeight.bold, color: colors.textMuted },
     historyEmpty: { ...typeScale.small, color: colors.textSecondary },
     historyItems: { gap: spacing.xs },
     historyItem: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 38 },
-    orderPill: { minWidth: 60, minHeight: 26, borderRadius: radii.full, borderCurve: 'continuous',
+    orderPill: { minWidth: 60, flexShrink: 0, minHeight: 26, borderRadius: radii.full, borderCurve: 'continuous',
         backgroundColor: colors.bgScreen, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.sm },
     orderPillHigh: { backgroundColor: colors.successLight },
     orderText: { ...typeScale.caption, fontWeight: fontWeight.bold, color: colors.textMuted },
@@ -220,6 +220,6 @@ const styles = StyleSheet.create({
     historyInfo: { flex: 1, minWidth: 0 },
     historyTeam: { ...typeScale.small, fontWeight: fontWeight.bold, color: colors.textPrimary },
     historyMeta: { ...typeScale.caption, color: colors.textMuted, marginTop: spacing.xxs },
-    historyAmount: { ...typeScale.small, fontFamily: fontFamily.display, fontWeight: fontWeight.bold, color: colors.primaryDark },
+    historyAmount: { ...typeScale.small, flexShrink: 0, fontFamily: fontFamily.display, fontWeight: fontWeight.bold, color: colors.primaryDark },
     historyAmountHigh: { color: colors.successDark },
 })

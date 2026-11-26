@@ -7,7 +7,7 @@ import { Card } from '@/components/ui/Card'
 import { ListHeader } from '@/components/ui/ListHeader'
 import { usePageMetrics } from '@/components/ui'
 import { ScreenStatusScrollView } from '@/components/ui/ScreenStatusOverlay'
-import { colors, layout, spacing, textStyles, table } from '@/constants/tokens'
+import { colors, componentTokens, layout, spacing, textStyles, table } from '@/constants/tokens'
 import type { HistoryStanding, SeasonHistory } from '@/lib/league-history'
 
 function seasonLabel(year: number) {
@@ -44,7 +44,7 @@ export function LeagueHistory({ seasons, onRefresh, refreshing = false }: {
                         <Card elevated="none" style={styles.summary}>
                             <Text style={textStyles.sectionLabel}>Completed season</Text>
                             <Text role="heading" accessibilityRole="header" style={textStyles.pageTitle}>{seasonLabel(selected.year)}</Text>
-                            {selected.champion ? <Text style={textStyles.rowTitle}>{selected.champion.teamName} · Champion</Text> : null}
+                            {selected.champion ? <Text style={textStyles.rowTitle} numberOfLines={1}>{selected.champion.teamName} · Champion</Text> : null}
                             <View style={styles.stats}>
                                 <View style={styles.stat}>
                                     <Text style={textStyles.pageTitle}>{selected.stats.teams}</Text>
@@ -78,14 +78,14 @@ export function LeagueHistory({ seasons, onRefresh, refreshing = false }: {
                                     <View key={team.memberId} role="listitem"
                                         accessibilityLabel={`Place ${team.finalRank}, ${team.teamName}, ${team.playoffResult}, record ${recordLabel(team)}, ${formatPoints(team.pointsFor)} points for, ${formatPoints(team.pointsAgainst)} points against`}
                                         style={[styles.row, styles.standing, team.finalRank === 1 && styles.champion]}>
-                                        <Text style={[textStyles.tableCell, styles.rank]}>{team.finalRank}</Text>
+                                        <Text style={[textStyles.tableCell, styles.rank]} numberOfLines={1}>{team.finalRank}</Text>
                                         <View style={styles.team}>
-                                            <Text style={textStyles.rowTitle}>{team.teamName}</Text>
-                                            <Text style={textStyles.meta}>{team.playoffResult}</Text>
+                                            <Text style={textStyles.rowTitle} numberOfLines={1}>{team.teamName}</Text>
+                                            <Text style={textStyles.meta} numberOfLines={1}>{team.playoffResult}</Text>
                                         </View>
-                                        <Text style={[textStyles.tableCell, styles.record]}>{recordLabel(team)}</Text>
-                                        <Text style={[textStyles.tableCell, styles.points]}>{formatPoints(team.pointsFor)}</Text>
-                                        <Text style={[textStyles.tableCell, styles.points]}>{formatPoints(team.pointsAgainst)}</Text>
+                                        <Text style={[textStyles.tableCell, styles.record]} numberOfLines={1}>{recordLabel(team)}</Text>
+                                        <Text style={[textStyles.tableCell, styles.points]} numberOfLines={1}>{formatPoints(team.pointsFor)}</Text>
+                                        <Text style={[textStyles.tableCell, styles.points]} numberOfLines={1}>{formatPoints(team.pointsAgainst)}</Text>
                                     </View>
                                 ))}
                             </View>
@@ -103,10 +103,10 @@ export function LeagueHistory({ seasons, onRefresh, refreshing = false }: {
                                 <View style={styles.seasonRow}>
                                     <View style={styles.seasonCopy}>
                                         <Text style={textStyles.pageTitle}>{seasonLabel(season.year)}</Text>
-                                        <Text style={textStyles.body}>{season.champion ? `${season.champion.teamName} · Champion` : 'Season complete'}</Text>
+                                        <Text style={textStyles.body} numberOfLines={1}>{season.champion ? `${season.champion.teamName} · Champion` : 'Season complete'}</Text>
                                         <Text style={textStyles.meta}>{season.stats.teams} teams · {season.stats.games} regular-season matchups</Text>
                                     </View>
-                                    <Text style={textStyles.rowTitle} accessibilityElementsHidden>›</Text>
+                                    <Text style={[textStyles.rowTitle, styles.chevron]} accessibilityElementsHidden>›</Text>
                                 </View>
                             </Card>
                         ))}
@@ -129,10 +129,11 @@ const styles = StyleSheet.create({
     row: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.sm, gap: spacing.xs },
     standing: { paddingVertical: spacing.md, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.borderLight },
     champion: { backgroundColor: colors.primaryLight },
-    rank: { width: 20, textAlign: 'center' },
+    rank: { width: 20, textAlign: 'center', flexShrink: 0 },
     team: { flex: 1, minWidth: 0, gap: spacing.xs },
-    record: { width: table.statColWidth, textAlign: 'right' },
-    points: { width: 52, textAlign: 'right' },
+    record: { width: table.statColWidth, textAlign: 'right', flexShrink: 0 },
+    points: { width: componentTokens.matchupRow.pointsWidth, textAlign: 'right', flexShrink: 0 },
+    chevron: { flexShrink: 0 },
     seasonRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
     seasonCopy: { flex: 1, minWidth: 0, gap: spacing.sm },
 })

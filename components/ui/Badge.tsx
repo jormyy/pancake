@@ -63,7 +63,7 @@ export function Badge({
             {variant === 'soft' ? (
                 <View style={[StyleSheet.absoluteFill, { backgroundColor: color, opacity: componentTokens.badge.tintOpacity }]} />
             ) : null}
-            <Text style={[styles.text, inline && styles.inlineText, size === 'compact' && styles.compactText, (size === 'count' || size === 'small') && styles.countText, { color: fg }, textStyle]}>
+            <Text style={[styles.text, inline && styles.inlineText, size === 'compact' && styles.compactText, (size === 'count' || size === 'small') && styles.countText, { color: fg }, textStyle]} numberOfLines={size === 'ownership' ? 1 : undefined}>
                 {label}
             </Text>
         </View>

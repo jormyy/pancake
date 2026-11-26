@@ -66,11 +66,11 @@ export function WaiversSection({ active, onFindPlayer }: { active: boolean; onFi
             <View style={styles.summaryRow}>
                 <View style={styles.summaryStat}>
                     <Text style={textStyles.sectionLabel}>{currentLeague?.waiver_mode === 'faab' ? 'Available FAAB' : 'Waiver order'}</Text>
-                    <Text style={textStyles.hero}>{currentLeague?.waiver_mode === 'faab' ? `$${visible?.state?.faabBalance ?? '—'}` : 'Rolling'}</Text>
+                    <Text style={textStyles.hero} numberOfLines={1}>{currentLeague?.waiver_mode === 'faab' ? `$${visible?.state?.faabBalance ?? '—'}` : 'Rolling'}</Text>
                 </View>
                 <View style={styles.priority}>
                     <Text style={textStyles.sectionLabel}>Priority</Text>
-                    <Text style={textStyles.compactScore}>#{visible?.priority ?? '—'}</Text>
+                    <Text style={textStyles.compactScore} numberOfLines={1}>#{visible?.priority ?? '—'}</Text>
                 </View>
             </View>
             <View style={styles.schedule}>
@@ -98,7 +98,7 @@ const styles = StyleSheet.create({
     summary: { gap: spacing.lg },
     summaryRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xl },
     summaryStat: { flex: 1, minWidth: 0, gap: spacing.xs },
-    priority: { alignItems: 'center', gap: spacing.xs, borderLeftWidth: borderWidth.thin, borderLeftColor: colors.borderLight, paddingLeft: spacing.xl },
+    priority: { flexShrink: 0, alignItems: 'center', gap: spacing.xs, borderLeftWidth: borderWidth.thin, borderLeftColor: colors.borderLight, paddingLeft: spacing.xl },
     schedule: { gap: spacing.xs },
     section: { overflow: 'hidden' },
     claim: { borderBottomWidth: borderWidth.thin, borderBottomColor: colors.separator },

@@ -18,8 +18,8 @@ export function OtherMatchups({ matchups, currentMatchupId, onOpen }: { matchups
                         {...(Platform.OS === 'web' && matchup.id === selectedId ? { 'aria-current': 'true' } : {})}
                         accessibilityLabel={`Open ${matchup.homeTeamName} versus ${matchup.awayTeamName}`}
                         onPress={() => onOpen(matchup.id)} style={[styles.entry, matchup.id === selectedId && styles.selected]}>
-                        <View style={styles.team}><Text style={styles.name} numberOfLines={1}>{matchup.homeTeamName}</Text><Text style={styles.score}>{formatPoints(matchup.homePoints)}</Text></View>
-                        <View style={styles.team}><Text style={styles.name} numberOfLines={1}>{matchup.awayTeamName}</Text><Text style={styles.score}>{formatPoints(matchup.awayPoints)}</Text></View>
+                        <View style={styles.team}><Text style={styles.name} numberOfLines={1}>{matchup.homeTeamName}</Text><Text style={styles.score} numberOfLines={1}>{formatPoints(matchup.homePoints)}</Text></View>
+                        <View style={styles.team}><Text style={styles.name} numberOfLines={1}>{matchup.awayTeamName}</Text><Text style={styles.score} numberOfLines={1}>{formatPoints(matchup.awayPoints)}</Text></View>
                     </Pressable>
                 ))}
             </ScrollView>
@@ -34,6 +34,6 @@ const styles = StyleSheet.create({
     entry: { width: 220, padding: spacing.md, gap: spacing.sm, backgroundColor: colors.bgCard, borderRadius: radii.lg, borderWidth: borderWidth.thin, borderColor: colors.border },
     selected: { borderWidth: borderWidth.strong, borderColor: colors.primary },
     team: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-    name: { ...typeScale.small, flex: 1, color: colors.textPrimary },
-    score: { ...typeScale.small, fontWeight: fontWeight.bold, color: colors.textPrimary },
+    name: { ...typeScale.small, flex: 1, minWidth: 0, color: colors.textPrimary },
+    score: { ...typeScale.small, flexShrink: 0, fontWeight: fontWeight.bold, color: colors.textPrimary },
 })

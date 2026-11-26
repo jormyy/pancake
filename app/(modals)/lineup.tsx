@@ -110,18 +110,18 @@ const StarterRow = memo(function StarterRow({
             accessibilityHint={targetState === 'valid' ? `Move here to use the ${slot.slotType} slot` : undefined}
             accessibilityState={{ selected: isSelected, disabled: disabled || isLocked || targetState === 'invalid' }}
         >
-            <Text style={styles.slotLabel}>{slot.slotType}</Text>
+            <Text style={styles.slotLabel} numberOfLines={1}>{slot.slotType}</Text>
             {p ? (
                 <>
 <PlayerRowContent locks={locks} name={p.displayName} nbaId={p.nbaId} team={p.nbaTeam} positions={p.eligiblePositions}
                         playerId={p.playerId} yearsExp={p.yearsExp} careerGames={p.careerGames} injuryStatus={p.injuryStatus} stats={starterMatchupLabel ?? undefined} />
-                    {pinCompact ? null : <Text style={[styles.rowStatus, isLocked ? styles.lockedBadge : styles.moveBadge]}>{status}</Text>}
+                    {pinCompact ? null : <Text style={[styles.rowStatus, isLocked ? styles.lockedBadge : styles.moveBadge]} numberOfLines={1}>{status}</Text>}
                 </>
             ) : (
                 <Text style={styles.emptySlot}>Empty</Text>
             )}
         </AssetSelectionRow>
-            {p && pinCompact && status ? <Text style={[styles.rowStatus, isLocked ? styles.lockedBadge : styles.moveBadge]}>{status}</Text>
+            {p && pinCompact && status ? <Text style={[styles.rowStatus, isLocked ? styles.lockedBadge : styles.moveBadge]} numberOfLines={1}>{status}</Text>
                 : p ? <LineupPinControl compact={pinCompact} name={p.displayName} pin={p.lineupPin ?? null} disabled={pinDisabled || isLocked}
                 onChange={pin => onPinChange(p, pin)} /> : null}
         </View>
@@ -189,9 +189,9 @@ const BenchRow = memo(function BenchRow({
         >
 <PlayerRowContent locks={locks} name={player.displayName} nbaId={player.nbaId} team={player.nbaTeam} positions={player.eligiblePositions}
                         playerId={player.playerId} yearsExp={player.yearsExp} careerGames={player.careerGames} injuryStatus={player.injuryStatus} stats={benchMatchupLabel ?? undefined} />
-                    {pinCompact ? null : <Text style={[styles.rowStatus, isLocked ? styles.lockedBadge : styles.moveBadge]}>{status}</Text>}
+                    {pinCompact ? null : <Text style={[styles.rowStatus, isLocked ? styles.lockedBadge : styles.moveBadge]} numberOfLines={1}>{status}</Text>}
         </AssetSelectionRow>
-            {pinCompact && status ? <Text style={[styles.rowStatus, isLocked ? styles.lockedBadge : styles.moveBadge]}>{status}</Text>
+            {pinCompact && status ? <Text style={[styles.rowStatus, isLocked ? styles.lockedBadge : styles.moveBadge]} numberOfLines={1}>{status}</Text>
                 : <LineupPinControl compact={pinCompact} name={player.displayName} pin={player.lineupPin ?? null} disabled={pinDisabled || isLocked}
                 onChange={pin => onPinChange(player, pin)} />}
         </View>
@@ -815,9 +815,10 @@ const styles = StyleSheet.create({
         paddingHorizontal: spacing.xl,
         paddingVertical: spacing.md,
     },
-    errorBannerText: { ...typeScale.small, flex: 1, color: colors.dangerDark, fontWeight: fontWeight.medium },
+    errorBannerText: { ...typeScale.small, flex: 1, minWidth: 0, color: colors.dangerDark, fontWeight: fontWeight.medium },
     errorRetryButton: {
         minHeight: controlSize.minTouch,
+        flexShrink: 0,
         paddingHorizontal: spacing.lg,
         borderRadius: radii.md,
         borderCurve: 'continuous' as const,
@@ -877,6 +878,7 @@ const styles = StyleSheet.create({
     slotLabel: {
         ...typeScale.caption,
         width: 36,
+        flexShrink: 0,
         fontWeight: fontWeight.extrabold,
         color: colors.primaryDark,
     },
@@ -886,7 +888,7 @@ const styles = StyleSheet.create({
     playerName: { ...textStyles.rowTitle },
     playerMetaRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
     playerMeta: { ...textStyles.meta, flexShrink: 1 },
-    rowStatus: { width: controlSize.minTouch, textAlign: 'right' },
+    rowStatus: { width: controlSize.minTouch, flexShrink: 0, textAlign: 'right' },
 
     emptySlot: { ...textStyles.body, color: colors.textMuted, fontStyle: 'italic' },
     lockedBadge: {

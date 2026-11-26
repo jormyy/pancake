@@ -22,8 +22,8 @@ const STANDINGS_LIST_ID = 'league-standings-results'
 const RANK_W = 28
 const RECORD_W = 64
 const POINTS_W = 64
-const RECORD_W_NARROW = 44
 const POINTS_W_NARROW = 52
+const RECORD_W_NARROW = POINTS_W_NARROW
 
 const STANDINGS_SORT_LABELS: Record<StandingsSortKey, string> = {
     wins: 'wins',
@@ -126,8 +126,8 @@ function StandingsRow({
             accessibilityRole="button"
             accessibilityLabel={label}
         >
-            <Text style={[styles.rank, isMe && tableStyles.textMe]}>{index + 1}</Text>
-            <View aria-hidden accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+            <Text style={[styles.rank, isMe && tableStyles.textMe]} numberOfLines={1}>{index + 1}</Text>
+            <View style={styles.fixed} aria-hidden accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
                 <Avatar name={item.teamName} size={controlSize.avatar.sm} />
             </View>
             <View style={styles.teamWrap}>
@@ -135,7 +135,7 @@ function StandingsRow({
                     {item.teamName}
                 </Text>
                 {isMe ? (
-                    <View aria-hidden accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+                    <View style={styles.fixed} aria-hidden accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
                         <Badge size="small" variant="solid" color={colors.primary} label="You" />
                     </View>
                 ) : null}
@@ -406,7 +406,7 @@ const styles = StyleSheet.create({
     content: { paddingTop: spacing.md, paddingBottom: spacing.md },
     tableColumn: { width: '100%', maxWidth: layout.formMaxWidth + 2 * layout.pagePadX.regular, alignSelf: 'center', overflow: 'hidden' },
     header: { gap: spacing.sm },
-    headerCell: { minHeight: controlSize.minTouch, justifyContent: 'center' },
+    headerCell: { minHeight: controlSize.minTouch, justifyContent: 'center', flexShrink: 0 },
     headerCellNumeric: { alignItems: 'flex-end' },
     headerActive: { color: colors.primaryDark },
     row: {
@@ -416,11 +416,12 @@ const styles = StyleSheet.create({
         gap: spacing.sm,
     },
     rowHover: { backgroundColor: colors.bgSubtle },
-    rank: { ...typeScale.small, width: RANK_W, fontWeight: fontWeight.bold, color: colors.textMuted, fontVariant: ['tabular-nums'] as const },
+    fixed: { flexShrink: 0 },
+    rank: { ...typeScale.small, width: RANK_W, flexShrink: 0, fontWeight: fontWeight.bold, color: colors.textMuted, fontVariant: ['tabular-nums'] as const },
     teamWrap: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
     // Link-colored so every row (not just "You") reads as a tappable roster.
-    teamName: { ...textStyles.rowTitle, flexShrink: 1, color: colors.primaryDark },
-    cell: { ...textStyles.tableCell, textAlign: 'right' },
+    teamName: { ...textStyles.rowTitle, flexShrink: 1, minWidth: 0, color: colors.primaryDark },
+    cell: { ...textStyles.tableCell, flexShrink: 0, textAlign: 'right' },
     bandDetail: { ...textStyles.meta, color: colors.info },
     playoffCutRow: {
         flexDirection: 'row',

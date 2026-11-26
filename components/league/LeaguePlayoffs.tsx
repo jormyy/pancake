@@ -149,7 +149,7 @@ export function LeaguePlayoffs({ standings, playoffEntrants }: { standings: Stan
                         {bracket?.champion ? (
                             <View style={styles.championRow}>
                                 <Text style={textStyles.sectionLabel}>Champion</Text>
-                                <Text style={styles.championName}>{bracket.champion}</Text>
+                                <Text style={styles.championName} numberOfLines={1}>{bracket.champion}</Text>
                             </View>
                         ) : null}
                         <View style={styles.rounds}>
@@ -201,9 +201,9 @@ function ActualMatchupRow({ matchup, myMemberId }: { matchup: BracketMatchup; my
             accessibilityLabel={label}
         >
             <Text numberOfLines={1} style={[styles.teamName, styles.homeName, homeWon && styles.won, awayWon && styles.lost, matchup.homeId === myMemberId && !homeWon && !awayWon && styles.me]}>{matchup.homeName}</Text>
-            <Text style={styles.versus}>vs</Text>
+            <Text style={styles.versus} numberOfLines={1}>vs</Text>
             <Text numberOfLines={1} style={[styles.teamName, styles.awayName, awayWon && styles.won, homeWon && styles.lost, matchup.awayId === myMemberId && !homeWon && !awayWon && styles.me]}>{matchup.awayName}</Text>
-            {played ? <Text style={[styles.score, homeWon && styles.scoreWon]}>{`${formatPoints(matchup.homePoints ?? 0)} – ${formatPoints(matchup.awayPoints ?? 0)}`}</Text> : null}
+            {played ? <Text style={[styles.score, homeWon && styles.scoreWon]} numberOfLines={1}>{`${formatPoints(matchup.homePoints ?? 0)} – ${formatPoints(matchup.awayPoints ?? 0)}`}</Text> : null}
         </MotionPressable>
     )
 }
@@ -212,7 +212,7 @@ function ProjectedMatchupRow({ matchup }: { matchup: ProjectedMatchup }) {
     return (
         <View style={styles.matchupRow} role="listitem" accessibilityLabel={`${slotName(matchup.home)} versus ${slotName(matchup.away)}`}>
             <Text numberOfLines={1} style={[styles.teamName, styles.homeName]}>{slotName(matchup.home)}</Text>
-            <Text style={styles.versus}>vs</Text>
+            <Text style={styles.versus} numberOfLines={1}>vs</Text>
             <Text numberOfLines={1} style={[styles.teamName, styles.awayName]}>{slotName(matchup.away)}</Text>
         </View>
     )

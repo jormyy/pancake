@@ -54,7 +54,7 @@ export function TradeDetailsPanel({
         <Card style={styles.root} elevated="none">
             {showHeader ? (
                 <View style={styles.header}>
-                    <Text style={styles.title} numberOfLines={2}>{model.opponentName}</Text>
+                    <Text style={styles.title} numberOfLines={1}>{model.opponentName}</Text>
                     <StatusChip model={model} />
                 </View>
             ) : null}
