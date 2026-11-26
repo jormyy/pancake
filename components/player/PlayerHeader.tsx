@@ -141,6 +141,6 @@ const styles = StyleSheet.create({
     metaRow: { flexDirection: 'row', flexWrap: 'nowrap', alignItems: 'center', gap: spacing.xs, minHeight: textStyles.body.lineHeight },
     summary: { ...componentTokens.playerRow.metadata, color: colors.textSecondary, flexShrink: 1, minWidth: 0 },
     summaryRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.xs, minHeight: textStyles.body.lineHeight },
-    actionWrap: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: controlSize.minTouch, flexShrink: 0, justifyContent: 'flex-end' },
-    placeholder: { height: controlSize.button.sm.height, width: controlSize.minTouch * 1.5, backgroundColor: colors.bgMuted, borderRadius: radii.md },
+    actionWrap: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minWidth: controlSize.minTouch * 2, minHeight: controlSize.minTouch, flexShrink: 0, justifyContent: 'flex-end' },
+    placeholder: { height: controlSize.button.sm.height, width: controlSize.minTouch * 2, backgroundColor: colors.bgMuted, borderRadius: radii.md },
 })

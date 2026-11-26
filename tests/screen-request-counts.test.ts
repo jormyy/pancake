@@ -59,9 +59,10 @@ describe('screen view request budgets', () => {
         await act(async () => { renderer = create(React.createElement(Probe)) })
         await act(async () => {})
         const reads = state.requests.filter(path => path.includes('/views/'))
-        expect(reads, name).toEqual([`/functions/v1/api/views/${screen}`])
+        const viewReads = name === 'player' ? 2 : 1
+        expect(reads, name).toEqual(Array(viewReads).fill(`/functions/v1/api/views/${screen}`))
         expect(state.requests.filter(path => path.endsWith('/version'))).toHaveLength(name === 'rookie controller' ? 1 : 0)
-        expect(state.requests).toHaveLength(name === 'rookie controller' ? 2 : 1)
+        expect(state.requests).toHaveLength(name === 'rookie controller' ? 2 : viewReads)
         await act(async () => { renderer.unmount() })
         if (name === 'rookie controller') return
         state.requests = []

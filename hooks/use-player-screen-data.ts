@@ -31,7 +31,7 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null, o
     const [page, setPage] = useState<{ identity: string; year: number; cursor: PlayerGameCursor | null }>({ identity, year: selectedSeason, cursor: null })
     const cursor = page.identity === identity && page.year === selectedSeason ? page.cursor : null
     const sectionScope = (section: PlayerSection) => accountId && memberId && leagueId ? screenScope('player', leagueId, memberId, { playerId, seasonYear: selectedSeason, section, ...(section === 'games' ? { gameLimit: cursor ? 15 : count, ...(cursor ? { gameAfter: cursor } : {}) } : {}) }, accountId) : null
-    const gamesView = useScreenView<PlayerSectionView>(sectionScope('games'), enabled)
+    const gamesView = useScreenView<PlayerSectionView>(sectionScope('games'), enabled && (opened.games === true || view.loaded))
     const newsView = useScreenView<PlayerSectionView>(sectionScope('news'), enabled && opened.news === true)
     const historyView = useScreenView<PlayerSectionView>(sectionScope('history'), enabled && opened.history === true)
     const refreshGames = gamesView.refresh
