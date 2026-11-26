@@ -9,9 +9,9 @@ import { usePullToRefresh } from '@/hooks/use-pull-to-refresh'
 import { useScreenStatusScroll } from '@/components/ui/ScreenStatusOverlay'
 import { SectionBand } from '@/components/ui/SectionBand'
 import { View, Text, Pressable, StyleSheet } from 'react-native'
-import { useCallback } from 'react'
+import { useCallback, useMemo } from 'react'
 import { FlashList, type ListRenderItem } from '@shopify/flash-list'
-import { TransactionRow, TRANSACTION_LABELS, activityEventCategory } from '@/lib/transactions'
+import { TransactionRow, TRANSACTION_LABELS, activityEventCategory, organizeActivity } from '@/lib/transactions'
 import { alpha, colors, controlSize, fontWeight, layout, radii, spacing, table, textStyles, TX_COLORS, typeScale } from '@/constants/tokens'
 import { ItemSeparator } from '@/components/ItemSeparator'
 import { EmptyState } from '@/components/EmptyState'
@@ -23,7 +23,8 @@ import { usePageMetrics } from '@/components/ui'
 function ActivityRow({ item, isMe, myMemberId, padX = spacing.lg }: { item: TransactionRow; isMe: boolean; myMemberId?: string; padX?: number }) {
     const timezone = useLeagueTimezone()
     const color = TX_COLORS[item.transactionType] ?? colors.textMuted
-    const label = item.transactionType === 'commissioner_announcement' ? 'Commissioner' : TRANSACTION_LABELS[item.transactionType] ?? activityEventCategory(item.transactionType)
+    const baseLabel = item.transactionType === 'commissioner_announcement' ? 'Commissioner' : TRANSACTION_LABELS[item.transactionType] ?? activityEventCategory(item.transactionType)
+    const label = item.bidAmount != null ? `${baseLabel} $${item.bidAmount}` : baseLabel
     const avatarSize = controlSize.avatar.md
     if (item.transactionType === 'trade_completed') {
         return <CompletedTradeActivityCard item={item} myMemberId={myMemberId} padX={padX} />
@@ -97,6 +98,7 @@ export function ActivityFeed({
     const statusScroll = useScreenStatusScroll()
     const pullRefresh = usePullToRefresh(onRefresh, Boolean(refreshing), statusScroll.onScroll)
     const { padX } = usePageMetrics()
+    const organized = useMemo(() => organizeActivity(transactions), [transactions])
 
     const renderItem = useCallback<ListRenderItem<TransactionRow>>(({ item }) => (
         <ActivityRow item={item} isMe={item.memberId === myMemberId} myMemberId={myMemberId} padX={spacing.lg} />
@@ -169,7 +171,7 @@ export function ActivityFeed({
                     style={styles.list}
                     scrollEventThrottle={16}
                     contentContainerStyle={statusScroll.contentStyle()}
-                    data={transactions}
+                    data={organized}
                     onRefresh={onRefresh}
                     refreshing={Boolean(refreshing)}
                     keyExtractor={(t) => t.id}

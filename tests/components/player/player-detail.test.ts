@@ -325,3 +325,9 @@ it.each([[0, 'Rookie'], [1, 'Yr 2'], [null, null]] as const)('labels experience 
     const text = screen.root.findByProps({ testID: 'player-summary-line' }).findAllByType(type('Text')).map(node => node.props.children).join('')
     expect(text).toBe(label ?? '')
 })
+
+it('names the taxi squad beside the owning team', () => {
+    expect(playerAvailability({ status: 'mine', rosterPlayerId: 'roster', isOnTaxi: true }, 'Maple Hoops').label).toBe('Maple Hoops · Taxi squad')
+    expect(playerAvailability({ status: 'taken', ownerTeamName: 'Owls', isOnTaxi: true }).label).toBe('Owls · Taxi squad')
+    expect(playerAvailability({ status: 'taken', ownerTeamName: 'Owls' }).label).toBe('Owls')
+})

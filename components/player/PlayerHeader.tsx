@@ -67,10 +67,11 @@ export function playerAvailability(rosterStatus: Props['rosterStatus'], ownTeamN
         : rosterStatus?.status === 'on_waivers' ? 'On waivers'
         : rosterStatus?.status === 'mine' ? ownTeamName ?? 'On your roster'
         : rosterStatus?.status === 'taken' ? rosterStatus.ownerTeamName : null
+    const onTaxi = (rosterStatus?.status === 'mine' || rosterStatus?.status === 'taken') && rosterStatus.isOnTaxi === true
     const tone = rosterStatus?.status === 'free_agent' ? colors.success
         : rosterStatus?.status === 'on_waivers' ? colors.warningDark
         : rosterStatus?.status === 'mine' ? colors.primaryDark : colors.textSecondary
-    return { label, tone }
+    return { label: label && onTaxi ? `${label} · Taxi squad` : label, tone }
 }
 
 export function PlayerHeader({ locks = [], player, rosterStatus, ownTeamName, action, backControl,
