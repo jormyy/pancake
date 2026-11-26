@@ -41,7 +41,7 @@ const props = {
     expirationDays: '3', expirationError: null, rosterError: null, rosterLoading: false,
     avgMap: new Map(), avgStatsMap: new Map(), participantName: (id: string) => id,
     onRetry: vi.fn(), onTogglePlayer: vi.fn(), onTogglePick: vi.fn(), onRemoveAsset: vi.fn(),
-    onDestinationChange: vi.fn(), onPlayerDestinationChange: vi.fn(), onPickDestinationChange: vi.fn(),
+    onPlayerDestinationChange: vi.fn(), onPickDestinationChange: vi.fn(),
     onFaabChange: vi.fn(), onNotesChange: vi.fn(), onExpirationDaysChange: vi.fn(),
 }
 

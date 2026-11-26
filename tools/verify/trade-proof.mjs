@@ -4,10 +4,10 @@ import path from 'node:path'
 import assert from 'node:assert/strict'
 
 const steps = {
-  proposal: ['keyboard-space', 'keyboard-enter', 'propose-name', 'propose-photo', 'propose-partner', 'deal-summary', 'propose-analysis', 'proposal-review', 'proposal-roster-plan'],
+  proposal: ['keyboard-space', 'keyboard-enter', 'propose-name', 'propose-photo', 'propose-partner', 'propose-value', 'proposal-review', 'proposal-roster-plan'],
   offers: ['received-card', 'sent-card', 'sent-details', 'received-details', 'accept-review', 'accept-roster-plan', 'edit', 'edit-column-add-remove', 'counter', 'counter-column-add-remove', 'history-card', 'history-details', 'pick-card-details', 'multi-history-card', 'multi-history-details'],
-  multi: ['multi-column-add-remove', 'selected-routes', 'multi-overview', 'multi-overview-remove', 'multi-review'],
-  analyzer: ['analyzer-prefill', 'analyzer-selection', 'analyzer-column-add-remove', 'analyzer-summary', 'analyzer-values'],
+  multi: ['multi-column-add-remove', 'selected-routes', 'multi-builder', 'multi-card-remove', 'multi-review'],
+  analyzer: ['analyzer-prefill', 'analyzer-values'],
   block: ['block-roster', 'block-own-listing', 'second-manager-received', 'block-other-listing', 'block-offer'],
   activity: ['league-trade-activity', 'league-completed-activity'],
 }

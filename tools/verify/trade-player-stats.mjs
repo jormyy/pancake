@@ -59,7 +59,6 @@ const probe = async (label, name, target = { name: `View ${name} stats` }, empty
   await capture(label + '-before')
   const before = await command('observe')
   assert.equal(before.inputMode, width < 960 ? 'touch' : 'mouse', 'Use touch input at phone sizes and desktop input at desktop size')
-  if (label === 'keyboard-space' && width < 960) assert.ok(before.scroll.some(position => position.left > 0), 'Stats round trip starts with horizontal scroll')
   if (key) await command('key', key)
   else await click(target)
   await wait(text => text.includes(`heading "${name}" [level=1]`) && !text.includes('- dialog:'))
@@ -114,13 +113,27 @@ const cancel = async () => {
 }
 const cardTarget = (tradeId, name) => ({ selector: `div:has(> [data-testid="trade-details-${tradeId}"]) [aria-label="View ${name} stats"]` })
 const add = name => click(`Add ${name} to trade`)
-const columnTarget = (memberId, name) => ({ selector: `div:has(> [aria-label="View ${name} stats"]):has([data-testid="trade-${memberId}-player-${fixture.playerIdsByName[name]}"]) > [aria-label="View ${name} stats"]` })
+const builderTarget = (memberId, name) => ({ selector: `div:has(> [aria-label="View ${name} stats"]):has(> [data-testid="trade-remove-${memberId}-player-${fixture.playerIdsByName[name]}"]) > [aria-label="View ${name} stats"]` })
+const openAssets = async memberId => {
+  await click({ selector: `[data-testid="trade-add-assets-${memberId}"]` })
+  await wait(text => text.includes('- dialog:') && /button "(Add|Remove) [^"]+ (to|from) trade"/.test(text))
+}
+const closeSheet = async () => {
+  await command('key', 'Escape')
+  await wait(text => !text.includes('- dialog:'))
+}
+const choosePartner = async teamName => {
+  const text = await snapshot()
+  await click(text.includes('Choose a team to trade with') ? 'Choose a team to trade with' : 'Add another team to this trade')
+  await click(`Trade with ${teamName}`)
+  await wait(text => !text.includes('- dialog:'))
+}
 const exerciseColumnSelection = async label => {
+  await openAssets(fixture.memberId)
   const name = 'E2E Player003'
   const id = `trade-${fixture.memberId}-player-${fixture.playerIdsByName[name]}`
   const target = { selector: `[data-testid="${id}"]` }
-  const sendersBefore = await readSenderControls(label + '-column-before', width < 960 ? label === 'multi' ? 3 : 2 : undefined)
-  if (width < 960) assert.equal(sendersBefore.length, label === 'multi' ? 3 : 2)
+  const sendersBefore = await readSenderControls(label + '-column-before')
   await command('scroll', JSON.stringify(target))
   await capture(label + '-column-selection-before')
   const before = await command('observe')
@@ -146,50 +159,25 @@ const exerciseColumnSelection = async label => {
   await capture(label + '-column-selection-restored')
   await writeFile(path.join(dir, `trade-player-stats-${width}-${label}-column-selection-state.json`), JSON.stringify({ attemptId, before, added, restored, sendersBefore, sendersAdded, sendersRestored }, null, 2))
   receipts.push({ kind: 'selection', width, label: label + '-column-add-remove', remainingStatePreserved: true, restored: true })
+  await closeSheet()
 }
-const tabSender = async name => {
-  const label = `Edit assets sent by ${name}`
-  if (width < 960) await wait(text => text.includes(`tab "${label}"`))
-  if ((await snapshot()).includes(`tab "${label}"`)) await click({ role: 'tab', name: label })
-}
-const readSenderControls = async (captureLabel, expectedCount) => {
-  let text = await snapshot()
-  if (expectedCount) text = await wait(text => [...text.matchAll(/- tab "(Edit assets sent by [^"]+)"/g)].length === expectedCount)
-  const tabs = [...text.matchAll(/- tab "(Edit assets sent by [^"]+)"/g)].map(match => match[1])
-  const read = async sender => {
-    const state = await command('observe')
-    return { sender, url: state.url, controls: state.controls, selectionLabels: state.selectionLabels }
-  }
-  if (!tabs.length) {
-    if (captureLabel) await capture(captureLabel + '-all-senders')
-    return [await read('all')]
-  }
-  const active = tabs.find(tab => text.includes(`tab "${tab}" [selected]`))
-  assert.ok(active, 'A sender tab is selected')
-  const states = []
-  for (const [index, tab] of tabs.entries()) {
-    await click({ role: 'tab', name: tab })
-    await wait(text => text.includes(`tab "${tab}" [selected]`))
-    if (captureLabel) await capture(`${captureLabel}-sender-${index}`)
-    states.push(await read(tab))
-  }
-  await click({ role: 'tab', name: active })
-  await wait(text => text.includes(`tab "${active}" [selected]`))
-  return states
+const readSenderControls = async captureLabel => {
+  if (captureLabel) await capture(captureLabel + '-all-senders')
+  const state = await command('observe')
+  return [{ sender: 'all', url: state.url, controls: state.controls, selectionLabels: state.selectionLabels }]
 }
 const review = async () => { await click('Review trade proposal'); await wait(text => text.includes('Valid roster')) }
-const summary = async () => {
-  const name = buttons(await snapshot()).find(name => name.startsWith('Show deal summary.'))
-  if (name) await click(name)
+const valueDetails = async () => {
+  await wait(text => text.includes('Show trade value details') || text.includes('Hide trade value details'))
+  if ((await snapshot()).includes('Show trade value details')) await click('Show trade value details')
+  await wait(text => text.includes('Dynasty trade analysis'))
 }
 const selection = async () => {
   await wait(text => text.split('\n').some(line => line.includes('button "Add E2E Player003 to trade"') && !line.includes('[disabled]')))
   const target = { name: 'View E2E Player003 stats' }
   await command('key', 'Tab')
   await command('focus', JSON.stringify(target))
-  await command('scroll', JSON.stringify({ name: 'Trade with E2E Team 10' }))
   const before = await command('observe')
-  if (width < 960) assert.ok(before.scroll.some(position => position.left > 0), 'Exercise horizontal team-strip scrolling')
   assert.notEqual(before.focusOutline.style, 'none')
   assert.notEqual(before.focusOutline.width, '0px')
   await command('key', 'Tab')
@@ -220,25 +208,23 @@ const selection = async () => {
 const proposal = async () => {
   await trades()
   await click('Propose trade')
-  await click('Trade with E2E Team 2')
-  await wait(text => text.includes('Add E2E Player003 to trade'))
+  await choosePartner('E2E Team 2')
+  await openAssets(fixture.memberId)
   await selection()
   await add('E2E Player003')
   const pick = await matchingButton(/^Select .* pick via E2E Team 1 for trade$/)
   await click(pick)
+  await closeSheet()
   await fill('[aria-label="FAAB sent by E2E Team 1 to E2E Team 2"]', '7')
   await fill('[placeholder="Add a message to your trade offer..."]', `Keep these choices ${width}`)
-  await probe('propose-name', 'E2E Player003', { selector: columnTarget(fixture.memberId, 'E2E Player003').selector + ' [data-testid="player-name-line"]' }, true)
-  await probe('propose-photo', 'E2E Player003', { selector: columnTarget(fixture.memberId, 'E2E Player003').selector + ' [data-testid="player-row-avatar"]' })
-  await tabSender('E2E Team 2')
+  await probe('propose-name', 'E2E Player003', { selector: builderTarget(fixture.memberId, 'E2E Player003').selector + ' [data-testid="player-name-line"]' }, true)
+  await probe('propose-photo', 'E2E Player003', { selector: builderTarget(fixture.memberId, 'E2E Player003').selector + ' [data-testid="player-row-avatar"]' })
+  await openAssets(fixture.otherMemberId)
   await add('E2E Player023')
-  await probe('propose-partner', 'E2E Player023', columnTarget(fixture.otherMemberId, 'E2E Player023'))
-  await summary()
-  await probe('deal-summary', 'E2E Player003', { name: 'View E2E Player003 stats', index: 0 })
-  await click('Analyze trade proposal')
-  await wait(text => text.includes('Back to trade editor'))
-  await probe('propose-analysis', 'E2E Player003', { name: 'View E2E Player003 stats', index: 0 })
-  await click('Back to trade editor')
+  await closeSheet()
+  await probe('propose-partner', 'E2E Player023', builderTarget(fixture.otherMemberId, 'E2E Player023'))
+  await valueDetails()
+  await probe('propose-value', 'E2E Player003', { selector: '[aria-label="Dynasty trade analysis"] [aria-label="View E2E Player003 stats"]' })
   await review()
   await probe('proposal-review', 'E2E Player003')
   await probe('proposal-roster-plan', 'E2E Player004', { name: 'Open E2E Player004' })
@@ -266,13 +252,13 @@ const existingOffers = async () => {
   await click({ name: 'Edit trade with E2E Team 2', index: 0 })
   await wait(text => text.includes('Cancel trade proposal') && text.includes('E2E Player001'))
   await fill('[placeholder="Add a message to your trade offer..."]', 'Edited choices')
-  await probe('edit', 'E2E Player001', columnTarget(fixture.memberId, 'E2E Player001'))
+  await probe('edit', 'E2E Player001', builderTarget(fixture.memberId, 'E2E Player001'))
   await exerciseColumnSelection('edit')
   await cancel()
   await click({ name: 'Counter trade with E2E Team 2', index: 0 })
   await wait(text => text.includes('Cancel trade proposal') && text.includes('E2E Player002'))
   await fill('[placeholder="Add a message to your trade offer..."]', 'Counter choices')
-  await probe('counter', 'E2E Player002', columnTarget(fixture.memberId, 'E2E Player002'))
+  await probe('counter', 'E2E Player002', builderTarget(fixture.memberId, 'E2E Player002'))
   await exerciseColumnSelection('counter')
   await cancel()
   await click({ role: 'tab', name: 'History' })
@@ -300,43 +286,53 @@ const existingOffers = async () => {
 const multi = async () => {
   await trades()
   await click('Propose trade')
-  await click('Use multi-team trade mode')
-  await click('Trade with E2E Team 2')
-  await click(`Trade with ${fixture.thirdTeamName}`)
-  await wait(text => text.includes('Add E2E Player003 to trade'))
+  await choosePartner('E2E Team 2')
+  await choosePartner(fixture.thirdTeamName)
   await exerciseColumnSelection('multi')
+  await openAssets(fixture.memberId)
   await add('E2E Player003')
+  await closeSheet()
+  await click(await matchingButton(/^Choose who receives E2E Player003\./))
   await click(`Route E2E Player003 to ${fixture.thirdTeamName}`)
+  await wait(text => !text.includes('- dialog:'))
   await fill('[aria-label="FAAB sent by E2E Team 1 to E2E Team 2"]', '9')
   await fill('[placeholder="Add a message to your trade offer..."]', 'Keep multi-team routes')
-  await probe('selected-routes', 'E2E Player003', { selector: 'div:has(> [aria-label="View E2E Player003 stats"]):has([aria-label^="Route E2E Player003 to "]) > [aria-label="View E2E Player003 stats"]' })
-  await tabSender('E2E Team 2')
+  await probe('selected-routes', 'E2E Player003', builderTarget(fixture.memberId, 'E2E Player003'))
+  await openAssets(fixture.otherMemberId)
   await add('E2E Player023')
-  await tabSender(fixture.thirdTeamName)
+  await closeSheet()
+  const thirdAssets = (await command('observe')).targets.find(target => target.testID?.startsWith('trade-add-assets-') &&
+    ![`trade-add-assets-${fixture.memberId}`, `trade-add-assets-${fixture.otherMemberId}`].includes(target.testID))
+  assert.ok(thirdAssets, 'The third team has its own card')
+  const openThird = async () => {
+    await click({ selector: `[data-testid="${thirdAssets.testID}"]` })
+    await wait(text => text.includes('- dialog:'))
+  }
+  await openThird()
   await add('E2E Player041')
-  await summary()
-  await probe('multi-overview', 'E2E Player003', { name: 'View E2E Player003 stats', index: 0 })
-  const sendersBefore = await readSenderControls('multi-remove-before', width < 960 ? 3 : undefined)
-  if (width < 960) assert.equal(sendersBefore.length, 3)
+  await closeSheet()
+  await probe('multi-builder', 'E2E Player003', builderTarget(fixture.memberId, 'E2E Player003'))
+  const sendersBefore = await readSenderControls('multi-remove-before')
   const completeControls = sendersBefore.flatMap(sender => sender.controls)
   assert.equal(completeControls.find(control => control.label === 'FAAB sent by E2E Team 1 to E2E Team 2')?.value, '9')
-  assert.equal(completeControls.find(control => control.label === `Route E2E Player003 to ${fixture.thirdTeamName}`)?.selected, 'true')
+  assert.ok(buttons(await snapshot()).some(name => name === `Choose who receives E2E Player003. Now to ${fixture.thirdTeamName}`))
   await capture('multi-remove-before')
   const before = await command('observe')
-  const remove = `Remove E2E Player041 sent by ${fixture.thirdTeamName} from trade`
+  const remove = 'Remove E2E Player041 from trade'
   assert.ok(buttons(await snapshot()).includes(remove))
   await click(remove)
   await wait(text => !text.includes(remove))
   const after = await command('observe')
   const unrelated = state => controlState(state.controls.filter(control => !control.label?.includes('E2E Player041')))
-  assert.equal(after.url, before.url, 'Summary removal does not navigate')
-  assert.deepEqual(unrelated(after), unrelated(before), 'Summary removal preserves other assets, routes, notes and FAAB')
+  assert.equal(after.url, before.url, 'Card removal does not navigate')
+  assert.deepEqual(unrelated(after), unrelated(before), 'Card removal preserves other assets, routes, notes and FAAB')
   assert.deepEqual([...after.selectionLabels].sort(), before.selectionLabels.filter(label => !label.includes('E2E Player041')).sort())
-  assert.equal(after.targets.find(target => target.label === 'Add E2E Player041 to trade')?.selected, 'false')
   const sendersAfter = await readSenderControls('multi-remove-after')
   assertTradeSenderStates(sendersBefore, sendersAfter, 'E2E Player041')
   await capture('multi-remove-after')
+  await openThird()
   await add('E2E Player041')
+  await closeSheet()
   await wait(text => text.includes(remove))
   const restored = await command('observe')
   assert.deepEqual(controlState(restored.controls), controlState(before.controls), 'Adding back restores the exact prior trade state')
@@ -345,7 +341,7 @@ const multi = async () => {
   assertTradeSenderStates(sendersBefore, sendersRestored)
   await capture('multi-remove-restored')
   await writeFile(path.join(dir, `trade-player-stats-${width}-multi-remove-state.json`), JSON.stringify({ attemptId, before, after, restored, sendersBefore, sendersAfter, sendersRestored }, null, 2))
-  receipts.push({ kind: 'selection', width, label: 'multi-overview-remove', remainingStatePreserved: true, restored: true })
+  receipts.push({ kind: 'selection', width, label: 'multi-card-remove', remainingStatePreserved: true, restored: true })
   await review()
   await probe('multi-review', 'E2E Player003')
   await click('Close trade review')
@@ -354,23 +350,11 @@ const multi = async () => {
 const analyzer = async () => {
   await trades()
   await click('Revalue trade from E2E Team 1 with current inputs')
-  await wait(text => text.includes('tab "Analyzer" [selected]') && text.includes('Edit assets') && text.includes('View E2E Player001 stats'))
+  await wait(text => text.includes('Revalue trade analysis') && text.includes('Dynasty trade analysis'))
   await probe('analyzer-prefill', 'E2E Player001', { name: 'View E2E Player001 stats', index: 0 })
-  await click({ role: 'tab', name: 'Analyzer' })
-  await wait(text => text.includes('Trade analysis'))
-  await click('Analyze with E2E Team 2')
-  await wait(text => text.includes('Add E2E Player003 to trade'))
-  await probe('analyzer-selection', 'E2E Player003', columnTarget(fixture.memberId, 'E2E Player003'))
-  await exerciseColumnSelection('analyzer')
-  await add('E2E Player003')
-  await tabSender('E2E Team 2')
-  await add('E2E Player023')
-  await summary()
-  await probe('analyzer-summary', 'E2E Player003', { name: 'View E2E Player003 stats', index: 0 })
-  const text = await snapshot()
-  if (text.includes('View trade analysis')) await click('View trade analysis')
-  await wait(text => text.includes('Dynasty trade analysis') || text.includes('Trade value'))
-  await probe('analyzer-values', 'E2E Player003', { selector: '[aria-label="Dynasty trade analysis"] [aria-label="View E2E Player003 stats"]' })
+  await probe('analyzer-values', 'E2E Player001', { selector: '[aria-label="Dynasty trade analysis"] [aria-label="View E2E Player001 stats"]' })
+  await click('Back to trades')
+  await wait(text => text.includes('Trade sections'))
 }
 const block = async () => {
   await trades()
@@ -394,8 +378,7 @@ const block = async () => {
   await probe('block-other-listing', 'E2E Player003')
   await click('Offer for E2E Player003')
   await wait(text => text.includes('Cancel trade proposal'))
-  await tabSender('E2E Team 1')
-  await probe('block-offer', 'E2E Player003', columnTarget(fixture.memberId, 'E2E Player003'))
+  await probe('block-offer', 'E2E Player003', builderTarget(fixture.memberId, 'E2E Player003'))
   await cancel()
   await command('login', '0')
   await trades()

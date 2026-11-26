@@ -16,6 +16,8 @@ vi.mock('react-native', () => ({
     View: 'View',
 }))
 vi.mock('@/components/trades/TradeAssetColumn', () => ({ TradeAssetColumn: 'TradeAssetColumn' }))
+vi.mock('@/components/ui/Sheet', () => ({ Sheet: 'Sheet' }))
+vi.mock('@expo/vector-icons/MaterialIcons', () => ({ default: 'MaterialIcons' }))
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -38,7 +40,6 @@ const renderPanel = async (value: string, onFaabChange = vi.fn()) => {
             participant,
             myMemberId: 'me',
             faabEnabled: true,
-            useColumns: false,
             avgMap: new Map(),
             avgStatsMap: new Map(),
             participantName: (memberId: string) => memberId,
@@ -46,7 +47,6 @@ const renderPanel = async (value: string, onFaabChange = vi.fn()) => {
             onTogglePick: vi.fn(),
             blockedPlayerIds: new Set<string>(),
             blockedPickIds: new Set<string>(),
-            onDestinationChange: vi.fn(),
             onPlayerDestinationChange: vi.fn(),
             onPickDestinationChange: vi.fn(),
             onFaabChange,

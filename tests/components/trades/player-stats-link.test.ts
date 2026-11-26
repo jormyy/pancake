@@ -50,7 +50,7 @@ async function column(selected = false, blocked = false) {
     const toggle = vi.fn()
     const player = rosterPlayer()
     await act(async () => { tree = create(React.createElement(TradeAssetColumn, {
-        memberId: 'mine', title: 'Send', subtitle: 'You', side: 'give', twoColumn: false, roster: [player], picks: [],
+        memberId: 'mine', roster: [player], picks: [],
         avgMap: new Map(), avgStatsMap: new Map(), selectedPlayerIds: new Set(selected ? [player.players.id] : []),
         selectedPickIds: new Set<string>(), blockedPlayerIds: new Set(blocked ? [player.players.id] : []),
         onTogglePlayer: toggle, onTogglePick: vi.fn(), emptyText: '', testIdPrefix: 'trade-mine',

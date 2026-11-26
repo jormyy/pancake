@@ -36,8 +36,7 @@ it.each(['pending', 'accepted', 'claim'])('selects assets according to %s locks'
     const togglePlayer = vi.fn(), togglePick = vi.fn()
     let view!: ReturnType<typeof create>
     await act(async () => { view = create(React.createElement(TradeAssetColumn, {
-        memberId: 'member-a', title: 'Team A', subtitle: 'Assets', side: 'give', twoColumn: false,
-        roster: [player], picks: [pick], avgMap: new Map(), avgStatsMap: new Map(),
+        memberId: 'member-a', roster: [player], picks: [pick], avgMap: new Map(), avgStatsMap: new Map(),
         selectedPlayerIds: new Set<string>(), selectedPickIds: new Set<string>(), onTogglePlayer: togglePlayer, onTogglePick: togglePick,
         emptyText: 'No players', testIdPrefix: 'assets',
     })) })
