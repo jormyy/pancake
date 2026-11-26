@@ -36,6 +36,7 @@ const offerFor = (acceptedMember: string, waitingMember: string) => trade({
     participants: [
         { memberId: acceptedMember, teamName: 'Team A', sortOrder: 0, isInitiator: true, acceptedAt: '2026-08-27T00:00:00Z' },
         { memberId: waitingMember, teamName: 'Team B', sortOrder: 1, isInitiator: false, acceptedAt: null },
+        { memberId: `${waitingMember}-c`, teamName: 'Team C', sortOrder: 2, isInitiator: false, acceptedAt: null },
     ],
 })
 
@@ -82,15 +83,15 @@ describe('old backend without the roster-hold endpoints', () => {
 
         await act(async () => { renderer = create(React.createElement(TradeProbe, { offer, memberId: 'old-a' })) })
         await flush()
-        expect(labelsOf(renderer!)).not.toContain('Withdraw your acceptance of the trade with 2-team trade')
+        expect(labelsOf(renderer!)).not.toContain('Withdraw your acceptance of the trade with 3-team trade')
         await act(async () => { renderer!.unmount() })
         renderer = undefined
 
         await act(async () => { renderer = create(React.createElement(TradeProbe, { offer, memberId: 'old-b' })) })
         await flush()
-        expect(labelsOf(renderer!)).toContain('Accept trade with 2-team trade')
-        expect(labelsOf(renderer!)).toContain('Reject trade with 2-team trade')
-        expect(labelsOf(renderer!)).toContain('Counter trade with 2-team trade')
+        expect(labelsOf(renderer!)).toContain('Accept trade with 3-team trade')
+        expect(labelsOf(renderer!)).toContain('Reject trade with 3-team trade')
+        expect(labelsOf(renderer!)).toContain('Counter trade with 3-team trade')
         await act(async () => { renderer!.unmount() })
         renderer = undefined
 
@@ -112,10 +113,10 @@ describe('ready backend with the roster-hold endpoints', () => {
 
         await act(async () => { renderer = create(React.createElement(TradeProbe, { offer, memberId: 'ready-a' })) })
         await flush()
-        expect(labelsOf(renderer!)).toContain('Withdraw your acceptance of the trade with 2-team trade')
+        expect(labelsOf(renderer!)).toContain('Withdraw your acceptance of the trade with 3-team trade')
         await act(async () => {
             renderer!.root.findAllByType(type('Pressable'))
-                .find(node => node.props.accessibilityLabel === 'Withdraw your acceptance of the trade with 2-team trade')!
+                .find(node => node.props.accessibilityLabel === 'Withdraw your acceptance of the trade with 3-team trade')!
                 .props.onPress()
         })
         await flush()
@@ -125,9 +126,9 @@ describe('ready backend with the roster-hold endpoints', () => {
 
         await act(async () => { renderer = create(React.createElement(TradeProbe, { offer, memberId: 'ready-b' })) })
         await flush()
-        expect(labelsOf(renderer!)).toContain('Accept trade with 2-team trade')
-        expect(labelsOf(renderer!)).toContain('Reject trade with 2-team trade')
-        expect(labelsOf(renderer!)).toContain('Counter trade with 2-team trade')
+        expect(labelsOf(renderer!)).toContain('Accept trade with 3-team trade')
+        expect(labelsOf(renderer!)).toContain('Reject trade with 3-team trade')
+        expect(labelsOf(renderer!)).toContain('Counter trade with 3-team trade')
         await act(async () => { renderer!.unmount() })
         renderer = undefined
 

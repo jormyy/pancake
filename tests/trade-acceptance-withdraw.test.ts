@@ -59,20 +59,21 @@ const labels = (renderer: ReactTestRenderer) => renderer.root.findAllByType(type
 
 describe('canWithdrawAcceptance', () => {
     it('allows an accepted team to retract while another team is still deciding', () => {
-        expect(canWithdrawAcceptance(multi(['2026-08-27T00:00:00Z', null]), 'member-a')).toBe(true)
+        expect(canWithdrawAcceptance(multi(['2026-08-27T00:00:00Z', '2026-08-27T01:00:00Z', null]), 'member-a')).toBe(true)
     })
 
     it('hides the action once every team has accepted', () => {
-        expect(canWithdrawAcceptance(multi(['2026-08-27T00:00:00Z', '2026-08-27T01:00:00Z']), 'member-a')).toBe(false)
+        expect(canWithdrawAcceptance(multi(['2026-08-27T00:00:00Z', '2026-08-27T01:00:00Z', '2026-08-27T01:00:00Z']), 'member-a')).toBe(false)
     })
 
     it('hides the action for a team that has not accepted', () => {
-        expect(canWithdrawAcceptance(multi([null, '2026-08-27T01:00:00Z']), 'member-a')).toBe(false)
+        expect(canWithdrawAcceptance(multi([null, '2026-08-27T01:00:00Z', null]), 'member-a')).toBe(false)
     })
 
-    it('lets the proposer of a two-team offer retract the acceptance sent with the offer', () => {
-        expect(canWithdrawAcceptance(trade({ status: 'pending' }), 'member-a')).toBe(true)
-        expect(canWithdrawAcceptance(trade({ status: 'pending' }), 'member-b')).toBe(false)
+    it('never offers it on a two-team trade', () => {
+        expect(canWithdrawAcceptance(trade({ status: 'pending' }), 'member-a')).toBe(false)
+        expect(canWithdrawAcceptance(multi(['2026-08-27T00:00:00Z', null]), 'member-a')).toBe(false)
+        expect(tradeCardModel({ trade: multi(['2026-08-27T00:00:00Z', null]), myMemberId: 'member-a', tab: 'offers', holdReady: true }).canRetractAcceptance).toBe(false)
     })
 
     it('hides the action outside the pending window', () => {
@@ -80,7 +81,7 @@ describe('canWithdrawAcceptance', () => {
     })
 
     it('only offers the action after the hold backend answers', () => {
-        const offer = multi(['2026-08-27T00:00:00Z', null])
+        const offer = multi(['2026-08-27T00:00:00Z', '2026-08-27T01:00:00Z', null])
         expect(tradeCardModel({ trade: offer, myMemberId: 'member-a', tab: 'offers' }).canRetractAcceptance).toBe(false)
         expect(tradeCardModel({ trade: offer, myMemberId: 'member-a', tab: 'offers', holdReady: true }).canRetractAcceptance).toBe(true)
     })
@@ -89,7 +90,7 @@ describe('canWithdrawAcceptance', () => {
 describe('TradeActionButtons', () => {
     it('shows Withdraw acceptance while other teams decide and calls the retract action', async () => {
         const onWithdrawAcceptance = vi.fn()
-        const offer = multi(['2026-08-27T00:00:00Z', null])
+        const offer = multi(['2026-08-27T00:00:00Z', '2026-08-27T01:00:00Z', null])
         const model = tradeCardModel({ trade: offer, myMemberId: 'member-a', tab: 'offers', holdReady: true })
         let renderer!: ReactTestRenderer
         await act(async () => {
@@ -100,14 +101,14 @@ describe('TradeActionButtons', () => {
                 },
             }))
         })
-        const button = renderer.root.findByProps({ accessibilityLabel: 'Withdraw your acceptance of the trade with 2-team trade' })
+        const button = renderer.root.findByProps({ accessibilityLabel: 'Withdraw your acceptance of the trade with 3-team trade' })
         await act(async () => { button.props.onPress() })
         expect(onWithdrawAcceptance).toHaveBeenCalledOnce()
         await act(async () => { renderer.unmount() })
     })
 
     it('hides Withdraw acceptance once the trade is unanimous', async () => {
-        const offer = multi(['2026-08-27T00:00:00Z', '2026-08-27T01:00:00Z'])
+        const offer = multi(['2026-08-27T00:00:00Z', '2026-08-27T01:00:00Z', '2026-08-27T01:00:00Z'])
         const model = tradeCardModel({ trade: offer, myMemberId: 'member-a', tab: 'offers', holdReady: true })
         let renderer!: ReactTestRenderer
         await act(async () => {
@@ -118,7 +119,7 @@ describe('TradeActionButtons', () => {
                 },
             }))
         })
-        expect(renderer.root.findAllByProps({ accessibilityLabel: 'Withdraw your acceptance of the trade with 2-team trade' })).toHaveLength(0)
+        expect(renderer.root.findAllByProps({ accessibilityLabel: 'Withdraw your acceptance of the trade with 3-team trade' })).toHaveLength(0)
         await act(async () => { renderer.unmount() })
     })
 
