@@ -2,7 +2,7 @@ import { Badge } from '@/components/Badge'
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { PlayerHeader, playerAvailability } from '@/components/player/PlayerHeader'
+import { PlayerHeader, playerAvailability, taxiStatusLine } from '@/components/player/PlayerHeader'
 import { SeasonSelector } from '@/components/player/SeasonSelector'
 import { SeasonSelector as WebSeasonSelector } from '@/components/player/SeasonSelector.web'
 import { StatsOverview } from '@/components/player/StatsOverview'
@@ -330,4 +330,11 @@ it('names the taxi squad beside the owning team', () => {
     expect(playerAvailability({ status: 'mine', rosterPlayerId: 'roster', isOnTaxi: true }, 'Maple Hoops').label).toBe('Maple Hoops · Taxi squad')
     expect(playerAvailability({ status: 'taken', ownerTeamName: 'Owls', isOnTaxi: true }).label).toBe('Owls · Taxi squad')
     expect(playerAvailability({ status: 'taken', ownerTeamName: 'Owls' }).label).toBe('Owls')
+})
+
+it('describes taxi eligibility from career games when the league has taxi slots', () => {
+    expect(taxiStatusLine({ years_exp: 2, career_regular_season_games: 34 }, 2)).toBe('Taxi eligible · 34 of 65 games')
+    expect(taxiStatusLine({ years_exp: 4, career_regular_season_games: 80 }, 2)).toBe('Not taxi eligible · 80 games')
+    expect(taxiStatusLine({ years_exp: 0, career_regular_season_games: 0 }, 2)).toBe('Taxi eligible')
+    expect(taxiStatusLine({ years_exp: 2, career_regular_season_games: 34 }, 0)).toBeNull()
 })

@@ -6,7 +6,7 @@ import { listenForMemberClaimsChanges, memberClaimsRevision } from '@/lib/claim-
 import { IRResolutionModal } from '@/components/IRResolutionModal'
 import { DropPlayerPickerModal } from '@/components/DropPlayerPickerModal'
 import { GameLogTable } from '@/components/player/GameLogTable'
-import { PlayerHeader, playerAvailability, playerSummaryLine, type PlayerHeaderAction } from '@/components/player/PlayerHeader'
+import { PlayerHeader, playerAvailability, playerSummaryLine, taxiStatusLine, type PlayerHeaderAction } from '@/components/player/PlayerHeader'
 import { SeasonSelector } from '@/components/player/SeasonSelector'
 import { StatsOverview } from '@/components/player/StatsOverview'
 import { readPlayerHeader } from '@/components/player/navigation'
@@ -228,6 +228,7 @@ export default function PlayerDetailScreen() {
     const injuryDetails = loadedPlayer?.injury_status && (loadedPlayer.injury_reason || loadedPlayer.injury_expected_return)
         ? [loadedPlayer.injury_status, loadedPlayer.injury_reason, loadedPlayer.injury_expected_return].filter(Boolean).join(' · ') : null
     const summaryLine = playerSummaryLine(player)
+    const taxiLine = taxiStatusLine(player, limits?.taxiSlots ?? 0)
     const statColumns = 5
     const seasonControl = availableSeasons.length > 1 ? (
         <SeasonSelector
@@ -251,6 +252,7 @@ export default function PlayerDetailScreen() {
             <View style={styles.cardBody}>
                 {availability.label ? <Text style={[styles.infoLine, styles.availability, { color: availability.tone }]} numberOfLines={1} testID="player-availability">{availability.label}</Text> : null}
                 {summaryLine ? <Text style={styles.infoLine}>{summaryLine}</Text> : null}
+                {taxiLine ? <Text style={textStyles.meta} numberOfLines={1} testID="player-taxi-line">{taxiLine}</Text> : null}
                 {injuryDetails ? <Text style={textStyles.meta}>{injuryDetails}</Text> : null}
                 <NextProjectionCard plain reserveSpace projection={nextProjection} loading={!projectionSettled} liveGame={liveGame}
                     liveFantasyPoints={liveGame ? fantasyPointsMap?.get(liveGame.gameId) : null} />
