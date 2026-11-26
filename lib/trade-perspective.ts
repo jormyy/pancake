@@ -82,11 +82,9 @@ export function canWithdrawAcceptance(
         return false
     }
 
+    if (trade.participants.length <= 2) return false
     const participant = trade.participants.find((row) => row.memberId === memberId)
-    const accepted = participant ? participant.acceptedAt != null : trade.proposerMemberId === memberId
-    if (!accepted) return false
-
-    if (trade.participants.length === 0) return trade.proposerMemberId === memberId
+    if (participant?.acceptedAt == null) return false
     return trade.participants.some((row) => row.acceptedAt == null)
 }
 

@@ -77,7 +77,7 @@ export function tradeCardModel({ trade, myMemberId, tab, holdReady = false, trad
     const myParticipant = participants.find((participant) => participant.memberId === myMemberId)
     const acceptedByMe = myParticipant ? myParticipant.acceptedAt != null : isProposer
     const unanimous = participants.length > 0 && participants.every((participant) => participant.acceptedAt != null)
-    const canRetractAcceptance = holdReady && tab === 'offers' && trade.status === 'pending' && isTradeParty && acceptedByMe && !unanimous
+    const canRetractAcceptance = holdReady && tab === 'offers' && trade.status === 'pending' && trade.isMultiTeam && participants.length > 2 && isTradeParty && acceptedByMe && !unanimous
     const canReject = canRespond && (!trade.isMultiTeam || !isProposer)
     const canEdit = tab === 'offers' && isProposer && trade.status === 'pending'
     const meta = [
@@ -274,12 +274,13 @@ export function TradeActionButtons({
         })
     }
     if (buttons.length === 0) return null
+    const shared = buttons.length > 1 && buttons.some((button) => button.key === 'withdraw-acceptance')
     return (
-        <View style={styles.actions}>
+        <View style={[styles.actions, shared && styles.actionsShared]}>
             {buttons.map((button) => (
                 <MotionPressable
                     key={button.key}
-                    style={[styles.actionBtn, button.primary ? styles.actionBtnPrimary : styles.actionBtnSecondary, button.key === 'accept' && actions.acceptDisabled && styles.actionBtnDisabled]}
+                    style={[styles.actionBtn, shared && styles.actionBtnShared, shared && button.key !== 'withdraw-acceptance' && styles.actionBtnFixed, button.primary ? styles.actionBtnPrimary : styles.actionBtnSecondary, button.key === 'accept' && actions.acceptDisabled && styles.actionBtnDisabled]}
                     onPress={button.onPress}
                     disabled={actions.acting || button.key === 'accept' && actions.acceptDisabled}
                     accessibilityRole="button"
@@ -287,7 +288,7 @@ export function TradeActionButtons({
                     accessibilityState={{ disabled: actions.acting || button.key === 'accept' && actions.acceptDisabled }}
                     {...ids(button.key)}
                 >
-                    <Text style={[button.primary ? styles.actionTextPrimary : styles.actionTextSecondary, button.key === 'accept' && actions.acceptDisabled && styles.actionTextDisabled]} numberOfLines={1}>{button.label}</Text>
+                    <Text style={[button.primary ? styles.actionTextPrimary : styles.actionTextSecondary, button.key === 'accept' && actions.acceptDisabled && styles.actionTextDisabled, shared && styles.actionTextShared]} numberOfLines={shared && button.key === 'withdraw-acceptance' ? 2 : 1}>{button.label}</Text>
                 </MotionPressable>
             ))}
         </View>
@@ -485,6 +486,10 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
+    actionsShared: { flexWrap: 'nowrap', gap: spacing.sm },
+    actionBtnShared: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, paddingHorizontal: spacing.md, paddingVertical: spacing.xs },
+    actionBtnFixed: { flexShrink: 0 },
+    actionTextShared: { textAlign: 'center' },
     actionBtnDisabled: { backgroundColor: colors.bgMuted },
     actionTextDisabled: { color: colors.textDisabled },
     actionBtnPrimary: { backgroundColor: colors.primary },
