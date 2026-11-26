@@ -146,3 +146,17 @@ export function buildTradeList(input: TradeListInput): TradeListItem[] {
     }
     return result
 }
+
+export type TradeCardEdges = { first: boolean[]; last: boolean[] }
+
+export function tradeCardEdges(items: TradeListItem[]): TradeCardEdges {
+    const grouped = items.some((item) => item._type === 'header')
+    const first: boolean[] = []
+    const last: boolean[] = []
+    items.forEach((item, index) => {
+        first.push(grouped ? item._type === 'header' : true)
+        const next = items[index + 1]
+        last.push(!grouped || !next || next._type === 'header')
+    })
+    return { first, last }
+}

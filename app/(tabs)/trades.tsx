@@ -12,9 +12,9 @@ import { useLeagueContext } from '@/contexts/league-context'
 import { NoLeagueState } from '@/components/NoLeagueState'
 import { isTradingClosed } from '@/lib/league'
 import { type Trade } from '@/lib/trades'
-import { colors, controlSize, layout, spacing, typeScale } from '@/constants/tokens'
+import { colors, layout, spacing, typeScale } from '@/constants/tokens'
 import { SegmentedControl, type SegmentOption } from '@/components/ui/SegmentedControl'
-import { Button, ErrorBanner, Page, PageHeader, usePageMetrics } from '@/components/ui'
+import { ErrorBanner, Page, PageHeader, usePageMetrics } from '@/components/ui'
 import { TradeDetailsPanel } from '@/components/trades/TradeDetailsPanel'
 import { tradeCardModel } from '@/components/trades/TradeCard'
 import { TradeNeedsCard } from '@/components/trades/TradeNeedsCard'
@@ -42,6 +42,7 @@ import { rosterLimits } from '@/lib/roster-capacity'
 import { useAuth } from '@/hooks/use-auth'
 import {
     buildTradeScreenModel,
+    tradeCardEdges,
     tradeListItemType,
     tradeListKey,
     tradeScreenResource,
@@ -191,17 +192,7 @@ function TradesScreen() {
     const staticTradeList = tradeTab && listTrades.length <= STATIC_TRADE_LIMIT && !(tab === 'offers' ? offersHaveMore : historyHasMore)
     const openTrade = openTradeId ? listTrades.find((trade) => trade.id === openTradeId) ?? null : null
     const openTradeDetails = useCallback((trade: Trade) => setOpenTradeId(trade.id), [setOpenTradeId])
-    const cardEdges = useMemo(() => {
-        const grouped = listData.some((item) => item._type === 'header')
-        const first: boolean[] = []
-        const last: boolean[] = []
-        listData.forEach((item, index) => {
-            first.push(item._type === 'header' || !grouped)
-            const next = listData[index + 1]
-            last.push(!next || next._type === 'header')
-        })
-        return { first, last }
-    }, [listData])
+    const cardEdges = useMemo(() => tradeCardEdges(listData), [listData])
     const renderRow = useCallback((item: TradeListItem) => {
         switch (item._type) {
             case 'header':
@@ -276,35 +267,24 @@ function TradesScreen() {
     const needsCount = incomingTrades.length + vetoableTrades.length + outgoingTrades.length
     const offersEmpty = tab === 'offers' && !activeTabLoading && !tradesError && needsCount === 0
     const needsKnown = tab === 'offers' && (offersHaveData || (online && !tradesError && !activeTabLoading))
+    const tradeTabs = (
+        <SegmentedControl<TradeTabKey> variant="tabs" equalWidth options={tabOptions} value={tab} onChange={changeTab}
+            idBase="trade-section" accessibilityLabel="Trade sections" />
+    )
     const needsCard = needsKnown ? (
         <TradeNeedsCard
             incoming={incomingTrades.length}
             awaitingVote={vetoableTrades.length}
             outgoing={outgoingTrades.length}
             proposeDisabled={!online || tradingClosed}
+            proposeLabel={!online ? 'Offline' : tradingClosed ? 'Locked' : 'Propose trade'}
             onPropose={proposeTrade}
         />
     ) : null
-    const header = (disabled: boolean, onPropose: () => void) => (
-        <PageHeader
-            title="Trades"
-            showTitle
-            actions={(
-                <Button
-                    title={!online ? 'Offline' : disabled ? 'Locked' : 'Propose'}
-                    icon={disabled ? 'lock' : 'add'}
-                    size="inline"
-                    style={{ minHeight: controlSize.minTouch }}
-                    onPress={onPropose}
-                    disabled={disabled}
-                    accessibilityLabel={!online ? 'Reconnect to propose a trade' : disabled ? 'Trades unavailable' : 'Propose trade'}
-                />
-            )}
-        />
-    )
+    const needsHeader = needsCard ? <View style={styles.needsHeader}>{needsCard}</View> : null
 
     if (memberships.length === 0 && leagueLoading) {
-        return <Page title="Trades">{header(true, () => {})}</Page>
+        return <Page title="Trades"><PageHeader tabs={tradeTabs} /></Page>
     }
     if (memberships.length === 0) return <NoLeagueState />
 
@@ -330,13 +310,13 @@ function TradesScreen() {
         <FlashList onScroll={statusScroll.onScroll} scrollEventThrottle={16} data={listData} keyExtractor={tradeListKey} getItemType={tradeListItemType}
             key={`${tab}:${gridColumns}`}
             numColumns={gridColumns}
-            ListHeaderComponent={needsCard ?? undefined}
+            ListHeaderComponent={needsHeader ?? undefined}
             overrideItemLayout={(itemLayout, item, _index, maxColumns) => {
                 if (item._type === 'header' || item._type === 'empty') itemLayout.span = maxColumns
             }}
             ItemSeparatorComponent={gridColumns > 1 ? CardGap : undefined}
             renderItem={renderItem}
-            contentContainerStyle={statusScroll.contentStyle({ paddingHorizontal: padX, paddingBottom: spacing['3xl'] })}
+            contentContainerStyle={statusScroll.contentStyle({ paddingHorizontal: padX, paddingTop: spacing.md, paddingBottom: spacing['3xl'] })}
             onEndReached={tab === 'history' && historyHasMore
                 ? loadMoreHistory
                 : tab === 'offers' && offersHaveMore && !offersLoadingMore ? loadMoreOffers : undefined}
@@ -364,8 +344,7 @@ function TradesScreen() {
     </Page>
 
     if (ownedAnalyzerTrade || tab === 'analyzer') return <Page title="Trade analysis">
-        {header(!online || tradingClosed, proposeTrade)}
-        <TradeTabs options={tabOptions} tab="analyzer" setTab={changeTab} />
+        <PageHeader tabs={tradeTabs} />
         <Suspense fallback={<View style={styles.loading} aria-busy accessibilityState={{ busy: true }} />}>
             <TradeAnalyzer key={`${user?.id}:${leagueId}:${myMemberId}`} prefillTrade={ownedAnalyzerTrade} />
         </Suspense>
@@ -373,15 +352,14 @@ function TradesScreen() {
     </Page>
 
     return <Page title="Trades">
-        {header(!online || tradingClosed, proposeTrade)}
-        <TradeTabs options={tabOptions} tab={tab} setTab={changeTab} />
+        <PageHeader tabs={tradeTabs} />
         {!activeError && activeActionError ? <ErrorBanner message={`${activeActionError.replace(/[.!]?\s*$/, '.')} Tap to refresh.`}
             onRetry={() => { void retryActiveResource() }} /> : null}
         <DeferredContent ready={!activeTabLoading}>
         {activeTabLoading ? <View style={styles.loading} aria-busy accessibilityState={{ busy: true }} />
                     : gridColumns === 1 && (staticTradeList || tab === 'block' || listData.every((item) => item._type === 'empty')) ? (
-                        <ScrollView contentContainerStyle={{ paddingHorizontal: padX, paddingBottom: spacing['3xl'] }}>
-                            {needsCard}
+                        <ScrollView contentContainerStyle={{ paddingHorizontal: padX, paddingTop: spacing.md, paddingBottom: spacing['3xl'] }}>
+                            {needsHeader}
                             {(offersEmpty ? [] : listData).map((item, index) => <View key={tradeListKey(item, index)}>
                                 {renderItem({ item, index })}
                             </View>)}
@@ -393,17 +371,9 @@ function TradesScreen() {
     </Page>
 }
 
-function TradeTabs({ options, tab, setTab }: { options: SegmentOption<TradeTabKey>[]; tab: TradeTabKey; setTab: (tab: TradeTabKey) => void }) {
-    const { padX } = usePageMetrics()
-    return <View style={[styles.tabsRow, { paddingHorizontal: padX }]}>
-        <SegmentedControl equalWidth options={options} value={tab} onChange={setTab}
-            idBase="trade-section" accessibilityLabel="Trade sections" />
-    </View>
-}
-
 const styles = StyleSheet.create({
     freshness: { ...typeScale.small, color: colors.textSecondary, paddingHorizontal: spacing.xl, paddingVertical: spacing.sm },
-    tabsRow: { paddingVertical: spacing.md },
+    needsHeader: { paddingBottom: spacing.md },
     cardGap: { height: spacing.md },
     tradeDetails: { padding: spacing.lg, paddingBottom: spacing['3xl'] },
     loading: { flex: 1, minHeight: layout.loadingMinHeight },

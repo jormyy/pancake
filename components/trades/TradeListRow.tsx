@@ -8,7 +8,7 @@ import { useRouter } from 'expo-router'
 
 
 import { TradeCard } from '@/components/trades/TradeCard'
-import { TradeBlockNoteEditor } from '@/components/trades/TradeBlockNoteEditor'
+import { TradeBlockNoteButton, TradeBlockNoteEditor } from '@/components/trades/TradeBlockNoteEditor'
 import type { TradeTabKey } from '@/lib/trade-ui-model'
 import { borderWidth, colors, componentTokens, controlSize, table, fontWeight, radii, spacing, textStyles, typeScale } from '@/constants/tokens'
 import { playerEligiblePositions, playerSeasonContextText } from '@/lib/player-context'
@@ -64,40 +64,60 @@ export const TradeBlockListingRow = memo(function TradeBlockListingRow({
         ? block.asset.playerName
         : `${pickLabel(block.asset.seasonYear, block.asset.round)} pick`
     const positions = block.asset.kind === 'player' ? playerEligiblePositions(block.asset) : []
-    return (
+    const note = block.note?.trim() ?? ''
+    const busy = disabled || blockBusyId === block.id
+    const [editingNote, setEditingNote] = useState(false)
+    return <>
         <View style={[styles.blockRow, !tile && styles.compactBlockRow, tile && styles.tile]}>
-            {block.asset.kind === 'player' ? <View style={styles.blockInfo}>
+            {block.asset.kind === 'player' ? (
                 <TradePlayerLink compact name={label} nbaId={block.asset.nbaId} team={block.asset.nbaTeam} positions={positions}
                     playerId={block.asset.playerId} yearsExp={block.asset.yearsExp} careerGames={block.asset.careerGames} injuryStatus={block.asset.injuryStatus} onTaxi={block.rosterLocation === 'taxi'}
-                    metadata={<Text style={styles.blockMeta}>{block.teamName}{block.rosterLocation ? ` · ${block.rosterLocation === 'active' ? 'Active' : block.rosterLocation.toUpperCase()}` : ''}</Text>} stats={playerSeasonContextText(block.asset)} />
-                {mine ? <TradeBlockNoteEditor item={block} label={label}
-                    disabled={disabled || blockBusyId === block.id} onSave={onSaveNote} />
-                    : block.note ? <Text style={styles.blockNote} numberOfLines={2}>“{block.note}”</Text> : null}
-            </View> : <>
+                    metadata={<Text style={styles.blockMeta} numberOfLines={1}>{blockListingMeta(block, note)}</Text>}
+                    stats={playerSeasonContextText(block.asset)} />
+            ) : <>
                 <View style={styles.pickBadge}><Text style={styles.pickBadgeText}>{`R${block.asset.round}`}</Text></View>
-                <View style={styles.blockInfo}><Text style={styles.blockTitle}>{label}</Text><Text style={styles.blockMeta}>{block.teamName}</Text></View>
+                <View style={styles.blockInfo}>
+                    <Text style={styles.blockTitle} numberOfLines={1}>{label}</Text>
+                    <Text style={styles.blockMeta} numberOfLines={1}>{blockListingMeta(block, note)}</Text>
+                </View>
             </>}
-            {mine ? (
-                <Pressable style={styles.blockAction} onPress={() => onRemove(block)}
-                    disabled={disabled || blockBusyId === block.id} accessibilityRole="button"
-                    accessibilityLabel={`Remove ${label} from trade block`}>
-                    <Text style={styles.blockActionText}>Remove</Text>
-                </Pressable>
-            ) : (
-                <Pressable style={styles.blockAction} onPress={() => push({
-                    pathname: '/(modals)/propose-trade',
-                    params: {
-                        recipientMemberId: block.memberId,
-                        requestPlayerId: block.asset.kind === 'player' ? block.asset.playerId : undefined,
-                        requestPickId: block.asset.kind === 'pick' ? block.asset.pickId : undefined,
-                    },
-                })} accessibilityRole="button" accessibilityLabel={`Offer for ${label}`}>
-                    <Text style={styles.blockActionText}>Offer</Text>
-                </Pressable>
-            )}
+            <View style={styles.blockActions}>
+                {mine ? <>
+                    <TradeBlockNoteButton label={label} disabled={busy} onPress={() => setEditingNote(true)} />
+                    <Pressable style={styles.blockAction} onPress={() => onRemove(block)}
+                        disabled={busy} accessibilityRole="button"
+                        accessibilityLabel={`Remove ${label} from trade block`}>
+                        <Text style={styles.blockActionText}>Remove</Text>
+                    </Pressable>
+                </> : (
+                    <Pressable style={styles.blockAction} onPress={() => push({
+                        pathname: '/(modals)/propose-trade',
+                        params: {
+                            recipientMemberId: block.memberId,
+                            requestPlayerId: block.asset.kind === 'player' ? block.asset.playerId : undefined,
+                            requestPickId: block.asset.kind === 'pick' ? block.asset.pickId : undefined,
+                        },
+                    })} accessibilityRole="button" accessibilityLabel={`Offer for ${label}`}>
+                        <Text style={styles.blockActionText}>Offer</Text>
+                    </Pressable>
+                )}
+            </View>
         </View>
-    )
+        {mine && editingNote ? (
+            <View style={styles.blockEditorRow}>
+                <TradeBlockNoteEditor item={block} label={label} disabled={busy} onSave={onSaveNote}
+                    onClose={() => setEditingNote(false)} />
+            </View>
+        ) : null}
+    </>
 })
+
+function blockListingMeta(block: TradeBlockItem, note: string) {
+    const location = block.asset.kind === 'player' && block.rosterLocation
+        ? block.rosterLocation === 'active' ? 'Active' : block.rosterLocation.toUpperCase()
+        : null
+    return [block.teamName, location, note ? `\u201c${note}\u201d` : null].filter(Boolean).join(' \u00b7 ')
+}
 
 export const TradeBlockPlayerRow = memo(function TradeBlockPlayerRow({
     item,
@@ -292,9 +312,10 @@ const styles = StyleSheet.create({
     blockInfo: { flex: 1, minWidth: 0, gap: spacing.xxs },
     blockTitle: { ...textStyles.rowTitle },
     blockMetaRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.xs },
-    blockMeta: { ...textStyles.meta },
+    blockMeta: { ...textStyles.meta, flexShrink: 1 },
     blockContext: { ...typeScale.caption, color: colors.primaryDark, fontWeight: fontWeight.semibold },
-    blockNote: { ...textStyles.meta, fontStyle: 'italic', color: colors.textSecondary },
+    blockActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexShrink: 0 },
+    blockEditorRow: { paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },
     blockAction: { minWidth: controlSize.minTouch, minHeight: controlSize.minTouch, alignItems: 'center', justifyContent: 'center', borderRadius: radii.md, borderCurve: 'continuous', borderWidth: 1, borderColor: colors.primaryBorder, paddingHorizontal: spacing.md },
     blockActionDisabled: { borderColor: colors.borderLight, backgroundColor: colors.bgMuted },
     blockActionText: { ...typeScale.small, fontWeight: fontWeight.bold, color: colors.primaryDark },
