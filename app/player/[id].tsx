@@ -243,6 +243,7 @@ export default function PlayerDetailScreen() {
             <Text style={styles.bandLink}>{section === 'games' ? (opened.games === true ? 'Show fewer' : 'Show all') : opened[section] === true ? 'Hide' : 'Show'}</Text>
         </Pressable>
     )
+    const gameLogEmpty = !gameLogLoading && !gameLogError && gameLog.length === 0
     const infoCard = (
         <Card padding="none" elevated="none" style={styles.card}>
             <SectionBand label="Player info" />
@@ -279,24 +280,26 @@ export default function PlayerDetailScreen() {
     )
     const gameLogCard = (
         <Card padding="none" elevated="none" style={styles.card}>
-            <SectionBand label="Game log" decorative detail={bandToggle('Game log', 'games')} />
+            <SectionBand label="Game log" decorative detail={gameLogEmpty ? undefined : bandToggle('Game log', 'games')} />
             <View style={styles.cardBody}>
-                <GameLogTable
-                    games={gameLog}
-                    compact={!twoColumn}
-                    loading={gameLogLoading}
-                    fantasyPointsMap={showFantasy ? fantasyPointsMap : null}
-                    hasMore={hasMoreGames}
-                    loadingMore={gameLogLoading && gameLog.length > 0}
-                    loadOnScroll={false}
-                    onLoadMore={loadMoreGames}
-                    error={gameLogError}
-                    onRetry={() => { void retryGames(true) }}
-                    showHeading={false}
-                    embedded
-                    previewCount={opened.games === true ? undefined : 5}
-                    onShowAll={() => toggleSection('games')}
-                />
+                {gameLogEmpty ? <Text style={textStyles.meta}>No games yet</Text> : (
+                    <GameLogTable
+                        games={gameLog}
+                        compact={!twoColumn}
+                        loading={gameLogLoading}
+                        fantasyPointsMap={showFantasy ? fantasyPointsMap : null}
+                        hasMore={hasMoreGames}
+                        loadingMore={gameLogLoading && gameLog.length > 0}
+                        loadOnScroll={false}
+                        onLoadMore={loadMoreGames}
+                        error={gameLogError}
+                        onRetry={() => { void retryGames(true) }}
+                        showHeading={false}
+                        embedded
+                        previewCount={opened.games === true ? undefined : 5}
+                        onShowAll={() => toggleSection('games')}
+                    />
+                )}
             </View>
         </Card>
     )
