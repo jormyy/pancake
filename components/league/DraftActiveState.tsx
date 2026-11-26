@@ -157,6 +157,7 @@ const styles = StyleSheet.create({
     },
     activeDraftCompactButton: {
         flex: 1,
+        flexShrink: 1,
         minWidth: 0,
     },
     syncWrap: { gap: spacing.xs, marginTop: spacing.md },

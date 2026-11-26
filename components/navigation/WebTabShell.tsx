@@ -241,9 +241,9 @@ function LeagueSwitcher({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
                 aria-expanded={open}
             >
                 <View style={styles.flex1}>
-                    <Text style={nameStyle}>{currentLeagueName}</Text>
+                    <Text style={nameStyle} numberOfLines={1} ellipsizeMode="tail">{currentLeagueName}</Text>
                     {light ? null : (
-                        <Text style={metaStyle} numberOfLines={1} ellipsizeMode="clip">{currentTeamName}</Text>
+                        <Text style={metaStyle} numberOfLines={1} ellipsizeMode="tail">{currentTeamName}</Text>
                     )}
                 </View>
                 <MaterialIcons name={open ? 'expand-less' : 'expand-more'} size={controlSize.icon.md} color={chevronColor} />
@@ -287,8 +287,8 @@ function LeagueSwitcher({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
                                 ]}
                             >
                                 <View style={styles.flex1}>
-                                    <Text style={styles.leagueMenuName} numberOfLines={2} ellipsizeMode="tail">{membership.leagues?.name ?? 'League'}</Text>
-                                    <Text style={styles.leagueMenuMeta} numberOfLines={1} ellipsizeMode="clip">{membership.team_name ?? 'Team'}</Text>
+                                    <Text style={styles.leagueMenuName} numberOfLines={1} ellipsizeMode="tail">{membership.leagues?.name ?? 'League'}</Text>
+                                    <Text style={styles.leagueMenuMeta} numberOfLines={1} ellipsizeMode="tail">{membership.team_name ?? 'Team'}</Text>
                                 </View>
                                 {active ? <MaterialIcons name="check" size={controlSize.icon.sm} color={colors.primary} /> : null}
                             </Pressable>

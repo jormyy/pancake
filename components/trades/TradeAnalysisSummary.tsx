@@ -38,7 +38,7 @@ export function TradeAnalysisSummary({
     return (
         <View style={[styles.card, inset && styles.inset]} accessibilityLabel="Dynasty trade analysis" aria-busy={loading}>
             <SectionBand label={winner ? `${winner} wins` : 'Fair trade'}
-                detail={<Text style={styles.bandDetail}>{formatTradeValue(comparison.gapPercent)}% gap</Text>} />
+                detail={<Text style={styles.bandDetail} numberOfLines={1}>{formatTradeValue(comparison.gapPercent)}% gap</Text>} />
             <View style={styles.body}>
                 {analysis.teams.map((team) => {
                     const net = team.netValue ?? team.valuesReceived - team.valuesSent + team.rosterSlotEffect
@@ -46,11 +46,11 @@ export function TradeAnalysisSummary({
                         <View key={team.memberId} style={styles.teamRow}>
                             <View style={styles.teamHeading}>
                                 <Text style={styles.teamName} numberOfLines={1}>{participantName(team.memberId)}</Text>
-                                <Text style={styles.value}>{formatTradeValue(team.adjustedValue ?? team.valuesReceived + team.rosterSlotEffect)}</Text>
+                                <Text style={styles.value} numberOfLines={1}>{formatTradeValue(team.adjustedValue ?? team.valuesReceived + team.rosterSlotEffect)}</Text>
                             </View>
                             <View style={styles.teamHeading}>
                                 <Text style={[styles.detail, styles.teamTotals]} numberOfLines={1}>Received {formatTradeValue(team.valuesReceived)} · Sent {formatTradeValue(team.valuesSent)} · Cuts {signed(team.rosterSlotEffect)}</Text>
-                                <Text style={[styles.detail, net < 0 && styles.valueNegative]} numberOfLines={1}>Net {signed(net)}</Text>
+                                <Text style={[styles.detail, styles.fixed, net < 0 && styles.valueNegative]} numberOfLines={1}>Net {signed(net)}</Text>
                             </View>
                         </View>
                     )
@@ -104,9 +104,10 @@ const styles = StyleSheet.create({
     teamRow: { gap: spacing.xxs },
     bandDetail: { ...typeScale.caption, fontWeight: fontWeight.bold, color: colors.textMuted, fontVariant: ['tabular-nums'] },
     teamHeading: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: spacing.sm, minWidth: 0 },
-    teamName: { ...typeScale.row, flexShrink: 1, fontWeight: fontWeight.bold, color: colors.textPrimary },
-    teamTotals: { flexShrink: 1 },
-    value: { ...typeScale.row, fontWeight: fontWeight.bold, color: colors.primaryDark, fontVariant: ['tabular-nums'] },
+    teamName: { ...typeScale.row, flexShrink: 1, minWidth: 0, fontWeight: fontWeight.bold, color: colors.textPrimary },
+    teamTotals: { flexShrink: 1, minWidth: 0 },
+    fixed: { flexShrink: 0 },
+    value: { ...typeScale.row, flexShrink: 0, fontWeight: fontWeight.bold, color: colors.primaryDark, fontVariant: ['tabular-nums'] },
     valueNegative: { color: colors.dangerDark },
     detail: { ...typeScale.caption, color: colors.textSecondary },
     assetRow: { gap: spacing.xxs, paddingVertical: spacing.sm, borderTopWidth: borderWidth.thin, borderTopColor: colors.borderLight },

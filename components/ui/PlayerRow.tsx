@@ -46,7 +46,7 @@ export function PlayerRow({ lineupPin, locks = [], playerId, name, jerseyNumber,
     return <View style={[styles.row, compact && styles.compactRow]} testID="player-row-content">
         <View testID="player-row-avatar">{headshotUrl ? <Avatar name={name} uri={headshotUrl} size={avatarSize} /> : <PlayerAvatar name={name} nbaId={nbaId} size={avatarSize} />}<InjuryTag status={injuryStatus} avatarSize={avatarSize} /></View>
         <View style={[styles.copy, compact && styles.compactCopy]}>
-            <Text style={styles.name} testID="player-name-line">{name}</Text>
+            <Text style={styles.name} testID="player-name-line" numberOfLines={1}>{name}</Text>
             <View style={[styles.metadata, compact && styles.compactMetadata]} testID="player-meta-line">
                 <PlayerDetailsLine team={team} positions={positions} jersey={jersey} />
                 {showTags ? <PlayerTags playerId={playerId} nbaId={nbaId} age={age} birthdate={birthdate} yearsExp={yearsExp} careerGames={careerGames} onTaxi={onTaxi} /> : null}
@@ -76,7 +76,7 @@ const styles = StyleSheet.create({
     copy: { flex: 1, minWidth: 0, gap: componentTokens.playerRow.standard.copyGap },
     compactCopy: { gap: componentTokens.playerRow.compact.copyGap },
     compactMetadata: { flexWrap: 'wrap' },
-    name: { ...componentTokens.playerRow.name, minWidth: 0 },
+    name: { ...componentTokens.playerRow.name, flexShrink: 1, minWidth: 0 },
     // The team logo inks its full line height, so it needs a little extra room below the name to
     // look as far from it as the third line looks from this one.
     metadata: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: componentTokens.playerRow.metadataGap, minHeight: componentTokens.badge.inline.minHeight, minWidth: 0, marginTop: spacing.xxs },

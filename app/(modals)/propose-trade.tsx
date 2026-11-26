@@ -15,7 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { MAX_TRADE_ITEMS, MAX_TRADE_PARTICIPANTS } from '@pancake/core'
 import { EmptyState } from '@/components/EmptyState'
-import { Button, ErrorBanner } from '@/components/ui'
+import { ErrorBanner } from '@/components/ui'
 import { MultiTeamTradeBuilder } from '@/components/trades/MultiTeamTradeBuilder'
 import { TradeAnalysisSummary } from '@/components/trades/TradeAnalysisSummary'
 import { colors, controlSize, fontWeight, foundation, layout, radii, spacing, textStyles, typeScale } from '@/constants/tokens'
@@ -646,8 +646,8 @@ export default function ProposeTradeScreen() {
     if (analyzing) return <PageFrame style={styles.container}>
         <PageHeader title="Trade analysis" onBack={() => setAnalyzing(false)} backLabel="Back to trade editor"
             actions={<>
-                <Button title="Edit assets" size="sm" variant="secondary" onPress={() => setAnalyzing(false)} />
-                <Button title="Review" size="sm" disabled={!canSubmit} onPress={() => { setAnalyzing(false); setReviewing(true) }}
+                <HeaderAction title="Edit assets" secondary onPress={() => setAnalyzing(false)} />
+                <HeaderAction title="Review" disabled={!canSubmit} onPress={() => { setAnalyzing(false); setReviewing(true) }}
                     accessibilityLabel="Review trade proposal" />
             </>} />
         <DeferredContent ready={!tradeAnalysis.loading} style={styles.scrollRegion}>
@@ -685,20 +685,8 @@ export default function ProposeTradeScreen() {
                 onBack={leave}
                 backLabel="Cancel trade proposal"
                 actions={(
-                    <Pressable
-                        onPress={() => setReviewing(true)}
-                        style={[styles.submitButton, !canSubmit && styles.submitButtonDisabled]}
-                        disabled={!canSubmit}
-                        accessibilityRole="button"
-                        accessibilityState={{ disabled: !canSubmit }}
-                        accessibilityLabel="Review trade proposal"
-                        testID="trade-submit"
-                        id="trade-submit"
-                    >
-                        <Text style={[styles.submitText, !canSubmit && styles.submitTextDisabled]}>
-                            Review
-                        </Text>
-                    </Pressable>
+                    <HeaderAction title="Review" disabled={!canSubmit} onPress={() => setReviewing(true)}
+                        accessibilityLabel="Review trade proposal" targetId="trade-submit" />
                 )}
             />
             <DeferredContent ready={editorReady} key={ownerIdentity} style={styles.scrollRegion}>
@@ -802,6 +790,23 @@ function ModeButton({ label, active, onPress }: { label: string; active: boolean
     )
 }
 
+function HeaderAction({ title, onPress, disabled = false, secondary = false, accessibilityLabel, targetId }: { title: string; onPress: () => void; disabled?: boolean; secondary?: boolean; accessibilityLabel?: string; targetId?: string }) {
+    return (
+        <Pressable
+            onPress={onPress}
+            style={[styles.submitButton, secondary && styles.submitButtonSecondary, disabled && styles.submitButtonDisabled]}
+            disabled={disabled}
+            accessibilityRole="button"
+            accessibilityState={{ disabled }}
+            accessibilityLabel={accessibilityLabel ?? title}
+            testID={targetId}
+            id={targetId}
+        >
+            <Text style={[styles.submitText, secondary && styles.submitTextSecondary, disabled && styles.submitTextDisabled]} numberOfLines={1}>{title}</Text>
+        </Pressable>
+    )
+}
+
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgScreen },
     scroll: { flex: 1 },
@@ -823,9 +828,12 @@ const styles = StyleSheet.create({
         borderRadius: radii.md,
         borderCurve: 'continuous' as const,
         minWidth: 72,
+        flexShrink: 0,
         alignItems: 'center',
         justifyContent: 'center',
     },
+    submitButtonSecondary: { backgroundColor: colors.bgMuted, borderWidth: 1, borderColor: colors.borderLight },
+    submitTextSecondary: { color: colors.textPrimary },
     submitButtonDisabled: { backgroundColor: colors.bgMuted, borderWidth: 1, borderColor: colors.borderLight, opacity: 0.55 },
     submitText: { ...typeScale.row, color: colors.textWhite, fontWeight: fontWeight.bold },
     submitTextDisabled: { color: colors.textPlaceholder },

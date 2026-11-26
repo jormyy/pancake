@@ -136,7 +136,7 @@
   },
   "components/trades/TradeBlockNoteEditor.tsx": {
     "pancake/scoped-resource": {
-      "count": 2
+      "count": 1
     }
   },
   "components/trades/TradeReviewCancellation.tsx": {

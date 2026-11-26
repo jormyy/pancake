@@ -179,14 +179,14 @@ function RosterTablePlayerItem({
                     <Pressable style={styles.tableActionButton} onPress={() => onToggleTaxi(item)} disabled={actionDisabled}
                         accessibilityRole="button" accessibilityLabel={`Activate ${item.players.display_name}`}
                         accessibilityState={{ disabled: actionDisabled }} accessibilityHint={assetLockReason(locks)}>
-                        <Text style={[styles.tableActionText, actionDisabled && styles.tableActionTextDisabled]}>Activate</Text>
+                        <Text style={[styles.tableActionText, actionDisabled && styles.tableActionTextDisabled]} numberOfLines={1}>Activate</Text>
                     </Pressable>
                 ) : canIR ? (
                     <Pressable style={styles.tableActionButton} onPress={() => onToggleIR(item)} disabled={actionDisabled}
                         accessibilityRole="button"
                         accessibilityLabel={`${rosterLocation(item) === 'ir' ? 'Activate' : 'Move to IR'} ${item.players.display_name}`}
                         accessibilityState={{ disabled: actionDisabled }} accessibilityHint={assetLockReason(locks)}>
-                        <Text style={[styles.tableActionText, actionDisabled && styles.tableActionTextDisabled]}>{rosterLocation(item) === 'ir' ? 'Activate' : 'IR'}</Text>
+                        <Text style={[styles.tableActionText, actionDisabled && styles.tableActionTextDisabled]} numberOfLines={1}>{rosterLocation(item) === 'ir' ? 'Activate' : 'IR'}</Text>
                     </Pressable>
                 ) : null}
                 <Pressable
@@ -639,7 +639,7 @@ export default function RosterScreen() {
                         <RosterSectionBand
                             label={starters ? 'Starters' : 'Bench'}
                             tone={starters ? 'starters' : 'default'}
-                            detail={<Text style={styles.bandHint}>
+                            detail={<Text style={styles.bandHint} numberOfLines={1}>
                                 {starters ? `${startersFilled}/${lineup.starters.length} · today` : `${benchFilled}/${benchCapacity}`}
                             </Text>}
                         />
@@ -648,13 +648,13 @@ export default function RosterScreen() {
                 )
             }
             if (item._section === 'taxi') {
-                return <RosterSectionBand label="Taxi squad" tone="taxi" detail={<Text style={styles.bandHint}>{taxi.length}/{taxiSlots}</Text>} />
+                return <RosterSectionBand label="Taxi squad" tone="taxi" detail={<Text style={styles.bandHint} numberOfLines={1}>{taxi.length}/{taxiSlots}</Text>} />
             }
             if (item._section === 'ir') {
-                return <RosterSectionBand label="Injured reserve" detail={<Text style={styles.bandHint}>{ir.length}/{irSlots}</Text>} />
+                return <RosterSectionBand label="Injured reserve" detail={<Text style={styles.bandHint} numberOfLines={1}>{ir.length}/{irSlots}</Text>} />
             }
             const label = item._section === 'picks' ? 'Draft picks' : 'Waiver claims'
-            return <RosterSectionBand label={label} detail={item._section === 'claims' ? <Text style={styles.bandHint}>{claimsDetail}</Text> : undefined} />
+            return <RosterSectionBand label={label} detail={item._section === 'claims' ? <Text style={styles.bandHint} numberOfLines={1}>{claimsDetail}</Text> : undefined} />
         }
         if (item._isEmpty) {
             return (
@@ -910,8 +910,9 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: spacing.md,
+        minWidth: 0,
     },
-    summaryText: { ...textStyles.meta, flexShrink: 1, fontWeight: fontWeight.semibold, fontVariant: ['tabular-nums'] as const },
+    summaryText: { ...textStyles.meta, flexShrink: 1, minWidth: 0, fontWeight: fontWeight.semibold, fontVariant: ['tabular-nums'] as const },
     headerActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: spacing.sm, flexShrink: 0 },
 
 
@@ -954,11 +955,12 @@ const styles = StyleSheet.create({
     },
     rosterTableOpen: {
         flex: 1,
+        minWidth: 0,
         minHeight: table.rowHeight,
         flexDirection: 'row',
         alignItems: 'center',
     },
-    rosterTableSlot: { width: TABLE_SLOT_W },
+    rosterTableSlot: { width: TABLE_SLOT_W, flexShrink: 0 },
     rosterTablePlayer: { flex: 1, minWidth: TABLE_PLAYER_MIN_W },
     rosterTablePlayerCell: {
         flex: 1,
@@ -974,16 +976,19 @@ const styles = StyleSheet.create({
     rosterTableStat: {
         ...textStyles.tableCell,
         width: table.statColWidth,
+        flexShrink: 0,
         textAlign: 'right',
     },
     rosterTableActions: {
         width: TABLE_ACTIONS_W,
+        flexShrink: 0,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'flex-end',
         gap: spacing.xs,
     },
     tableActionButton: {
+        flexShrink: 0,
         minWidth: 52,
         minHeight: controlSize.minTouch,
         alignItems: 'center',
@@ -997,6 +1002,7 @@ const styles = StyleSheet.create({
     tableActionTextDisabled: { color: colors.textDisabled },
     tableActionText: { ...typeScale.caption, fontWeight: fontWeight.bold, color: colors.primaryDark },
     moreButton: {
+        flexShrink: 0,
         width: controlSize.minTouch,
         height: controlSize.minTouch,
         alignItems: 'center',
@@ -1014,7 +1020,7 @@ const styles = StyleSheet.create({
     // Phone player rows inset their slot tag by spacing.sm; match it, and widen the gap by the
     // same amount so the "Empty … slot" text keeps its place.
     emptySlotPhone: { paddingHorizontal: spacing.sm, gap: spacing.md + spacing.lg - spacing.sm },
-    emptySlotText: { ...textStyles.meta, color: colors.textPlaceholder, fontStyle: 'italic' },
+    emptySlotText: { ...textStyles.meta, flexShrink: 1, minWidth: 0, color: colors.textPlaceholder, fontStyle: 'italic' },
     taxiEmpty: {
         minHeight: controlSize.minTouch,
         justifyContent: 'center',

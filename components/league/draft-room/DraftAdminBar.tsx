@@ -39,7 +39,7 @@ export function DraftAdminBar({
                         accessibilityRole="button"
                         accessibilityLabel={isPaused ? 'Resume draft' : 'Pause draft'}
                     >
-                        <Text style={styles.adminBtnPauseText}>{isPaused ? 'Resume' : 'Pause'}</Text>
+                        <Text style={styles.adminBtnPauseText} numberOfLines={1}>{isPaused ? 'Resume' : 'Pause'}</Text>
                     </MotionPressable>
                 ) : null}
                 <MotionPressable
@@ -50,7 +50,7 @@ export function DraftAdminBar({
                     accessibilityRole="button"
                     accessibilityLabel="Reset draft"
                 >
-                    <Text style={styles.adminBtnResetText}>Reset</Text>
+                    <Text style={styles.adminBtnResetText} numberOfLines={1}>Reset</Text>
                 </MotionPressable>
                 <MotionPressable
                     style={[styles.adminBtn, styles.adminBtnStop]}
@@ -60,7 +60,7 @@ export function DraftAdminBar({
                     accessibilityRole="button"
                     accessibilityLabel="Stop draft"
                 >
-                    <Text style={styles.adminBtnStopText}>Stop</Text>
+                    <Text style={styles.adminBtnStopText} numberOfLines={1}>Stop</Text>
                 </MotionPressable>
             </View>
         </View>
@@ -80,7 +80,7 @@ const styles = StyleSheet.create({
         borderBottomWidth: 1,
         borderBottomColor: colors.borderLight,
     },
-    adminInline: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+    adminInline: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexShrink: 0 },
     adminBarLabel: { ...textStyles.sectionLabel },
     adminBarBtns: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
     adminBtn: {
@@ -90,9 +90,10 @@ const styles = StyleSheet.create({
         paddingHorizontal: spacing.lg,
         borderRadius: radii.md,
         borderWidth: 1,
+        flexShrink: 0,
     },
     adminBtnReset: { backgroundColor: colors.bgCard, borderColor: colors.border },
-    adminBtnPause: { backgroundColor: colors.primaryLight, borderColor: colors.primaryBorder },
+    adminBtnPause: { minWidth: controlSize.minTouch + spacing.xl, backgroundColor: colors.primaryLight, borderColor: colors.primaryBorder },
     adminBtnStop: { backgroundColor: colors.dangerLight, borderColor: colors.danger },
     adminBtnResetText: { ...typeScale.small, fontWeight: fontWeight.bold, color: colors.textSecondary },
     adminBtnPauseText: { ...typeScale.small, fontWeight: fontWeight.bold, color: colors.primaryDark },

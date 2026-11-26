@@ -296,13 +296,13 @@ export default function RookieDraftRoomScreen() {
                                             <Text style={[
                                                 styles.bannerClock,
                                                 secondsLeft <= 10 && styles.bannerClockUrgent,
-                                            ]}>
+                                            ]} numberOfLines={1}>
                                                 {secondsLeft}s
                                             </Text>
                                         )}
                                     </View>
                                     {nextPick && (
-                                        <Text style={styles.bannerSub} numberOfLines={compactLandscape ? 1 : undefined}>
+                                        <Text style={styles.bannerSub} numberOfLines={1}>
                                             On the clock:{' '}
                                             <Text style={[styles.bannerSub, isMyTurn && styles.bannerMe]}>
                                                 {nextPick.teamName}
@@ -446,7 +446,7 @@ function ProspectRow({
                 positions={player.position ? [player.position] : []} playerId={player.id} yearsExp={player.years_exp} careerGames={player.career_regular_season_games} injuryStatus={player.injury_status}
                 stats={player.nba_draft_number != null ? `NBA draft #${player.nba_draft_number}` : undefined} />
             {canPick && (
-                <Text style={styles.pickBtn}>{actionLabel}</Text>
+                <Text style={styles.pickBtn} numberOfLines={1}>{actionLabel}</Text>
             )}
         </MotionPressable>
     )
@@ -510,9 +510,9 @@ const styles = StyleSheet.create({
         borderLeftWidth: 1,
         borderLeftColor: colors.borderLight,
     },
-    bannerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-    bannerTitle: { ...typeScale.title, fontWeight: fontWeight.extrabold, color: colors.textPrimary },
-    bannerClock: { ...typeScale.title, fontWeight: fontWeight.extrabold, color: colors.textMuted, width: table.statColWidth, textAlign: 'right', fontVariant: ['tabular-nums'] },
+    bannerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md },
+    bannerTitle: { ...typeScale.title, flexShrink: 1, minWidth: 0, fontWeight: fontWeight.extrabold, color: colors.textPrimary },
+    bannerClock: { ...typeScale.title, flexShrink: 0, fontWeight: fontWeight.extrabold, color: colors.textMuted, width: table.statColWidth, textAlign: 'right', fontVariant: ['tabular-nums'] },
     bannerClockUrgent: { color: colors.dangerDark },
     bannerSub: { ...typeScale.body, color: colors.textSecondary },
     bannerMe: { color: colors.primaryDark, fontWeight: fontWeight.bold },
@@ -574,7 +574,7 @@ const styles = StyleSheet.create({
     resultNameRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
     resultName: { ...textStyles.rowTitle, flexShrink: 1 },
     resultTeam: { ...textStyles.meta },
-    pickBtn: { ...typeScale.row, fontWeight: fontWeight.bold, color: colors.primaryDark },
+    pickBtn: { ...typeScale.row, flexShrink: 0, fontWeight: fontWeight.bold, color: colors.primaryDark },
 
 
     separator: { height: 1, backgroundColor: colors.separator },

@@ -356,10 +356,7 @@ it.each(['trade', 'claim'] as const)('allows starter and bench placement with a 
     }
     expect(screen.root.findAllByProps({ accessibilityLabel: 'Asset locked' })).toHaveLength(0)
     expect(screen.root.findAllByProps({ accessibilityLabel: `Locked by a pending ${sourceKind === 'trade' ? 'trade' : 'waiver claim'}` })).toHaveLength(2)
-    const toggle = screen.root.findByType('Switch' as React.ElementType)
-    expect(toggle.props.disabled).toBe(false)
-    await act(async () => toggle.props.onValueChange(true))
-    expect(mocks.setEnabled).toHaveBeenCalledWith('member-a', 'league-a', 'season-league-a', true)
+    expect(screen.root.findAllByType('Switch' as React.ElementType)).toHaveLength(0)
 })
 
 it.each(['trade', 'claim'] as const)('preselects a reserved %s player opened from the roster', async (sourceKind) => {

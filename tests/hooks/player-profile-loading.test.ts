@@ -14,15 +14,16 @@ beforeEach(() => { boundary.read.mockImplementation(async scope => {
     return overview()
 }) })
 
-it('loads only the overview and shares its pickup data with the profile actions', async () => {
+it('loads the overview, then the game preview it lacks, and shares its pickup data with the profile actions', async () => {
     await h.render()
     await expect(loadPickupState('player', 'member', 'league')).resolves.toMatchObject({ status: { status: 'free_agent' } })
-    expect(boundary.read).toHaveBeenCalledTimes(1)
+    expect(boundary.read).toHaveBeenCalledTimes(2)
     expect(boundary.read.mock.calls[0][0].params.section).toBe('overview')
+    expect(boundary.read.mock.calls[1][0].params.section).toBe('games')
     expect(h.latest.player).toMatchObject({ injury_status: 'Out' })
     expect(h.latest.seasonAverages?.avgPoints).toBe(24)
     expect(h.latest.nextProjection).not.toBeNull()
-    expect(h.latest.gameLog).toEqual([])
+    expect(h.latest.gameLog.length).toBeGreaterThan(0)
     expect(h.latest.transactions).toEqual([])
     expect(h.latest.news).toEqual([])
     expect(h.frames.filter(frame => frame.player).every(frame => frame.seasonAverages?.avgPoints === 24 && frame.nextProjection !== null)).toBe(true)

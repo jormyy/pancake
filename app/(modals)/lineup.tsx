@@ -6,7 +6,6 @@ import { screenScope } from '@/lib/cache/screen-scope'
 import type { LineupView, RosterView } from '@/lib/cache/view-types'
 import { LineupPinControl } from '@/components/LineupPinControl'
 import { optimizeLineupDate, setLineupPlayerPin, type LineupPin } from '@/lib/lineup/pins'
-import { LineupControls } from '@/components/ui/LineupControls'
 import { IrNotices } from '@/components/lineup/IrNotices'
 import { useAutoIrNotices } from '@/hooks/use-auto-ir-notices'
 import { SectionBand } from '@/components/ui/SectionBand'
@@ -28,7 +27,6 @@ import { useLineupActions } from '@/hooks/use-lineup-actions'
 import { leagueSnapshotRevision } from '@/lib/league-changes'
 import { getErrorMessage } from '@/lib/shared/errors'
 import { getLineupMoveTargetState, LineupContext, LineupPlayer, LineupSlot, WeekDay, type LineupMoveTargetState } from '@/lib/lineup'
-import { setLineupOptimizerEnabled } from '@/lib/lineup/optimizerSettings'
 
 import { todayLeague, resolveLeagueTimezone } from '@/lib/timezone'
 import { useLeagueDay } from '@/hooks/use-league-day'
@@ -37,7 +35,7 @@ import { invalidateWeekNumberCache } from '@/lib/shared/week'
 import { readStoredAuthState } from '@/lib/supabase'
 import { sessionGeneration } from '@/lib/session-cache-registry'
 import { useScope, type ScopeTicket } from '@/hooks/use-scope'
-import { readLineupSnapshot, saveLineupSnapshot, discardLineupSnapshot, updateLineupOptimizerSnapshot, type LineupSnapshot } from '@/lib/lineup/snapshot'
+import { readLineupSnapshot, saveLineupSnapshot, discardLineupSnapshot, type LineupSnapshot } from '@/lib/lineup/snapshot'
 import { showAlert } from '@/lib/alert'
 import { rosterLimits } from '@/lib/roster-capacity'
 import { useLocalSearchParams } from 'expo-router'
@@ -110,18 +108,18 @@ const StarterRow = memo(function StarterRow({
             accessibilityHint={targetState === 'valid' ? `Move here to use the ${slot.slotType} slot` : undefined}
             accessibilityState={{ selected: isSelected, disabled: disabled || isLocked || targetState === 'invalid' }}
         >
-            <Text style={styles.slotLabel}>{slot.slotType}</Text>
+            <Text style={styles.slotLabel} numberOfLines={1}>{slot.slotType}</Text>
             {p ? (
                 <>
 <PlayerRowContent locks={locks} name={p.displayName} nbaId={p.nbaId} team={p.nbaTeam} positions={p.eligiblePositions}
                         playerId={p.playerId} yearsExp={p.yearsExp} careerGames={p.careerGames} injuryStatus={p.injuryStatus} stats={starterMatchupLabel ?? undefined} />
-                    {pinCompact ? null : <Text style={[styles.rowStatus, isLocked ? styles.lockedBadge : styles.moveBadge]}>{status}</Text>}
+                    {pinCompact ? null : <Text style={[styles.rowStatus, isLocked ? styles.lockedBadge : styles.moveBadge]} numberOfLines={1}>{status}</Text>}
                 </>
             ) : (
                 <Text style={styles.emptySlot}>Empty</Text>
             )}
         </AssetSelectionRow>
-            {p && pinCompact && status ? <Text style={[styles.rowStatus, isLocked ? styles.lockedBadge : styles.moveBadge]}>{status}</Text>
+            {p && pinCompact && status ? <Text style={[styles.rowStatus, isLocked ? styles.lockedBadge : styles.moveBadge]} numberOfLines={1}>{status}</Text>
                 : p ? <LineupPinControl compact={pinCompact} name={p.displayName} pin={p.lineupPin ?? null} disabled={pinDisabled || isLocked}
                 onChange={pin => onPinChange(p, pin)} /> : null}
         </View>
@@ -189,9 +187,9 @@ const BenchRow = memo(function BenchRow({
         >
 <PlayerRowContent locks={locks} name={player.displayName} nbaId={player.nbaId} team={player.nbaTeam} positions={player.eligiblePositions}
                         playerId={player.playerId} yearsExp={player.yearsExp} careerGames={player.careerGames} injuryStatus={player.injuryStatus} stats={benchMatchupLabel ?? undefined} />
-                    {pinCompact ? null : <Text style={[styles.rowStatus, isLocked ? styles.lockedBadge : styles.moveBadge]}>{status}</Text>}
+                    {pinCompact ? null : <Text style={[styles.rowStatus, isLocked ? styles.lockedBadge : styles.moveBadge]} numberOfLines={1}>{status}</Text>}
         </AssetSelectionRow>
-            {pinCompact && status ? <Text style={[styles.rowStatus, isLocked ? styles.lockedBadge : styles.moveBadge]}>{status}</Text>
+            {pinCompact && status ? <Text style={[styles.rowStatus, isLocked ? styles.lockedBadge : styles.moveBadge]} numberOfLines={1}>{status}</Text>
                 : <LineupPinControl compact={pinCompact} name={player.displayName} pin={player.lineupPin ?? null} disabled={pinDisabled || isLocked}
                 onChange={pin => onPinChange(player, pin)} />}
         </View>
@@ -246,8 +244,6 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
     const [bench, setBench] = useState<LineupPlayer[]>([])
     const [benchSlots, setBenchSlots] = useState(0)
     const [reserves, setReserves] = useState<{ ir: LineupPlayer[]; taxi: LineupPlayer[] }>({ ir: [], taxi: [] })
-    const [seasonOptimizerEnabled, setSeasonOptimizerEnabled] = useState(false)
-    const [optimizerSaving, setOptimizerSaving] = useState(false)
     const [pinSaving, setPinSaving] = useState(false)
     const pinPendingRef = useRef(false)
     const [lineupLoading, setLineupLoading] = useState(true)
@@ -285,7 +281,6 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
         setSelectedDate(value.date)
         setDataDate(value.date)
         selectedDateRef.current = value.date
-        setSeasonOptimizerEnabled(value.optimizerEnabled)
         setStarters(value.starters)
         setBench(value.bench)
         setBenchSlots(value.benchSlots ?? 0)
@@ -459,9 +454,6 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
         seasonYear: visibleCtx.seasonYear,
     } : null
     const actionContext = readOnly ? null : actionOwner
-    const optimizerOwner = actionOwner ? `${ownerKey}:${actionOwner.seasonId}` : null
-    const optimizerScope = useScope(optimizerOwner)
-    useEffect(() => { setOptimizerSaving(false) }, [optimizerOwner])
     const lineupForActions = useMemo(
         () => visibleCtx ? { starters: visibleStarters, bench: visibleBench } : null,
         [visibleBench, visibleCtx, visibleStarters],
@@ -523,7 +515,7 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
               })
             : null
 
-    const pinDisabled = readOnly || !online || saving || optimizerSaving || pinSaving || selectedDate < currentDay
+    const pinDisabled = readOnly || !online || saving || pinSaving || selectedDate < currentDay
 
     async function handlePinChange(player: LineupPlayer, pin: LineupPin) {
         if (!actionContext || pinDisabled || pinPendingRef.current || (player.nbaTeam && startedTeams.has(player.nbaTeam))) return
@@ -568,25 +560,6 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
         await load(date)
     }
 
-    async function changeSeasonOptimizer(enabled: boolean) {
-        if (!actionContext) return
-        const ticket = optimizerScope.latest(() => readStoredAuthState().session?.user.id === userId)
-        const generation = sessionGeneration()
-        setOptimizerSaving(true)
-        try {
-            await setLineupOptimizerEnabled(actionContext.memberId, actionContext.leagueId, actionContext.seasonId, enabled)
-            ticket.commit(() => {
-                if (snapshotScope) updateLineupOptimizerSnapshot(snapshotScope, generation, actionContext.seasonId, enabled)
-                setSeasonOptimizerEnabled(enabled)
-                void refreshIrNotices()
-            })
-        } catch (e) {
-            ticket.commit(() => showAlert('Auto-set daily failed', getErrorMessage(e)))
-        } finally {
-            ticket.commit(() => setOptimizerSaving(false))
-        }
-    }
-
     if (!visibleCtx) {
         const emptyMessage = lineupLoading
             ? ''
@@ -628,23 +601,11 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
                 compact
             /> : null}
 
-            <View style={{ marginHorizontal: padX }} accessibilityLabel="Auto lineup">
-                <LineupControls
-                    automatic={seasonOptimizerEnabled}
-                    automaticDisabled={readOnly || optimizerSaving || pinSaving}
-                    onAutomaticChange={(enabled) => { void changeSeasonOptimizer(enabled) }}
-                />
-            </View>
-
             {irNotices.length > 0 ? (
                 <View style={{ marginHorizontal: padX, marginTop: spacing.md }}>
                     <IrNotices notices={irNotices} />
                 </View>
             ) : null}
-
-            <Text style={[textStyles.meta, { paddingHorizontal: padX, paddingVertical: spacing.sm }]}>
-                Tap a player, then a slot or another player to swap. Players whose games have started stay in place.
-            </Text>
 
             {weekDays.length > 0 && (
                 <DaySelector timezone={currentLeague?.timezone} days={weekDays} selectedDate={selectedDate} onSelect={handleDaySelect} compact={compactDays} />
@@ -815,9 +776,10 @@ const styles = StyleSheet.create({
         paddingHorizontal: spacing.xl,
         paddingVertical: spacing.md,
     },
-    errorBannerText: { ...typeScale.small, flex: 1, color: colors.dangerDark, fontWeight: fontWeight.medium },
+    errorBannerText: { ...typeScale.small, flex: 1, minWidth: 0, color: colors.dangerDark, fontWeight: fontWeight.medium },
     errorRetryButton: {
         minHeight: controlSize.minTouch,
+        flexShrink: 0,
         paddingHorizontal: spacing.lg,
         borderRadius: radii.md,
         borderCurve: 'continuous' as const,
@@ -877,6 +839,7 @@ const styles = StyleSheet.create({
     slotLabel: {
         ...typeScale.caption,
         width: 36,
+        flexShrink: 0,
         fontWeight: fontWeight.extrabold,
         color: colors.primaryDark,
     },
@@ -886,7 +849,7 @@ const styles = StyleSheet.create({
     playerName: { ...textStyles.rowTitle },
     playerMetaRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
     playerMeta: { ...textStyles.meta, flexShrink: 1 },
-    rowStatus: { width: controlSize.minTouch, textAlign: 'right' },
+    rowStatus: { width: controlSize.minTouch, flexShrink: 0, textAlign: 'right' },
 
     emptySlot: { ...textStyles.body, color: colors.textMuted, fontStyle: 'italic' },
     lockedBadge: {

@@ -28,7 +28,7 @@ function WaiverPriorityGroup({ waiverOrder, myMemberId }: { waiverOrder: WaiverP
                         return (
                             <View
                                 key={row.memberId}
-                                style={[styles.waiverRow, index > 0 && styles.divider, isMe && tableStyles.rowMe]}
+                                style={[styles.waiverRow, index > 0 && styles.rowDivider, isMe && tableStyles.rowMe]}
                                 role="listitem"
                                 aria-label={label}
                                 accessibilityRole="text"
@@ -133,6 +133,7 @@ const styles = StyleSheet.create({
     card: { overflow: 'hidden' },
     bandDetail: { ...textStyles.meta, color: colors.info },
     divider: { height: StyleSheet.hairlineWidth, backgroundColor: colors.separator, marginLeft: spacing.lg },
+    rowDivider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.separator },
     inviteActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
     waiverRow: {
         minHeight: table.rowHeightCompact,
@@ -141,6 +142,6 @@ const styles = StyleSheet.create({
         gap: spacing.md,
         paddingHorizontal: spacing.lg,
     },
-    waiverRank: { ...typeScale.small, width: 24, fontWeight: fontWeight.bold, color: colors.textMuted, fontVariant: ['tabular-nums'] as const },
+    waiverRank: { ...typeScale.small, width: table.statColWidth, fontWeight: fontWeight.bold, color: colors.textMuted, fontVariant: ['tabular-nums'] as const },
     waiverTeam: { ...textStyles.rowTitle, flex: 1, minWidth: 0 },
 })

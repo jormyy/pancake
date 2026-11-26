@@ -2,7 +2,7 @@ import { Badge } from '@/components/Badge'
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { PlayerHeader } from '@/components/player/PlayerHeader'
+import { PlayerHeader, playerAvailability } from '@/components/player/PlayerHeader'
 import { SeasonSelector } from '@/components/player/SeasonSelector'
 import { SeasonSelector as WebSeasonSelector } from '@/components/player/SeasonSelector.web'
 import { StatsOverview } from '@/components/player/StatsOverview'
@@ -106,7 +106,7 @@ describe('player decision summary', () => {
         }))
         expect(text()).toContain('Player A')
         expect(text()).toContain('LAL')
-        expect(text()).toContain(status)
+        expect(playerAvailability(rosterStatus).label).toBe(status)
         expect(screen.root.findByProps({ testID: 'injury-tag' }).props.children).toBe('IR')
         expect(positionLine()).toBe('LAL · PG · #1')
         expect(screen.root.findAllByType(type('Pressable')).map(node => node.props.accessibilityLabel)).toEqual(labels)
@@ -151,7 +151,7 @@ describe('player decision summary', () => {
         { status: { status: 'mine' as const, rosterPlayerId: 'roster' }, label: 'On your roster', injury: null, action: 'Drop Player A' },
         { status: { status: 'on_waivers' as const, logId: 'waiver', clearsAt: '2099-01-01' }, label: 'On waivers', injury: null, action: 'Claim Player A' },
         { status: { status: 'free_agent' as const }, label: 'Free agent', injury: 'OUT', action: 'Add Player A' },
-    ])('shows $label beside its full-size action in the decision bar, including injury $injury', async ({ status, label, injury, action }) => {
+    ])('shows $label with its full-size action beside the name, including injury $injury', async ({ status, label, injury, action }) => {
         const onAdd = vi.fn()
         await render(React.createElement(PlayerHeader, {
             player: headerPlayer({ injury_status: injury }), rosterStatus: status, leagueActive: true,
@@ -159,9 +159,8 @@ describe('player decision summary', () => {
             action: { label: status.status === 'on_waivers' ? 'Claim' : status.status === 'mine' ? 'Lineup' : 'Add',
                 onPress: onAdd, disabled: false, busy: false, blockedReason: status.status === 'free_agent' ? 'Add limit reached' : null },
         }))
-        const bar = screen.root.findByProps({ testID: 'player-decision-bar' })
-        expect(bar.findByProps({ testID: 'player-availability' }).props.children).toBe(label)
-        expect(Object.assign({}, ...[bar.props.style].flat(Infinity).filter(Boolean)).alignItems).toBe('center')
+        expect(playerAvailability(status).label).toBe(label)
+        const bar = screen.root.findByProps({ testID: 'player-action-slot' })
         const buttons = bar.findAllByType(type('Pressable')).filter(node => node.props.accessibilityLabel === action)
         expect(buttons).toHaveLength(1)
         const button = buttons[0]
@@ -287,11 +286,7 @@ it.each([false, true])('keeps minutes and game paging with compact=%s', async co
 })
 
 it('shows the owning team as the availability for your player', async () => {
-    await render(React.createElement(PlayerHeader, {
-        player: headerPlayer(), rosterStatus: { status: 'mine', rosterPlayerId: 'roster' },
-        ownTeamName: 'Maple Hoops', leagueActive: true,
-    }))
-    expect(screen.root.findByProps({ testID: 'player-availability' }).props.children).toBe('Maple Hoops')
+    expect(playerAvailability({ status: 'mine', rosterPlayerId: 'roster' }, 'Maple Hoops').label).toBe('Maple Hoops')
 })
 
 it('keeps the projection space when the late card arrives or disappears', async () => {

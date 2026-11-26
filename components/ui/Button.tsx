@@ -45,6 +45,11 @@ function variantColors(variant: ButtonVariant) {
     }
 }
 
+function flattenStyle(style: StyleProp<ViewStyle>): ViewStyle {
+    if (Array.isArray(style)) return Object.assign({}, ...style.map(item => flattenStyle(item as StyleProp<ViewStyle>)))
+    return style && typeof style === 'object' ? style as ViewStyle : {}
+}
+
 export function Button({
     title,
     children,
@@ -68,6 +73,8 @@ export function Button({
     const raised = variant === 'primary' || variant === 'danger'
 
     const inline = size === 'inline'
+    const flat = flattenStyle(style)
+    const keepsSize = !fullWidth && flat.flex == null && flat.flexShrink == null && flat.flexGrow == null
     const surfaceStyle = ({ hovered, pressed }: PressableState) => [
         styles.base,
         {
@@ -102,7 +109,7 @@ export function Button({
             accessibilityHint={accessibilityHint}
             accessibilityState={{ ...accessibilityState, disabled: isDisabled || accessibilityState?.disabled === true, busy: loading || accessibilityState?.busy === true }}
             aria-busy={loading || accessibilityState?.busy === true}
-            style={state => [inline ? [styles.inlineTarget, state.pressed && !isDisabled && styles.pressed] : surfaceStyle(state), fullWidth && styles.fullWidth, style]}
+            style={state => [inline ? [styles.inlineTarget, state.pressed && !isDisabled && styles.pressed] : surfaceStyle(state), keepsSize && styles.keepSize, fullWidth && styles.fullWidth, style]}
         >
             {inline ? <View pointerEvents="none" style={surfaceStyle({})}>{content}</View> : content}
         </Pressable>
@@ -118,6 +125,7 @@ const styles = StyleSheet.create({
         borderCurve: 'continuous',
     } as ViewStyle,
     fullWidth: { width: '100%' },
+    keepSize: { flexShrink: 0 },
     inlineTarget: { minHeight: controlSize.minTouch, minWidth: controlSize.minTouch, alignItems: 'center', justifyContent: 'center' },
     inlineLabel: { fontWeight: fontWeight.semibold, fontFamily: fontFamily.control, letterSpacing: tracking.none },
     label: {

@@ -37,7 +37,7 @@ export function TradeNeedsCard({
             {rows.length > 0 ? rows.map((row, index) => (
                 <View key={row.key} style={[styles.row, index > 0 && styles.rowDivider]}
                     accessible accessibilityLabel={`${row.count} ${row.label}`}>
-                    <Text style={styles.count}>{row.count}</Text>
+                    <Text style={styles.count} numberOfLines={1}>{row.count}</Text>
                     <Text style={styles.rowLabel} numberOfLines={1}>{row.label}</Text>
                 </View>
             )) : (
@@ -83,11 +83,12 @@ const styles = StyleSheet.create({
     count: {
         ...typeScale.title,
         minWidth: spacing['3xl'],
+        flexShrink: 0,
         color: colors.primaryDark,
         fontWeight: fontWeight.black,
         fontVariant: ['tabular-nums'] as const,
     },
-    rowLabel: { ...textStyles.body, flexShrink: 1, color: colors.textPrimary },
+    rowLabel: { ...textStyles.body, flexShrink: 1, minWidth: 0, color: colors.textPrimary },
     empty: { alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.xl },
     emptyTitle: {
         ...typeScale.row,

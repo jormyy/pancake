@@ -7,7 +7,7 @@ import { View, Text, StyleSheet } from 'react-native'
 import type { ReactNode } from 'react'
 import type { PlayerRosterStatus } from '@/lib/roster'
 import { blockedActionProps } from '@/lib/a11y'
-import { borderWidth, colors, componentTokens, controlSize, fontWeight, radii, spacing, textStyles, typeScale } from '@/constants/tokens'
+import { borderWidth, colors, componentTokens, controlSize, radii, spacing, textStyles, typeScale } from '@/constants/tokens'
 import { playerAgeDecimal } from '@/lib/player-context'
 import { PlayerAvatar } from './PlayerAvatar'
 import { getEligiblePositions } from '@/lib/players'
@@ -62,19 +62,23 @@ type Props = {
     detail?: ReactNode
 }
 
+export function playerAvailability(rosterStatus: Props['rosterStatus'], ownTeamName?: string | null) {
+    const label = rosterStatus?.status === 'free_agent' ? 'Free agent'
+        : rosterStatus?.status === 'on_waivers' ? 'On waivers'
+        : rosterStatus?.status === 'mine' ? ownTeamName ?? 'On your roster'
+        : rosterStatus?.status === 'taken' ? rosterStatus.ownerTeamName : null
+    const tone = rosterStatus?.status === 'free_agent' ? colors.success
+        : rosterStatus?.status === 'on_waivers' ? colors.warningDark
+        : rosterStatus?.status === 'mine' ? colors.primaryDark : colors.textSecondary
+    return { label, tone }
+}
+
 export function PlayerHeader({ locks = [], player, rosterStatus, ownTeamName, action, backControl,
     leagueActive, actionsReady = true, dropDisabled = false, onDrop, compact = false, showSummary = true,
     padX = spacing.none, detail }: Props) {
     const headshotSize = compact ? controlSize.avatar.md : controlSize.avatar.lg
     const eligiblePositions = getEligiblePositions(player)
     const summary = playerSummaryLine(player)
-    const statusLabel = rosterStatus?.status === 'free_agent' ? 'Free agent'
-        : rosterStatus?.status === 'on_waivers' ? 'On waivers'
-        : rosterStatus?.status === 'mine' ? ownTeamName ?? 'On your roster'
-        : rosterStatus?.status === 'taken' ? rosterStatus.ownerTeamName : ' '
-    const statusTone = rosterStatus?.status === 'free_agent' ? colors.success
-        : rosterStatus?.status === 'on_waivers' ? colors.warningDark
-        : rosterStatus?.status === 'mine' ? colors.primaryDark : colors.textSecondary
     const showDrop = rosterStatus?.status === 'mine' && onDrop != null
     const busy = action?.busy || (!rosterStatus && leagueActive) || !actionsReady
     return (
@@ -92,36 +96,31 @@ export function PlayerHeader({ locks = [], player, rosterStatus, ownTeamName, ac
                         <LockedAssetNotice locks={locks} />
                     </View>
                 </View>
+                {leagueActive ? (
+                    <View style={styles.actionWrap} aria-busy={busy} accessibilityState={{ busy }} testID="player-action-slot">
+                        {action ? (
+                            <Button size="sm" title={action.label}
+                                variant={action.blockedReason ? 'secondary' : 'primary'}
+                                labelStyle={action.blockedReason ? { color: colors.textPlaceholder } : undefined}
+                                onPress={action.onPress} disabled={action.disabled || action.busy}
+                                accessibilityLabel={action.accessibilityLabel ?? `${action.label} ${player.display_name}`}
+                                {...blockedActionProps(action.blockedReason ?? null, action.disabled || action.busy)} />
+                        ) : <View style={styles.placeholder} accessibilityLabel={busy ? 'Loading player action' : 'No player action'} />}
+                        {showDrop ? (
+                            <LockedActionExplanation locks={locks} label={`Drop ${player.display_name}`} busy={Boolean(action?.busy || dropDisabled || !actionsReady)}>
+                            <Button size="sm" title="Drop" variant="outline" onPress={onDrop}
+                                disabled={action?.busy || dropDisabled || !actionsReady || locks.length > 0}
+                                accessibilityLabel={`Drop ${player.display_name}`} /></LockedActionExplanation>
+                        ) : null}
+                    </View>
+                ) : null}
             </View>
             {showSummary ? (
                 <View style={styles.summaryRow} testID="player-summary-line">
                     <Text style={styles.summary} numberOfLines={1}>{summary}</Text>
                 </View>
             ) : null}
-            {leagueActive ? (
-                <View style={[styles.decision, compact && styles.decisionCompact]} testID="player-decision-bar">
-                    <View style={styles.decisionCopy}>
-                        <Text style={[styles.availability, { color: statusTone }]} numberOfLines={1} testID="player-availability">{statusLabel}</Text>
-                        {detail}
-                    </View>
-                <View style={styles.actionWrap} aria-busy={busy} accessibilityState={{ busy }} testID="player-action-slot">
-                    {action ? (
-                        <Button size="sm" title={action.label}
-                            variant={action.blockedReason ? 'secondary' : 'primary'}
-                            labelStyle={action.blockedReason ? { color: colors.textPlaceholder } : undefined}
-                            onPress={action.onPress} disabled={action.disabled || action.busy}
-                            accessibilityLabel={action.accessibilityLabel ?? `${action.label} ${player.display_name}`}
-                            {...blockedActionProps(action.blockedReason ?? null, action.disabled || action.busy)} />
-                    ) : <View style={styles.placeholder} accessibilityLabel={busy ? 'Loading player action' : 'No player action'} />}
-                    {showDrop ? (
-                        <LockedActionExplanation locks={locks} label={`Drop ${player.display_name}`} busy={Boolean(action?.busy || dropDisabled || !actionsReady)}>
-                        <Button size="sm" title="Drop" variant="outline" onPress={onDrop}
-                            disabled={action?.busy || dropDisabled || !actionsReady || locks.length > 0}
-                            accessibilityLabel={`Drop ${player.display_name}`} /></LockedActionExplanation>
-                    ) : null}
-                </View>
-                </View>
-            ) : detail}
+            {detail}
         </View>
     )
 }
@@ -142,10 +141,6 @@ const styles = StyleSheet.create({
     metaRow: { flexDirection: 'row', flexWrap: 'nowrap', alignItems: 'center', gap: spacing.xs, minHeight: textStyles.body.lineHeight },
     summary: { ...componentTokens.playerRow.metadata, color: colors.textSecondary, flexShrink: 1, minWidth: 0 },
     summaryRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.xs, minHeight: textStyles.body.lineHeight },
-    decision: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md, backgroundColor: colors.bgCard, borderWidth: borderWidth.thin, borderColor: colors.borderLight, borderRadius: radii.lg, borderCurve: 'continuous' },
-    decisionCompact: { padding: spacing.none, backgroundColor: colors.transparent, borderWidth: 0 },
-    decisionCopy: { flex: 1, minWidth: 0, gap: spacing.xxs },
-    availability: { ...typeScale.row, fontWeight: fontWeight.bold },
     actionWrap: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minWidth: controlSize.minTouch * 2, minHeight: controlSize.minTouch, flexShrink: 0, justifyContent: 'flex-end' },
     placeholder: { height: controlSize.button.sm.height, width: controlSize.minTouch * 2, backgroundColor: colors.bgMuted, borderRadius: radii.md },
 })

@@ -61,11 +61,11 @@ export function LeagueSchedule({ rows, onOpenMatchup }: { rows: LeagueScheduleRo
                         </View>
                         {outcome ? (
                             <View style={styles.result}>
-                                <Text style={[textStyles.tableHeader, styles.outcome, row.status === 'win' && styles.win, row.status === 'loss' && styles.loss, row.status === 'live' && styles.live]}>{outcome}</Text>
-                                <Text style={[textStyles.stat, styles.score, row.status === 'win' && styles.win]}>{formatPoints(row.myPoints ?? 0)}</Text>
-                                <Text style={[textStyles.stat, styles.score]}>{formatPoints(row.opponentPoints ?? 0)}</Text>
+                                <Text numberOfLines={1} style={[textStyles.tableHeader, styles.outcome, row.status === 'win' && styles.win, row.status === 'loss' && styles.loss, row.status === 'live' && styles.live]}>{outcome}</Text>
+                                <Text numberOfLines={1} style={[textStyles.stat, styles.score, row.status === 'win' && styles.win]}>{formatPoints(row.myPoints ?? 0)}</Text>
+                                <Text numberOfLines={1} style={[textStyles.stat, styles.score]}>{formatPoints(row.opponentPoints ?? 0)}</Text>
                             </View>
-                        ) : <Text style={[textStyles.meta, styles.result, styles.status]}>{result}</Text>}
+                        ) : <Text numberOfLines={1} style={[textStyles.meta, styles.result, styles.status]}>{result}</Text>}
                     </>
                     return (
                         <View key={row.weekNumber} ref={row.isCurrent ? currentRow : undefined} role="listitem" aria-label={label} accessibilityLabel={label}
@@ -90,9 +90,9 @@ const styles = StyleSheet.create({
     opponentHeader: { flex: 1 },
     opponentName: { flexShrink: 1, minWidth: 0 },
     placeholder: { color: colors.textMuted },
-    result: { width: table.scoreColWidth * 3, flexShrink: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', textAlign: 'right' },
-    outcome: { flex: 1, textAlign: 'left', color: colors.textSecondary },
-    score: { width: table.scoreColWidth, textAlign: 'right' },
+    result: { minWidth: table.scoreColWidth * 3, flexShrink: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: spacing.sm, textAlign: 'right' },
+    outcome: { minWidth: table.statColWidth, flexShrink: 0, textAlign: 'left', color: colors.textSecondary },
+    score: { minWidth: table.scoreColWidth, flexShrink: 0, textAlign: 'right', fontVariant: ['tabular-nums'] as const },
     status: { color: colors.textSecondary },
     win: { color: colors.success, fontWeight: fontWeight.bold },
     loss: { color: colors.danger },

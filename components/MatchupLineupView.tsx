@@ -184,11 +184,11 @@ export function MatchupLineupView({
                         )}
                         {section.key === 'starters' ? (
                             <View testID="matchup-daily-total" style={styles.dailyTotal}>
-                                <Text testID="matchup-daily-total-left" style={styles.dailyTotalScore}>
+                                <Text testID="matchup-daily-total-left" style={styles.dailyTotalScore} numberOfLines={1}>
                                     {formatPoints(matchupDailyTotal(myLineup.starters, liveStats, scoringSettings) ?? 0)}
                                 </Text>
-                                <Text style={styles.dailyTotalLabel}>Daily Total</Text>
-                                <Text testID="matchup-daily-total-right" style={styles.dailyTotalScore}>
+                                <Text style={styles.dailyTotalLabel} numberOfLines={1}>Daily Total</Text>
+                                <Text testID="matchup-daily-total-right" style={styles.dailyTotalScore} numberOfLines={1}>
                                     {formatPoints(matchupDailyTotal(oppLineup.starters, liveStats, scoringSettings) ?? 0)}
                                 </Text>
                             </View>
@@ -230,12 +230,14 @@ const styles = StyleSheet.create({
     dailyTotalScore: {
         ...textStyles.compactScore,
         flex: 1,
+        minWidth: 0,
         textAlign: 'center',
         color: colors.textPrimary,
     },
     dailyTotalLabel: {
         ...textStyles.rowTitle,
         color: colors.textSecondary,
+        flexShrink: 0,
         marginHorizontal: spacing.md,
     },
     lineupFooter: {

@@ -182,7 +182,7 @@ export function ParticipantTradePanel({
                         const error = validateTradeFaabInput(value).error
                         return (
                             <View key={destinationId} style={styles.faabDestinationRow}>
-                                <Text style={styles.termLabel}>To {participantName(destinationId)}</Text>
+                                <Text style={styles.termLabel} numberOfLines={1}>To {participantName(destinationId)}</Text>
                                 <TextInput
                                     style={[styles.termInput, error && styles.termInputInvalid]}
                                     value={value}

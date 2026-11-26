@@ -47,7 +47,7 @@ export function AuctionIdlePanel({
         content = <View style={styles.waitingRow}>
             <ConnectionHint connected={controller.realtimeConnected} failed={Boolean(controller.loadError)} text="Waiting for" fallback="Reconnecting live draft"
                 textStyle={styles.waitingText} height={textStyles.body.lineHeight} />
-            <Text style={styles.waitingTeam}>{currentNominatorTeam}</Text>
+            <Text style={styles.waitingTeam} numberOfLines={1}>{currentNominatorTeam}</Text>
             <Text style={styles.waitingText}>to nominate</Text>
         </View>
     } else {
@@ -69,7 +69,7 @@ export function AuctionIdlePanel({
                             <PlayerRowContent name={item.display_name ?? 'Player'} nbaId={item.nba_id} team={item.nba_team}
                                 positions={item.position ? [item.position] : []} age={item.age} yearsExp={item.years_exp} careerGames={item.career_regular_season_games} injuryStatus={item.injury_status}
                                 stats={draftPlayerMeta([item.dynasty_rank != null ? `#${item.dynasty_rank}` : null])} />
-                            <Text style={styles.nominateLabel}>Nominate</Text>
+                            <Text style={styles.nominateLabel} numberOfLines={1}>Nominate</Text>
                         </MotionPressable>
                     )} ListEmptyComponent={controller.searchError
                         ? <Text style={styles.emptySearch}>Search failed. Keep typing or try again.</Text>
@@ -104,7 +104,7 @@ const styles = StyleSheet.create({
     cardCompact: { padding: spacing.md, gap: spacing.sm },
     waitingRow: { alignItems: 'center', gap: spacing.xs, paddingVertical: spacing.md },
     waitingText: { ...textStyles.body, color: colors.textMuted },
-    waitingTeam: { ...typeScale.title, fontWeight: fontWeight.extrabold, color: colors.textPrimary },
+    waitingTeam: { ...typeScale.title, maxWidth: '100%', fontWeight: fontWeight.extrabold, color: colors.textPrimary },
     yourTurnBanner: { ...typeScale.title, fontWeight: fontWeight.extrabold, color: colors.primaryDark, textAlign: 'center' },
     nominationModeHint: { ...textStyles.meta, textAlign: 'center' },
     nominateButton: { marginTop: spacing.xs, height: controlSize.button.md.height, backgroundColor: colors.primary, borderRadius: radii.lg,
@@ -117,7 +117,7 @@ const styles = StyleSheet.create({
     playerCopy: { flex: 1, minWidth: 0 },
     playerResultName: { ...textStyles.rowTitle },
     playerResultMeta: { ...textStyles.meta },
-    nominateLabel: { ...typeScale.small, fontWeight: fontWeight.bold, color: colors.primaryDark },
+    nominateLabel: { ...typeScale.small, flexShrink: 0, fontWeight: fontWeight.bold, color: colors.primaryDark },
     emptySearch: { ...textStyles.meta, color: colors.textPlaceholder, textAlign: 'center', marginTop: spacing.md },
     cancelButton: { minHeight: controlSize.minTouch, marginTop: spacing.sm, alignItems: 'center', justifyContent: 'center' },
     cancelText: { ...typeScale.row, color: colors.textMuted, fontWeight: fontWeight.semibold },

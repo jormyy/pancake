@@ -65,7 +65,7 @@ function PlayerRow({
                 accessibilityState={{ selected, disabled }} aria-pressed={selected}
                 label={`${selected ? 'Remove' : 'Add'} ${p.display_name} ${selected ? 'from' : 'to'} trade`}
                 testID={testID} id={testID}>
-                <Text style={styles.playerActionText}>{selected ? 'Remove' : 'Add'}</Text>
+                <Text style={styles.playerActionText} numberOfLines={1}>{selected ? 'Remove' : 'Add'}</Text>
             </AssetSelectionRow>
         </View>
     )
@@ -106,11 +106,11 @@ function PickRow({
                 <Text style={styles.pickCircleText}>{yearShort(pick.seasonYear)}</Text>
             </View>
             <View style={styles.playerInfo}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
-                    <Text style={[styles.playerName, selected && styles.playerNameSelected]}>{pickLabel(pick.seasonYear, pick.round)}</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs, minWidth: 0 }}>
+                    <Text style={[styles.playerName, selected && styles.playerNameSelected]} numberOfLines={1}>{pickLabel(pick.seasonYear, pick.round)}</Text>
                     <LockedAssetNotice locks={locks} />
                 </View>
-                <Text style={styles.playerMeta}>via {pick.originalTeamName}</Text>
+                <Text style={styles.playerMeta} numberOfLines={1}>via {pick.originalTeamName}</Text>
                 {blocked && !selected ? <Text style={styles.playerContext}>Already routed</Text> : null}
                 {selected && destinationLabel ? (
                     <Text style={styles.routeMeta} numberOfLines={1}>
@@ -184,7 +184,7 @@ export function TradeAssetColumn({
         <View style={[styles.column, !twoColumn && styles.columnStacked]}>
             <View style={styles.columnHeader}>
                 <View style={styles.flex1}>
-                    <Text style={[styles.columnTitle, side === 'receive' && styles.columnTitleReceive]}>{title}</Text>
+                    <Text style={[styles.columnTitle, side === 'receive' && styles.columnTitleReceive]} numberOfLines={1}>{title}</Text>
                     <Text style={styles.columnSubtitle} numberOfLines={1}>{subtitle}</Text>
                 </View>
                 {selectedCount > 0 ? (
@@ -252,6 +252,7 @@ const styles = StyleSheet.create({
     columnTitleReceive: { color: colors.primaryDark },
     columnSubtitle: { ...typeScale.caption, color: colors.textMuted, marginTop: spacing.xxs, fontWeight: fontWeight.semibold },
     columnCount: {
+        flexShrink: 0,
         minWidth: 22,
         height: 22,
         paddingHorizontal: spacing.sm,
@@ -283,6 +284,7 @@ const styles = StyleSheet.create({
     playerActionText: { ...typeScale.small, fontWeight: fontWeight.semibold, color: colors.primaryDark },
     playerRowSelected: { backgroundColor: colors.primaryLight },
     pickCircle: {
+        flexShrink: 0,
         width: controlSize.avatar.md,
         height: controlSize.avatar.md,
         borderRadius: radii.full,
@@ -294,13 +296,14 @@ const styles = StyleSheet.create({
     pickCircleSelected: { backgroundColor: colors.primary },
     pickCircleText: { ...typeScale.small, color: colors.onAccent, fontWeight: fontWeight.bold },
     playerInfo: { flex: 1, minWidth: 0, gap: spacing.xxs },
-    playerName: { ...textStyles.rowTitle },
+    playerName: { ...textStyles.rowTitle, flexShrink: 1, minWidth: 0 },
     playerNameSelected: { color: colors.primaryDark },
     playerMetaRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.xs },
     playerMeta: { ...textStyles.meta },
     playerContext: { ...typeScale.caption, color: colors.primaryDark, fontWeight: fontWeight.semibold },
     routeMeta: { ...typeScale.caption, color: colors.textSecondary, fontWeight: fontWeight.semibold },
     removeBadge: {
+        flexShrink: 0,
         width: 24,
         height: 24,
         borderRadius: radii.full,
