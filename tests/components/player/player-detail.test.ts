@@ -335,6 +335,6 @@ it('names the taxi squad beside the owning team', () => {
 it('describes taxi eligibility from career games when the league has taxi slots', () => {
     expect(taxiStatusLine({ years_exp: 2, career_regular_season_games: 34 }, 2)).toBe('Taxi eligible · 34 of 65 games')
     expect(taxiStatusLine({ years_exp: 4, career_regular_season_games: 80 }, 2)).toBe('Not taxi eligible · 80 games')
-    expect(taxiStatusLine({ years_exp: 0, career_regular_season_games: 0 }, 2)).toBe('Taxi eligible · rookie')
+    expect(taxiStatusLine({ years_exp: 0, career_regular_season_games: 0 }, 2)).toBe('Taxi eligible')
     expect(taxiStatusLine({ years_exp: 2, career_regular_season_games: 34 }, 0)).toBeNull()
 })

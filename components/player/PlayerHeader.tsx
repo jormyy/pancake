@@ -67,7 +67,7 @@ const TAXI_CAREER_GAME_LIMIT = 65
 export function taxiStatusLine(player: Pick<PlayerHeaderPlayer, 'years_exp' | 'career_regular_season_games'>, taxiSlots: number) {
     if (taxiSlots <= 0) return null
     const games = player.career_regular_season_games ?? null
-    if (player.years_exp === 0) return games ? `Taxi eligible · rookie · ${games} games` : 'Taxi eligible · rookie'
+    if (player.years_exp === 0) return games ? `Taxi eligible · ${games} games` : 'Taxi eligible'
     if (games == null) return null
     return games < TAXI_CAREER_GAME_LIMIT
         ? `Taxi eligible · ${games} of ${TAXI_CAREER_GAME_LIMIT} games`
