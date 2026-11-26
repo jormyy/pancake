@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261224000000",
+  "candidateVersion": "20261225000000",
   "common": {
     "functions": [
       {
@@ -2839,6 +2839,10 @@
     {
       "filename": "20261224000000_lineup_refill_after_roster_change.sql",
       "sha256": "ebdae4e8406fba471bd219c6ed2a7cf75b896d2c0bee7f4561c9a09beb8cb812"
+    },
+    {
+      "filename": "20261225000000_player_listed_size_and_draft.sql",
+      "sha256": "f7ca56a279be436d3c26d3cdcd5f69d265aab790ec79b2dc5f9614f7a20abca2"
     }
   ],
   "preMigration": {

@@ -3616,6 +3616,10 @@ export type Database = {
           career_regular_season_games: number | null
           created_at: string
           display_name: string | null
+          draft_overall_pick: number | null
+          draft_round: number | null
+          draft_status: string | null
+          draft_year: number | null
           dynasty_rank: number | null
           dynasty_rank_fetched_at: string | null
           dynasty_rank_source: string | null
@@ -3623,6 +3627,7 @@ export type Database = {
           espn_id: string | null
           first_name: string
           headshot_url: string | null
+          height_inches: number | null
           id: string
           injury_expected_return: string
           injury_reason: string
@@ -3637,6 +3642,7 @@ export type Database = {
           sportsdata_id: string | null
           status: string | null
           updated_at: string
+          weight_lb: number | null
           years_exp: number | null
         }
         Insert: {
@@ -3650,6 +3656,10 @@ export type Database = {
           career_regular_season_games?: number | null
           created_at?: string
           display_name?: string | null
+          draft_overall_pick?: number | null
+          draft_round?: number | null
+          draft_status?: string | null
+          draft_year?: number | null
           dynasty_rank?: number | null
           dynasty_rank_fetched_at?: string | null
           dynasty_rank_source?: string | null
@@ -3657,6 +3667,7 @@ export type Database = {
           espn_id?: string | null
           first_name: string
           headshot_url?: string | null
+          height_inches?: number | null
           id?: string
           injury_expected_return?: string
           injury_reason?: string
@@ -3671,6 +3682,7 @@ export type Database = {
           sportsdata_id?: string | null
           status?: string | null
           updated_at?: string
+          weight_lb?: number | null
           years_exp?: number | null
         }
         Update: {
@@ -3684,6 +3696,10 @@ export type Database = {
           career_regular_season_games?: number | null
           created_at?: string
           display_name?: string | null
+          draft_overall_pick?: number | null
+          draft_round?: number | null
+          draft_status?: string | null
+          draft_year?: number | null
           dynasty_rank?: number | null
           dynasty_rank_fetched_at?: string | null
           dynasty_rank_source?: string | null
@@ -3691,6 +3707,7 @@ export type Database = {
           espn_id?: string | null
           first_name?: string
           headshot_url?: string | null
+          height_inches?: number | null
           id?: string
           injury_expected_return?: string
           injury_reason?: string
@@ -3705,6 +3722,7 @@ export type Database = {
           sportsdata_id?: string | null
           status?: string | null
           updated_at?: string
+          weight_lb?: number | null
           years_exp?: number | null
         }
         Relationships: []
@@ -5982,6 +6000,10 @@ export type Database = {
           p_member_id: string
         }
         Returns: boolean
+      }
+      apply_player_listed_details: {
+        Args: { p_records: Json; p_source: string }
+        Returns: Json
       }
       apply_pre_tipoff_lineup: {
         Args: {

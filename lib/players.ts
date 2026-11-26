@@ -80,6 +80,12 @@ type PlayerDetailSourceRow = Pick<
     | 'birthdate'
     | 'career_regular_season_games'
     | 'status'
+    | 'height_inches'
+    | 'weight_lb'
+    | 'draft_status'
+    | 'draft_year'
+    | 'draft_round'
+    | 'draft_overall_pick'
 >
 
 export type PlayerDetailRow = PlayerDetailSourceRow & {
@@ -111,7 +117,13 @@ const PLAYER_DETAIL_SELECT = `
     years_exp,
     birthdate,
     career_regular_season_games,
-    status
+    status,
+    height_inches,
+    weight_lb,
+    draft_status,
+    draft_year,
+    draft_round,
+    draft_overall_pick
 `
 
 export type PlayerSeasonAverages = {

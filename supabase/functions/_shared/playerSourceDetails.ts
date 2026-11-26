@@ -17,3 +17,18 @@ export function sourceYearsExperience(
   return typeof firstYear === 'number' && Number.isInteger(firstYear) && firstYear > 1946 && firstYear <= seasonYear
     ? Math.max(0, seasonYear - 1 - firstYear) : null
 }
+
+function wholeInRange(value: unknown, min: number, max: number): number | null {
+  const number = typeof value === 'string' && value.trim() !== '' ? Number(value) : value
+  if (typeof number !== 'number' || !Number.isFinite(number)) return null
+  const whole = Math.round(number)
+  return Math.abs(number - whole) < 0.01 && whole >= min && whole <= max ? whole : null
+}
+
+export function sourceHeightInches(value: unknown): number | null {
+  return wholeInRange(value, 60, 96)
+}
+
+export function sourceWeightPounds(value: unknown): number | null {
+  return wholeInRange(value, 120, 400)
+}

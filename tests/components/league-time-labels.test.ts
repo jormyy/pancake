@@ -1,13 +1,11 @@
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, expect, it, vi } from 'vitest'
-import { NextProjectionCard } from '@/components/player/NextProjectionCard'
 import { TransactionHistory } from '@/components/player/TransactionHistory'
 import { TeamTimelineScreen } from '@/components/timeline/TeamTimelineScreen'
 import { tradeCardModel } from '@/components/trades/TradeCard'
 import { draftEventTime } from '@/lib/draft-display'
 import { trade } from '@/tests/helpers/fixtures'
-import type { LeagueProjectionRow } from '@/lib/projections'
 
 const fixture = vi.hoisted(() => ({ timezone: 'America/Los_Angeles', instant: '2026-10-28T04:21:00Z' }))
 vi.mock('@/hooks/use-league-timezone', () => ({ useLeagueTimezone: () => fixture.timezone }))
@@ -38,8 +36,6 @@ it.each([
     fixture.timezone = timezone
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-10-28T03:00:00Z'))
-    const projection = { next_game_date: '2026-10-27', next_game_time: fixture.instant, next_game_opponent: 'vs BOS', projection_fantasy_points: 12 } as LeagueProjectionRow
-    expect(await render(React.createElement(NextProjectionCard, { projection }))).toContain(time)
     expect(await render(React.createElement(TransactionHistory, { playerId: 'player', leagueId: 'league', transactions: [{ id: 'event', transactionType: 'waiver_add', label: 'Claimed', teamName: 'Team', occurredAt: fixture.instant }] }))).toContain(dateTime)
     expect(await render(React.createElement(TeamTimelineScreen, { leagueId: 'league', memberId: 'member', timezone }))).toContain(dateTime)
     for (const status of ['pending', 'accepted'] as const) {

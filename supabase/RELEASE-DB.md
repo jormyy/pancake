@@ -60,6 +60,8 @@ The migration changes no lock result: the trigger rejects only a same-team IR or
 `20261224000000_lineup_refill_after_roster_change.sql` follows it, for 811 migrations.
 A roster change on a team with Auto Lineup on adds the team to `private.lineup_refill_requests` and queues one `lineup-refill` job.
 Each job re-picks every upcoming day for one team. Deploy `lineup-optimizer` first, because an older worker reads the `roster_refill` mode as a scheduled run.
+`20261225000000_player_listed_size_and_draft.sql` follows it, for 812 migrations.
+It adds nullable listed size and draft fields to `players` and the service-only `public.apply_player_listed_details` writer. Older Edge and frontend builds ignore the new fields, so apply it before `sync-players` and the frontend that read them.
 Database, then Edge, then merge the frontend.
 
 1. **Migrations.** Apply all five through the guarded dry run and push. They change no roster, lineup, dispatch, or notice. `floor_activated_at` and `ir_activated_at` stay NULL, so the floor defers and the league-wide Auto IR admission stays off. The shared `pre-tipoff` fingerprint keeps its old body, so applying the migrations reopens no open window. After activation, the official league and the other leagues never reopen each other's completed windows.
