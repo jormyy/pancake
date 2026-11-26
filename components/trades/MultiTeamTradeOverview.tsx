@@ -1,12 +1,13 @@
 import { orderTradeAssets, type TradePickOrder } from '@/lib/trade-assets'
 import { TradePlayerLink, type TradePlayerLinkProps } from '@/components/trades/TradePlayerLink'
 import { TradePickLabel } from '@/components/trades/TradePickLabel'
+import { SectionBand } from '@/components/ui/SectionBand'
 import { tradePickLabel, type TradePickContext } from '@/lib/trade-pick-label'
 import type { TradePickItem } from '@/lib/trades'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { useMemo } from 'react'
-import { Pressable, StyleSheet, Text, View } from 'react-native'
-import { colors, controlSize, fontWeight, radii, spacing, uiColors, typeScale } from '@/constants/tokens'
+import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native'
+import { borderWidth, colors, controlSize, fontWeight, radii, spacing, uiColors, typeScale } from '@/constants/tokens'
 
 type TradeFlowParticipant = {
     memberId: string
@@ -32,13 +33,16 @@ type MultiTeamTradeOverviewProps = {
     items: TradeFlowItem[]
     compact?: boolean
     columns?: boolean
+    /** False when the parent already draws the card, as on the trade details panel. */
+    framed?: boolean
     onRemoveItem?: (key: string) => void
     pickContext?: TradePickContext
     showPickDirection?: boolean
     pickOrder?: TradePickOrder
+    style?: StyleProp<ViewStyle>
 }
 
-export function MultiTeamTradeOverview({ participants, items, compact = false, columns = false, onRemoveItem, pickContext, showPickDirection = true, pickOrder = 'round-year' }: MultiTeamTradeOverviewProps) {
+export function MultiTeamTradeOverview({ participants, items, compact = false, columns = false, framed = true, onRemoveItem, pickContext, showPickDirection = true, pickOrder = 'round-year', style }: MultiTeamTradeOverviewProps) {
     const { incomingByMember, participantLabels } = useMemo(() => {
         const labels = new Map(participants.map((participant) => [participant.memberId, participant.label]))
         const incoming = new Map<string, TradeFlowItem[]>()
@@ -51,146 +55,113 @@ export function MultiTeamTradeOverview({ participants, items, compact = false, c
     }, [items, participants, pickOrder])
 
     return (
-        <View style={[styles.container, compact && styles.containerCompact]}>
-            <View style={styles.teamGrid}>
-                {participants.map((participant) => {
-                    const incoming = incomingByMember.get(participant.memberId) ?? []
+        <View style={[styles.root, columns && styles.rootColumns, style]}>
+            {participants.map((participant) => {
+                const incoming = incomingByMember.get(participant.memberId) ?? []
+                const label = participant.label === 'You' ? 'You get' : `${participant.label} gets`
 
-                    return (
-                        <View
-                            key={participant.memberId}
-                            style={[styles.team, columns && !compact && styles.teamColumn, compact && styles.teamCompact]}
-                        >
-                            <View style={styles.teamHeader}>
-                                <View style={styles.teamIdentity}>
-                                    <View style={styles.teamInitial}>
-                                        <Text style={styles.teamInitialText}>
-                                            {participant.label.trim().charAt(0).toUpperCase() || '?'}
-                                        </Text>
-                                    </View>
-                                    <View style={styles.teamTitleBlock}>
-                                        <Text style={styles.teamName} numberOfLines={2}>{participant.label} {participant.label === 'You' ? 'get' : 'gets'}</Text>
-                                    </View>
+                return (
+                    <View
+                        key={participant.memberId}
+                        style={[styles.section, framed && styles.sectionFramed, columns && styles.sectionColumn]}
+                    >
+                        <SectionBand
+                            label={label}
+                            detail={participant.statusLabel ? (
+                                <View style={[styles.status, participant.statusComplete && styles.statusComplete]}>
+                                    <MaterialIcons
+                                        name={participant.statusComplete ? 'check-circle' : 'schedule'}
+                                        size={14}
+                                        color={participant.statusComplete ? uiColors.successText : colors.textMuted}
+                                    />
+                                    <Text style={[styles.statusText, participant.statusComplete && styles.statusTextComplete]}>
+                                        {participant.statusLabel}
+                                    </Text>
                                 </View>
-                                {participant.statusLabel ? (
-                                    <View style={[styles.status, participant.statusComplete && styles.statusComplete]}>
-                                        <MaterialIcons
-                                            name={participant.statusComplete ? 'check-circle' : 'schedule'}
-                                            size={14}
-                                            color={participant.statusComplete ? uiColors.successText : colors.textMuted}
-                                        />
-                                        <Text style={[styles.statusText, participant.statusComplete && styles.statusTextComplete]}>
-                                            {participant.statusLabel}
+                            ) : undefined}
+                        />
+                        {incoming.length === 0 ? (
+                            <Text style={styles.empty}>Nothing yet</Text>
+                        ) : incoming.map((item, index) => (
+                            <View key={item.key} style={[styles.assetRow, compact && styles.assetRowCompact, index > 0 && styles.assetDivider]}>
+                                {item.player ? <TradePlayerLink {...item.player} stats={[typeof item.player.stats === 'string' ? item.player.stats : null, `From ${participantLabels.get(item.fromMemberId) ?? 'Unknown team'}`, item.detail].filter(Boolean).join(' · ')} /> : (
+                                    <View style={styles.assetCopy}>
+                                        {item.pick ? <TradePickLabel pick={item.pick} context={pickContext} showDirection={showPickDirection} /> : <Text style={styles.assetLabel} numberOfLines={1}>{item.label}</Text>}
+                                        <Text style={styles.assetSource} numberOfLines={1}>
+                                            From {participantLabels.get(item.fromMemberId) ?? 'Unknown team'}
+                                            {item.detail ? ` · ${item.detail}` : ''}
                                         </Text>
                                     </View>
+                                )}
+                                {onRemoveItem ? (
+                                    <Pressable style={styles.removeAsset}
+                                        onPress={() => onRemoveItem(item.key)} accessibilityRole="button"
+                                        accessibilityState={{ selected: true }}
+                                        accessibilityLabel={`Remove ${item.pick ? tradePickLabel(item.pick, pickContext, showPickDirection) : item.label} sent by ${participantLabels.get(item.fromMemberId) ?? 'Unknown team'} from trade`}>
+                                        <Text style={styles.removeAssetText}>Remove</Text>
+                                    </Pressable>
                                 ) : null}
                             </View>
-
-                            <View style={styles.assets}>
-                                {incoming.length === 0 ? (
-                                    <Text style={styles.empty}>No incoming assets</Text>
-                                ) : incoming.map((item) => (
-                                    <View key={item.key} style={styles.assetRow}>
-                                        {item.player ? <TradePlayerLink {...item.player} stats={[typeof item.player.stats === 'string' ? item.player.stats : null, `From ${participantLabels.get(item.fromMemberId) ?? 'Unknown team'}`, item.detail].filter(Boolean).join(' · ')} /> : <>
-                                        <MaterialIcons name="arrow-forward" size={16} color={colors.primary} />
-                                        <View style={styles.assetCopy}>
-                                            {item.pick ? <TradePickLabel pick={item.pick} context={pickContext} showDirection={showPickDirection} /> : <Text style={styles.assetLabel} numberOfLines={2}>{item.label}</Text>}
-                                            {!item.pick ? (
-                                            <Text style={styles.assetSource} numberOfLines={1}>
-                                                From {participantLabels.get(item.fromMemberId) ?? 'Unknown team'}
-                                                {item.detail ? ` · ${item.detail}` : ''}
-                                            </Text>
-                                            ) : item.detail ? <Text style={styles.assetSource}>{item.detail}</Text> : null}
-                                        </View>
-                                        </>}
-                                        {onRemoveItem ? (
-                                            <Pressable style={styles.removeAsset}
-                                                onPress={() => onRemoveItem(item.key)} accessibilityRole="button"
-                                                accessibilityState={{ selected: true }}
-                                                accessibilityLabel={`Remove ${item.pick ? tradePickLabel(item.pick, pickContext, showPickDirection) : item.label} sent by ${participantLabels.get(item.fromMemberId) ?? 'Unknown team'} from trade`}>
-                                                <MaterialIcons name="close" size={20} color={colors.textSecondary} />
-                                            </Pressable>
-                                        ) : null}
-                                    </View>
-                                ))}
-                            </View>
-
-                        </View>
-                    )
-                })}
-            </View>
+                        ))}
+                    </View>
+                )
+            })}
         </View>
     )
 }
 
 const styles = StyleSheet.create({
-    removeAsset: { minWidth: controlSize.minTouch, minHeight: controlSize.minTouch, alignItems: 'center', justifyContent: 'center' },
-    container: {
-        paddingHorizontal: spacing.xl,
-        paddingTop: spacing.xl,
-        gap: spacing.md,
-    },
-    containerCompact: { paddingHorizontal: spacing.none, paddingTop: spacing.sm },
-    teamGrid: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: spacing.sm,
-    },
-    team: {
-        width: '100%',
-        minWidth: 0,
-        borderWidth: 1,
+    root: { gap: spacing.md, minWidth: 0 },
+    rootColumns: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start' },
+    section: { minWidth: 0, overflow: 'hidden' },
+    sectionFramed: {
+        borderWidth: borderWidth.thin,
         borderColor: colors.borderLight,
-        borderRadius: radii.md,
+        borderRadius: radii.xl,
         borderCurve: 'continuous' as const,
-        backgroundColor: uiColors.surfaceAlt,
-        padding: spacing.md,
-        gap: spacing.sm,
+        backgroundColor: colors.bgCard,
     },
-    teamColumn: {
-        flexGrow: 1,
-        flexBasis: 280,
-        width: 'auto',
+    sectionColumn: { flexGrow: 1, flexBasis: 280, alignSelf: 'stretch' },
+    empty: {
+        ...typeScale.small,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.md,
+        color: colors.textMuted,
     },
-    teamCompact: {
-        borderWidth: 0,
-        borderTopWidth: 1,
-        borderRadius: radii.none,
-        paddingHorizontal: spacing.none,
-    },
-    teamHeader: {
-        minHeight: 36,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: spacing.sm,
-    },
-    teamIdentity: {
-        minWidth: 0,
-        flex: 1,
+    assetRow: {
+        minHeight: controlSize.minTouch,
         flexDirection: 'row',
         alignItems: 'center',
         gap: spacing.sm,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.sm,
     },
-    teamInitial: {
-        width: 32,
-        height: 32,
-        borderRadius: radii.full,
-        backgroundColor: colors.bgMuted,
+    assetRowCompact: { paddingVertical: spacing.xs },
+    assetDivider: { borderTopWidth: borderWidth.thin, borderTopColor: colors.separator },
+    assetCopy: { minWidth: 0, flex: 1 },
+    assetLabel: {
+        ...typeScale.small,
+        fontWeight: fontWeight.semibold,
+        color: colors.textPrimary,
+    },
+    assetSource: {
+        ...typeScale.caption,
+        marginTop: spacing.xxs,
+        color: colors.textMuted,
+    },
+    removeAsset: {
+        minWidth: controlSize.minTouch,
+        minHeight: controlSize.minTouch,
+        flexShrink: 0,
+        paddingHorizontal: spacing.md,
         alignItems: 'center',
         justifyContent: 'center',
+        borderRadius: radii.md,
+        borderCurve: 'continuous' as const,
+        borderWidth: borderWidth.thin,
+        borderColor: colors.primaryBorder,
     },
-    teamInitialText: {
-        ...typeScale.row,
-        fontWeight: fontWeight.bold,
-        color: colors.textPrimary,
-    },
-    teamTitleBlock: { minWidth: 0, flex: 1 },
-    teamName: {
-        ...typeScale.row,
-        fontWeight: fontWeight.bold,
-        color: colors.textPrimary,
-    },
+    removeAssetText: { ...typeScale.small, fontWeight: fontWeight.semibold, color: colors.primaryDark },
     status: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -207,29 +178,4 @@ const styles = StyleSheet.create({
         color: colors.textMuted,
     },
     statusTextComplete: { color: uiColors.successText },
-    assets: { gap: spacing.xs },
-    assetRow: {
-        minHeight: 34,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: spacing.sm,
-        paddingVertical: spacing.xxs,
-    },
-    assetCopy: { minWidth: 0, flex: 1 },
-    assetLabel: {
-        ...typeScale.small,
-        fontWeight: fontWeight.semibold,
-        color: colors.textPrimary,
-    },
-    assetSource: {
-        ...typeScale.caption,
-        marginTop: spacing.xxs,
-        color: colors.textMuted,
-    },
-    empty: {
-        ...typeScale.small,
-        paddingVertical: spacing.sm,
-        color: colors.textMuted,
-    },
-
 })
