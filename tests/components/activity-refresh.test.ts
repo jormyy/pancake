@@ -18,7 +18,7 @@ vi.mock('@/components/Avatar', () => ({ Avatar: 'Avatar' }))
 vi.mock('@/components/Badge', () => ({ Badge: 'Badge' }))
 vi.mock('@/components/PosTag', () => ({ PosTag: 'PosTag' }))
 vi.mock('@/lib/format', () => ({ timeAgo: () => '', playerHeadshotUrl: () => null }))
-vi.mock('@/lib/transactions', () => ({ TRANSACTION_LABELS: {}, activityEventCategory: () => '' }))
+vi.mock('@/lib/transactions', () => ({ TRANSACTION_LABELS: {}, activityEventCategory: () => '', organizeActivity: (rows: unknown[]) => rows }))
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
 it('keeps the same Activity list and rows while exposing pull refresh', async () => {

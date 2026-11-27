@@ -26,7 +26,7 @@ afterEach(async () => {
 
 it('keeps a section band and its empty row inside one card', async () => {
     await act(async () => {
-        screen = create(React.createElement(TradeCardFrame, { first: true, last: true },
+        screen = create(React.createElement(TradeCardFrame, { first: true, last: true } as React.ComponentProps<typeof TradeCardFrame>,
             React.createElement(TradeSectionRow, { item: { _type: 'header', label: 'Incoming' } }),
             React.createElement(TradeEmptyRow, { item: { _type: 'empty', key: 'incoming-offers', message: 'No incoming offers.' } })))
     })

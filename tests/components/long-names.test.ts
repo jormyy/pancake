@@ -30,7 +30,7 @@ afterEach(async () => {
 
 const flat = (style: unknown) => Object.assign({}, ...[style].flat(Infinity).filter(Boolean))
 const textNode = (root: ReactTestInstance, text: string) =>
-    root.findAll(node => node.type === 'Text' && React.Children.toArray(node.props.children).join('') === text)[0]
+    root.findAll(node => node.type === ('Text' as React.ElementType) && React.Children.toArray(node.props.children).join('') === text)[0]
 
 async function render(element: React.ReactElement) {
     await act(async () => { screen = create(element) })
