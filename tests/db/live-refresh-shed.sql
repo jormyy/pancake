@@ -10,6 +10,7 @@ DECLARE fixture record; matchup uuid:=gen_random_uuid(); game uuid:=gen_random_u
   stat uuid; points numeric; today date:=(now() AT TIME ZONE 'America/New_York')::date; refreshed integer;
 BEGIN
   SELECT * INTO fixture FROM pg_temp.rules_fixture(2,9630);
+  DELETE FROM public.season_weeks WHERE season_year=9630;
   INSERT INTO public.season_weeks(season_year,week_number,week_start,week_end)
     VALUES(9630,1,today-1,today+5);
   UPDATE public.leagues SET scoring_settings='{"points":1}' WHERE id=fixture.league_id;
