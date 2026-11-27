@@ -152,13 +152,17 @@ INSERT INTO version_worker_rpcs VALUES
   ('supabase/functions/verify/database.ts','count_final_games_missing_stats');
 CREATE TEMP TABLE version_roots AS SELECT * FROM version_functions WHERE schema_name='public'
   AND (proname LIKE '%\_atomic' OR proname IN (SELECT function_name FROM version_worker_rpcs));
+CREATE TEMP TABLE version_calls AS
+  SELECT DISTINCT caller.oid AS caller_oid,callee.oid AS callee_oid
+  FROM version_functions caller
+  JOIN version_functions callee ON strpos(caller.prosrc,callee.proname)>0
+    AND caller.prosrc ~ ('\m'||callee.proname||'\s*\(');
 CREATE TEMP TABLE version_reachable AS
   WITH RECURSIVE calls(root,oid) AS (
     SELECT proname,oid FROM version_roots
     UNION
-    SELECT calls.root,callee.oid FROM calls
-      JOIN version_functions caller ON caller.oid=calls.oid
-      JOIN version_functions callee ON caller.prosrc ~ ('\m'||callee.proname||'\s*\(')
+    SELECT calls.root,edge.callee_oid FROM calls
+      JOIN version_calls edge ON edge.caller_oid=calls.oid
   ) SELECT DISTINCT calls.root,functions.* FROM calls JOIN version_functions functions USING(oid);
 CREATE TEMP TABLE version_mutations AS
   SELECT DISTINCT reachable.root,namespace.nspname AS schema_name,relation.relname,relation.oid

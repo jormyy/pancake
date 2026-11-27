@@ -14,7 +14,7 @@ BEGIN
   second:=public.propose_trade_atomic(f.league_id,f.season_id,f.member_ids[3],f.member_ids[2],ARRAY[f.claim_player],'{}','{}',ARRAY[(SELECT id FROM draft_picks WHERE league_id=f.league_id AND round=2)]);
   PERFORM public.set_trade_taxi_destinations_atomic(second,f.member_ids[2],ARRAY[f.claim_player],f.user_ids[2]);
   PERFORM public.accept_trade_atomic(f.offer,f.member_ids[2]);
-  PERFORM pg_temp.reject_rules(format('SELECT public.accept_trade_atomic(%L,%L)',second,f.member_ids[2]),'%accepted trades reserve%','accept counts another accepted trades held taxi slot');
+  PERFORM pg_temp.reject_rules(format('SELECT public.accept_trade_atomic(%L,%L)',second,f.member_ids[2]),'%accepted trade with % needs this roster spot%','accept counts another accepted trades held taxi slot');
 END;
 $$;
 SELECT count(*) AS passed_checks FROM rules_checks;

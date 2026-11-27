@@ -57,13 +57,13 @@ BEGIN
   UPDATE public.leagues SET status='active' WHERE id=f.league_id;
 
   PERFORM set_config('request.jwt.claim.sub','',true);
-  SELECT * INTO d FROM pg_temp.rules_fixture(2,9574,'offseason');
-  INSERT INTO public.players(id,first_name,last_name,position,eligible_positions,years_exp,nba_draft_number)
-    VALUES(player,'Timeline','Rookie','PG',ARRAY['PG'],0,1);
+  SELECT * INTO d FROM pg_temp.rules_fixture(2,2064,'offseason');
+  INSERT INTO public.players(id,first_name,last_name,position,eligible_positions,years_exp,nba_draft_number,nba_id,draft_status,draft_year,draft_round,draft_overall_pick)
+    VALUES(player,'Timeline','Rookie','PG',ARRAY['PG'],0,1,'timeline-rookie-'||player,'drafted',2063,1,1);
   INSERT INTO public.drafts(id,league_id,league_season_id,draft_type,status,is_mock,pick_timer_seconds)
     VALUES(draft,d.league_id,d.season_id,'snake','in_progress',false,60);
   INSERT INTO public.draft_picks(league_id,season_year,round,original_owner_id,current_owner_id)
-    VALUES(d.league_id,9574,1,d.member_ids[1],d.member_ids[1]) RETURNING id INTO asset;
+    VALUES(d.league_id,2063,1,d.member_ids[1],d.member_ids[1]) RETURNING id INTO asset;
   INSERT INTO public.snake_draft_picks(draft_id,overall_pick,round,pick_in_round,member_id,draft_pick_id)
     VALUES(draft,1,1,1,d.member_ids[1],asset),(draft,2,1,2,d.member_ids[2],NULL);
   PERFORM public.make_snake_pick_atomic(draft,d.member_ids[1],player);

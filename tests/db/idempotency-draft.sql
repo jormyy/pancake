@@ -1,5 +1,7 @@
 \ir idempotency-support.sql
-UPDATE players SET nba_draft_number=1 WHERE id IN (SELECT id FROM idempotency_players);
+UPDATE players p SET nba_draft_number=1,nba_id='idempotency-draft-'||i.n,draft_status='drafted',draft_year=2041,draft_round=1,draft_overall_pick=i.n
+  FROM idempotency_players i WHERE p.id=i.id;
+UPDATE league_seasons SET season_year=2042 WHERE id=(SELECT season_id FROM idempotency_fixture);
 CREATE TEMP TABLE idempotency_drafts AS SELECT gen_random_uuid() AS snake, gen_random_uuid() AS auction, gen_random_uuid() AS automatic;
 INSERT INTO drafts(id,league_id,league_season_id,draft_type,status,is_mock,rounds,pick_timer_seconds)
 SELECT d.snake,f.league_id,f.season_id,'snake','in_progress',true,1,60 FROM idempotency_drafts d CROSS JOIN idempotency_fixture f;

@@ -14,7 +14,7 @@ CALL pg_temp.version_write('expired snake worker',$cmd$SELECT public.process_exp
 CALL pg_temp.version_write('expire batch timer',$cmd$UPDATE public.snake_draft_picks SET timer_expires_at=now()-interval '1 minute' WHERE id=(SELECT pick.id FROM public.snake_draft_picks pick JOIN version_fixture f ON f.draft_id=pick.draft_id WHERE pick.player_id IS NULL AND pick.skipped_at IS NULL ORDER BY pick.overall_pick LIMIT 1)$cmd$);
 CALL pg_temp.version_write('expired snake batch worker',$cmd$SELECT public.process_expired_snake_picks_atomic(1)$cmd$);
 CALL pg_temp.version_write('reset snake draft',$cmd$SELECT public.reset_draft_atomic(draft_id) FROM version_fixture$cmd$);
-CALL pg_temp.version_write('rookie pick inventory',$cmd$INSERT INTO public.draft_picks(league_id,season_year,round,original_owner_id,current_owner_id) SELECT f.league_id,9562,round,member,member FROM version_fixture f CROSS JOIN unnest(f.member_ids[1:2]) member CROSS JOIN generate_series(1,2) round$cmd$);
+CALL pg_temp.version_write('rookie pick inventory',$cmd$INSERT INTO public.draft_picks(league_id,season_year,round,original_owner_id,current_owner_id) SELECT f.league_id,2043,round,member,member FROM version_fixture f CROSS JOIN unnest(f.member_ids[1:2]) member CROSS JOIN generate_series(1,2) round$cmd$);
 CALL pg_temp.version_write('reseed rookie picks',$cmd$SELECT public.reseed_rookie_draft_picks_atomic(draft_id,2) FROM version_fixture$cmd$);
 CALL pg_temp.version_write('stop snake room',$cmd$SELECT public.stop_draft_atomic(draft_id) FROM version_fixture$cmd$);
 CALL pg_temp.version_write('delete snake room',$cmd$SELECT public.delete_mock_draft_room_atomic(draft_id,member_ids[1],user_ids[1]) FROM version_fixture$cmd$);

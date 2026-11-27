@@ -134,7 +134,7 @@ DECLARE
 BEGIN
   -- Open slot filled by an eligible injured player.
   SELECT * INTO f FROM pg_temp.auto_ir_league(9531, 2, 2);
-  c1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Open Slot', 'Out', '2026-12-01', 'active');
+  c1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Open Slot', 'Out', (v_today + 30)::text, 'active');
   r := public.auto_manage_ir_service(f.league_id, f.season_id, f.member_id);
   PERFORM pg_temp.check_rules(jsonb_array_length(r->'moves') = 1
     AND r->'moves'->0->>'kind' = 'designate'
@@ -149,7 +149,7 @@ BEGIN
   -- Full bench plus a healthy IR occupant swaps atomically with an eligible injured player.
   SELECT * INTO f FROM pg_temp.auto_ir_league(9532, 1, 1);
   h1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Healthy IR', 'Healthy', 'unknown', 'ir');
-  c1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Injured Active', 'Out', '2026-12-01', 'active');
+  c1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Injured Active', 'Out', (v_today + 30)::text, 'active');
   r := public.auto_manage_ir_service(f.league_id, f.season_id, f.member_id);
   PERFORM pg_temp.check_rules(jsonb_array_length(r->'moves') = 1 AND r->'moves'->0->>'kind' = 'swap',
     'full bench swaps the healthy occupant');
@@ -179,8 +179,8 @@ BEGIN
 
   -- Later reliable return wins over an earlier reliable return.
   SELECT * INTO f FROM pg_temp.auto_ir_league(9534, 2, 1);
-  c1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Later Return', 'Out', '2026-12-01', 'active');
-  c2 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Earlier Return', 'Out', '2026-11-25', 'active');
+  c1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Later Return', 'Out', (v_today + 30)::text, 'active');
+  c2 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Earlier Return', 'Out', (v_today + 20)::text, 'active');
   r := public.auto_manage_ir_service(f.league_id, f.season_id, f.member_id);
   PERFORM pg_temp.check_rules(jsonb_array_length(r->'moves') = 1
     AND (r->'moves'->0->>'designatePlayerId')::uuid = (SELECT player_id FROM roster_players WHERE id = c1),
@@ -188,8 +188,8 @@ BEGIN
 
   -- Tied returns at the boundary: no move and an ir_choice_uncertain notice.
   SELECT * INTO f FROM pg_temp.auto_ir_league(9535, 2, 1);
-  c1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Tie One', 'Out', '2026-12-01', 'active');
-  c2 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Tie Two', 'Out', '2026-12-01', 'active');
+  c1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Tie One', 'Out', (v_today + 30)::text, 'active');
+  c2 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Tie Two', 'Out', (v_today + 30)::text, 'active');
   r := public.auto_manage_ir_service(f.league_id, f.season_id, f.member_id);
   PERFORM pg_temp.check_rules(jsonb_array_length(r->'moves') = 0, 'tied returns make no move');
   PERFORM pg_temp.check_rules(EXISTS (SELECT 1 FROM jsonb_array_elements(r->'notices') n WHERE n->>'reason' = 'ir_choice_uncertain'),
@@ -199,7 +199,7 @@ BEGIN
 
   -- Unknown return at the boundary: no move and an ir_choice_uncertain notice.
   SELECT * INTO f FROM pg_temp.auto_ir_league(9536, 2, 1);
-  c1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Known Return', 'Out', '2026-12-01', 'active');
+  c1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Known Return', 'Out', (v_today + 30)::text, 'active');
   c2 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Unknown Return', 'Out', 'unknown', 'active');
   r := public.auto_manage_ir_service(f.league_id, f.season_id, f.member_id);
   PERFORM pg_temp.check_rules(jsonb_array_length(r->'moves') = 0, 'unknown return makes no move');
@@ -208,7 +208,7 @@ BEGIN
 
   -- Malformed return at the boundary: no move and an ir_choice_uncertain notice.
   SELECT * INTO f FROM pg_temp.auto_ir_league(9537, 2, 1);
-  c1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Valid Return', 'Out', '2026-12-01', 'active');
+  c1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Valid Return', 'Out', (v_today + 30)::text, 'active');
   c2 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Malformed Return', 'Out', '2026-13-45', 'active');
   r := public.auto_manage_ir_service(f.league_id, f.season_id, f.member_id);
   PERFORM pg_temp.check_rules(jsonb_array_length(r->'moves') = 0, 'malformed return makes no move');
@@ -217,7 +217,7 @@ BEGIN
 
   -- Past return at the boundary: no move and an ir_choice_uncertain notice.
   SELECT * INTO f FROM pg_temp.auto_ir_league(9538, 2, 1);
-  c1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Future Return', 'Out', '2026-12-01', 'active');
+  c1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Future Return', 'Out', (v_today + 30)::text, 'active');
   c2 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Past Return', 'Out', '2026-01-01', 'active');
   r := public.auto_manage_ir_service(f.league_id, f.season_id, f.member_id);
   PERFORM pg_temp.check_rules(jsonb_array_length(r->'moves') = 0, 'past return makes no move');
@@ -226,8 +226,8 @@ BEGIN
 
   -- Game-locked candidate is skipped and nothing is written for it.
   SELECT * INTO f FROM pg_temp.auto_ir_league(9539, 2, 2);
-  c1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Locked Candidate', 'Out', '2026-12-01', 'active');
-  c2 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Open Candidate', 'Out', '2026-12-01', 'active');
+  c1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Locked Candidate', 'Out', (v_today + 30)::text, 'active');
+  c2 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Open Candidate', 'Out', (v_today + 30)::text, 'active');
   PERFORM pg_temp.auto_ir_game_lock((SELECT player_id FROM roster_players WHERE id = c1), 'LCK1', 9539);
   r := public.auto_manage_ir_service(f.league_id, f.season_id, f.member_id);
   PERFORM pg_temp.check_rules(jsonb_array_length(r->'moves') = 1
@@ -244,7 +244,7 @@ BEGIN
   -- Game-locked occupant is skipped and nothing is written for it.
   SELECT * INTO f FROM pg_temp.auto_ir_league(9540, 1, 1);
   h1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Locked Occupant', 'Healthy', 'unknown', 'ir');
-  c1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Injured Active', 'Out', '2026-12-01', 'active');
+  c1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Injured Active', 'Out', (v_today + 30)::text, 'active');
   PERFORM pg_temp.auto_ir_game_lock((SELECT player_id FROM roster_players WHERE id = h1), 'LCK2', 9540);
   r := public.auto_manage_ir_service(f.league_id, f.season_id, f.member_id);
   PERFORM pg_temp.check_rules(jsonb_array_length(r->'moves') = 0, 'game-locked occupant blocks the swap');
@@ -258,7 +258,7 @@ BEGIN
 
   -- Reserved candidate (pending claim drop) is skipped.
   SELECT * INTO f FROM pg_temp.auto_ir_league(9541, 2, 2);
-  c1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Reserved Candidate', 'Out', '2026-12-01', 'active');
+  c1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Reserved Candidate', 'Out', (v_today + 30)::text, 'active');
   INSERT INTO players(id, first_name, last_name, position, eligible_positions)
     VALUES(gen_random_uuid(), 'Claim', 'Target', 'PG', ARRAY['PG']) RETURNING id INTO v_add;
   INSERT INTO waiver_claims(league_id, league_season_id, member_id, player_id, drop_player_id, priority_at_submission, status, process_date)
@@ -275,7 +275,7 @@ BEGIN
   -- Reserved occupant (pending trade) is skipped.
   SELECT * INTO f FROM pg_temp.auto_ir_league(9542, 1, 1, 2);
   h1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Reserved Occupant', 'Healthy', 'unknown', 'ir');
-  c1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Injured Active', 'Out', '2026-12-01', 'active');
+  c1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Injured Active', 'Out', (v_today + 30)::text, 'active');
   INSERT INTO trades(id, league_id, league_season_id, proposer_member_id, recipient_member_id, status)
     VALUES(gen_random_uuid(), f.league_id, f.season_id, f.member_id, f.other_member_id, 'pending')
     RETURNING id INTO v_player;
@@ -296,7 +296,7 @@ BEGIN
   t1 := pg_temp.auto_ir_taxi(f.league_id, f.season_id, f.member_id, 'Veteran Taxi');
   UPDATE players SET years_exp = 3, career_regular_season_games = 100
    WHERE id = (SELECT player_id FROM roster_players WHERE id = t1);
-  c1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Taxi Injured', 'Out', '2026-12-01', 'active');
+  c1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Taxi Injured', 'Out', (v_today + 30)::text, 'active');
   SELECT COALESCE(jsonb_agg(to_jsonb(rp) ORDER BY rp.id), '[]'::jsonb) INTO v_taxi_before
     FROM roster_players rp WHERE rp.member_id = f.member_id AND rp.is_on_taxi;
   r := public.auto_manage_ir_service(f.league_id, f.season_id, f.member_id);
@@ -314,7 +314,7 @@ BEGIN
   SELECT * INTO f FROM pg_temp.auto_ir_league(9544, 1, 2);
   h1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Healthy One', 'Healthy', 'unknown', 'ir');
   h2 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Healthy Two', 'Healthy', 'unknown', 'ir');
-  c1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Repair Candidate', 'Out', '2026-12-01', 'active');
+  c1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Repair Candidate', 'Out', (v_today + 30)::text, 'active');
   r := public.auto_manage_ir_service(f.league_id, f.season_id, f.member_id);
   PERFORM pg_temp.check_rules(jsonb_array_length(r->'moves') = 1 AND r->'moves'->0->>'kind' = 'swap',
     'progressive repair makes one swap');
@@ -329,8 +329,8 @@ BEGIN
 
   -- A forced failure inside one group leaves that group unchanged and continues.
   SELECT * INTO f FROM pg_temp.auto_ir_league(9545, 2, 2);
-  c1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Forced Fail', 'Out', '2026-12-01', 'active');
-  c2 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Forced Pass', 'Out', '2026-12-01', 'active');
+  c1 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Forced Fail', 'Out', (v_today + 30)::text, 'active');
+  c2 := pg_temp.auto_ir_player(f.league_id, f.season_id, f.member_id, 'Forced Pass', 'Out', (v_today + 30)::text, 'active');
   PERFORM set_config('auto_ir.fail_player', (SELECT player_id FROM roster_players WHERE id = c1)::text, true);
   CREATE TRIGGER auto_ir_fail BEFORE UPDATE ON roster_players
     FOR EACH ROW EXECUTE FUNCTION pg_temp.auto_ir_fail_player();

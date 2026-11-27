@@ -22,16 +22,22 @@ DECLARE
   scenario text;
   outcome record;
 BEGIN
-  SELECT * INTO f FROM pg_temp.rules_fixture(2, 9375, 'offseason');
-  INSERT INTO public.players(id, first_name, last_name, position, eligible_positions, years_exp, nba_draft_number)
+  SELECT * INTO f FROM pg_temp.rules_fixture(2, 2069, 'offseason');
+  INSERT INTO public.players(id, first_name, last_name, position, eligible_positions, years_exp, nba_draft_number,
+      nba_id, draft_status, draft_year, draft_round, draft_overall_pick)
     SELECT id, 'Rookie', 'Acquisition', 'PG', ARRAY['PG'], CASE WHEN ordinal = 4 THEN 3 ELSE 0 END,
+      CASE WHEN ordinal = 3 THEN NULL ELSE ordinal END,
+      'rookie-acquisition-' || id,
+      CASE WHEN ordinal = 3 THEN 'undrafted' ELSE 'drafted' END,
+      CASE ordinal WHEN 3 THEN NULL WHEN 4 THEN 2065 ELSE 2068 END,
+      CASE WHEN ordinal = 3 THEN NULL ELSE 1 END,
       CASE WHEN ordinal = 3 THEN NULL ELSE ordinal END
     FROM unnest(players) WITH ORDINALITY player(id, ordinal);
   INSERT INTO public.roster_players(league_id, league_season_id, member_id, player_id, acquired_via)
     VALUES(f.league_id, f.season_id, f.member_ids[1], players[4], 'draft');
   FOREACH scenario IN ARRAY ARRAY['missing', 'old-mock-auction', 'pending', 'in_progress'] LOOP
     IF scenario = 'old-mock-auction' THEN
-      INSERT INTO public.league_seasons(id, league_id, season_year, is_current) VALUES(old_season, f.league_id, 9374, false);
+      INSERT INTO public.league_seasons(id, league_id, season_year, is_current) VALUES(old_season, f.league_id, 2068, false);
       INSERT INTO public.drafts(league_id, league_season_id, draft_type, status, is_mock)
         VALUES(f.league_id, old_season, 'snake', 'completed', false),
           (f.league_id, f.season_id, 'snake', 'completed', true),

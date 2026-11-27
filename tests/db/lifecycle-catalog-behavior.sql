@@ -385,9 +385,9 @@ BEGIN
     RAISE EXCEPTION 'Private trade parsing helpers are client executable';
   END IF;
 
-  IF has_function_privilege('anon', 'private.assert_trade_assets_acceptance_ready(uuid,uuid,uuid,uuid)', 'EXECUTE')
-     OR has_function_privilege('authenticated', 'private.assert_trade_assets_acceptance_ready(uuid,uuid,uuid,uuid)', 'EXECUTE')
-     OR has_function_privilege('service_role', 'private.assert_trade_assets_acceptance_ready(uuid,uuid,uuid,uuid)', 'EXECUTE') THEN
+  IF has_function_privilege('anon', 'private.assert_trade_assets_acceptance_ready(uuid,uuid,uuid,uuid,uuid)', 'EXECUTE')
+     OR has_function_privilege('authenticated', 'private.assert_trade_assets_acceptance_ready(uuid,uuid,uuid,uuid,uuid)', 'EXECUTE')
+     OR has_function_privilege('service_role', 'private.assert_trade_assets_acceptance_ready(uuid,uuid,uuid,uuid,uuid)', 'EXECUTE') THEN
     RAISE EXCEPTION 'Private trade asset assertion is externally executable';
   END IF;
   IF NOT EXISTS (

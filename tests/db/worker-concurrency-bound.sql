@@ -4,6 +4,8 @@ SET LOCAL statement_timeout='15s';
 SET LOCAL lock_timeout='500ms';
 SET LOCAL app.edge_internal_token='worker-bound-fixture';
 DELETE FROM private.work_items;
+DELETE FROM cron.job_run_details;
+UPDATE private.worker_controls SET paused=false,scheduler_level='normal',scheduler_last_dispatch_at=NULL WHERE id;
 DO $$
 DECLARE item record; claimed integer;
 BEGIN
