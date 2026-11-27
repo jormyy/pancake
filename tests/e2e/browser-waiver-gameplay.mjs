@@ -8,6 +8,8 @@ import { clickButtonByName, createBrowser, fillSignInCredentials, listBrowserSes
 import { createFixtureResourceOwner } from './trade-fixture.mjs'
 import { runBrowserScenarioLifecycle } from './browser-scenario-lifecycle.mjs'
 
+const { createMutationFetch } = await import(new URL('../../lib/api-client.ts', import.meta.url).href)
+
 const ROOT = process.cwd()
 const ARTIFACT_ROOT = browserArtifactPath('artifacts')
 const REPORT_PATH = browserArtifactPath('e2e-browser-waiver-report.md')
@@ -44,7 +46,7 @@ const createConfirmedUser = async (admin, user) => {
 }
 
 const signInClient = async (env, email, password) => {
-  const client = createClient(env.supabaseUrl, env.anonKey, { auth: { persistSession: false } })
+  const client = createClient(env.supabaseUrl, env.anonKey, { auth: { persistSession: false }, global: { fetch: createMutationFetch(globalThis.fetch) } })
   const { error } = await client.auth.signInWithPassword({ email, password })
   if (error) throw new Error(`signIn ${email}: ${error.message}`)
   return client
@@ -207,26 +209,24 @@ const setupWaiverGameplayFixture = async (env, season, { requiresDrop = false, h
   }
   let irRosterPlayer = null
   if (hasIneligibleIR && irPlayer) {
-    const [{ error: playerUpdateError }, { data: rosterRow, error: rosterInsertError }] = await Promise.all([
-      admin
-        .from('players')
-        .update({ injury_status: 'DTD' })
-        .eq('id', irPlayer.id),
-      admin
-        .from('roster_players')
-        .insert({
-          league_id: league.id,
-          league_season_id: currentSeason.id,
-          member_id: member.id,
-          player_id: irPlayer.id,
-          is_on_ir: true,
-          acquired_via: 'e2e_waiver_ir_fixture',
-        })
-        .select('id, player_id')
-        .single(),
-    ])
-    if (playerUpdateError) throw new Error(`waiver IR player update: ${playerUpdateError.message}`)
+    const { data: rosterRow, error: rosterInsertError } = await admin
+      .from('roster_players')
+      .insert({
+        league_id: league.id,
+        league_season_id: currentSeason.id,
+        member_id: member.id,
+        player_id: irPlayer.id,
+        is_on_ir: true,
+        acquired_via: 'e2e_waiver_ir_fixture',
+      })
+      .select('id, player_id')
+      .single()
     if (rosterInsertError) throw new Error(`waiver IR roster seed: ${rosterInsertError.message}`)
+    const { error: playerUpdateError } = await admin
+      .from('players')
+      .update({ injury_status: 'DTD' })
+      .eq('id', irPlayer.id)
+    if (playerUpdateError) throw new Error(`waiver IR player update: ${playerUpdateError.message}`)
     irRosterPlayer = rosterRow
     irPlayer.injury_status = 'DTD'
   }
@@ -411,7 +411,7 @@ export async function runBrowserWaiverScenario({
     await browser(session, ['set', 'viewport', '390', '844'])
     await browser(session, ['open', joinUrl(env.frontendUrl, `/claim-player?playerId=${fixture.player.id}`)])
     await browser(session, ['wait', '2500'])
-    await assertPageText(session, ['Waiver Claim', 'FAAB bid', fixture.player.display_name, 'No drop required.', 'Processes ', '3 AM ET', 'Submit Claim'], 'waiver claim before submit')
+    await assertPageText(session, ['Waiver Claim', 'FAAB bid', fixture.player.display_name, 'No drop required.', 'Processes ', '12:00 AM', 'Submit Claim'], 'waiver claim before submit')
     await browser(session, ['screenshot', path.join(artifactDir, 'waiver-before-submit.png')], { timeout: 60_000 })
     const clickResult = await clickButton(session, 'Submit waiver claim', 'waiver submit button')
     const waiverClaim = await waitForWaiverClaim(fixture)
@@ -467,7 +467,7 @@ export async function runBrowserWaiverDropScenario({
     await browser(session, ['wait', '2500'])
     await assertPageText(
       session,
-      ['Waiver Claim', 'DROP A PLAYER (required)', fixture.player.display_name, fixture.dropPlayer.display_name, 'Processes ', '3 AM ET', 'Submit Claim'],
+      ['Waiver Claim', 'DROP A PLAYER (required)', fixture.player.display_name, fixture.dropPlayer.display_name, 'Processes ', '12:00 AM', 'Submit Claim'],
       'waiver drop claim before submit',
     )
     await browser(session, ['screenshot', path.join(artifactDir, 'waiver-drop-before-submit.png')], { timeout: 60_000 })

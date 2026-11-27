@@ -13,6 +13,8 @@ import { resolveReleaseProvenance } from './release-provenance.mjs'
 import { validateBrowserMutationLoad } from './performance-budgets.mjs'
 import { toETDate } from '@pancake/core'
 
+const { formatPoints } = await import(new URL('../../lib/format-points.ts', import.meta.url).href)
+
 const ROOT = process.cwd()
 const STATE_PATH = path.join(ROOT, 'tests/e2e-state.json')
 const ARTIFACT_ROOT = browserArtifactPath('artifacts')
@@ -51,7 +53,7 @@ const postDraftLifecycle = async (env, user, password, draftId, action) => {
   if (error || !data.session?.access_token) throw new Error(`D.X.4 ${action} sign-in failed: ${error?.message ?? 'missing access token'}`)
   const response = await fetch(joinUrl(env.apiBaseUrl, `draft/${draftId}/${action}`), {
     method: 'POST',
-    headers: { Authorization: `Bearer ${data.session.access_token}`, 'Content-Type': 'application/json' },
+    headers: { Authorization: `Bearer ${data.session.access_token}`, 'Content-Type': 'application/json', 'x-request-id': globalThis.crypto.randomUUID() },
     body: '{}',
   })
   const body = await response.json().catch(() => null)
@@ -484,8 +486,8 @@ const waitForVisibleUpdate = async ({ session, surface, load, matchup, auction, 
         leaderText,
       }
     : {
-        homePoints: finalMutation.homePoints.toFixed(1),
-        awayPoints: finalMutation.awayPoints.toFixed(1),
+        homePoints: formatPoints(finalMutation.homePoints),
+        awayPoints: formatPoints(finalMutation.awayPoints),
         weekNumber: matchup.week_number,
       }
   let lastObservedText = ''

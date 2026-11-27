@@ -632,7 +632,7 @@ const fetchSweepContext = async (env, state, user) => {
     .eq('season_year', currentSeason.season_year)
   if (seasonWeekError) throw new Error(`UI sweep season week lookup: ${seasonWeekError.message}`)
   if (seasonWeekCount === 0) {
-    await ensureSyntheticSeasonWeeks(supabase, currentSeason.season_year, 1, 'UI sweep')
+    await ensureSyntheticSeasonWeeks(supabase, currentSeason.season_year, 26, 'UI sweep')
   }
 
   const roster = await ensureRosterFixture(supabase, {

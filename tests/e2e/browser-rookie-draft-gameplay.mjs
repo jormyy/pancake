@@ -8,6 +8,8 @@ import { installRuntimeOverrides, normalizeBrowserErrors } from './browser-runti
 import { clickButtonByName, createBrowser, fillSignInCredentials, listBrowserSessions } from './browser-agent.mjs'
 import { createFixtureResourceOwner } from './trade-fixture.mjs'
 
+const { createMutationFetch } = await import(new URL('../../lib/api-client.ts', import.meta.url).href)
+
 const ROOT = process.cwd()
 const ARTIFACT_ROOT = browserArtifactPath('artifacts')
 const REPORT_PATH = browserArtifactPath('e2e-browser-rookie-draft-report.md')
@@ -35,6 +37,7 @@ const backendJson = async (env, pathname, body = {}) => {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
+      'x-request-id': globalThis.crypto.randomUUID(),
       'x-e2e-secret': env.e2eAdminSecret,
     },
     body: JSON.stringify(body),
@@ -62,7 +65,7 @@ const createConfirmedUser = async (admin, user) => {
 }
 
 const signInClient = async (env, email, password) => {
-  const client = createClient(env.supabaseUrl, env.anonKey, { auth: { persistSession: false } })
+  const client = createClient(env.supabaseUrl, env.anonKey, { auth: { persistSession: false }, global: { fetch: createMutationFetch(globalThis.fetch) } })
   const { error } = await client.auth.signInWithPassword({ email, password })
   if (error) throw new Error(`signIn ${email}: ${error.message}`)
   return client
