@@ -17,8 +17,8 @@ UNION ALL SELECT other_member,league,opponent,'manager','Opponent' FROM notif_fi
 UNION ALL SELECT foreign_member,other_league,outsider,'commissioner','Outside' FROM notif_fixture
 UNION ALL SELECT same_user_foreign_member,other_league,owner,'manager','Same user, other league' FROM notif_fixture;
 INSERT INTO league_seasons(id,league_id,season_year,is_current)
-SELECT prior_season,league,20025,false FROM notif_fixture
-UNION ALL SELECT season,league,20026,true FROM notif_fixture;
+SELECT prior_season,league,2083,false FROM notif_fixture
+UNION ALL SELECT season,league,2084,true FROM notif_fixture;
 INSERT INTO notification_preferences(user_id,event_settings)
 SELECT owner,(SELECT jsonb_object_agg(event_type,true) FROM notif_event_catalog) FROM notif_fixture
 UNION ALL SELECT opponent,(SELECT jsonb_object_agg(event_type,true) FROM notif_event_catalog) FROM notif_fixture;
@@ -93,8 +93,8 @@ BEGIN
     FOR i IN 2..4 LOOP
       SELECT member_id INTO m FROM snake_draft_picks WHERE draft_id = d AND overall_pick = i;
       p := gen_random_uuid();
-      INSERT INTO players(id,first_name,last_name,position,eligible_positions,years_exp,nba_draft_number)
-      VALUES(p,'Notify','Rookie ' || p::text,'PG',ARRAY['PG'],0,1);
+      INSERT INTO players(id,first_name,last_name,position,eligible_positions,years_exp,nba_draft_number,nba_id,draft_status,draft_year,draft_round,draft_overall_pick)
+      VALUES(p,'Notify','Rookie ' || p::text,'PG',ARRAY['PG'],0,1,'notify-'||p,'drafted',(SELECT season_year-1 FROM league_seasons WHERE id = s),1,i);
       IF i = 2 THEN
         UPDATE drafts SET timer_expiry_behavior = 'auto_pick' WHERE id = d;
         UPDATE snake_draft_picks SET timer_expires_at = clock_timestamp()-interval '1 second' WHERE draft_id = d AND overall_pick = i;

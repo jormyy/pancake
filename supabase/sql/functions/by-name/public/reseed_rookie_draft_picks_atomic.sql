@@ -2,15 +2,12 @@
 -- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
 -- npm run check:db-function-sources verifies every latest migration function has exact source parity.
 
-CREATE OR REPLACE FUNCTION public.reseed_rookie_draft_picks_atomic(
-  p_draft_id uuid,
-  p_rounds int DEFAULT NULL
-)
-RETURNS int
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
+CREATE OR REPLACE FUNCTION public.reseed_rookie_draft_picks_atomic(p_draft_id uuid, p_rounds integer DEFAULT NULL::integer)
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
 DECLARE
   v_draft drafts%ROWTYPE;
   v_rounds int;
@@ -123,6 +120,8 @@ BEGIN
     RAISE EXCEPTION 'Failed to reseed every rookie draft pick slot';
   END IF;
 
+  PERFORM private.resolve_rookie_pick_swaps(p_draft_id);
+
   RETURN v_pick_count;
 END;
-$$;
+$function$;

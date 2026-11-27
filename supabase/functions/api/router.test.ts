@@ -238,6 +238,7 @@ Deno.test({
       ['POST', `/draft/${UUID}/bid`],
       ['POST', `/draft/${UUID}/withdraw-nomination`],
       ['POST', `/draft/${UUID}/snake-pick`],
+      ['POST', `/draft/${UUID}/rookie-selection`],
       ['POST', `/draft/${UUID}/commissioner-pick`],
       ['POST', `/draft/${UUID}/auto-pick`],
       ['POST', `/draft/${UUID}/process-expired-pick`],

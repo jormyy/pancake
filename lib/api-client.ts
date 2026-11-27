@@ -28,7 +28,7 @@ function guardedApiPath(path: string): boolean {
     return /\/waivers\/claims(?:\/[^/]+\/(?:cancel|edit|reorder))?$/.test(path)
         || /\/trades\/(?:propose|propose-multi|block|[^/]+\/(?:accept|reject|withdraw|veto|counter|counter-multi|edit|edit-multi|roster-plan|taxi-destinations)|block\/[^/]+\/remove)$/.test(path)
         || /\/league\/(?:roster\/(?:ir|taxi)|lineup\/auto-set-season)$/.test(path)
-        || /\/draft\/[^/]+\/(?:snake-pick|auto-pick|commissioner-pick|nominate|bid|withdraw-nomination)$/.test(path)
+        || /\/draft\/[^/]+\/(?:snake-pick|rookie-selection|auto-pick|commissioner-pick|nominate|bid|withdraw-nomination)$/.test(path)
 }
 
 export function createMutationFetch(fetcher: typeof fetch, readIdentity?: () => unknown): typeof fetch {

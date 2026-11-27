@@ -5,6 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import RookieDraftRoomScreen from '@/app/(modals)/rookie-draft-room'
 import DraftRoomScreen from '@/app/(modals)/draft-room'
 import { confirmAction } from '@/lib/alert'
+import { RookiePickRow } from '@/components/league/draft-room/RookiePickRow'
 
 const navigationRequire = createRequire(import.meta.resolve('@react-navigation/native'))
 const { StackActions, StackRouter }: Pick<typeof import('@react-navigation/native'), 'StackActions' | 'StackRouter'> = navigationRequire('@react-navigation/routers')
@@ -18,6 +19,9 @@ const mocks = vi.hoisted(() => ({
     trimOverflow: null as { excess: number; dropList: never[] } | null,
     trimAwaitingLimits: false,
     isCommissioner: false, seasonYear: undefined as number | undefined, isMock: false,
+    selection: null as unknown, selectionOutcome: null as unknown,
+    beginSelection: vi.fn(), chooseDestination: vi.fn(), toggleDrop: vi.fn(), cancelSelection: vi.fn(), confirmSelection: vi.fn(),
+    picks: [] as unknown[],
 }))
 vi.mock('react-native', () => ({ Image: 'Image',
     Platform: { OS: 'web' }, View: 'View', Text: 'Text', TextInput: 'TextInput',
@@ -28,11 +32,11 @@ vi.mock('react-native-safe-area-context', () => ({ SafeAreaView: 'SafeAreaView' 
 vi.mock('@shopify/flash-list', () => ({ FlashList: 'FlashList' }))
 vi.mock('expo-router', () => ({ Redirect: 'Redirect', Stack: { Screen: 'StackScreen' }, useLocalSearchParams: () => ({ draftId: 'draft' }), useRouter: () => ({ replace: mocks.replace, dismissTo: mocks.dismissTo }) }))
 vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => ({
-    current: { id: 'member' }, currentLeague: { id: 'league', roster_size: 1 }, isCommissioner: mocks.isCommissioner,
+    current: { id: 'member' }, currentLeague: { id: 'league', roster_size: 1, ir_slots: 1, taxi_slots: 1 }, isCommissioner: mocks.isCommissioner,
 }) }))
 vi.mock('@/hooks/useRookieDraftRoomController', () => ({ useRookieDraftRoomController: () => ({
-    state: mocks.hasState ? { draft: { id: 'draft', leagueId: 'league', status: mocks.overflow || mocks.nextMember ? 'in_progress' : 'completed', isMock: mocks.isMock, seasonYear: mocks.seasonYear }, picks: [], orders: [],
-        nextPick: mocks.nextMember ? { memberId: mocks.nextMember, teamName: 'Team on the clock', round: 1 } : null } : null,
+    state: mocks.hasState ? { draft: { id: 'draft', leagueId: 'league', status: mocks.overflow || mocks.nextMember ? 'in_progress' : 'completed', isMock: mocks.isMock, seasonYear: mocks.seasonYear }, picks: mocks.picks, orders: [],
+        nextPick: mocks.nextMember ? { memberId: mocks.nextMember, teamName: 'Team on the clock', round: 1, overallPick: 1 } : null } : null,
     actionsReady: true,
     loading: mocks.loading, loadError: mocks.loadError, prospectsLoadError: mocks.prospectsLoadError,
     query: '', setQuery: vi.fn(), prospects: [], prospectsLoading: false, picking: false,
@@ -40,7 +44,11 @@ vi.mock('@/hooks/useRookieDraftRoomController', () => ({ useRookieDraftRoomContr
     pickError: null, completionError: null, rosterOverflow: mocks.overflow, rosterForDrop: [],
     resolvingOverflow: false, trimOverflow: mocks.trimOverflow, trimAwaitingLimits: mocks.trimAwaitingLimits, trimmingId: null, memberId: 'member',
     refresh: mocks.refresh, handleTrimDrop: mocks.trim, resolveByDrop: mocks.drop, handlePick: vi.fn(), handleCommissionerPick: vi.fn(),
+    selection: mocks.selection, selectionOutcome: mocks.selectionOutcome, beginSelection: mocks.beginSelection,
+    chooseSelectionDestination: mocks.chooseDestination, toggleSelectionDrop: mocks.toggleDrop,
+    cancelSelection: mocks.cancelSelection, confirmSelection: mocks.confirmSelection,
 }) }))
+vi.mock('@/components/ui/SegmentedControl', () => ({ SegmentedControl: 'SegmentedControl' }))
 vi.mock('@/lib/draft', () => ({ pauseDraft: vi.fn(), resetDraft: vi.fn(), resumeDraft: vi.fn(), stopDraft: vi.fn() }))
 vi.mock('@/components/league/draft-room/DraftAdminBar', () => ({ DraftAdminBar: 'DraftAdminBar' }))
 vi.mock('@/components/league/draft-room/DraftScreenHeader', () => ({ DraftScreenHeader: 'DraftScreenHeader' }))
@@ -68,6 +76,7 @@ beforeEach(() => {
     vi.clearAllMocks(); mocks.overflow = null; mocks.trimOverflow = null; mocks.trimAwaitingLimits = false; mocks.nextMember = null
     mocks.hasState = true; mocks.loading = false; mocks.loadError = null; mocks.prospectsLoadError = null
     mocks.isCommissioner = false; mocks.seasonYear = undefined; mocks.isMock = false
+    mocks.selection = null; mocks.selectionOutcome = null; mocks.picks = []
 })
 afterEach(async () => { await act(async () => screen?.unmount()) })
 
@@ -93,9 +102,84 @@ it.each(['member', 'other'])('only offers a pick when the manager owns the turn:
         const action = row.root.findByType('MotionPressable' as React.ElementType)
         expect(action.props.disabled).toBe(nextMember !== 'member')
         expect(action.props.accessibilityRole).toBe(nextMember === 'member' ? 'button' : 'text')
-        expect(action.props.accessibilityLabel).toBe(nextMember === 'member' ? 'Pick A rookie' : 'A rookie')
-        expect(row.root.findAll((node) => node.props.children === 'Pick')).toHaveLength(nextMember === 'member' ? 1 : 0)
+        expect(action.props.accessibilityLabel).toBe(nextMember === 'member' ? 'Select A rookie' : 'A rookie')
+        expect(row.root.findAll((node) => node.props.children === 'Select')).toHaveLength(nextMember === 'member' ? 1 : 0)
+        if (nextMember === 'member') {
+            await act(async () => action.props.onPress())
+            expect(mocks.beginSelection).toHaveBeenCalledWith(expect.objectContaining({ id: 'prospect' }))
+        }
     } finally { await act(async () => row.unmount()) }
+})
+
+const rosterRow = (id: string, location: 'active' | 'taxi') => ({
+    id, is_on_ir: false, is_on_taxi: location === 'taxi', acquired_via: 'draft',
+    players: { id: `player-${id}`, display_name: `Player ${id}`, nba_team: 'BOS', position: 'PG', eligible_positions: ['PG'], injury_status: null, nba_id: null, nba_draft_number: null, years_exp: 3 },
+})
+const selection = (overrides: Record<string, unknown> = {}) => ({
+    player: { id: 'prospect', display_name: 'A rookie', nba_team: 'LAL', position: 'SG', nba_id: null, draft_overall_pick: 4, draft_round: 1, taxi_eligible: true },
+    expectedOverallPick: 1, destination: 'active', dropIds: [], roster: [rosterRow('a1', 'active'), rosterRow('t1', 'taxi')],
+    rosterError: null, error: null, requestId: 'request', ...overrides,
+})
+const sheetText = (sheet: ReturnType<ReactTestRenderer['root']['findByType']>) => sheet.findAllByType('Text' as React.ElementType)
+    .map((node) => [node.props.children].flat(3).join('')).join(' | ')
+const selectionSheet = () => screen.root.findAllByType('Sheet' as React.ElementType).find((node) => node.props.title === 'Draft A rookie')!
+
+it('previews a full roster, requires a drop, and confirms only a legal final roster', async () => {
+    mocks.nextMember = 'member'
+    mocks.selection = selection()
+    await act(async () => { screen = create(React.createElement(RookieDraftRoomScreen)) })
+    let sheet = selectionSheet()
+    expect(sheet.props.visible).toBe(true)
+    expect(sheetText(sheet)).toContain('Active roster 2 of 1 · 1 over')
+    expect(sheetText(sheet)).toContain('Your active roster is full. Choose who to drop:')
+    const confirm = () => sheet.findAllByType('Button' as React.ElementType).find((node) => node.props.title === 'Confirm pick')!
+    expect(confirm().props.disabled).toBe(true)
+    const drop = sheet.findAllByType('MotionPressable' as React.ElementType).find((node) => node.props.accessibilityLabel === 'Drop Player a1')!
+    await act(async () => drop.props.onPress())
+    expect(mocks.toggleDrop).toHaveBeenCalledWith('a1')
+    expect(sheet.findByType('SegmentedControl' as React.ElementType).props.options.map((option: { value: string }) => option.value)).toEqual(['active', 'taxi', 'drop'])
+
+    mocks.selection = selection({ dropIds: ['a1'] })
+    await act(async () => { screen.update(React.createElement(RookieDraftRoomScreen)) })
+    sheet = selectionSheet()
+    expect(sheetText(sheet)).toContain('Active roster 1 of 1')
+    expect(sheetText(sheet)).toContain('Dropping Player a1')
+    expect(confirm().props.disabled).toBe(false)
+    await act(async () => confirm().props.onPress())
+    expect(mocks.confirmSelection).toHaveBeenCalledTimes(1)
+})
+
+it('drops the rookie without touching the roster, and cancel changes nothing', async () => {
+    mocks.nextMember = 'member'
+    mocks.selection = selection({ destination: 'drop' })
+    await act(async () => { screen = create(React.createElement(RookieDraftRoomScreen)) })
+    const sheet = selectionSheet()
+    expect(sheetText(sheet)).toContain('Released to waivers right away. The pick is still used.')
+    expect(sheetText(sheet)).toContain('A rookie goes to waivers')
+    expect(sheet.findAllByType('Button' as React.ElementType).find((node) => node.props.title === 'Confirm pick')!.props.disabled).toBe(false)
+    await act(async () => sheet.findAllByType('Button' as React.ElementType).find((node) => node.props.title === 'Cancel')!.props.onPress())
+    expect(mocks.cancelSelection).toHaveBeenCalledTimes(1)
+    expect(mocks.confirmSelection).not.toHaveBeenCalled()
+})
+
+it('blocks a confirm once the pick on the clock moved to someone else', async () => {
+    mocks.nextMember = 'other'
+    mocks.selection = selection({ destination: 'drop' })
+    await act(async () => { screen = create(React.createElement(RookieDraftRoomScreen)) })
+    const sheet = selectionSheet()
+    expect(sheetText(sheet)).toContain('This pick is no longer yours to make.')
+    expect(sheet.findAllByType('Button' as React.ElementType).find((node) => node.props.title === 'Confirm pick')!.props.disabled).toBe(true)
+})
+
+it('shows who picks next after the team on the clock', async () => {
+    mocks.nextMember = 'member'
+    mocks.picks = [
+        { overallPick: 1, round: 1, pickInRound: 1, memberId: 'member', teamName: 'Alpha', originalMemberId: 'other', originalTeamName: 'Beta', player: null, skippedAt: null },
+        { overallPick: 2, round: 1, pickInRound: 2, memberId: 'other', teamName: 'Beta', originalMemberId: 'other', originalTeamName: 'Beta', player: null, skippedAt: null },
+    ]
+    await act(async () => { screen = create(React.createElement(RookieDraftRoomScreen)) })
+    const upNext = screen.root.findAllByType('Text' as React.ElementType).find((node) => [node.props.children].flat()[0] === 'Up next:')!
+    expect(upNext.findAllByType('Text' as React.ElementType).find((node) => node !== upNext)!.props.children).toEqual(['Beta', ''])
 })
 
 it.each(['overflow', 'trim'] as const)('leaves the %s dialog without changing the required roster correction', async (kind) => {
@@ -199,4 +283,28 @@ it('keeps the trim dialog open with a loading notice and no drop choices while r
     expect(dialog!.findAll((node) => node.props.children === 'Select a player to drop:')).toHaveLength(0)
     expect(dialog!.findAllByType('MotionPressable' as React.ElementType)).toHaveLength(0)
     expect(dialog!.findAllByType('Button' as React.ElementType).map((node) => node.props.accessibilityLabel)).toEqual(['Back to League'])
+})
+
+it.each([
+    ['exercised', 'Swap used', 'Beta swapped picks with Alpha.'],
+    ['unused', 'Swap not used', 'Beta kept its pick; the swap with Alpha was not better.'],
+] as const)('labels a traded pick with its original team and a %s swap', async (status, label, description) => {
+    let row!: ReactTestRenderer
+    await act(async () => {
+        row = create(React.createElement(RookiePickRow, {
+            item: {
+                overallPick: 5, round: 3, pickInRound: 1, memberId: 'beta', teamName: 'Beta', originalMemberId: 'alpha', originalTeamName: 'Alpha',
+                pickedAt: null, skippedAt: null, skipReason: null, timerExpiresAt: null, player: null,
+                swap: { status, holderMemberId: 'beta', holderTeamName: 'Beta', counterpartyMemberId: 'alpha', counterpartyTeamName: 'Alpha', side: 'counterparty' },
+            },
+            myMemberId: 'alpha',
+            nextPick: null,
+        }))
+    })
+    try {
+        expect(row.root.findAllByType('Text' as React.ElementType).some((node) => [node.props.children].flat().join('') === 'via Alpha')).toBe(true)
+        const badge = row.root.findAll((node) => node.props.label === label)
+        expect(badge.length).toBeGreaterThan(0)
+        expect(badge[0].props.accessibilityLabel).toBe(description)
+    } finally { await act(async () => row.unmount()) }
 })

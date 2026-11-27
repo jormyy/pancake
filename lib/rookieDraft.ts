@@ -6,12 +6,24 @@ import { apiPost as sharedApiPost } from '@/lib/shared/api'
 import type { RookieTimerExpiryBehavior } from '@/lib/draft'
 import { subscribeToTableChanges, unsubscribeFromTableChanges } from '@/lib/realtime'
 
+type PickSwap = {
+    status: 'open' | 'exercised' | 'unused'
+    holderMemberId: string
+    holderTeamName: string | null
+    counterpartyMemberId: string
+    counterpartyTeamName: string | null
+    side: 'holder' | 'counterparty'
+}
+
 export type SnakePick = {
     overallPick: number
     round: number
     pickInRound: number
     memberId: string
     teamName: string
+    originalMemberId?: string | null
+    originalTeamName?: string | null
+    swap?: PickSwap | null
     pickedAt: string | null
     skippedAt: string | null
     skipReason: string | null
@@ -49,6 +61,19 @@ export type RookieDraftState = {
     picks: SnakePick[]
     orders: { position: number; memberId: string; teamName: string }[]
     nextPick: SnakePick | null
+    classStatus?: RookieClassStatus | null
+}
+
+export type RookieClassStatus = {
+    draftYear: number
+    state: 'failed' | 'not_imported' | 'incomplete' | 'complete'
+    officialCount: number
+    eligibleCount: number
+    availableCount: number
+    lastError: string | null
+    lastAttemptAt: string | null
+    boardStoredAt: string | null
+    discrepancies: { overallPick: number; officialName: string | null; playerName: string | null; outcome: string }[]
 }
 
 export type RookieProspect = {
@@ -60,7 +85,22 @@ export type RookieProspect = {
     nba_team: string | null
     position: string | null
     nba_id: string | null
-    nba_draft_number: number | null
+    nba_draft_number?: number | null
+    draft_year?: number | null
+    draft_round?: number | null
+    draft_overall_pick?: number | null
+    taxi_eligible?: boolean
+}
+
+export type RookieDestination = 'active' | 'taxi' | 'drop'
+
+export type RookieSelectionResult = {
+    pick: { overall_pick: number; round: number; pick_in_round: number }
+    destination: RookieDestination
+    dropped: string[]
+    activeCount: number | null
+    taxiCount: number | null
+    isMock: boolean
 }
 
 export type LeaguePickItem = {
@@ -131,6 +171,17 @@ export async function startRookieDraft(leagueId: string, options: RookieDraftSta
 
 export async function makeSnakePick(draftId: string, memberId: string, playerId: string, toTaxi = false) {
     return sharedApiPost<any>(`/draft/${draftId}/snake-pick`, { memberId, playerId, toTaxi })
+}
+
+export async function makeRookieSelection(draftId: string, selection: {
+    memberId: string
+    playerId: string
+    destination: RookieDestination
+    dropRosterPlayerIds: string[]
+    expectedOverallPick: number
+    requestId: string
+}) {
+    return sharedApiPost<RookieSelectionResult>(`/draft/${draftId}/rookie-selection`, selection)
 }
 
 export async function commissionerSnakePick(draftId: string, memberId: string, playerId: string, toTaxi = false) {

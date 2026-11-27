@@ -17,6 +17,7 @@ type NBADraftPick = {
   roundNumber: number
   roundPick: number
   teamName: string
+  personId?: string | null
 }
 
 const HTTP_HEADERS = {
@@ -64,10 +65,19 @@ export async function syncDraftOrder(seasonYear: number, now = new Date()) {
     throw new Error(`Refusing the ${seasonYear} draft board: only the latest draft class (${latestClass}) can replace the rookie board`)
   }
   console.log(`[sync-draft-order] Fetching ${seasonYear} NBA draft order`)
-  const { source, picks } = await fetchDraftOrder(seasonYear)
-  if (picks.length < MIN_COMPLETE_DRAFT_PICKS) {
-    throw new Error(`Refusing to sync incomplete draft board: ${picks.length} picks found`)
+  let fetched: { source: DraftOrderSource; picks: NBADraftPick[] }
+  try {
+    fetched = await fetchDraftOrder(seasonYear)
+    if (fetched.picks.length < MIN_COMPLETE_DRAFT_PICKS) {
+      throw new Error(`Refusing to sync incomplete draft board: ${fetched.picks.length} picks found`)
+    }
+  } catch (error) {
+    await recordDraftClassImport(seasonYear, null, [], errorMessage(error))
+      .catch((recordError) => console.error('[sync-draft-order] Could not record the failed import', errorMessage(recordError)))
+    throw error
   }
+  const { source, picks } = fetched
+  await recordDraftClassImport(seasonYear, source, picks, null)
 
   const imported = await resolvePlayerImports('nba_draft', picks.map((pick) => ({
     display_name: pick.playerName, nba_draft_number: pick.overallPick,
@@ -86,6 +96,26 @@ export async function syncDraftOrder(seasonYear: number, now = new Date()) {
   }
   console.log('[sync-draft-order] Done', result)
   return result
+}
+
+async function recordDraftClassImport(
+  draftYear: number,
+  source: DraftOrderSource | null,
+  picks: NBADraftPick[],
+  failure: string | null,
+): Promise<void> {
+  const { error } = await supabase.rpc('record_nba_draft_class_import', {
+    p_draft_year: draftYear,
+    p_source: source ?? 'unavailable',
+    p_picks: picks.map((pick) => ({
+      overallPick: pick.overallPick,
+      round: pick.roundNumber,
+      playerName: pick.playerName,
+      personId: pick.personId ?? null,
+    })),
+    p_error: failure ?? undefined,
+  })
+  if (error) throw new Error(`Could not store the ${draftYear} official draft board: ${error.message}`)
 }
 
 async function fetchDraftOrder(seasonYear: number): Promise<{ source: DraftOrderSource; picks: NBADraftPick[] }> {
@@ -146,6 +176,7 @@ async function fetchStatsDraftOrder(seasonYear: number): Promise<NBADraftPick[]>
     roundPick: headers.indexOf('ROUND_PICK'),
     teamName: headers.indexOf('TEAM_NAME'),
   }
+  const personIdIndex = headers.indexOf('PERSON_ID')
   if (Object.values(idx).some((i) => i < 0)) {
     throw new Error('NBA Stats draft history response is missing required columns')
   }
@@ -161,6 +192,7 @@ async function fetchStatsDraftOrder(seasonYear: number): Promise<NBADraftPick[]>
       roundNumber: Number(row[idx.round]),
       roundPick: Number(row[idx.roundPick]),
       teamName: String(row[idx.teamName] ?? ''),
+      personId: personIdIndex >= 0 && row[personIdIndex] != null ? String(row[personIdIndex]) : null,
     }
   }))
 }

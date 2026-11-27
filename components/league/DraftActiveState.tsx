@@ -1,5 +1,6 @@
 import { View, Text, Pressable, StyleSheet, useWindowDimensions } from 'react-native'
 import type { Draft } from '@/lib/draft'
+import type { LeagueStatus } from '@/types/database'
 import { controlSize, colors, fontWeight, radii, spacing, typeScale } from '@/constants/tokens'
 import { panelStyles } from '@/components/league/draftPanelStyles'
 
@@ -8,6 +9,7 @@ const OPEN_DRAFT_STATUSES = new Set(['pending', 'in_progress', 'paused'])
 type ActiveDraftProps = {
     activeDraft: Draft | null
     activeDraftLoading: boolean
+    leagueStatus?: LeagueStatus
     isCommissioner: boolean
     draftLoading: boolean
     filterType?: 'auction' | 'snake'
@@ -20,16 +22,25 @@ type ActiveDraftErrorProps = {
     onRetryActiveDraft: () => void
 }
 
-function activeDraftButtonLabel(draft: Draft) {
+function activeDraftButtonLabel(draft: Draft, leagueStatus?: LeagueStatus) {
     const mock = draft.isMock ? 'Mock ' : ''
     const kind = draft.draftType === 'snake' ? 'Rookie Draft' : 'Auction Draft'
-    if (draft.status === 'completed' && draft.draftType === 'snake') return 'Resolve Rookie Draft'
+    if (draft.status === 'completed' && draft.draftType === 'snake') {
+        return leagueStatus === 'drafting' ? 'Resolve Rookie Draft' : 'View Rookie Draft Results'
+    }
     return `${draft.status === 'paused' ? 'Resume' : 'Join'} ${mock}${kind}`
+}
+
+function activeDraftTitle(draft: Draft) {
+    if (draft.status === 'completed') return 'Draft Results'
+    if (draft.status === 'pending') return 'Upcoming Draft'
+    return 'Live Draft'
 }
 
 export function ActiveDraftEntry({
     activeDraft,
     activeDraftLoading,
+    leagueStatus,
     isCommissioner,
     draftLoading,
     filterType,
@@ -56,13 +67,13 @@ export function ActiveDraftEntry({
             onPress={onJoinDraft}
             disabled={draftLoading}
             role="button"
-            aria-label={activeDraftButtonLabel(activeDraft)}
+            aria-label={activeDraftButtonLabel(activeDraft, leagueStatus)}
             aria-disabled={draftLoading}
             accessibilityRole="button"
-            accessibilityLabel={activeDraftButtonLabel(activeDraft)}
+            accessibilityLabel={activeDraftButtonLabel(activeDraft, leagueStatus)}
             accessibilityState={{ disabled: draftLoading }}
         >
-            <Text style={panelStyles.draftButtonText} numberOfLines={1}>{activeDraftButtonLabel(activeDraft)}</Text>
+            <Text style={panelStyles.draftButtonText} numberOfLines={1}>{activeDraftButtonLabel(activeDraft, leagueStatus)}</Text>
         </Pressable>
     )
     const syncButton = showSyncPicks ? (
@@ -85,7 +96,7 @@ export function ActiveDraftEntry({
         return (
             <View style={[panelStyles.panelCard, panelStyles.panelCardCompact, styles.activeDraftCardCompact]}>
                 <View style={styles.activeDraftCompactRow}>
-                    <Text style={[panelStyles.panelTitle, styles.activeDraftCompactTitle]} numberOfLines={1}>Live Draft</Text>
+                    <Text style={[panelStyles.panelTitle, styles.activeDraftCompactTitle]} numberOfLines={1}>{activeDraftTitle(activeDraft)}</Text>
                     {joinButton}
                     {syncButton}
                 </View>
@@ -95,7 +106,7 @@ export function ActiveDraftEntry({
 
     return (
         <View style={panelStyles.panelCard}>
-            <Text style={panelStyles.panelTitle}>Live Draft</Text>
+            <Text style={panelStyles.panelTitle}>{activeDraftTitle(activeDraft)}</Text>
             {joinButton}
             {showSyncPicks ? (
                 <View style={styles.syncWrap}>

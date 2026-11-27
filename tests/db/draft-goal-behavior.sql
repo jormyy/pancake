@@ -12,11 +12,11 @@ VALUES
   ('00000000-0000-0000-0000-000000010002', 'draft_goal_manager', 'Draft Goal Manager')
 ON CONFLICT (id) DO UPDATE SET username = EXCLUDED.username, display_name = EXCLUDED.display_name;
 
-INSERT INTO public.players (id, first_name, last_name, nba_team, position, years_exp, nba_draft_number, eligible_positions)
+INSERT INTO public.players (id, first_name, last_name, nba_team, position, years_exp, nba_draft_number, eligible_positions, nba_id, draft_status, draft_year, draft_round, draft_overall_pick)
 VALUES
-  ('00000000-0000-0000-0000-000000010101', 'Mock', 'Top', 'ATL', 'PG', 0, 1, ARRAY['PG']),
-  ('00000000-0000-0000-0000-000000010102', 'Mock', 'Fallback', 'BOS', 'SG', 0, 2, ARRAY['SG']),
-  ('00000000-0000-0000-0000-000000010103', 'Delete', 'Candidate', 'CHI', 'SF', 0, 3, ARRAY['SF']);
+  ('00000000-0000-0000-0000-000000010101', 'Mock', 'Top', 'ATL', 'PG', 0, 1, ARRAY['PG'], 'draft-goal-10101', 'drafted', 2098, 1, 1),
+  ('00000000-0000-0000-0000-000000010102', 'Mock', 'Fallback', 'BOS', 'SG', 0, 2, ARRAY['SG'], 'draft-goal-10102', 'drafted', 2098, 1, 2),
+  ('00000000-0000-0000-0000-000000010103', 'Delete', 'Candidate', 'CHI', 'SF', 0, 3, ARRAY['SF'], 'draft-goal-10103', 'drafted', 2098, 1, 3);
 
 -- Mock auto-pick must use draft-only availability, not real roster availability.
 INSERT INTO public.leagues (id, name, slug, commissioner_id, status, roster_size, auction_budget)

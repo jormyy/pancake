@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
     getState: vi.fn(),
     getPlayers: vi.fn(),
     makePick: vi.fn(),
+    select: vi.fn(),
     subscribe: vi.fn(),
     unsubscribe: vi.fn(),
 }))
@@ -35,6 +36,7 @@ vi.mock('@/lib/rookieDraft', () => ({
     getRookieDraftState: mocks.getState,
     getRookiePlayers: mocks.getPlayers,
     makeSnakePick: mocks.makePick,
+    makeRookieSelection: mocks.select,
     processExpiredSnakePick: vi.fn(),
     subscribeToRookieDraft: mocks.subscribe,
     unsubscribeFromRookieDraft: mocks.unsubscribe,
@@ -930,3 +932,97 @@ describe('annual draft trim prompt after roster settings change', () => {
         await act(async () => renderer.unmount())
     })
 })
+
+describe('rookie selection', () => {
+    const rookie = { id: 'rookie', display_name: 'Rookie', nba_team: 'FA', position: 'PG', nba_id: null, draft_overall_pick: 3, taxi_eligible: true }
+    const onClock = (memberId = 'member', overallPick = 2): RookieDraftState => ({
+        ...draftState('draft'),
+        picks: [{ overallPick, round: 1, pickInRound: overallPick, memberId, teamName: 'Mine', pickedAt: null, skippedAt: null, skipReason: null, timerExpiresAt: null, player: null }],
+        nextPick: { overallPick, round: 1, pickInRound: overallPick, memberId, teamName: 'Mine', pickedAt: null, skippedAt: null, skipReason: null, timerExpiresAt: null, player: null },
+    })
+    const veteran = { id: 'veteran-row', is_on_ir: false, is_on_taxi: false, acquired_via: 'draft', players: { id: 'veteran', display_name: 'Veteran' } }
+    async function mount() {
+        let latest!: ReturnType<typeof useRookieDraftRoomController>
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(() => {
+            latest = useRookieDraftRoomController({ draftId: 'draft', memberId: 'member', leagueId: 'league', rosterSize: 1 })
+            return null
+        })) })
+        return { get latest() { return latest }, renderer }
+    }
+
+    it('sends one selection with the placement, drops and pick on the clock even when tapped twice', async () => {
+        mocks.getState.mockResolvedValue(onClock())
+        mocks.getRoster.mockResolvedValue([veteran])
+        const reply = deferred<unknown>()
+        mocks.select.mockReturnValue(reply.promise)
+        const room = await mount()
+        await act(async () => { await room.latest.beginSelection(rookie) })
+        expect(room.latest.selection).toMatchObject({ expectedOverallPick: 2, destination: 'active', roster: [veteran] })
+        act(() => { room.latest.toggleSelectionDrop('veteran-row') })
+        let first!: Promise<void>
+        let second!: Promise<void>
+        act(() => { first = room.latest.confirmSelection(); second = room.latest.confirmSelection() })
+        expect(mocks.select).toHaveBeenCalledTimes(1)
+        expect(mocks.select).toHaveBeenCalledWith('draft', expect.objectContaining({
+            memberId: 'member', playerId: 'rookie', destination: 'active', dropRosterPlayerIds: ['veteran-row'], expectedOverallPick: 2,
+            requestId: room.latest.selection?.requestId,
+        }))
+        await act(async () => { reply.resolve({ pick: { overall_pick: 2, round: 1, pick_in_round: 2 } }); await first; await second })
+        expect(room.latest.selection).toBeNull()
+        expect(room.latest.selectionOutcome).toEqual({ playerName: 'Rookie', overallPick: 2, destination: 'active', droppedNames: ['Veteran'] })
+        await act(async () => room.renderer.unmount())
+    })
+
+    it('cancels without a request and refuses to open when another team is on the clock', async () => {
+        mocks.getState.mockResolvedValue(onClock())
+        const room = await mount()
+        await act(async () => { await room.latest.beginSelection(rookie) })
+        act(() => { room.latest.chooseSelectionDestination('drop') })
+        expect(room.latest.selection?.destination).toBe('drop')
+        act(() => { room.latest.cancelSelection() })
+        expect(room.latest.selection).toBeNull()
+        expect(mocks.select).not.toHaveBeenCalled()
+        await act(async () => room.renderer.unmount())
+
+        mocks.getState.mockResolvedValue(onClock('other'))
+        mocks.getRoster.mockClear()
+        const other = await mount()
+        await act(async () => { await other.latest.beginSelection(rookie) })
+        expect(other.latest.selection).toBeNull()
+        expect(mocks.getRoster).not.toHaveBeenCalledWith('member', 'league', expect.anything())
+        await act(async () => other.renderer.unmount())
+    })
+
+    it('keeps the choice open with the server refusal and a fresh request id', async () => {
+        mocks.getState.mockResolvedValue(onClock())
+        mocks.getRoster.mockResolvedValue([veteran])
+        mocks.select.mockRejectedValueOnce(new Error('Your active roster would be 1 over the limit of 1. Choose a player to drop.'))
+        const room = await mount()
+        await act(async () => { await room.latest.beginSelection(rookie) })
+        const sent = room.latest.selection?.requestId
+        await act(async () => { await room.latest.confirmSelection() })
+        expect(room.latest.selection?.error).toBe('Your active roster would be 1 over the limit of 1. Choose a player to drop.')
+        expect(room.latest.selection?.requestId).not.toBe(sent)
+        expect(room.latest.picking).toBe(false)
+        expect(room.latest.selectionOutcome).toBeNull()
+        await act(async () => room.renderer.unmount())
+    })
+
+    it('turns a lost reply into the confirmed result once the refreshed board shows the pick', async () => {
+        mocks.getState.mockResolvedValue(onClock())
+        mocks.getRoster.mockResolvedValue([veteran])
+        mocks.select.mockRejectedValueOnce(new Error('Network request failed'))
+        const room = await mount()
+        await act(async () => { await room.latest.beginSelection(rookie) })
+        const made = onClock()
+        made.picks = [{ ...made.picks[0], player: { id: 'rookie', displayName: 'Rookie', nbaTeam: 'FA', position: 'PG', nbaId: null } }]
+        made.nextPick = null
+        mocks.getState.mockResolvedValue(made)
+        await act(async () => { await room.latest.confirmSelection() })
+        expect(room.latest.selection).toBeNull()
+        expect(room.latest.selectionOutcome).toMatchObject({ playerName: 'Rookie', overallPick: 2, destination: 'active' })
+        await act(async () => room.renderer.unmount())
+    })
+})
+

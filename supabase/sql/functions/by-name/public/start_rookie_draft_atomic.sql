@@ -2,18 +2,12 @@
 -- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
 -- npm run check:db-function-sources verifies every latest migration function has exact source parity.
 
-CREATE OR REPLACE FUNCTION public.start_rookie_draft_atomic(
-  p_league_id uuid,
-  p_rounds int DEFAULT 3,
-  p_is_mock boolean DEFAULT false,
-  p_pick_timer_seconds int DEFAULT 60,
-  p_timer_expiry_behavior text DEFAULT 'auto_pick'
-)
-RETURNS jsonb
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
+CREATE OR REPLACE FUNCTION public.start_rookie_draft_atomic(p_league_id uuid, p_rounds integer DEFAULT 3, p_is_mock boolean DEFAULT false, p_pick_timer_seconds integer DEFAULT 60, p_timer_expiry_behavior text DEFAULT 'auto_pick'::text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
 DECLARE
   v_league leagues%ROWTYPE;
   v_season league_seasons%ROWTYPE;
@@ -228,6 +222,10 @@ BEGIN
     RAISE EXCEPTION 'Failed to create every rookie draft pick slot';
   END IF;
 
+  IF NOT v_is_mock THEN
+    PERFORM private.resolve_rookie_pick_swaps(v_draft.id);
+  END IF;
+
   PERFORM private.arm_next_snake_pick_timer(
     v_draft.id,
     clock_timestamp() + make_interval(secs => p_pick_timer_seconds)
@@ -249,4 +247,4 @@ BEGIN
 
   RETURN to_jsonb(v_draft);
 END;
-$$;
+$function$;

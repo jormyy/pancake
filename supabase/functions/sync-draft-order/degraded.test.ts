@@ -26,16 +26,18 @@ const priorOrderSnapshot = () => players.map((player) => player.nba_draft_number
 type UpstreamMode = 'down' | 'partial' | 'good' | 'malformed-article' | 'bare-number' | 'out-of-range' | 'negative-number' | 'large-unpunctuated' | 'numbered-bullet' | 'invalid-stats' | 'empty-name' | 'malformed-row' | 'gapped-article' | 'valid50' | 'article-fallback'
 let upstreamMode: UpstreamMode = 'down'
 const writes: string[] = []
+const boardRecords: { p_draft_year: number; p_source: string; p_picks: { overallPick: number; personId: string | null }[]; p_error?: string }[] = []
 
 const statsPayload = (count: number) => ({
   resultSets: [{
-    headers: ['PLAYER_NAME', 'OVERALL_PICK', 'ROUND_NUMBER', 'ROUND_PICK', 'TEAM_NAME'],
+    headers: ['PLAYER_NAME', 'OVERALL_PICK', 'ROUND_NUMBER', 'ROUND_PICK', 'TEAM_NAME', 'PERSON_ID'],
     rowSet: Array.from({ length: count }, (_, index) => [
       `Mock Rookie ${index + 1}`,
       index + 1,
       index < 30 ? 1 : 2,
       index < 30 ? index + 1 : index - 29,
       'Mock Team',
+      1_700_000 + index,
     ]),
   }],
 })
@@ -78,6 +80,10 @@ const upstream = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, (
 
 const postgrest = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, async (req) => {
   const url = new URL(req.url)
+  if (url.pathname === '/rest/v1/rpc/record_nba_draft_class_import') {
+    boardRecords.push(await req.json())
+    return Response.json({ stored: true })
+  }
   if (url.pathname === '/rest/v1/rpc/resolve_player_imports_atomic') {
     const body = await req.json()
     if (body.p_source !== 'nba_draft') throw new Error('Unexpected import source')
@@ -129,6 +135,7 @@ Deno.test({
   sanitizeResources: false,
   fn: async () => {
     upstreamMode = 'down'
+    boardRecords.length = 0
     const before = priorOrderSnapshot()
     let threw = false
     try {
@@ -138,6 +145,9 @@ Deno.test({
     }
     if (!threw) throw new Error('down upstream did not fail the sync')
     if (writes.length > 0) throw new Error(`down upstream produced writes: ${writes.join(', ')}`)
+    if (boardRecords.length !== 1 || !boardRecords[0].p_error || boardRecords[0].p_picks.length !== 0) {
+      throw new Error(`a failed import must be recorded as a failure, not an empty class: ${JSON.stringify(boardRecords)}`)
+    }
     if (JSON.stringify(priorOrderSnapshot()) !== JSON.stringify(before)) {
       throw new Error('prior draft order changed on a failed day')
     }
@@ -169,9 +179,15 @@ Deno.test({
   sanitizeResources: false,
   fn: async () => {
     upstreamMode = 'good'
+    boardRecords.length = 0
     const result = await syncDraftOrder(2027, DRAFT_WINDOW)
     if (result.draftPickCount !== 60 || result.updated !== 60) {
       throw new Error(`unexpected sync result: ${JSON.stringify(result)}`)
+    }
+    const stored = boardRecords[0]
+    if (boardRecords.length !== 1 || stored.p_error !== undefined || stored.p_draft_year !== 2027 || stored.p_picks.length !== 60
+      || stored.p_picks[0].personId !== '1700000' || stored.p_picks[59].overallPick !== 60) {
+      throw new Error(`the official board was not stored with stable identities: ${JSON.stringify(boardRecords).slice(0, 300)}`)
     }
     const numbered = players.filter((row) => row.nba_draft_number != null)
     if (numbered.length !== 60) throw new Error(`board half-written: ${numbered.length} players numbered`)

@@ -76,6 +76,7 @@ export function DraftPanel({
             <ActiveDraftEntry
                 activeDraft={activeDraft}
                 activeDraftLoading={activeDraftLoading}
+                leagueStatus={currentLeagueStatus}
                 isCommissioner={isCommissioner}
                 draftLoading={draftLoading}
                 onJoinDraft={onJoinDraft}

@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261227000000",
+  "candidateVersion": "20261228000000",
   "common": {
     "functions": [
       {
@@ -2851,6 +2851,10 @@
     {
       "filename": "20261227000000_public_read_allowance.sql",
       "sha256": "2703b60a3dcf38dc09b3144ac27341439dba377f4e8d558ddec96b8643293d2a"
+    },
+    {
+      "filename": "20261228000000_rookie_draft_selection.sql",
+      "sha256": "245fe538218992410dbc0a3cf7bafbaf314a00368e9f2462fd3d71e8e04b0ded"
     }
   ],
   "preMigration": {

@@ -14,7 +14,9 @@ import { FlashList } from '@shopify/flash-list'
 import { ScreenFrame } from '@/components/ui/ScreenFrame'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useLeagueContext } from '@/contexts/league-context'
-import { type RookieProspect } from '@/lib/rookieDraft'
+import { type RookieClassStatus, type RookieDestination, type RookieProspect, type SnakePick } from '@/lib/rookieDraft'
+import { type RookieSelection, type RookieSelectionOutcome } from '@/hooks/useRookieDraftRoomController'
+import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { draftYearForSeason, leagueSeasonYear } from '@/lib/picks'
 import { breakpoints, colors, controlSize, fontWeight, layout, radii, spacing, table, textStyles, uiColors, typeScale } from '@/constants/tokens'
 import { MotionPressable } from '@/components/Motion'
@@ -32,7 +34,8 @@ import { SettingsRow, SettingsToggle } from '@/components/settings/SettingsGroup
 
 import { ErrorBanner } from '@/components/ui/ErrorBanner'
 import { LoadingState } from '@/components/ui/LoadingState'
-import { rosterLimits } from '@/lib/roster-capacity'
+import { partitionRoster, planRookiePlacement, rosterLimits, type RosterLimits } from '@/lib/roster-capacity'
+import type { RosterPlayer } from '@/lib/roster'
 
 export default function RookieDraftRoomScreen() {
     const { draftId } = useLocalSearchParams<{ draftId: string }>()
@@ -58,7 +61,8 @@ export default function RookieDraftRoomScreen() {
         prospectsLoading,
         picking,
         draftToTaxi,
-        setDraftToTaxi,        activeTab,
+        setDraftToTaxi,
+        activeTab,
         setActiveTab,
         secondsLeft,
         pickError,
@@ -75,6 +79,13 @@ export default function RookieDraftRoomScreen() {
         handlePick,
         handleCommissionerPick,
         resolveByDrop,
+        selection,
+        selectionOutcome,
+        beginSelection,
+        chooseSelectionDestination,
+        toggleSelectionDrop,
+        cancelSelection,
+        confirmSelection,
     } = useRookieDraftRoomController({
         draftId,
         memberId: myMemberId,
@@ -143,6 +154,10 @@ export default function RookieDraftRoomScreen() {
     const madePicks = picks.filter((p) => p.player || p.skippedAt).length
     const currentRound = nextPick?.round
         ?? (state.orders.length > 0 ? Math.ceil(totalPicks / state.orders.length) : 1)
+    const upNext = nextPick ? picks.find(pick => pick.overallPick > nextPick.overallPick && !pick.player && !pick.skippedAt) ?? null : null
+    const classYear = draft.seasonYear == null ? null : draftYearForSeason(leagueSeasonYear(draft.seasonYear))
+    const classNotice = rookieClassNotice(state.classStatus ?? null, classYear)
+    const choosesPlacement = !draft.isMock && isMyTurn && !canCommissionerPick
 
     return (
         <>
@@ -218,6 +233,19 @@ export default function RookieDraftRoomScreen() {
                 </View>
             </Sheet>
 
+            <RookieSelectionSheet
+                selection={selection}
+                limits={limits}
+                nextPick={nextPick}
+                memberId={memberId}
+                picking={picking}
+                actionsReady={actionsReady}
+                onDestination={chooseSelectionDestination}
+                onToggleDrop={toggleSelectionDrop}
+                onCancel={cancelSelection}
+                onConfirm={() => { void confirmSelection() }}
+            />
+
             <ScreenFrame style={styles.container} edges={['bottom']}>
                 <DraftScreenHeader title={draftTitle} onBack={() => navigateBackToDraftList()}>
                     {isCommissioner && !isDone && isDesktop ? (
@@ -235,7 +263,7 @@ export default function RookieDraftRoomScreen() {
                     ) : null}
                 </DraftScreenHeader>
                 {loadError ? <ErrorBanner message="Draft updates are unavailable. Tap to retry." onRetry={() => { void refresh() }} /> : null}
-                {!draft.isMock && !isDone && (isMyTurn || canCommissionerPick) ? (
+                {!draft.isMock && !isDone && canCommissionerPick ? (
                     <SettingsRow
                         label="Draft to taxi"
                         detail="Players cannot return to your taxi after leaving it."
@@ -310,6 +338,15 @@ export default function RookieDraftRoomScreen() {
                                             </Text>
                                         </Text>
                                     )}
+                                    {upNext ? (
+                                        <Text style={styles.bannerSub} numberOfLines={1}>
+                                            Up next:{' '}
+                                            <Text style={[styles.bannerSub, upNext.memberId === memberId && styles.bannerMe]}>
+                                                {upNext.teamName}
+                                                {upNext.memberId === memberId ? ' (you)' : ''}
+                                            </Text>
+                                        </Text>
+                                    ) : null}
                                 </>
                             )}
                         </View>
@@ -329,6 +366,7 @@ export default function RookieDraftRoomScreen() {
                         ) : null}
                     </View>
 
+                    {selectionOutcome ? <SelectionOutcomeBanner outcome={selectionOutcome} /> : null}
                     {completionError ? <ErrorBanner
                         message={`Could not finish the roster check. ${completionError} Tap to retry.`}
                         onRetry={() => { void refresh() }} /> : null}
@@ -377,6 +415,12 @@ export default function RookieDraftRoomScreen() {
                             )}
 
                             {prospectsLoadError ? <ErrorBanner message="Could not load prospects. Tap to retry." onRetry={() => { void refresh() }} /> : null}
+                            {classNotice && !prospectsLoadError ? (
+                                <View style={[styles.classNotice, classNotice.tone === 'warning' && styles.classNoticeWarning]}>
+                                    <Text style={styles.classNoticeTitle}>{classNotice.title}</Text>
+                                    <Text style={styles.classNoticeBody}>{classNotice.body}</Text>
+                                </View>
+                            ) : null}
                             <FlashList
                                 data={prospects}
                                 keyExtractor={(p) => p.id}
@@ -385,7 +429,7 @@ export default function RookieDraftRoomScreen() {
                                     !prospectsLoading && !prospectsLoadError ? (
                                         <View style={styles.emptyProspects}>
                                             <Text style={styles.emptyText}>
-                                                {query.trim() ? 'No matching prospects' : 'No prospects available'}
+                                                {query.trim() ? 'No matching prospects' : classNotice?.empty ?? 'No prospects available'}
                                             </Text>
                                         </View>
                                     ) : null
@@ -396,8 +440,8 @@ export default function RookieDraftRoomScreen() {
                                         canPick={!isDone && !isPending && !pickTimerExpired && (!isPaused || canCommissionerPick)
                                             && (isMyTurn || canCommissionerPick)}
                                         picking={picking || !actionsReady}
-                                        onPick={canCommissionerPick ? handleCommissionerPick : handlePick}
-                                        actionLabel={canCommissionerPick ? 'Commish Pick' : 'Pick'}
+                                        onPick={canCommissionerPick ? handleCommissionerPick : choosesPlacement ? beginSelection : handlePick}
+                                        actionLabel={canCommissionerPick ? 'Commish Pick' : choosesPlacement ? 'Select' : 'Pick'}
                                     />
                                 )}
                             />
@@ -444,7 +488,7 @@ function ProspectRow({
         >
             <PlayerRowContent name={player.display_name} nbaId={player.nba_id} team={player.nba_team}
                 positions={player.position ? [player.position] : []} playerId={player.id} yearsExp={player.years_exp} careerGames={player.career_regular_season_games} injuryStatus={player.injury_status}
-                stats={player.nba_draft_number != null ? `NBA draft #${player.nba_draft_number}` : undefined} />
+                stats={prospectDraftLabel(player)} />
             {canPick && (
                 <Text style={styles.pickBtn} numberOfLines={1}>{actionLabel}</Text>
             )}
@@ -453,6 +497,183 @@ function ProspectRow({
 }
 
 
+
+function prospectDraftLabel(player: RookieProspect): string | undefined {
+    const overall = player.draft_overall_pick ?? player.nba_draft_number
+    if (overall == null) return undefined
+    return player.draft_round != null ? `NBA draft #${overall} · Rd ${player.draft_round}` : `NBA draft #${overall}`
+}
+
+type ClassNotice = { title: string; body: string; empty: string; tone: 'info' | 'warning' }
+
+function rookieClassNotice(status: RookieClassStatus | null, classYear: number | null): ClassNotice | null {
+    if (!status) return null
+    const year = classYear ?? status.draftYear
+    if (status.state === 'failed') {
+        return {
+            tone: 'warning',
+            title: `The ${year} NBA draft class could not be loaded`,
+            body: status.eligibleCount > 0
+                ? `The official board did not load, so it cannot be checked. Players with a confirmed ${year} draft selection are still listed.`
+                : 'The official board did not load. Prospects appear once the next import succeeds.',
+            empty: 'The draft class is not available yet',
+        }
+    }
+    if (status.state === 'not_imported') {
+        return status.eligibleCount > 0 ? null : {
+            tone: 'info',
+            title: `The ${year} NBA draft class is not imported yet`,
+            body: `Only players selected in the ${year} NBA draft can be picked. They appear here once the class loads.`,
+            empty: 'The draft class is not available yet',
+        }
+    }
+    if (status.state === 'incomplete') {
+        return {
+            tone: 'warning',
+            title: `${status.eligibleCount} of ${status.officialCount} draftees confirmed`,
+            body: `Some ${year} NBA draft selections are still being matched to players. Unmatched players cannot be picked yet.`,
+            empty: 'Every confirmed draftee has been taken',
+        }
+    }
+    if (status.availableCount === 0 && status.eligibleCount > 0) {
+        return {
+            tone: 'info',
+            title: `Every ${year} draftee has been taken`,
+            body: 'No eligible players remain in this class.',
+            empty: 'Every draftee has been taken',
+        }
+    }
+    return null
+}
+
+const DESTINATION_COPY: Record<RookieDestination, string> = {
+    active: 'Joins your active roster.',
+    taxi: 'Starts on your taxi squad. Players cannot return to taxi after leaving it.',
+    drop: 'Released to waivers right away. The pick is still used.',
+}
+
+function RookieSelectionSheet({
+    selection,
+    limits,
+    nextPick,
+    memberId,
+    picking,
+    actionsReady,
+    onDestination,
+    onToggleDrop,
+    onCancel,
+    onConfirm,
+}: {
+    selection: RookieSelection | null
+    limits: RosterLimits | null
+    nextPick: SnakePick | null
+    memberId?: string
+    picking: boolean
+    actionsReady: boolean
+    onDestination: (destination: RookieDestination) => void
+    onToggleDrop: (rosterPlayerId: string) => void
+    onCancel: () => void
+    onConfirm: () => void
+}) {
+    const player = selection?.player
+    const roster = selection?.roster ?? null
+    const plan = selection && roster && limits ? planRookiePlacement(roster, limits, selection.destination, selection.dropIds) : null
+    const stale = !!selection && (nextPick?.overallPick !== selection.expectedOverallPick || nextPick?.memberId !== memberId)
+    const taxiOpen = !!player?.taxi_eligible && (limits?.taxiSlots ?? 0) > 0
+    const options: { label: string; value: RookieDestination }[] = [
+        { label: 'Active', value: 'active' },
+        ...(taxiOpen ? [{ label: 'Taxi', value: 'taxi' as const }] : []),
+        { label: 'Drop rookie', value: 'drop' },
+    ]
+    const dropList: RosterPlayer[] = plan?.dropChoices && roster ? partitionRoster(roster)[plan.dropChoices] : []
+    const droppedNames = roster?.filter(row => selection?.dropIds.includes(row.id)).map(row => row.players?.display_name ?? 'Player') ?? []
+    const canConfirm = !!plan?.valid && !stale && actionsReady && !picking
+    return (
+        <Sheet visible={!!selection} title={player ? `Draft ${player.display_name}` : 'Draft'} onClose={() => { if (!picking) onCancel() }}>
+            {selection && player ? (
+                <View style={styles.overflowCard}>
+                    <Text style={styles.overflowBody}>
+                        Pick {selection.expectedOverallPick}{prospectDraftLabel(player) ? ` · ${prospectDraftLabel(player)}` : ''}
+                    </Text>
+                    <SegmentedControl
+                        options={options}
+                        value={selection.destination}
+                        onChange={onDestination}
+                        accessibilityLabel="Where the rookie goes"
+                        equalWidth
+                    />
+                    <Text style={styles.overflowBody}>{DESTINATION_COPY[selection.destination]}</Text>
+                    {selection.rosterError ? <Text style={styles.pickErrorText}>Could not load your roster. {selection.rosterError} Cancel and try again.</Text> : null}
+                    {!roster && !selection.rosterError ? <LoadingState /> : null}
+                    {!limits && roster ? <Text style={styles.overflowBody}>Roster settings are loading.</Text> : null}
+                    {plan?.dropChoices ? (
+                        <>
+                            <Text style={styles.overflowDropLabel}>
+                                {plan.dropChoices === 'active' ? 'Your active roster is full. Choose who to drop:' : 'Your taxi squad is full. Choose who to drop:'}
+                            </Text>
+                            <View>
+                                {dropList.map(row => {
+                                    const chosen = selection.dropIds.includes(row.id)
+                                    return (
+                                        <MotionPressable
+                                            key={row.id}
+                                            role="checkbox"
+                                            aria-checked={chosen}
+                                            accessibilityRole="checkbox"
+                                            accessibilityState={{ checked: chosen, disabled: picking }}
+                                            accessibilityLabel={`Drop ${row.players?.display_name ?? 'Player'}`}
+                                            style={[styles.overflowDropRow, chosen && styles.dropRowChosen]}
+                                            onPress={() => onToggleDrop(row.id)}
+                                            disabled={picking}
+                                        >
+                                            <PlayerRowContent name={row.players?.display_name ?? 'Player'} nbaId={row.players?.nba_id} team={row.players?.nba_team}
+                                                positions={row.players?.position ? [row.players.position] : []}
+                                                birthdate={row.players?.birthdate} yearsExp={row.players?.years_exp} careerGames={row.players?.career_regular_season_games} injuryStatus={row.players?.injury_status} />
+                                            <Text style={[styles.dropMark, chosen && styles.dropMarkChosen]}>{chosen ? 'Dropping' : 'Drop'}</Text>
+                                        </MotionPressable>
+                                    )
+                                })}
+                            </View>
+                        </>
+                    ) : null}
+                    {plan && limits ? (
+                        <View style={styles.preview} accessibilityLiveRegion="polite">
+                            <Text style={styles.previewTitle}>After this pick</Text>
+                            <Text style={[styles.previewLine, plan.activeOver > 0 && styles.previewOver]}>
+                                Active roster {plan.activeAfter} of {limits.rosterSize}{plan.activeOver > 0 ? ` · ${plan.activeOver} over` : ''}
+                            </Text>
+                            <Text style={[styles.previewLine, plan.taxiOver > 0 && styles.previewOver]}>
+                                Taxi {plan.taxiAfter} of {limits.taxiSlots}{plan.taxiOver > 0 ? ` · ${plan.taxiOver} over` : ''}
+                            </Text>
+                            {droppedNames.length > 0 ? <Text style={styles.previewLine}>Dropping {droppedNames.join(', ')}</Text> : null}
+                            {selection.destination === 'drop' ? <Text style={styles.previewLine}>{player.display_name} goes to waivers</Text> : null}
+                        </View>
+                    ) : null}
+                    {stale ? <Text style={styles.pickErrorText}>This pick is no longer yours to make. Cancel and check the board.</Text> : null}
+                    {selection.error ? <Text style={styles.pickErrorText} accessibilityLiveRegion="assertive">{selection.error}</Text> : null}
+                    <View style={styles.sheetActions}>
+                        <Button variant="secondary" title="Cancel" accessibilityLabel="Cancel this pick" disabled={picking} onPress={onCancel} style={styles.sheetAction} />
+                        <Button title={picking ? 'Drafting…' : 'Confirm pick'} accessibilityLabel={`Confirm drafting ${player.display_name}`}
+                            disabled={!canConfirm} onPress={onConfirm} style={styles.sheetAction} />
+                    </View>
+                </View>
+            ) : null}
+        </Sheet>
+    )
+}
+
+function SelectionOutcomeBanner({ outcome }: { outcome: RookieSelectionOutcome }) {
+    const where = outcome.destination === 'taxi' ? 'Added to your taxi squad.'
+        : outcome.destination === 'drop' ? 'Released to waivers. The pick is used.' : 'Added to your active roster.'
+    return (
+        <View style={styles.outcome} accessibilityLiveRegion="polite">
+            <Text style={styles.outcomeTitle}>You drafted {outcome.playerName} with pick {outcome.overallPick}</Text>
+            <Text style={styles.outcomeBody}>
+                {where}{outcome.droppedNames.length > 0 ? ` Dropped ${outcome.droppedNames.join(', ')}.` : ''}
+            </Text>
+        </View>
+    )
+}
 
 const ItemSeparator = () => <View style={styles.separator} />
 
@@ -616,6 +837,47 @@ const styles = StyleSheet.create({
         borderBottomColor: colors.separator,
     },
     overflowDropInfo: { flex: 1, minWidth: 0 },
+    dropRowChosen: { backgroundColor: uiColors.dangerSurface },
+    dropMark: { ...typeScale.row, flexShrink: 0, fontWeight: fontWeight.bold, color: colors.textMuted },
+    dropMarkChosen: { color: colors.dangerDark },
+    preview: {
+        gap: spacing.xxs,
+        padding: spacing.md,
+        borderRadius: radii.md,
+        borderWidth: 1,
+        borderColor: colors.borderLight,
+        backgroundColor: colors.bgSubtle,
+    },
+    previewTitle: { ...textStyles.sectionLabel },
+    previewLine: { ...typeScale.small, color: colors.textPrimary, fontVariant: ['tabular-nums'] },
+    previewOver: { color: colors.dangerDark, fontWeight: fontWeight.semibold },
+    sheetActions: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.sm },
+    sheetAction: { flex: 1 },
+    outcome: {
+        marginHorizontal: spacing.lg,
+        marginTop: spacing.md,
+        padding: spacing.md,
+        gap: spacing.xxs,
+        backgroundColor: uiColors.successSurface,
+        borderRadius: radii.md,
+        borderWidth: 1,
+        borderColor: uiColors.successBorder,
+    },
+    outcomeTitle: { ...typeScale.row, fontWeight: fontWeight.bold, color: colors.textPrimary },
+    outcomeBody: { ...typeScale.small, color: colors.textSecondary },
+    classNotice: {
+        marginHorizontal: spacing.lg,
+        marginBottom: spacing.sm,
+        padding: spacing.md,
+        gap: spacing.xxs,
+        borderRadius: radii.md,
+        borderWidth: 1,
+        borderColor: colors.borderLight,
+        backgroundColor: colors.bgSubtle,
+    },
+    classNoticeWarning: { backgroundColor: uiColors.warningSurface, borderColor: uiColors.warningBorder },
+    classNoticeTitle: { ...typeScale.small, fontWeight: fontWeight.bold, color: colors.textPrimary },
+    classNoticeBody: { ...typeScale.small, color: colors.textSecondary },
     overflowDropName: {
         ...typeScale.row,
         fontWeight: fontWeight.semibold,

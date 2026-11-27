@@ -2,18 +2,12 @@
 -- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
 -- npm run check:db-function-sources verifies every latest migration function has exact source parity.
 
-CREATE OR REPLACE FUNCTION private.make_snake_pick_atomic_internal(
-  p_draft_id uuid,
-  p_member_id uuid,
-  p_player_id uuid,
-  p_allow_expired_timer boolean DEFAULT false,
-  p_to_taxi boolean DEFAULT false
-)
-RETURNS jsonb
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
+CREATE OR REPLACE FUNCTION private.make_snake_pick_atomic_internal(p_draft_id uuid, p_member_id uuid, p_player_id uuid, p_allow_expired_timer boolean DEFAULT false, p_to_taxi boolean DEFAULT false)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
 DECLARE
   v_draft drafts%ROWTYPE;
   v_league_id uuid;
@@ -75,13 +69,11 @@ BEGIN
   END IF;
 
   PERFORM 1
-    FROM players
-   WHERE id = p_player_id
-     AND years_exp = 0
-     AND nba_draft_number IS NOT NULL;
+    FROM private.rookie_class_players(private.draft_class_year(p_draft_id)) AS class
+   WHERE class.player_id = p_player_id;
 
   IF NOT FOUND THEN
-    RAISE EXCEPTION 'Rookie draft picks must select a rookie-eligible player'
+    RAISE EXCEPTION 'Only players selected in this year''s NBA draft can be picked'
       USING ERRCODE = 'P0001';
   END IF;
 
@@ -233,4 +225,4 @@ BEGIN
     'next_timer_expires_at', v_next_timer_expires_at
   );
 END;
-$$;
+$function$;

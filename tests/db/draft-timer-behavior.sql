@@ -24,12 +24,12 @@ BEGIN
   INSERT INTO auth.users(id,aud,role,email,raw_user_meta_data) SELECT id,'authenticated','authenticated',id||'@example.test','{}' FROM unnest(v_users)id;
   INSERT INTO leagues(id,name,slug,commissioner_id,status,roster_size,playoff_entrants,playoff_round_lengths)
     VALUES(v_league,'Synthetic timer behavior',v_league::text,v_users[1],'offseason',10,2,ARRAY[1]);
-  INSERT INTO league_seasons(id,league_id,season_year,is_current,skipped_weeks) VALUES(v_season,v_league,2189,true,ARRAY[1]);
+  INSERT INTO league_seasons(id,league_id,season_year,is_current,skipped_weeks) VALUES(v_season,v_league,2091,true,ARRAY[1]);
   INSERT INTO league_members(id,league_id,user_id,role) VALUES(v_members[1],v_league,v_users[1],'commissioner'),(v_members[2],v_league,v_users[2],'manager');
   INSERT INTO draft_picks(league_id,season_year,round,original_owner_id,current_owner_id)
-    SELECT v_league,2189,r,m,m FROM unnest(v_members)m CROSS JOIN generate_series(1,3)r;
-  INSERT INTO players(first_name,last_name,position,eligible_positions,years_exp,nba_draft_number)
-    SELECT 'Synthetic timer',gen_random_uuid()::text,'PG',ARRAY['PG'],0,n FROM generate_series(1,12)n;
+    SELECT v_league,2091,r,m,m FROM unnest(v_members)m CROSS JOIN generate_series(1,3)r;
+  INSERT INTO players(first_name,last_name,position,eligible_positions,years_exp,nba_draft_number,nba_id,draft_status,draft_year,draft_round,draft_overall_pick)
+    SELECT 'Synthetic timer',gen_random_uuid()::text,'PG',ARRAY['PG'],0,n,'draft-timer-'||n,'drafted',2090,1,n FROM generate_series(1,12)n;
   PERFORM pg_sleep(1.1);
   FOREACH v_seconds IN ARRAY ARRAY[60,604800] LOOP
     v_at := clock_timestamp();
@@ -42,7 +42,7 @@ BEGIN
     v_at := clock_timestamp();
     PERFORM reset_draft_atomic(v_draft);
     PERFORM pg_temp.assert_true((SELECT extract(epoch FROM min(timer_expires_at)-v_at) BETWEEN v_seconds-0.1 AND v_seconds+1 FROM snake_draft_picks WHERE draft_id=v_draft),'Reset arms with the full configured duration');
-    PERFORM make_snake_pick_atomic(v_draft,(SELECT member_id FROM snake_draft_picks WHERE draft_id=v_draft AND overall_pick=1),(SELECT id FROM players WHERE years_exp=0 AND nba_draft_number IS NOT NULL ORDER BY nba_draft_number,id LIMIT 1));
+    PERFORM make_snake_pick_atomic(v_draft,(SELECT member_id FROM snake_draft_picks WHERE draft_id=v_draft AND overall_pick=1),(SELECT id FROM players WHERE draft_status='drafted' AND draft_year=2090 ORDER BY draft_overall_pick,id LIMIT 1));
     PERFORM pg_temp.assert_true((SELECT extract(epoch FROM min(timer_expires_at)-clock_timestamp()) BETWEEN v_seconds-1 AND v_seconds+1 FROM snake_draft_picks WHERE draft_id=v_draft),'A manual pick arms the next configured duration');
     UPDATE drafts SET status='cancelled' WHERE id=v_draft;
   END LOOP;
@@ -64,21 +64,21 @@ BEGIN
   PERFORM pg_temp.assert_true((v_warning->>'remainingPicks')::int=6,'Warning counts all rounds and managers');
   PERFORM pg_temp.assert_true(extract(epoch FROM (v_warning->>'estimatedFinishAt')::timestamptz-clock_timestamp()) BETWEEN 3628798 AND 3628801,'Warning multiplies remaining picks by the timer');
   INSERT INTO nba_games(season_year,nba_game_id,game_date,week_number,home_team,away_team,status) VALUES
-    (2189,'0018900001','2189-10-01',1,'BOS','NYK','Scheduled'),
-    (2189,'0038900001','2189-10-02',1,'BOS','NYK','Scheduled'),
-    (2189,'0048900001','2189-10-03',1,'BOS','NYK','Scheduled'),
-    (2189,'0058900001','2189-10-04',1,'BOS','NYK','Scheduled'),
-    (2189,'0068900001','2189-10-05',1,'BOS','NYK','Scheduled'),
-    (2189,'0028900001','2189-10-20',1,'BOS','NYK','Scheduled'),
-    (2189,'0028900002','2189-10-20',1,'LAL','GSW','Scheduled');
-  v_cutoff := private.draft_timer_opening_night_cutoff(2189);
-  PERFORM pg_temp.assert_true(v_cutoff='2189-10-20 13:00:00+00','Opening day includes a two-game week and excludes exhibitions and Cup final');
+    (2091,'0018900001','2091-10-01',1,'BOS','NYK','Scheduled'),
+    (2091,'0038900001','2091-10-02',1,'BOS','NYK','Scheduled'),
+    (2091,'0048900001','2091-10-03',1,'BOS','NYK','Scheduled'),
+    (2091,'0058900001','2091-10-04',1,'BOS','NYK','Scheduled'),
+    (2091,'0068900001','2091-10-05',1,'BOS','NYK','Scheduled'),
+    (2091,'0028900001','2091-10-20',1,'BOS','NYK','Scheduled'),
+    (2091,'0028900002','2091-10-20',1,'LAL','GSW','Scheduled');
+  v_cutoff := private.draft_timer_opening_night_cutoff(2091);
+  PERFORM pg_temp.assert_true(v_cutoff='2091-10-20 13:00:00+00','Opening day includes a two-game week and excludes exhibitions and Cup final');
   v_warning := draft_timer_start_warning(v_league,3,60);
   PERFORM pg_temp.assert_true(v_warning->>'code' IS NULL,'A short draft before published opening night has no warning');
-  UPDATE nba_games SET game_date=(clock_timestamp() AT TIME ZONE 'America/New_York')::date WHERE season_year=2189 AND nba_game_id LIKE '002%';
+  UPDATE nba_games SET game_date=(clock_timestamp() AT TIME ZONE 'America/New_York')::date WHERE season_year=2091 AND nba_game_id LIKE '002%';
   v_warning := draft_timer_start_warning(v_league,3,604800);
   PERFORM pg_temp.assert_true(v_warning->>'code'='opening_night_overrun','A long draft warns before opening night');
-  UPDATE nba_games SET game_date='2189-10-20' WHERE season_year=2189 AND nba_game_id LIKE '002%';
+  UPDATE nba_games SET game_date='2091-10-20' WHERE season_year=2091 AND nba_game_id LIKE '002%';
   FOREACH v_mode IN ARRAY ARRAY['auto_pick','skip_pick','pause_draft','commissioner_pick'] LOOP
     UPDATE leagues SET status='offseason' WHERE id=v_league;
     UPDATE draft_picks SET is_used=false,used_at=NULL,rookie_draft_id=NULL WHERE league_id=v_league;
@@ -114,7 +114,7 @@ BEGIN
   PERFORM pg_temp.assert_true(v_count=1 AND (SELECT status='paused' FROM drafts WHERE id=v_draft),'A failed cutoff returns one error and keeps the pause');
   PERFORM pg_temp.assert_true((SELECT count(*)=2 FROM snake_draft_picks WHERE draft_id=v_draft AND player_id IS NULL),'A failed second pick rolls back the first pick');
   DROP TRIGGER draft_timer_fail_second ON snake_draft_picks;
-  UPDATE nba_games SET game_date=(clock_timestamp() AT TIME ZONE 'America/New_York')::date-1 WHERE season_year=2189 AND nba_game_id LIKE '002%';
+  UPDATE nba_games SET game_date=(clock_timestamp() AT TIME ZONE 'America/New_York')::date-1 WHERE season_year=2091 AND nba_game_id LIKE '002%';
   SELECT count(*) INTO v_count FROM process_expired_snake_picks_atomic();
   PERFORM pg_temp.assert_true(v_count=2 AND (SELECT status='completed' FROM drafts WHERE id=v_draft),'The per-minute expiry path completes a paused draft without a deadline');
   FOREACH v_mode IN ARRAY ARRAY['auto_pick','skip_pick','pause_draft','commissioner_pick'] LOOP
@@ -133,7 +133,7 @@ BEGIN
         EXCEPTION WHEN OTHERS THEN
           IF SQLERRM <> 'Draft is waiting for a commissioner pick.' THEN RAISE; END IF;
         END;
-        PERFORM commissioner_snake_pick_atomic(v_draft,(SELECT member_id FROM snake_draft_picks WHERE draft_id=v_draft AND overall_pick=1),(SELECT id FROM players WHERE years_exp=0 AND nba_draft_number IS NOT NULL ORDER BY nba_draft_number,id LIMIT 1));
+        PERFORM commissioner_snake_pick_atomic(v_draft,(SELECT member_id FROM snake_draft_picks WHERE draft_id=v_draft AND overall_pick=1),(SELECT id FROM players WHERE draft_status='drafted' AND draft_year=2090 ORDER BY draft_overall_pick,id LIMIT 1));
         PERFORM pg_temp.assert_true((SELECT extract(epoch FROM min(timer_expires_at)-clock_timestamp()) BETWEEN 604798 AND 604801 FROM snake_draft_picks WHERE draft_id=v_draft),'A commissioner pick arms a full seven-day timer');
       ELSIF v_mode='pause_draft' THEN
         v_at := clock_timestamp();

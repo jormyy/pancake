@@ -2,10 +2,14 @@
 -- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
 -- npm run check:db-function-sources verifies every latest migration function has exact source parity.
 
-CREATE OR REPLACE FUNCTION public.view_draft_room(p_league_id uuid, p_member_id uuid, p_params jsonb DEFAULT '{}')
-RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY INVOKER SET search_path = '' AS $$
+CREATE OR REPLACE FUNCTION public.view_draft_room(p_league_id uuid, p_member_id uuid, p_params jsonb DEFAULT '{}'::jsonb)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
 DECLARE context jsonb; draft public.drafts%ROWTYPE; orders jsonb; budgets jsonb; nominations jsonb; picks jsonb;
-  open_nomination jsonb; active_bids jsonb; current_member uuid; prospects jsonb; search_results jsonb;
+  open_nomination jsonb; active_bids jsonb; current_member uuid; prospects jsonb; search_results jsonb; class_year int; class_status jsonb;
 BEGIN
   context := public.view_context(p_league_id, p_member_id, p_params);
   SELECT * INTO draft FROM public.drafts WHERE id = (p_params->>'draftId')::uuid AND league_id = p_league_id;
@@ -40,16 +44,38 @@ BEGIN
     'skippedAt', pick.skipped_at, 'skipReason', pick.skip_reason, 'timerExpiresAt', pick.timer_expires_at,
     'player', CASE WHEN player.id IS NOT NULL THEN jsonb_build_object('id', player.id, 'displayName', COALESCE(player.display_name, 'Unknown'),
       'nbaTeam', player.nba_team, 'position', player.position, 'nbaId', player.nba_id, 'yearsExp', player.years_exp,
-      'careerGames', player.career_regular_season_games, 'injuryStatus', player.injury_status) END) ORDER BY pick.overall_pick), '[]') INTO picks
+      'careerGames', player.career_regular_season_games, 'injuryStatus', player.injury_status) END,
+    'originalMemberId', asset.original_owner_id, 'originalTeamName', original_member.team_name,
+    'swap', (SELECT jsonb_build_object('status', swap.status, 'holderMemberId', swap.holder_member_id,
+        'holderTeamName', holder.team_name, 'counterpartyMemberId', swap.counterparty_member_id,
+        'counterpartyTeamName', counterparty.team_name,
+        'side', CASE WHEN swap.holder_overall_pick = pick.overall_pick THEN 'holder' ELSE 'counterparty' END)
+      FROM public.draft_pick_swaps swap
+      LEFT JOIN public.league_members holder ON holder.id = swap.holder_member_id
+      LEFT JOIN public.league_members counterparty ON counterparty.id = swap.counterparty_member_id
+      WHERE swap.draft_id = draft.id AND pick.overall_pick IN (swap.holder_overall_pick, swap.counterparty_overall_pick)
+      ORDER BY swap.created_at LIMIT 1)) ORDER BY pick.overall_pick), '[]') INTO picks
     FROM public.snake_draft_picks pick LEFT JOIN public.league_members member ON member.id = pick.member_id
-      LEFT JOIN public.players player ON player.id = pick.player_id WHERE pick.draft_id = draft.id;
+      LEFT JOIN public.players player ON player.id = pick.player_id
+      LEFT JOIN public.draft_picks asset ON asset.id = pick.draft_pick_id
+      LEFT JOIN public.league_members original_member ON original_member.id = asset.original_owner_id
+    WHERE pick.draft_id = draft.id;
   IF jsonb_array_length(orders) > 0 THEN current_member := (orders->((draft.current_nomination_order - 1) % jsonb_array_length(orders))->>'memberId')::uuid; END IF;
-  SELECT COALESCE(jsonb_agg(to_jsonb(player) ORDER BY player.nba_draft_number, player.id), '[]') INTO prospects
-    FROM (SELECT id, display_name, nba_team, position, nba_id, injury_status, nba_draft_number, years_exp, career_regular_season_games
-      FROM public.players WHERE nba_draft_number IS NOT NULL AND years_exp = 0
-        AND (COALESCE(p_params->>'query', '') = '' OR display_name ILIKE '%' || (p_params->>'query') || '%')
-      ORDER BY nba_draft_number, id LIMIT 100) player
-    WHERE NOT EXISTS (SELECT 1 FROM public.snake_draft_picks WHERE draft_id = draft.id AND player_id = player.id);
+  IF draft.draft_type = 'snake'::public.draft_type THEN
+    class_year := private.draft_class_year(draft.id);
+    class_status := private.rookie_class_status(class_year) || jsonb_build_object(
+      'availableCount', (SELECT count(*) FROM private.rookie_draft_pool(draft.id)));
+    SELECT COALESCE(jsonb_agg(jsonb_build_object('id', player.id, 'display_name', player.display_name, 'nba_team', player.nba_team,
+      'position', player.position, 'nba_id', player.nba_id, 'injury_status', player.injury_status, 'years_exp', player.years_exp,
+      'career_regular_season_games', player.career_regular_season_games, 'draft_year', class_year,
+      'draft_round', pool.draft_round, 'draft_overall_pick', pool.draft_overall_pick,
+      'taxi_eligible', COALESCE(private.taxi_player_eligible(draft.league_id, player.id), false))
+      ORDER BY pool.draft_overall_pick, player.id), '[]') INTO prospects
+      FROM private.rookie_draft_pool(draft.id) pool JOIN public.players player ON player.id = pool.player_id
+     WHERE COALESCE(p_params->>'query', '') = '' OR player.display_name ILIKE '%' || (p_params->>'query') || '%';
+  ELSE
+    prospects := '[]'::jsonb;
+  END IF;
   SELECT COALESCE(jsonb_agg(to_jsonb(player) || jsonb_build_object('age', (SELECT age FROM public.dynasty_rankings
     WHERE player_id = player.id AND source = 'hashtagbasketball.com' AND age IS NOT NULL ORDER BY fetched_at DESC NULLS LAST LIMIT 1)) ORDER BY ordinal), '[]') INTO search_results
     FROM (SELECT p.id, p.display_name, p.nba_team, p.position, p.nba_id, p.injury_status, p.years_exp,
@@ -68,7 +94,7 @@ BEGIN
     'pauseReason', draft.pause_reason, 'pausedAt', draft.paused_at, 'pausedRemainingSeconds', draft.timer_paused_remaining_seconds),
     'order', orders, 'orders', orders, 'budgets', budgets, 'nominations', nominations, 'openNomination', open_nomination,
     'activeBids', active_bids, 'currentNominatorMemberId', current_member, 'picks', picks,
-    'prospects', prospects, 'searchResults', search_results,
+    'prospects', prospects, 'classStatus', class_status, 'searchResults', search_results,
     'nextPick', (SELECT item FROM jsonb_array_elements(picks) item WHERE item->>'player' IS NULL AND item->>'skippedAt' IS NULL LIMIT 1));
 END;
-$$;
+$function$;

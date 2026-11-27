@@ -12,15 +12,15 @@ BEGIN
   INSERT INTO leagues(id,name,slug,commissioner_id,status,taxi_slots)
   VALUES(l,'Taxi auto-pick repro',l::text,u,'drafting',1);
   INSERT INTO league_members(id,league_id,user_id,role,team_name) VALUES(m,l,u,'commissioner','A');
-  INSERT INTO league_seasons(id,league_id,season_year,is_current) VALUES(s,l,2150,true);
-  INSERT INTO players(id,first_name,last_name,position,eligible_positions,years_exp,nba_draft_number)
-  VALUES(blocked,'Taxi','Blocked','PG',ARRAY['PG'],0,1),
-        (eligible,'Taxi','Eligible','PG',ARRAY['PG'],0,2147483647);
+  INSERT INTO league_seasons(id,league_id,season_year,is_current) VALUES(s,l,2100,true);
+  INSERT INTO players(id,first_name,last_name,position,eligible_positions,years_exp,nba_id,draft_status,draft_year,draft_round,draft_overall_pick)
+  VALUES(blocked,'Taxi','Blocked','PG',ARRAY['PG'],0,'taxi-autopick-'||blocked,'drafted',2099,1,1),
+        (eligible,'Taxi','Eligible','PG',ARRAY['PG'],0,'taxi-autopick-'||eligible,'drafted',2099,2,60);
   -- Team-local historical exits isolate the pool without changing existing player metadata.
   INSERT INTO league_member_taxi_exits(league_id,member_id,player_id)
-  SELECT l,m,id FROM players WHERE years_exp=0 AND nba_draft_number IS NOT NULL AND id<>eligible;
+  SELECT l,m,id FROM players WHERE draft_status='drafted' AND draft_year=2099 AND id<>eligible;
   INSERT INTO draft_picks(id,league_id,season_year,round,original_owner_id,current_owner_id)
-  VALUES(asset,l,2150,1,m,m);
+  VALUES(asset,l,2099,1,m,m);
   INSERT INTO drafts(id,league_id,league_season_id,draft_type,status,is_mock,rounds)
   VALUES(d,l,s,'snake','in_progress',false,1);
   INSERT INTO snake_draft_picks(draft_id,overall_pick,round,pick_in_round,member_id,draft_pick_id,timer_expires_at)
