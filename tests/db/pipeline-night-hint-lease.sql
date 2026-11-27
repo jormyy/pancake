@@ -42,6 +42,7 @@ BEGIN
     IF expected IS DISTINCT FROM actual THEN RAISE EXCEPTION 'Hint fence parity failed: expected %, got %',expected,actual; END IF;
   END LOOP;
   PERFORM set_config('request.headers','',true);
+  DELETE FROM private.work_items WHERE kind='live-poll' AND status IN ('pending','running','failed');
   INSERT INTO private.work_items(kind,key,status,attempts,lease_token,lease_until,invocation_key)
     VALUES('live-poll','pipeline-hint-lease','running',1,gen_random_uuid(),clock_timestamp()+interval '5 minutes',invocation);
   PERFORM set_config('request.headers',jsonb_build_object('x-pancake-work-key',invocation)::text,true);

@@ -26,7 +26,7 @@ CREATE TEMP TABLE excellence_members AS
     (SELECT draft.id FROM public.drafts draft WHERE draft.league_id=member.league_id ORDER BY draft.id LIMIT 1) AS draft_id
   FROM public.league_members member JOIN public.leagues league ON league.id=member.league_id
   WHERE league.deleted_at IS NULL
-  ORDER BY (member.user_id=league.commissioner_id) DESC,member.id LIMIT 2;
+  ORDER BY (member.league_id=(SELECT league_id FROM excellence_fixture)) DESC,(member.user_id=league.commissioner_id) DESC,member.id LIMIT 2;
 SET LOCAL statement_timeout='120s';
 SET LOCAL lock_timeout='500ms';
 SET LOCAL pg_stat_statements.track='all';
