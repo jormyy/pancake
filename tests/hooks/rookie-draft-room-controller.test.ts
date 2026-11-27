@@ -332,6 +332,33 @@ describe('useRookieDraftRoomController', () => {
             consoleError.mockRestore()
         }
     })
+    it('shows another manager pick after a draft league version change', async () => {
+        vi.useFakeTimers()
+        const board = draftState('draft')
+        mocks.getState.mockImplementation(async () => structuredClone(board))
+        let latest!: ReturnType<typeof useRookieDraftRoomController>
+        let renderer!: ReactTestRenderer
+        try {
+            await act(async () => { renderer = create(React.createElement(() => {
+                latest = useRookieDraftRoomController({ draftId: 'draft', memberId: 'member', leagueId: 'league', rosterSize: 1 })
+                return null
+            })) })
+            expect(latest.state?.picks).toEqual([])
+            board.picks = [{ overallPick: 1, round: 1, pickInRound: 1, memberId: 'other', teamName: 'Other', pickedAt: 'now',
+                skippedAt: null, skipReason: null, timerExpiresAt: null,
+                player: { id: 'a', displayName: 'a', nbaTeam: null, position: 'PG', nbaId: null } }]
+            await act(async () => {
+                mocks.subscribe.mock.calls.at(-1)?.[1]()
+                mocks.version?.({ changes: [{ topic: 'draft' }] })
+                await vi.advanceTimersByTimeAsync(300)
+            })
+            expect(latest.state?.picks.map(pick => pick.player?.id)).toEqual(['a'])
+        } finally {
+            await act(async () => { renderer?.unmount() })
+            vi.useRealTimers()
+        }
+    })
+
     it('never checks or drops another selected league roster from this draft', async () => {
         mocks.getState.mockImplementation(() => Promise.resolve(draftState('draft', 'completed')))
         mocks.getRoster.mockResolvedValue([{ id: 'other-roster', is_on_ir: false, is_on_taxi: false }])

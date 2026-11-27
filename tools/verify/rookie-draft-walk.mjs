@@ -33,7 +33,8 @@ const roster = team => db(`SELECT json_build_object('active',count(*) FILTER (WH
   FROM roster_players r JOIN league_members m ON m.id=r.member_id JOIN players p ON p.id=r.player_id WHERE r.league_id=${league} AND m.team_name=${q(team)}`)
 const swaps = () => db(`SELECT json_agg(json_build_object('round',round,'holder',h.team_name,'counterparty',c.team_name,'status',status,'holderPick',holder_overall_pick,'counterpartyPick',counterparty_overall_pick) ORDER BY round)
   FROM draft_pick_swaps s JOIN league_members h ON h.id=s.holder_member_id JOIN league_members c ON c.id=s.counterparty_member_id WHERE s.league_id=${league}`)
-const receiptsCount = () => db(`SELECT count(*) FROM private.request_receipts WHERE function = 'public.make_rookie_selection_atomic' AND created_at > now() - interval '1 hour'`)
+const walkStart = new Date().toISOString()
+const receiptsCount = () => db(`SELECT count(*) FROM private.request_receipts WHERE function = 'public.make_rookie_selection_atomic' AND created_at > ${q(walkStart)}`)
 const pickState = () => ({ board: board(), alpha: roster('Alpha'), beta: roster('Beta') })
 
 const browser = await webkit.launch({ headless: true })
@@ -89,10 +90,17 @@ const showProspects = async s => { if (await control(s, 'Show prospects').count(
 const showBoard = async s => { if (await control(s, 'Show pick board').count()) await press(s, 'Show pick board'); await settle(s) }
 const visibleNames = async s => s.page.locator('[aria-label]').filter({ visible: true }).evaluateAll(nodes => nodes.map(node => node.getAttribute('aria-label')))
 
+const sessions = []
+process.on('uncaughtException', async error => {
+  for (const s of sessions) await s.page.screenshot({ path: path.join(out, `failure-${s.name}.png`) }).catch(() => {})
+  console.log(String(error).slice(0, 600))
+  process.exit(1)
+})
 const alpha = await session('alpha-phone', 0, 390, 844)
 const alphaDesk = await session('alpha-desktop', 0, 1440, 1000)
 const beta = await session('beta-phone', 1, 390, 844)
 const betaDesk = await session('beta-desktop', 1, 1440, 1000)
+sessions.push(alpha, alphaDesk, beta, betaDesk)
 const e2eLeague = db(`SELECT to_json(name) FROM leagues WHERE id=${q(credentials.leagueId)}`)
 
 for (const s of [alpha, alphaDesk, beta, betaDesk]) {
@@ -152,6 +160,7 @@ const betaLabels = await visibleNames(beta)
 check(!betaLabels.some(label => /^Select /.test(label ?? '')), 'Beta can select while Alpha is on the clock')
 
 const before = pickState()
+await showProspects(alpha)
 await press(alpha, 'Select E2E Player001')
 await text(alpha, 'After this pick')
 await shot(alpha, '06-placement-full-active-alpha')
@@ -174,13 +183,14 @@ check(unauthorized.status >= 400, `Beta out-of-turn selection was accepted (${un
 check(JSON.stringify(pickState()) === JSON.stringify(before), 'Refused out-of-turn selection changed stored state')
 record('unauthorized', { status: unauthorized.status, body: unauthorizedBody.slice(0, 200), unchanged: true })
 
+await showProspects(alphaDesk)
 await press(alphaDesk, 'Select E2E Player001')
 await text(alphaDesk, 'After this pick')
 await press(alphaDesk, 'Drop Rehearsal Vet A1', 'checkbox').catch(() => press(alphaDesk, 'Drop Rehearsal Vet A1'))
 await settle(alphaDesk)
 await shot(alphaDesk, '07-placement-drop-chosen-alpha')
 const confirm1 = control(alphaDesk, 'Confirm drafting E2E Player001')
-await Promise.all([confirm1.click(), confirm1.click({ force: true }).catch(() => {})])
+await confirm1.dblclick()
 await alphaDesk.page.waitForTimeout(3000)
 await shot(alphaDesk, '08-result-active-with-drop-alpha')
 const afterPick1 = pickState()

@@ -214,7 +214,7 @@ export function useRookieDraftRoomController({
         setSelectionOutcome(null)
     }, [ownerIdentity])
 
-    const load = useCallback(async (deferInitialPaint = false, checkVersion = true) => {
+    const load = useCallback(async (deferInitialPaint = false) => {
         if (!canRefresh() || activeReadOwnerRef.current !== readOwnerKey) return false
         const readEpoch = capture()
         const requestedDraftId = draftId
@@ -224,7 +224,7 @@ export function useRookieDraftRoomController({
         }
         const seq = ++loadSeqRef.current
         try {
-            const payload = leagueId && memberId ? await readScreenView<RookieDraftState>(screenScope('draft-room', leagueId, memberId, { draftId: requestedDraftId }), { checkVersion }) : null
+            const payload = leagueId && memberId ? await readScreenView<RookieDraftState>(screenScope('draft-room', leagueId, memberId, { draftId: requestedDraftId }), { checkVersion: true }) : null
             const data = payload?.draft ? payload : null
             if (!activityIsCurrent(readEpoch) || seq !== loadSeqRef.current || activeDraftIdRef.current !== requestedDraftId || activeReadOwnerRef.current !== readOwnerKey) return false
             const previous = roomSnapshotRef.current
@@ -286,7 +286,6 @@ export function useRookieDraftRoomController({
         let disposed = false
         let pending = false
         let poolPending = false
-        let versionKnown = false
         let inFlight: Promise<boolean> | null = null
         let inFlightEpoch = -1
         let timer: ReturnType<typeof setTimeout> | null = null
@@ -317,9 +316,7 @@ export function useRookieDraftRoomController({
                         const refreshPool = poolPending || prospectsDirtyRef.current
                         poolPending = false
                         const deferInitialPaint = roomSnapshotRef.current === null
-                        const checkVersion = !versionKnown
-                        versionKnown = false
-                        const stateLoaded = await load(deferInitialPaint, checkVersion)
+                        const stateLoaded = await load(deferInitialPaint)
                         const poolRead = refreshPool && isCurrent() && canRefresh()
                         const poolLoaded = poolRead || prospectsDirtyRef.current && isCurrent() && canRefresh()
                             ? await loadProspects(queryRef.current.trim() || undefined) : true
@@ -349,9 +346,8 @@ export function useRookieDraftRoomController({
         }
         return {
             run, trigger,
-            versionChanged: () => { versionKnown = true; trigger() },
+            versionChanged: trigger,
             suspend: () => {
-                versionKnown = false
                 pending = true
                 invalidate()
                 if (timer) clearTimeout(timer)
