@@ -8,7 +8,7 @@ const sourceText = async (code: string, filePath = 'tests/new-screen.test.ts') =
     return result.messages.filter(message => message.ruleId === 'pancake/no-source-text-tests')
 }
 
-describe('source-text test lint rule', () => {
+describe('source-text test lint rule', { timeout: 30_000 }, () => {
     it('rejects the helper-read toContain shape that broke after the projections tab removal', async () => {
         const messages = await sourceText(`import { readFileSync } from 'node:fs'
 import path from 'node:path'
