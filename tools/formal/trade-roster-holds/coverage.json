@@ -62,7 +62,7 @@
   ],
   "migrations": {
     "dir": "supabase/migrations",
-    "through": "20261227000000_public_read_allowance.sql",
-    "sha256": "4080b36c5671cb2d2658b3eaa504ad7b0d30de712c3139d614ec9f0a8e4493e0"
+    "through": "20261228000000_rookie_draft_selection.sql",
+    "sha256": "2d533f219a06304968f01b4d15adb1e609d450e5b21675f01d5937805c77eacd"
   }
 }
