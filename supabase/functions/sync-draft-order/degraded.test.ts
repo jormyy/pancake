@@ -23,7 +23,7 @@ const players: MockPlayer[] = Array.from({ length: 60 }, (_, index) => ({
 }))
 const priorOrderSnapshot = () => players.map((player) => player.nba_draft_number)
 
-type UpstreamMode = 'down' | 'partial' | 'good' | 'malformed-article' | 'bare-number' | 'out-of-range' | 'negative-number' | 'large-unpunctuated' | 'numbered-bullet' | 'invalid-stats' | 'empty-name' | 'malformed-row' | 'gapped-article' | 'valid50' | 'article-fallback'
+type UpstreamMode = 'down' | 'partial' | 'good' | 'malformed-article' | 'bare-number' | 'out-of-range' | 'negative-number' | 'large-unpunctuated' | 'numbered-bullet' | 'invalid-stats' | 'empty-name' | 'malformed-row' | 'gapped-article' | 'valid50' | 'article-fallback' | 'year-heading'
 let upstreamMode: UpstreamMode = 'down'
 const writes: string[] = []
 const boardRecords: { p_draft_year: number; p_source: string; p_picks: { overallPick: number; personId: string | null }[]; p_error?: string }[] = []
@@ -56,7 +56,7 @@ const upstream = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, (
     if (upstreamMode === 'malformed-row') rows[36] = []
     return Response.json(payload)
   }
-  if (['malformed-article', 'bare-number', 'out-of-range', 'negative-number', 'large-unpunctuated', 'numbered-bullet', 'gapped-article', 'valid50', 'article-fallback'].includes(upstreamMode)) {
+  if (['malformed-article', 'bare-number', 'out-of-range', 'negative-number', 'large-unpunctuated', 'numbered-bullet', 'gapped-article', 'valid50', 'article-fallback', 'year-heading'].includes(upstreamMode)) {
     const articlePlayers = upstreamMode === 'valid50' ? players.slice(0, 50) : players
     const verbs = ['draft', 'drafts', 'select', 'selects', 'take', 'takes', 'pick', 'picks', 'from']
     const lines = articlePlayers.flatMap((player, index) => {
@@ -68,8 +68,10 @@ const upstream = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, (
       if (upstreamMode === 'numbered-bullet' && index === 36) return ['- 37. Mock Team selects Mock Rookie 37']
       const malformed = upstreamMode === 'malformed-article' || upstreamMode === 'article-fallback'
       const verb = index === 36 && malformed ? 'chooses' : upstreamMode === 'valid50' ? verbs[index % verbs.length] : 'selects'
+      if (upstreamMode === 'year-heading' && index === 59) return [`${index + 1}. Mock Team draft ${player.display_name} (Mock College) (Traded to Other Team via Third Team)`]
       return [`${index + 1}. Mock Team ${verb} ${player.display_name}`]
     })
+    if (upstreamMode === 'year-heading') lines.unshift('• 2027 NBA Draft Board', '2027 NBA Draft: Round 1')
     return new Response(`<script id="__NEXT_DATA__" type="application/json">${JSON.stringify({
       props: { pageProps: { article: { contentText: lines.join('\n') } } },
     })}</script>`, { headers: { 'content-type': 'text/html' } })
@@ -225,6 +227,21 @@ Deno.test({
     if (players[36].nba_draft_number !== null || players[59].nba_draft_number !== 60) {
       throw new Error('Valid gapped board was renumbered')
     }
+  },
+})
+
+Deno.test({
+  name: 'a year heading above the official board is not read as a pick',
+  sanitizeOps: false,
+  sanitizeResources: false,
+  fn: async () => {
+    upstreamMode = 'year-heading'
+    const writesBefore = writes.length
+    const result = await syncDraftOrder(2027, DRAFT_WINDOW)
+    if (result.draftPickCount !== 60 || result.source !== 'nba.com' || writes.length !== writesBefore + 1) {
+      throw new Error(`Board under a year heading rejected: ${JSON.stringify(result)}`)
+    }
+    if (players[59].nba_draft_number !== 60) throw new Error('Traded final pick lost its draft number')
   },
 })
 

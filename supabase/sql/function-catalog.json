@@ -311,6 +311,7 @@
     "private.rookie_class_reconciliation(integer)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.rookie_class_status(integer)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.rookie_draft_pool(uuid)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
+    "private.rookie_name_key(text)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.roster_action_blocks(private.roster_action,uuid,uuid,uuid,uuid[])": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.roster_action_policy()": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.roster_change_requests_lineup_refill()": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},

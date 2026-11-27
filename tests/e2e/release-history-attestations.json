@@ -3855,9 +3855,9 @@
     {
       "name": "rookie_draft_selection",
       "version": "20261228000000",
-      "statementCount": 43,
-      "statementsSha256": "413eecee8dc0005a1484cde3dcd2efe3b323d40a62e66d8a78bc748663d748e3",
-      "sha256": "245fe538218992410dbc0a3cf7bafbaf314a00368e9f2462fd3d71e8e04b0ded"
+      "statementCount": 45,
+      "statementsSha256": "f379391b548588b7ee66894361a5573889f0ff47f1db29146c421a01b5b443aa",
+      "sha256": "464412033948d1b029d336c6c49afa535ff334d54c174f99f5031693982cab1b"
     }
   ]
 }

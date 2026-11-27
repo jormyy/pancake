@@ -250,6 +250,7 @@ function parseDraftPicksFromArticleText(articleText: string): NBADraftPick[] {
   for (const line of lines) {
     const match = line.match(/^([+-]?\d+)\.\s+(.+)$/)
     if (!match) {
+      if (/^(?:[-*•#(]\s*)?(?:19|20)\d{2}\s+\D/.test(line)) continue
       if (/^(?:[-*•#(]\s*)?[+-]?\s*\d+(?:$|[.)\s:–—-])/.test(line)) throw new Error('Unrecognized numbered NBA draft entry')
       continue
     }

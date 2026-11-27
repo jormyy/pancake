@@ -128,8 +128,15 @@ BEGIN
   SELECT jsonb_object_agg(overall_pick::text || ':' || COALESCE(player_id::text, '-'), outcome) INTO outcomes
     FROM private.rookie_class_reconciliation(2098) WHERE outcome <> 'eligible';
   IF outcomes <> jsonb_build_object(
-      '7:' || pg_temp.f('p9'), 'duplicate', '7:' || pg_temp.f('p10'), 'duplicate', '9:-', 'missing') THEN
+      '7:' || pg_temp.f('p9'), 'duplicate', '7:' || pg_temp.f('p10'), 'duplicate',
+      '8:' || pg_temp.f('p11'), 'identity_mismatch', '9:' || pg_temp.f('p9'), 'wrong_pick') THEN
     RAISE EXCEPTION 'Unexpected reconciliation discrepancies %', outcomes;
+  END IF;
+  IF private.rookie_name_key('Nikola Jokić Jr.') <> private.rookie_name_key('nikola jokic')
+     OR private.rookie_name_key('A.J. Dybantsa') <> private.rookie_name_key('AJ Dybantsa')
+     OR private.rookie_name_key('Gary Payton II') <> private.rookie_name_key('Gary Payton')
+     OR private.rookie_name_key('Jalen Green') = private.rookie_name_key('Jalen Greene') THEN
+    RAISE EXCEPTION 'Official and stored names must match by spelling only';
   END IF;
   IF (SELECT array_agg(player_id ORDER BY draft_overall_pick) FROM private.rookie_class_players(2098))
      <> ARRAY[pg_temp.f('p1'), pg_temp.f('p2'), pg_temp.f('p3'), pg_temp.f('p4'), pg_temp.f('p5'), pg_temp.f('p6'), pg_temp.f('p11')] THEN
