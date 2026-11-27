@@ -40,7 +40,6 @@ const DYNASTY_DECISION_CACHE_PREFIX = 'pancake:dynasty-forecast-snapshot:v3:'
 const DYNASTY_DECISION_LATEST_PREFIX = 'pancake:dynasty-forecast-latest:v3:'
 // Older snapshots can omit unavailable routes or contain another selection’s values.
 const DYNASTY_ANALYZER_CACHE_PREFIX = 'pancake:dynasty-analyzer-snapshot:v7:'
-const DYNASTY_ANALYZER_LATEST_PREFIX = 'pancake:dynasty-analyzer-latest:v3:'
 const DYNASTY_ANALYZER_SCOPE_PREFIX = 'pancake:dynasty-analyzer-scope:v1:'
 
 export function dynastyDecisionCacheKey(scope: DynastyDecisionCacheScope): string {
@@ -67,12 +66,6 @@ export function dynastyAnalyzerSnapshotCacheKey(
     routeSignature: string,
 ): string {
     return `${DYNASTY_ANALYZER_CACHE_PREFIX}${scope.userId}:${scope.memberId}:${scope.leagueId}:${scope.seasonYear}:${encodeURIComponent(scope.scoringSignature)}:${scope.teams}:${scope.faabBudget}:${encodeURIComponent(routeSignature)}`
-}
-
-export function dynastyAnalyzerLatestRouteCacheKey(
-    scope: DynastyAnalyzerCacheScope,
-): string {
-    return `${DYNASTY_ANALYZER_LATEST_PREFIX}${scope.userId}:${scope.memberId}:${scope.leagueId}:${scope.seasonYear}:${encodeURIComponent(scope.scoringSignature)}:${scope.teams}:${scope.faabBudget}`
 }
 
 export function dynastyAnalyzerLatestScopeCacheKey(

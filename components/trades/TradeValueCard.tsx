@@ -8,7 +8,7 @@ import { colors, controlSize, fontWeight, radii, spacing, textStyles, typeScale,
 
 type TeamValue = { memberId: string; total: number; net: number }
 
-export function tradeVerdict(analysis: DynastyTradeAnalysis, myMemberId: string, participantName: (memberId: string) => string) {
+function tradeVerdict(analysis: DynastyTradeAnalysis, myMemberId: string, participantName: (memberId: string) => string) {
     const comparison = tradeComparison(analysis.teams)
     const winner = comparison.totals.find((team) => team.memberId === comparison.winnerMemberId)
     if (!winner) return 'Even trade'
