@@ -30,6 +30,7 @@ Preconditions:
 - **Auction.** Select an available player and nominate through the visible control. As the other manager, bid above the current price. Require bidder, price, and budget changes.
 - **Settlement.** Let the timer expire or use an authorized commissioner control. Require the winning roster player and draft budget debit in the database.
 - **Rookie.** Choose `Join Rookie Draft` from Draft. On the active manager’s turn, select an eligible rookie with its Pick button. Require the pick on the board and its stored owner.
+- **Rookie selection.** Run `node tools/verify/seed-rookie-draft.mjs "$EVIDENCE"`, then `node tools/verify/rookie-draft-walk.mjs "$EVIDENCE"`. Require `walk.json` with no failures, one stored receipt per pick, and the same board for both managers at both widths.
 - **Timer.** Pause and resume as commissioner. Require stable remaining time while paused and progression after resume.
 - **Widths.** At 375×812, require the active player, bid/pick control, and timer to remain visible or reachable.
 
@@ -39,3 +40,4 @@ Preconditions:
 - A room with only one participant cannot prove competing bids or turn changes.
 - Mock results must not alter the real league roster. Compare both stored states.
 - Timer screenshots alone do not prove pause or expiry; record observations across time.
+- Only players in the season's NBA draft class appear as prospects. A seeded rookie needs `nba_id`, `draft_status = 'drafted'`, the class `draft_year` (season year minus one), its own `draft_overall_pick`, and pick assets for that class year.
