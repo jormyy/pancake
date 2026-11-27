@@ -69,8 +69,8 @@ try {
         INSERT INTO league_seasons(id,league_id,season_year,is_current) VALUES(${quote(season)},${quote(league)},2027,true);
         ${members.map((member, i) => `INSERT INTO league_members(id,league_id,user_id,role,team_name,joined_at) VALUES(${quote(member)},${quote(league)},${quote(users[i])},'${i?'manager':'commissioner'}','Team ${i}',now()+interval '${i} seconds');`).join('\n')}
         INSERT INTO draft_picks(league_id,season_year,round,original_owner_id,current_owner_id)
-          SELECT ${quote(league)},2027,r,m,m FROM unnest(ARRAY[${members.map(quote).join(',')}]::uuid[]) m CROSS JOIN generate_series(1,3) r;
-        ${players.map(player => `INSERT INTO players(id,first_name,last_name,position,eligible_positions,years_exp,nba_draft_number) VALUES(${quote(player)},'Synthetic',${quote(player)},'PG',ARRAY['PG'],0,1);`).join('\n')}
+          SELECT ${quote(league)},2026,r,m,m FROM unnest(ARRAY[${members.map(quote).join(',')}]::uuid[]) m CROSS JOIN generate_series(1,3) r;
+        ${players.map((player, index) => `INSERT INTO players(id,first_name,last_name,position,eligible_positions,years_exp,nba_draft_number,nba_id,draft_status,draft_year,draft_round,draft_overall_pick) VALUES(${quote(player)},'Synthetic',${quote(player)},'PG',ARRAY['PG'],0,${201 + index},${quote(`skipped-week-${player}`)},'drafted',2026,4,${201 + index});`).join('\n')}
         COMMIT;`)
       if (mode === 'after') {
         await generateMatchups(league, season)

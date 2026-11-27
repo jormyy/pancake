@@ -58,13 +58,13 @@ try {
   await sql(`BEGIN;
     INSERT INTO leagues(id,name,slug,commissioner_id,status,playoff_entrants,playoff_round_lengths)
       VALUES(${quote(league)},'Synthetic API notifications',${quote(league)},${quote(users[0])},'offseason',2,ARRAY[1]);
-    INSERT INTO league_seasons(id,league_id,season_year,is_current) VALUES(${quote(season)},${quote(league)},20070,true);
+    INSERT INTO league_seasons(id,league_id,season_year,is_current) VALUES(${quote(season)},${quote(league)},2087,true);
     ${members.map((id, i) => `INSERT INTO league_members(id,league_id,user_id,role,team_name) VALUES(${quote(id)},${quote(league)},${quote(users[i])},'${i ? 'manager' : 'commissioner'}','API ${i}');`).join('\n')}
-    ${players.map((id, i) => `INSERT INTO players(id,first_name,last_name,position,eligible_positions,years_exp,nba_draft_number) VALUES(${quote(id)},'Synthetic','API ${i}','PG',ARRAY['PG'],0,${i+1});`).join('\n')}
+    ${players.map((id, i) => `INSERT INTO players(id,first_name,last_name,position,eligible_positions,years_exp,nba_draft_number,nba_id,draft_status,draft_year,draft_round,draft_overall_pick) VALUES(${quote(id)},'Synthetic','API ${i}','PG',ARRAY['PG'],0,${i+1},${quote(`notif-api-${id}`)},'drafted',${2086 + (i % 2)},1,${i+1});`).join('\n')}
     INSERT INTO season_weeks(season_year,week_number,week_start,week_end)
-      SELECT y,w,date '2026-10-20'+(w-1)*7,date '2026-10-26'+(w-1)*7 FROM generate_series(20070,20071) y CROSS JOIN generate_series(1,24) w;
+      SELECT y,w,date '2026-10-20'+(w-1)*7,date '2026-10-26'+(w-1)*7 FROM generate_series(2087,2088) y CROSS JOIN generate_series(1,24) w;
     INSERT INTO draft_picks(league_id,season_year,round,original_owner_id,current_owner_id)
-      SELECT ${quote(league)},20070,1,m,m FROM unnest(ARRAY[${members.map(quote).join(',')}]::uuid[]) m;
+      SELECT ${quote(league)},2086,1,m,m FROM unnest(ARRAY[${members.map(quote).join(',')}]::uuid[]) m;
     UPDATE profiles SET push_token='ExponentPushToken[notif-api-'||id||']' WHERE id IN (${users.map(quote).join(',')});
     COMMIT;`)
   const { handleDraftRoute } = await import('../../functions/api/draft.ts')
@@ -91,7 +91,7 @@ try {
     assert.equal(pushes.length, before, 'API actions cannot send inline notifications')
     return result
   }
-  for (let year = 20070; year <= 20071; year++) {
+  for (let year = 2087; year <= 2088; year++) {
     await action('/draft/start-rookie', { leagueId: league, rounds: 1, pickTimerSeconds: 60, timerExpiryBehavior: 'auto_pick' })
     const draft = await sql(`SELECT id FROM drafts WHERE league_id=${quote(league)} AND league_season_id=(SELECT id FROM league_seasons WHERE league_id=${quote(league)} AND is_current)`)
     for (let pick = 1; pick <= 2; pick++) {
@@ -113,7 +113,7 @@ try {
     const count = await sql(`SELECT count(*) FROM notification_outbox WHERE data->>'draftId'=${quote(draft)}`)
     await assert.rejects(() => action(`/draft/${draft}/auto-pick`, { memberId: members[0] }))
     assert.equal(await sql(`SELECT count(*) FROM notification_outbox WHERE data->>'draftId'=${quote(draft)}`), count)
-    if (year === 20070) await sql(`UPDATE leagues SET status='archived' WHERE id=${quote(league)}; SELECT * FROM advance_season_atomic(${quote(league)});`)
+    if (year === 2087) await sql(`UPDATE leagues SET status='archived' WHERE id=${quote(league)}; SELECT * FROM advance_season_atomic(${quote(league)});`)
   }
   assert.equal(pushes.length, 4)
   assert.equal(new Set(pushes.map(push => push.data.pickId)).size, 4)
@@ -124,6 +124,6 @@ try {
   globalThis.fetch = nativeFetch
   await worker?.shutdown()
   await fake.shutdown()
-  await sql(`DELETE FROM draft_orders WHERE draft_id IN (SELECT id FROM drafts WHERE league_id=${quote(league)}); DELETE FROM snake_draft_picks WHERE draft_id IN (SELECT id FROM drafts WHERE league_id=${quote(league)}); DELETE FROM draft_picks WHERE league_id=${quote(league)}; DELETE FROM drafts WHERE league_id=${quote(league)}; DELETE FROM leagues WHERE id=${quote(league)}; DELETE FROM players WHERE id IN (${players.map(quote).join(',')}); DELETE FROM season_weeks WHERE season_year IN (20070,20071);`)
+  await sql(`DELETE FROM draft_orders WHERE draft_id IN (SELECT id FROM drafts WHERE league_id=${quote(league)}); DELETE FROM snake_draft_picks WHERE draft_id IN (SELECT id FROM drafts WHERE league_id=${quote(league)}); DELETE FROM draft_picks WHERE league_id=${quote(league)}; DELETE FROM drafts WHERE league_id=${quote(league)}; DELETE FROM leagues WHERE id=${quote(league)}; DELETE FROM players WHERE id IN (${players.map(quote).join(',')}); DELETE FROM season_weeks WHERE season_year IN (2087,2088);`)
   for (const user of users) assert.equal((await admin.auth.admin.deleteUser(user)).error, null)
 }

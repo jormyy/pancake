@@ -30,10 +30,11 @@ try {
     let year = 0
     try {
       for (let attempt = 0; attempt < 50; attempt++) {
-        const candidate = 9000 + crypto.getRandomValues(new Uint32Array(1))[0] % 5000
+        const candidate = 2040 + crypto.getRandomValues(new Uint32Array(1))[0] % 60
         const weeks = await query(supabase.from('season_weeks').select('id').eq('season_year', candidate))
         const seasons = await query(supabase.from('league_seasons').select('id').eq('season_year', candidate))
-        if (!weeks?.length && !seasons?.length) { year = candidate; break }
+        const classmates = await query(supabase.from('players').select('id').eq('draft_year', candidate - 1))
+        if (!weeks?.length && !seasons?.length && !classmates?.length) { year = candidate; break }
       }
       assert.ok(year)
       for (let side = 0; side < 2; side++) {
@@ -52,11 +53,12 @@ try {
       await query(supabase.from('league_seasons').insert({ id: season, league_id: league, season_year: year, is_current: true }))
       await query(supabase.from('season_weeks').insert({ season_year: year, week_number: 1, week_start: weekStart, week_end: weekStart }))
       await query(supabase.from('draft_picks').insert(members.flatMap(member => [1, 2, 3].map(round => ({
-        league_id: league, season_year: year, round, original_owner_id: member, current_owner_id: member,
+        league_id: league, season_year: year - 1, round, original_owner_id: member, current_owner_id: member,
       })))))
       await query(supabase.from('players').insert(players.map((id, index) => ({
         id, first_name: 'Synthetic', last_name: `ET rookie ${token} ${index}`,
         position: 'PG' as const, eligible_positions: ['PG'], nba_team: null, years_exp: 0, nba_draft_number: index + 1,
+        nba_id: `et-${token}-${index}`, draft_status: 'drafted', draft_year: year - 1, draft_round: 1, draft_overall_pick: index + 1,
       }))))
       const early = await runSeasonBoundary(new Date(before), league)
       const draftsBefore = await query(supabase.from('drafts').select('id').eq('league_id', league))
