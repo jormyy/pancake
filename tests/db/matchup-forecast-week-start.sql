@@ -2,6 +2,7 @@ BEGIN;
 SET LOCAL app.supabase_url='http://127.0.0.1:1';
 SET LOCAL app.edge_internal_token='local-forecast-week-start-probe';
 \ir rules-support.sql
+DELETE FROM private.work_items WHERE kind='matchup-forecasts';
 DO $$
 DECLARE
   f record; v_started uuid:=gen_random_uuid(); v_future uuid:=gen_random_uuid();
