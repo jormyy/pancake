@@ -97,6 +97,18 @@ const assertPageText = async (session, required, label) => {
   return parsed
 }
 
+const waitForPageText = async (session, required, label, timeoutMs = 20_000) => {
+  const startedAt = Date.now()
+  for (;;) {
+    try {
+      return await assertPageText(session, required, label)
+    } catch (error) {
+      if (Date.now() - startedAt >= timeoutMs) throw error
+      await new Promise((resolve) => setTimeout(resolve, 500))
+    }
+  }
+}
+
 const setupBrowserRookieDraftFixture = async (env, season) => {
   const runId = `${new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)}-${process.pid}-${season}`
   const password = `Pancake-rookie-${runId}!`
@@ -329,27 +341,25 @@ export async function runBrowserRookieDraftAutoPickScenario({
   try {
     await signInBrowser(session, env, fixture.activeUser, fixture.password)
     await browser(session, ['set', 'viewport', '390', '844'])
+    await browser(session, ['open', joinUrl(env.frontendUrl, `/rookie-draft-room?draftId=${fixture.draft.id}`)])
+    await waitForPageText(
+      session,
+      ['Round 1', 'Pick 1', fixture.members[3].team_name, '(you)', 'Prospects'],
+      'rookie draft before auto-pick',
+    )
+    await browser(session, ['screenshot', path.join(artifactDir, 'rookie-draft-before-auto-pick.png')], { timeout: 60_000 })
     const fastTimerExpiresAt = new Date(Date.now() + 3_000).toISOString()
     const { error: draftClockError } = await fixture.admin
       .from('snake_draft_picks')
       .update({ timer_expires_at: fastTimerExpiresAt })
       .eq('id', fixture.firstSlot.id)
     if (draftClockError) throw new Error(`draft clock update: ${draftClockError.message}`)
-    await browser(session, ['open', joinUrl(env.frontendUrl, `/rookie-draft-room?draftId=${fixture.draft.id}`)])
-    await browser(session, ['wait', '1000'])
-    await assertPageText(
-      session,
-      ['Round 1', 'Pick 1', fixture.members[3].team_name, '(you)', 'Prospects'],
-      'rookie draft before auto-pick',
-    )
-    await browser(session, ['screenshot', path.join(artifactDir, 'rookie-draft-before-auto-pick.png')], { timeout: 60_000 })
     const autoPickCheck = await waitForAutoPick(fixture)
     debug = { ...debug, autoPickCheck }
     if (autoPickCheck.failures.length > 0) {
       throw new Error(`browser rookie draft auto-pick did not persist: ${autoPickCheck.failures.join('; ')}`)
     }
-    await browser(session, ['wait', '1500'])
-    await assertPageText(session, ['Pick 2', fixture.members[2].team_name], 'rookie draft after auto-pick')
+    await waitForPageText(session, ['Pick 2', fixture.members[2].team_name], 'rookie draft after auto-pick')
     await browser(session, ['screenshot', path.join(artifactDir, 'rookie-draft-after-auto-pick.png')], { timeout: 60_000 })
 
     const consoleOutput = await browser(session, ['console']).catch((error) => `console unavailable: ${error.message}`)

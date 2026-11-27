@@ -39,11 +39,11 @@ export async function runNotificationSettingsScenario({ season = 0 } = {}) {
         await browser(session, ['snapshot','-i'])
         await browser(session, ['find','role',role,'click','--name',label,'--exact'])
     }
-    async function storedPreferences(columns, accept) {
+    async function storedPreferences(accept) {
         const deadline = Date.now() + 5000
         for (;;) {
-            const result = await admin.from('notification_preferences').select(columns).eq('user_id',userId).single()
-            if (result.error || accept(result.data) || Date.now() > deadline) return result
+            const result = await admin.from('notification_preferences').select('event_settings,category_settings,trade_enabled').eq('user_id',userId).maybeSingle()
+            if (result.error || (result.data && accept(result.data)) || Date.now() > deadline) return result
             await new Promise(resolve => setTimeout(resolve, 100))
         }
     }
@@ -101,25 +101,25 @@ export async function runNotificationSettingsScenario({ season = 0 } = {}) {
             await openSettings(); taps++
             await waitFor('[aria-label="Trades: New offer"]:not([aria-disabled="true"])')
             await click('Trades: New offer','switch'); taps++
-            const eventChoice = await storedPreferences('event_settings',data => data?.event_settings?.trade_offered === false)
+            const eventChoice = await storedPreferences(data => data?.event_settings?.trade_offered === false)
             assert.equal(eventChoice.error,null)
             assert.equal(eventChoice.data.event_settings.trade_offered,false)
             report.push({ viewport: name,task: 'Turn one trade notification off from main settings',taps })
             await click('Trades: New offer','switch')
-            await storedPreferences('event_settings',data => data?.event_settings?.trade_offered === true)
+            await storedPreferences(data => data?.event_settings?.trade_offered === true)
             await browser(session,['open',`${origin}/profile`])
             await waitFor('[aria-label="Notification settings"]')
             taps = 0
             await openSettings(); taps++
             await waitFor('[aria-label="All trades notifications"]:not([aria-disabled="true"])')
             await click('All trades notifications','switch'); taps++
-            const categoryChoice = await storedPreferences('category_settings,trade_enabled',data => data?.trade_enabled === false)
+            const categoryChoice = await storedPreferences(data => data?.trade_enabled === false)
             assert.equal(categoryChoice.error,null)
             assert.equal(categoryChoice.data.trade_enabled,false)
             assert.equal(categoryChoice.data.category_settings.trade,false)
             report.push({ viewport: name,task: 'Turn the trades category off from main settings',taps })
             await click('All trades notifications','switch')
-            await storedPreferences('category_settings,trade_enabled',data => data?.trade_enabled === true)
+            await storedPreferences(data => data?.trade_enabled === true)
             await emulationClient.send('Page.enable',{},emulationSession)
             const faultScript = await emulationClient.send('Page.addScriptToEvaluateOnNewDocument',{ source: `(() => {
                 for (const key of Object.keys(localStorage)) if (key.startsWith('pancake:screen-view:') && key.includes('"profile"')) localStorage.removeItem(key);
@@ -158,11 +158,11 @@ export async function runNotificationSettingsScenario({ season = 0 } = {}) {
             await waitFor('[aria-label="Trades: New offer"][aria-checked="true"]')
             await browser(session,['eval',`window.__notifFault = null; true`])
             await click('Trades: New offer','switch')
-            const recoveredSave = await storedPreferences('event_settings',data => data?.event_settings?.trade_offered === false)
+            const recoveredSave = await storedPreferences(data => data?.event_settings?.trade_offered === false)
             assert.equal(recoveredSave.error,null)
             assert.equal(recoveredSave.data.event_settings.trade_offered,false)
             await click('Trades: New offer','switch')
-            await storedPreferences('event_settings',data => data?.event_settings?.trade_offered === true)
+            await storedPreferences(data => data?.event_settings?.trade_offered === true)
             report.push({ viewport: name, failure: 'Read hides choices; failed save leaves stored choice unchanged', recovery: 'Read retry restores choices; next save persists' })
             await emulationClient.send('Page.removeScriptToEvaluateOnNewDocument',{ identifier: faultScript.identifier },emulationSession)
             console.log('Tap tasks passed for '+name)
@@ -183,11 +183,11 @@ export async function runNotificationSettingsScenario({ season = 0 } = {}) {
             report.push({ viewport: name,lastCategory: lastRow })
             await browser(session,['focus','[aria-label="All league notifications"]'])
             await browser(session,['press','Enter'])
-            const keyboardChoice = await storedPreferences('category_settings',data => data?.category_settings?.league === false)
+            const keyboardChoice = await storedPreferences(data => data?.category_settings?.league === false)
             assert.equal(keyboardChoice.error,null)
             assert.equal(keyboardChoice.data.category_settings.league,false)
             await browser(session,['press','Enter'])
-            await storedPreferences('category_settings',data => data?.category_settings?.league !== false)
+            await storedPreferences(data => data?.category_settings?.league !== false)
             report.push({ viewport: name,lastCategoryKeyboard: 'Enter toggles the focused category' })
 
         }
