@@ -196,19 +196,21 @@ export async function getJoinableDraft(
     assertReadActive(canRead)
     if (activeDraft || !options.includeCompletedRookie) return activeDraft
 
-    const { data: league, error: leagueError } = await supabase
-        .from('leagues')
-        .select('status')
-        .eq('id', leagueId)
+    const { data: season, error: seasonError } = await supabase
+        .from('league_seasons')
+        .select('id')
+        .eq('league_id', leagueId)
+        .eq('is_current', true)
         .maybeSingle()
     assertReadActive(canRead)
-    if (leagueError) throw leagueError
-    if (league?.status !== 'drafting') return null
+    if (seasonError) throw seasonError
+    if (!season) return null
 
     const { data, error } = await supabase
         .from('drafts')
         .select(DRAFT_SELECT)
         .eq('league_id', leagueId)
+        .eq('league_season_id', season.id)
         .eq('draft_type', 'snake')
         .eq('status', 'completed')
         .eq('is_mock', false)
