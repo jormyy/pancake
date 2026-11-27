@@ -7,6 +7,8 @@ import {
   ROOT,
   ARTIFACT_ROOT,
   MULTI_TEAM_REPORT_PATH,
+  addTradeAssets,
+  addTradePartner,
   assertPageText,
   browser,
   clickTestId,
@@ -14,6 +16,8 @@ import {
   joinUrl,
   listSessions,
   openOffersTab,
+  reviewAndSendTrade,
+  routeTradeAsset,
   signInBrowser,
   tradeSessionName,
 } from './trade-browser-harness.mjs'
@@ -21,11 +25,12 @@ import { setupMultiTeamTradeGameplayFixture } from './trade-fixture.mjs'
 import { confirmTradeAcceptance } from './confirm-trade-acceptance.mjs'
 import { expireAndCompleteAcceptedTrade } from './browser-trade-verification.mjs'
 
-const reviewAndConfirmMultiTeamTrade = async (session, label) => {
-  const reviewClick = await clickTestId(session, 'trade-submit', `${label} review`)
-  await assertPageText(session, ['Review trade', 'You get'], `${label} final review`)
-  const confirmClick = await clickTestId(session, 'trade-confirm-submit', `${label} confirm`)
-  return { reviewClick, confirmClick }
+const reviewAndConfirmMultiTeamTrade = (session, label) => reviewAndSendTrade(session, label)
+
+const openHistoryTab = async (session, env) => {
+  await browser(session, ['open', joinUrl(env.frontendUrl, '/trades?tab=history')])
+  await installBrowserHooks(session, env)
+  await browser(session, ['wait', '2500'])
 }
 
 /** @typedef {Awaited<ReturnType<typeof setupMultiTeamTradeGameplayFixture>>} MultiTeamFixture */
@@ -277,60 +282,38 @@ export async function runBrowserMultiTeamTradeScenario({
     await browser(session, ['wait', '2500'])
     await assertPageText(
       session,
-      [
-        'Propose Trade',
-        '2-Team',
-        'Multi-Team',
-        recipientTeamName,
-        observerTeamName,
-      ],
+      ['Propose Trade', 'TRADE WITH', 'Add a team to start a trade.'],
       'multi-team trade proposal initial screen',
     )
 
-    const modeClick = await clickTestId(session, 'trade-mode-multi', 'multi-team mode toggle')
-    const recipientClick = await clickTestId(session, `trade-participant-${fixture.recipient.id}`, 'multi-team recipient team selection')
-    const observerClick = await clickTestId(session, `trade-participant-${fixture.observer.id}`, 'multi-team third team selection')
-    await browser(session, ['wait', '4500'])
-    await assertPageText(
-      session,
-      ['DEFAULT SEND TO', recipientTeamName, observerTeamName, fixture.proposerPlayer.display_name],
-      'multi-team trade builder loaded',
-    )
+    const recipientClick = await addTradePartner(session, fixture.recipient.id, 'multi-team recipient team selection')
+    const observerClick = await addTradePartner(session, fixture.observer.id, 'multi-team third team selection')
+    const senderBands = ['YOU SEND', `${recipientTeamName.toUpperCase()} SENDS`, `${observerTeamName.toUpperCase()} SENDS`]
+    await assertPageText(session, [recipientTeamName, observerTeamName, ...senderBands], 'multi-team trade builder loaded')
     await browser(session, ['screenshot', path.join(artifactDir, 'multi-team-builder.png')], { timeout: 60_000 })
 
     await browser(session, ['set', 'viewport', '390', '844'])
     await browser(session, ['wait', '500'])
-    await assertPageText(
-      session,
-      ['You', recipientTeamName, observerTeamName, 'DEFAULT SEND TO'],
-      'mobile multi-team sender tabs',
-    )
+    await assertPageText(session, senderBands, 'mobile multi-team sender cards')
     await browser(session, ['screenshot', path.join(artifactDir, 'multi-team-builder-mobile.png')], { timeout: 60_000 })
 
-    const recipientTabClick = await clickTestId(session, `trade-sender-${fixture.recipient.id}`, 'mobile recipient sender tab')
-
-    const routeClick = await clickTestId(session, `trade-default-route-${fixture.recipient.id}-${fixture.observer.id}`, 'multi-team recipient route selection')
-    const proposerTabClick = await clickTestId(session, `trade-sender-${fixture.proposer.id}`, 'mobile proposer sender tab')
-    const proposerPlayerClick = await clickTestId(session, `trade-${fixture.proposer.id}-player-${fixture.proposerPlayer.id}`, 'multi-team proposer player selection')
-    await clickTestId(session, `trade-sender-${fixture.recipient.id}`, 'mobile recipient sender tab after proposer selection')
-    const recipientPlayerClick = await clickTestId(session, `trade-${fixture.recipient.id}-player-${fixture.recipientPlayer.id}`, 'multi-team recipient player selection')
-    const observerTabClick = await clickTestId(session, `trade-sender-${fixture.observer.id}`, 'mobile observer sender tab')
-    const observerPlayerClick = await clickTestId(session, `trade-${fixture.observer.id}-player-${fixture.observerPlayer.id}`, 'multi-team observer player selection')
-    await clickTestId(session, `trade-sender-${fixture.proposer.id}`, 'mobile proposer sender tab for route override')
-    const proposerPlayerRouteClick = await clickTestId(session, `trade-player-route-${fixture.proposer.id}-${fixture.proposerPlayer.id}-${fixture.observer.id}`, 'multi-team proposer player per-asset route selection')
+    const proposerPlayerClick = await addTradeAssets(session, fixture.proposer.id, [`trade-${fixture.proposer.id}-player-${fixture.proposerPlayer.id}`], 'multi-team proposer player selection')
+    const recipientPlayerClick = await addTradeAssets(session, fixture.recipient.id, [`trade-${fixture.recipient.id}-player-${fixture.recipientPlayer.id}`], 'multi-team recipient player selection')
+    const observerPlayerClick = await addTradeAssets(session, fixture.observer.id, [`trade-${fixture.observer.id}-player-${fixture.observerPlayer.id}`], 'multi-team observer player selection')
+    const routeClick = await routeTradeAsset(session, fixture.recipient.id, 'player', fixture.recipientPlayer.id, fixture.observer.id, 'multi-team recipient route selection')
+    const observerRouteClick = await routeTradeAsset(session, fixture.observer.id, 'player', fixture.observerPlayer.id, fixture.proposer.id, 'multi-team observer route selection')
+    const proposerPlayerRouteClick = await routeTradeAsset(session, fixture.proposer.id, 'player', fixture.proposerPlayer.id, fixture.observer.id, 'multi-team proposer player per-asset route selection')
+    await assertPageText(session, [`to ${observerTeamName}`], 'multi-team selected routes')
     await browser(session, ['wait', '500'])
     await browser(session, ['screenshot', path.join(artifactDir, 'multi-team-selected.png')], { timeout: 60_000 })
     const submitClick = await reviewAndConfirmMultiTeamTrade(session, 'multi-team trade proposal')
     const tradeProposal = await waitForMultiTeamTradeProposal(fixture)
     debug = {
       ...debug,
-      modeClick,
       recipientClick,
       observerClick,
-      recipientTabClick,
-      proposerTabClick,
-      observerTabClick,
       routeClick,
+      observerRouteClick,
       proposerPlayerClick,
       recipientPlayerClick,
       observerPlayerClick,
@@ -350,10 +333,10 @@ export async function runBrowserMultiTeamTradeScenario({
     await assertPageText(
       session,
       [
-        'You get',
+        'YOU GET',
         recipientTeamName,
         observerTeamName,
-        `${recipientTeamName} gets`,
+        `${recipientTeamName.toUpperCase()} GETS`,
         'Accepted',
         'Waiting',
         fixture.proposerPlayer.display_name,
@@ -367,13 +350,11 @@ export async function runBrowserMultiTeamTradeScenario({
     await openOffersTab(session, env)
     const editClick = await clickTestId(session, `trade-edit-${tradeProposal.trade.id}`, 'multi-team edit action')
     await browser(session, ['wait', '4500'])
-    await clickTestId(session, 'trade-deal-summary', 'multi-team edit deal summary')
     await assertPageText(
       session,
       [
         'Edit Trade',
-        'You get',
-        'SELECTED ROUTES',
+        ...senderBands,
         fixture.proposerPlayer.display_name,
         fixture.recipientPlayer.display_name,
         fixture.observerPlayer.display_name,
@@ -381,8 +362,7 @@ export async function runBrowserMultiTeamTradeScenario({
       'multi-team edit composer prefilled',
     )
     await browser(session, ['screenshot', path.join(artifactDir, 'multi-team-edit-prefill.png')], { timeout: 60_000 })
-    await clickTestId(session, `trade-sender-${fixture.proposer.id}`, 'multi-team edit proposer sender tab')
-    const editRouteClick = await clickTestId(session, `trade-player-route-${fixture.proposer.id}-${fixture.proposerPlayer.id}-${fixture.recipient.id}`, 'multi-team edit changes proposer player route')
+    const editRouteClick = await routeTradeAsset(session, fixture.proposer.id, 'player', fixture.proposerPlayer.id, fixture.recipient.id, 'multi-team edit changes proposer player route')
     const editedRoutes = new Map(multiTeamExpectedRoutes(fixture))
     editedRoutes.set(fixture.proposerPlayer.id, { from: fixture.proposer.id, to: fixture.recipient.id })
     const editSubmitClick = await reviewAndConfirmMultiTeamTrade(session, 'multi-team edit')
@@ -405,13 +385,13 @@ export async function runBrowserMultiTeamTradeScenario({
     await openOffersTab(counterSession, env)
     const counterClick = await clickTestId(counterSession, `trade-counter-${editReplacement.replacement.id}`, 'multi-team counter action')
     await browser(counterSession, ['wait', '4500'])
-    await clickTestId(counterSession, 'trade-deal-summary', 'multi-team counter deal summary')
     await assertPageText(
       counterSession,
       [
         'Counter Trade',
-        'You get',
-        'SELECTED ROUTES',
+        'YOU SEND',
+        `${fixture.proposer.team_name.toUpperCase()} SENDS`,
+        `${observerTeamName.toUpperCase()} SENDS`,
         fixture.proposerPlayer.display_name,
         fixture.recipientPlayer.display_name,
         fixture.observerPlayer.display_name,
@@ -419,7 +399,7 @@ export async function runBrowserMultiTeamTradeScenario({
       'multi-team counter composer prefilled',
     )
     await browser(counterSession, ['screenshot', path.join(artifactDir, 'multi-team-counter-prefill.png')], { timeout: 60_000 })
-    const counterRouteClick = await clickTestId(counterSession, `trade-player-route-${fixture.recipient.id}-${fixture.recipientPlayer.id}-${fixture.proposer.id}`, 'multi-team counter changes recipient player route')
+    const counterRouteClick = await routeTradeAsset(counterSession, fixture.recipient.id, 'player', fixture.recipientPlayer.id, fixture.proposer.id, 'multi-team counter changes recipient player route')
     const counteredRoutes = new Map(editedRoutes)
     counteredRoutes.set(fixture.recipientPlayer.id, { from: fixture.recipient.id, to: fixture.proposer.id })
     const counterSubmitClick = await reviewAndConfirmMultiTeamTrade(counterSession, 'multi-team counter')
@@ -481,7 +461,7 @@ export async function runBrowserMultiTeamTradeScenario({
     await clickTestId(thirdSession, `trade-accept-${finalTrade.id}`, 'final participant accepts')
     await confirmTradeAcceptance({ session: thirdSession })
     const underReview = await waitForSettlementState('accepted', 3)
-    await browser(thirdSession, ['click', 'text=History'])
+    await openHistoryTab(thirdSession, env)
     await assertPageText(thirdSession, ['3/3 teams accepted', 'Veto window closes'], 'all participants accepted under review')
     await browser(thirdSession, ['screenshot', path.join(artifactDir, 'multi-team-under-review.png')], { timeout: 60000 })
     await expireAndCompleteAcceptedTrade({ ...fixture, trade: finalTrade })
@@ -490,8 +470,7 @@ export async function runBrowserMultiTeamTradeScenario({
     const settlement = { partiallyAccepted, underReview, completed,
       clockControl: 'Only this trade review deadline is advanced; settlement uses complete_accepted_trade_atomic.' }
     for (const participantSession of [session, counterSession, thirdSession]) {
-      await openOffersTab(participantSession, env)
-      await browser(participantSession, ['click', 'text=History'])
+      await openHistoryTab(participantSession, env)
       await assertPageText(participantSession, ['Completed', '3/3 teams accepted'], 'completed history visible to every participant')
     }
     await browser(thirdSession, ['screenshot', path.join(artifactDir, 'multi-team-after-settlement.png')], { timeout: 60000 })

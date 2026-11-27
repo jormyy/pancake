@@ -8,6 +8,7 @@ export { normalizeBrowserErrors } from './browser-runtime-overrides.mjs'
 export {
   ROOT,
   ARTIFACT_ROOT,
+  addTradeAssets,
   assertPageText,
   browser,
   clickLastButton,
@@ -18,6 +19,7 @@ export {
   openOffersTab,
   readBrowserAlerts,
   readButtonState,
+  reviewAndSendTrade,
   safeName,
   signInBrowser,
   tradeSessionName,

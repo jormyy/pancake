@@ -156,6 +156,106 @@ export const clickTestId = async (session, testID, label) => {
   return result
 }
 
+/** @param {string} session @param {string} script @param {string} label @param {number} [timeoutMs] */
+const waitForEval = async (session, script, label, timeoutMs = 10_000) => {
+  const deadline = Date.now() + timeoutMs
+  let parsed
+  do {
+    parsed = parseEvalJson(await browser(session, ['eval', script]))
+    if (parsed && typeof parsed === 'object' && Reflect.get(parsed, 'ok') === true) return parsed
+    await browser(session, ['wait', '250'])
+  } while (Date.now() < deadline)
+  throw new Error(`${label}: ${String(parsed && typeof parsed === 'object' ? Reflect.get(parsed, 'body') : '<invalid result>')}`)
+}
+
+const visibleDialogScript = `[...document.querySelectorAll('[role="dialog"], [aria-modal="true"]')].filter((node) => node.getBoundingClientRect().width > 0)`
+
+/** @param {string} session @param {string} label */
+const closeTradeSheet = async (session, label) => {
+  await browser(session, ['press', 'Escape'])
+  const closed = async () => parseEvalJson(await browser(session, ['eval', `(() => JSON.stringify({ ok: ${visibleDialogScript}.length === 0 }))()`]))
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const state = await closed()
+    if (state && typeof state === 'object' && Reflect.get(state, 'ok') === true) return
+    if (attempt === 4) {
+      await browser(session, ['eval', `(() => { const dialogs = ${visibleDialogScript}; const button = dialogs.at(-1)?.querySelector('[role="button"][aria-label="Close"]'); button?.click(); return JSON.stringify({ ok: Boolean(button) }) })()`])
+    }
+    await browser(session, ['wait', '250'])
+  }
+  throw new Error(`${label}: trade sheet did not close`)
+}
+
+/** @param {string} session @param {string} memberId @param {string[]} testIDs @param {string} label */
+export const addTradeAssets = async (session, memberId, testIDs, label) => {
+  const openClick = await clickTestId(session, `trade-add-assets-${memberId}`, `${label} open asset sheet`)
+  const clicks = []
+  for (const testID of testIDs) {
+    const selector = JSON.stringify(`[data-testid="${testID}"]`)
+    await waitForEval(session, `(() => {
+      const target = document.querySelector(${selector});
+      const ok = Boolean(target && target.getBoundingClientRect().width > 0 && target.getAttribute('aria-disabled') !== 'true');
+      return JSON.stringify({ ok, body: (document.body?.innerText || '').slice(0, 1200) });
+    })()`, `${label}: asset ${testID} not ready`)
+    clicks.push(await clickTestId(session, testID, `${label} ${testID}`))
+    await waitForEval(session, `(() => {
+      const target = document.querySelector(${selector});
+      const ok = target?.getAttribute('aria-pressed') === 'true' || target?.getAttribute('aria-selected') === 'true' || Boolean(target?.getAttribute('aria-label')?.startsWith('Remove '));
+      return JSON.stringify({ ok, body: (document.body?.innerText || '').slice(0, 1200) });
+    })()`, `${label}: asset ${testID} was not selected`)
+  }
+  await closeTradeSheet(session, label)
+  return { openClick, clicks }
+}
+
+/** @param {string} session @param {string} memberId @param {'player' | 'pick'} asset @param {string} assetId @param {string} destinationId @param {string} label */
+export const routeTradeAsset = async (session, memberId, asset, assetId, destinationId, label) => {
+  const openClick = await clickTestId(session, `trade-route-${memberId}-${asset}-${assetId}`, `${label} open route sheet`)
+  const testID = `trade-${asset}-route-${memberId}-${assetId}-${destinationId}`
+  await waitForEval(session, `(() => {
+    const target = document.querySelector(${JSON.stringify(`[data-testid="${testID}"]`)});
+    return JSON.stringify({ ok: Boolean(target && target.getBoundingClientRect().width > 0), body: (document.body?.innerText || '').slice(0, 1200) });
+  })()`, `${label}: route ${testID} not ready`)
+  const routeClick = await clickTestId(session, testID, label)
+  await waitForEval(session, `(() => JSON.stringify({ ok: ${visibleDialogScript}.length === 0, body: (document.body?.innerText || '').slice(0, 1200) }))()`, `${label}: route sheet did not close`)
+  return { openClick, routeClick }
+}
+
+/** @param {string} session @param {string} memberId @param {string} label */
+export const addTradePartner = async (session, memberId, label) => {
+  const openClick = await clickTestId(session, 'trade-add-team', `${label} open team picker`)
+  const testID = `trade-participant-${memberId}`
+  await waitForEval(session, `(() => {
+    const target = ${visibleDialogScript}.map((dialog) => dialog.querySelector(${JSON.stringify(`[data-testid="${testID}"]`)})).find(Boolean);
+    return JSON.stringify({ ok: Boolean(target), body: (document.body?.innerText || '').slice(0, 1200) });
+  })()`, `${label}: team ${memberId} not offered`)
+  const pickClick = parseEvalJson(await browser(session, ['eval', `(() => {
+    const target = ${visibleDialogScript}.map((dialog) => dialog.querySelector(${JSON.stringify(`[data-testid="${testID}"]`)})).find(Boolean);
+    target?.click();
+    return JSON.stringify({ ok: Boolean(target) });
+  })()`]))
+  await waitForEval(session, `(() => JSON.stringify({ ok: ${visibleDialogScript}.length === 0 && Boolean(document.querySelector(${JSON.stringify(`[data-testid="trade-add-assets-${memberId}"]`)})), body: (document.body?.innerText || '').slice(0, 1200) }))()`, `${label}: team ${memberId} was not added`)
+  return { openClick, pickClick }
+}
+
+/** @param {string} session @param {string} label @param {'trade-confirm-submit' | 'trade-confirm-accept'} [testID] */
+const confirmTradeReview = async (session, label, testID = 'trade-confirm-submit') => {
+  const selector = JSON.stringify(`[data-testid="${testID}"]`)
+  await waitForEval(session, `(() => {
+    const target = document.querySelector(${selector});
+    const ok = Boolean(target && target.getBoundingClientRect().width > 0 && target.getAttribute('aria-disabled') !== 'true' && !target.disabled);
+    return JSON.stringify({ ok, body: (document.body?.innerText || '').slice(0, 1600) });
+  })()`, `${label}: ${testID} did not become ready`, 20_000)
+  return clickTestId(session, testID, label)
+}
+
+/** @param {string} session @param {string} label */
+export const reviewAndSendTrade = async (session, label) => {
+  const reviewClick = await clickTestId(session, 'trade-submit', `${label} review`)
+  await assertPageText(session, ['Send', 'Valid roster'], `${label} final review`)
+  const confirmClick = await confirmTradeReview(session, `${label} send`)
+  return { reviewClick, confirmClick }
+}
+
 /** @param {string} session @param {string} name @param {string} label */
 export const clickLastButton = async (session, name, label) => {
   const result = parseEvalJson(await browser(session, ['eval', `(() => {
