@@ -117,7 +117,7 @@ if (rookieDraft) {
   fixture.rookieDraftId = rookieDraft.id
   fixture.rookies = []
   for (const number of [1, 2]) {
-    const rookie = await checked(admin.from('players').upsert({ sportsdata_id: `verify-rookie-${number}`, first_name: 'Sweep', last_name: `Rookie ${number}`, position: 'PG', eligible_positions: ['PG'], nba_team: 'BOS', years_exp: 0, nba_draft_number: number, career_regular_season_games: 0 }, { onConflict: 'sportsdata_id' }).select('id,display_name').single())
+    const rookie = await checked(admin.from('players').upsert({ sportsdata_id: `verify-rookie-${number}`, first_name: 'Sweep', last_name: `Rookie ${number}`, position: 'PG', eligible_positions: ['PG'], nba_team: 'BOS', years_exp: 0, nba_draft_number: 58 + number, career_regular_season_games: 0, nba_id: `VERIFYROOKIE${number}`, draft_status: 'drafted', draft_year: rookieYear, draft_round: 2, draft_overall_pick: 58 + number }, { onConflict: 'sportsdata_id' }).select('id,display_name').single())
     fixture.rookies.push(rookie)
   }
 }

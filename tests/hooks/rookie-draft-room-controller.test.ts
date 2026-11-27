@@ -1025,4 +1025,3 @@ describe('rookie selection', () => {
         await act(async () => room.renderer.unmount())
     })
 })
-

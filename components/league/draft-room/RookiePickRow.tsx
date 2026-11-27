@@ -1,6 +1,5 @@
 import { StyleSheet, Text, View } from 'react-native'
 import type { SnakePick } from '@/lib/rookieDraft'
-import { Badge } from '@/components/ui/Badge'
 import { PlayerRowContent } from '@/components/player/PlayerRowContent'
 import { colors, fontWeight, spacing, table, textStyles, uiColors, typeScale } from '@/constants/tokens'
 
@@ -35,9 +34,8 @@ export function RookiePickRow({
                     {item.teamName}
                 </Text>
                 {viaTeam ? <Text style={styles.pickVia} numberOfLines={1}>via {viaTeam}</Text> : null}
-                {swap ? <Badge size="inline" variant="soft" label={swap.label} accessibilityLabel={swap.description}
-                    color={swap.status === 'exercised' ? uiColors.successSurface : colors.bgSubtle}
-                    textColor={swap.status === 'exercised' ? uiColors.successText : colors.textMuted} /> : null}
+                {swap ? <Text style={[styles.pickSwap, swap.status === 'exercised' && styles.pickSwapUsed]} numberOfLines={1}
+                    accessibilityLabel={swap.description}>{swap.label}</Text> : null}
                 {item.round > 1 && item.pickInRound === 1 ? (
                     <Text style={styles.pickRoundStart} numberOfLines={1}>Round {item.round}</Text>
                 ) : null}
@@ -87,6 +85,8 @@ export const rookiePickRowStyles = StyleSheet.create({
     pickTeamName: { ...typeScale.small, fontWeight: fontWeight.semibold, color: colors.textPrimary },
     pickRoundStart: { ...textStyles.tableHeader },
     pickVia: { ...typeScale.caption, color: colors.textMuted },
+    pickSwap: { ...typeScale.caption, fontWeight: fontWeight.semibold, color: colors.textMuted },
+    pickSwapUsed: { color: uiColors.successText },
     pickPlayer: { ...typeScale.small, flex: 1, minWidth: 0, color: colors.textPlaceholder },
     pickSkipped: { ...typeScale.small, flex: 1, minWidth: 0, color: colors.textMuted, fontWeight: fontWeight.semibold },
     pickPlayerCell: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: spacing.md },

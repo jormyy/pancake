@@ -18,12 +18,12 @@ import { type RookieClassStatus, type RookieDestination, type RookieProspect, ty
 import { type RookieSelection, type RookieSelectionOutcome } from '@/hooks/useRookieDraftRoomController'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { draftYearForSeason, leagueSeasonYear } from '@/lib/picks'
-import { breakpoints, colors, controlSize, fontWeight, layout, radii, spacing, table, textStyles, uiColors, typeScale } from '@/constants/tokens'
+import { breakpoints, colors, componentTokens, controlSize, fontWeight, layout, radii, spacing, table, textStyles, uiColors, typeScale } from '@/constants/tokens'
 import { MotionPressable } from '@/components/Motion'
 import { Sheet } from '@/components/ui/Sheet'
 import { Button } from '@/components/ui/Button'
 import { showSuccess } from '@/lib/alert'
-import { countLabel } from '@/lib/format'
+import { countLabel, formatCountdown } from '@/lib/format'
 
 import { DraftAdminBar } from '@/components/league/draft-room/DraftAdminBar'
 import { DraftScreenHeader } from '@/components/league/draft-room/DraftScreenHeader'
@@ -325,7 +325,7 @@ export default function RookieDraftRoomScreen() {
                                                 styles.bannerClock,
                                                 secondsLeft <= 10 && styles.bannerClockUrgent,
                                             ]} numberOfLines={1}>
-                                                {secondsLeft}s
+                                                {formatCountdown(secondsLeft)}
                                             </Text>
                                         )}
                                     </View>
@@ -733,7 +733,7 @@ const styles = StyleSheet.create({
     },
     bannerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md },
     bannerTitle: { ...typeScale.title, flexShrink: 1, minWidth: 0, fontWeight: fontWeight.extrabold, color: colors.textPrimary },
-    bannerClock: { ...typeScale.title, flexShrink: 0, fontWeight: fontWeight.extrabold, color: colors.textMuted, width: table.statColWidth, textAlign: 'right', fontVariant: ['tabular-nums'] },
+    bannerClock: { ...typeScale.title, flexShrink: 0, fontWeight: fontWeight.extrabold, color: colors.textMuted, minWidth: table.statColWidth, textAlign: 'right', fontVariant: ['tabular-nums'] },
     bannerClockUrgent: { color: colors.dangerDark },
     bannerSub: { ...typeScale.body, color: colors.textSecondary },
     bannerMe: { color: colors.primaryDark, fontWeight: fontWeight.bold },
@@ -789,6 +789,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: spacing.xl,
+        paddingVertical: componentTokens.playerRow.compact.paddingVertical,
         gap: spacing.md,
     },
     resultInfo: { flex: 1, minWidth: 0, gap: spacing.xxs },

@@ -68,7 +68,7 @@ vi.mock('@/hooks/useAuctionDraftRoomController', () => ({ useAuctionDraftRoomCon
     state: null, loading: mocks.loading, loadError: mocks.loadError, refresh: mocks.refresh,
 }) }))
 vi.mock('@/lib/alert', () => ({ showSuccess: vi.fn(), showAlert: vi.fn(), confirmAction: vi.fn() }))
-vi.mock('@/lib/format', () => ({ countLabel: (count: number, word: string) => `${count} ${word}`, playerHeadshotUrl: () => '' }))
+vi.mock('@/lib/format', () => ({ countLabel: (count: number, word: string) => `${count} ${word}`, formatCountdown: (seconds: number) => `${seconds}s`, playerHeadshotUrl: () => '' }))
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
 let screen: ReactTestRenderer
@@ -303,8 +303,8 @@ it.each([
     })
     try {
         expect(row.root.findAllByType('Text' as React.ElementType).some((node) => [node.props.children].flat().join('') === 'via Alpha')).toBe(true)
-        const badge = row.root.findAll((node) => node.props.label === label)
-        expect(badge.length).toBeGreaterThan(0)
-        expect(badge[0].props.accessibilityLabel).toBe(description)
+        const swap = row.root.findAllByType('Text' as React.ElementType).filter((node) => [node.props.children].flat().join('') === label)
+        expect(swap).toHaveLength(1)
+        expect(swap[0].props.accessibilityLabel).toBe(description)
     } finally { await act(async () => row.unmount()) }
 })
