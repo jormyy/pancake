@@ -282,10 +282,14 @@ for (const s of [alpha, beta, alphaDesk, betaDesk]) {
   await openRoom(s)
   await showBoard(s)
   await shot(s, `19-results-board-${s.name.split('-')[0]}`)
-  boards[s.name] = (await s.page.locator('body').innerText()).match(/Pick \d+[\s\S]*?(?=Pick \d+|$)/g)?.map(row => row.replace(/\s+/g, ' ').trim())
+  const snapshot = await s.page.getByRole('main').filter({ visible: true }).first().ariaSnapshot()
+  boards[s.name] = snapshot.slice(snapshot.lastIndexOf('\n', snapshot.indexOf('# Team Player')) + 1).split('\n').filter(line => line.includes('text:')).map(line => line.replace(/^\s*- text:\s*"?|"$/g, '').trim()).join(' ')
 }
-check(JSON.stringify(boards['alpha-desktop']) === JSON.stringify(boards['beta-desktop']), 'Alpha and Beta desktop boards differ')
-record('agreement', { alphaDesktop: boards['alpha-desktop'], betaDesktop: boards['beta-desktop'] })
+for (const width of ['phone', 'desktop']) {
+  check(boards[`alpha-${width}`].includes('E2E Player007'), `Alpha ${width} results board is missing the last pick`)
+  check(boards[`alpha-${width}`] === boards[`beta-${width}`], `Alpha and Beta ${width} boards differ`)
+}
+record('agreement', boards)
 
 for (const s of [alpha, alphaDesk]) {
   await press(s, 'Back to league drafts').catch(() => s.page.goto(run.url + '/league'))

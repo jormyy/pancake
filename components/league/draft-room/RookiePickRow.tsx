@@ -1,7 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native'
 import type { SnakePick } from '@/lib/rookieDraft'
 import { PlayerRowContent } from '@/components/player/PlayerRowContent'
-import { colors, fontWeight, spacing, table, textStyles, uiColors, typeScale } from '@/constants/tokens'
+import { colors, componentTokens, fontWeight, spacing, table, textStyles, uiColors, typeScale } from '@/constants/tokens'
 
 export function RookiePickRow({
     item,
@@ -75,6 +75,7 @@ export const rookiePickRowStyles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: spacing.xl,
+        paddingVertical: componentTokens.playerRow.compact.paddingVertical,
         minHeight: table.rowHeight,
         gap: spacing.md,
     },
