@@ -77,10 +77,14 @@ BEGIN
     'life-manual','auction-sale','auction-stale','auction-trade-in','auction-return','late-offer','late-return'] LOOP
     v_id:=gen_random_uuid();
     INSERT INTO taxi_acceptance_ids VALUES(v_name,v_id);
-    INSERT INTO players(id,first_name,last_name,nba_team,position,eligible_positions,years_exp,nba_draft_number,injury_status)
+    INSERT INTO players(id,first_name,last_name,nba_team,position,eligible_positions,years_exp,nba_draft_number,injury_status,
+      nba_id,draft_status,draft_year,draft_round,draft_overall_pick)
     VALUES(v_id,'Synthetic',v_id::text,NULL,'PG',ARRAY['PG'],
       CASE WHEN v_name='snake-veteran' THEN 1 ELSE 0 END,30,
-      CASE WHEN v_name='life-ir' THEN 'Out' ELSE NULL END);
+      CASE WHEN v_name='life-ir' THEN 'Out' ELSE NULL END,
+      CASE WHEN v_name ~ '^(snake|life)-' THEN 'taxi-policy-'||v_id END,CASE WHEN v_name ~ '^(snake|life)-' THEN 'drafted' END,
+      CASE WHEN v_name ~ '^(snake|life)-' THEN public.current_season_year_et(now())-CASE WHEN v_name='snake-veteran' THEN 2 ELSE 1 END END,
+      CASE WHEN v_name ~ '^(snake|life)-' THEN 1 END,CASE WHEN v_name ~ '^(snake|life)-' THEN 200+(SELECT count(*) FROM taxi_acceptance_ids)::int END);
   END LOOP;
   LOOP
     v_team:='Q'||chr(65+(random()*25)::int)||chr(65+(random()*25)::int);
@@ -147,7 +151,7 @@ BEGIN
   PERFORM pg_temp.taxi_check(NOT EXISTS(SELECT 1 FROM private.taxi_acquisition_context
     WHERE league_id=pg_temp.taxi_id('snake-league')),'failed snake leaves no private acquisition capability');
   PERFORM pg_temp.taxi_fails(format('SELECT public.make_snake_pick_atomic(%L,%L,%L,true)',
-    v_draft,pg_temp.taxi_id('snake-a'),pg_temp.taxi_id('snake-veteran')),'P0001','rookie-eligible',
+    v_draft,pg_temp.taxi_id('snake-a'),pg_temp.taxi_id('snake-veteran')),'P0001','NBA draft can be picked',
     'snake preserves rookie eligibility');
   PERFORM pg_temp.taxi_fails(format('SELECT public.make_snake_pick_atomic(%L,%L,%L,false)',
     v_draft,pg_temp.taxi_id('snake-b'),pg_temp.taxi_id('snake-capacity')),'P0001','not your pick',
@@ -489,6 +493,7 @@ BEGIN
   PERFORM public.complete_accepted_trade_atomic(v_trade);
   INSERT INTO league_player_taxi_exits(league_id,player_id,exited_at)
     VALUES(pg_temp.taxi_id('life-league'),v_loser,now()-interval '2 days');
+  UPDATE players SET nba_id=NULL WHERE id=v_loser;
   PERFORM public.merge_players(v_winner,v_loser);
   PERFORM pg_temp.taxi_check(EXISTS(SELECT 1 FROM roster_players WHERE league_season_id=pg_temp.taxi_id('life-new-season')
     AND player_id=v_winner AND member_id=pg_temp.taxi_id('life-b') AND is_on_taxi),

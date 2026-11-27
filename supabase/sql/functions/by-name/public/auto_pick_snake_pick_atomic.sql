@@ -2,17 +2,12 @@
 -- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
 -- npm run check:db-function-sources verifies every latest migration function has exact source parity.
 
-CREATE OR REPLACE FUNCTION public.auto_pick_snake_pick_atomic(
-  p_draft_id uuid,
-  p_member_id uuid,
-  p_reason text DEFAULT 'manual',
-  p_to_taxi boolean DEFAULT false
-)
-RETURNS jsonb
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
+CREATE OR REPLACE FUNCTION public.auto_pick_snake_pick_atomic(p_draft_id uuid, p_member_id uuid, p_reason text DEFAULT 'manual'::text, p_to_taxi boolean DEFAULT false)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
 DECLARE
   __request_context jsonb;
   __request_result jsonb;
@@ -50,29 +45,12 @@ BEGIN
       timer_paused_remaining_seconds = NULL, pause_reason = NULL WHERE id = p_draft_id;
   END IF;
 
-  SELECT player.id
+  SELECT pool.player_id
     INTO v_player_id
-    FROM players AS player
-   WHERE player.years_exp = 0
-     AND player.nba_draft_number IS NOT NULL
-     AND (NOT COALESCE(p_to_taxi,false) OR v_draft.is_mock OR
-       private.can_acquire_draft_taxi(v_draft.league_id,v_draft.league_season_id,p_member_id,player.id))
-     AND NOT EXISTS (
-       SELECT 1
-         FROM snake_draft_picks AS picked
-        WHERE picked.draft_id = p_draft_id
-          AND picked.player_id = player.id
-     )
-     AND (
-       v_draft.is_mock OR NOT EXISTS (
-         SELECT 1
-           FROM roster_players AS roster
-          WHERE roster.league_id = v_draft.league_id
-            AND roster.league_season_id = v_draft.league_season_id
-            AND roster.player_id = player.id
-       )
-     )
-   ORDER BY player.nba_draft_number, player.id
+    FROM private.rookie_draft_pool(p_draft_id) AS pool
+   WHERE NOT COALESCE(p_to_taxi,false) OR v_draft.is_mock OR
+     private.can_acquire_draft_taxi(v_draft.league_id,v_draft.league_season_id,p_member_id,pool.player_id)
+   ORDER BY pool.draft_overall_pick, pool.player_id
    LIMIT 1;
 
   IF v_player_id IS NULL THEN
@@ -96,7 +74,7 @@ BEGIN
     'auto_pick',
     jsonb_build_object(
       'reason', v_reason,
-      'source', 'nba_draft_number',
+      'source', 'nba_draft_class',
       'memberId', p_member_id,
       'playerId', v_player_id,
       'pick', v_result->'pick'
@@ -108,4 +86,4 @@ END request_write;
   PERFORM private.request_finish(__request_context, to_jsonb(__request_result));
   RETURN __request_result;
 END;
-$$;
+$function$;

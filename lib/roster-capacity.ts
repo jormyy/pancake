@@ -53,3 +53,33 @@ export function staleRosterLimitsNotice(current: RosterLimits | null): { title: 
         ? { title: 'Roster settings changed', message: 'League roster settings changed. Try again.' }
         : { title: 'Roster settings loading', message: 'League roster settings are still loading. Try again in a moment.' }
 }
+
+export type RookiePlacement = 'active' | 'taxi' | 'drop'
+
+export type RookiePlacementPlan = {
+    activeAfter: number
+    taxiAfter: number
+    activeOver: number
+    taxiOver: number
+    dropChoices: 'active' | 'taxi' | null
+    valid: boolean
+}
+
+export function planRookiePlacement<T extends RosterRow & { id: string }>(
+    roster: readonly T[],
+    limits: RosterLimits,
+    placement: RookiePlacement,
+    dropIds: readonly string[],
+): RookiePlacementPlan {
+    const drops = new Set(dropIds)
+    const kept = partitionRoster(roster.filter(row => !drops.has(row.id)))
+    const before = partitionRoster(roster)
+    const activeAfter = kept.active.length + (placement === 'active' ? 1 : 0)
+    const taxiAfter = kept.taxi.length + (placement === 'taxi' ? 1 : 0)
+    const activeOver = Math.max(0, activeAfter - limits.rosterSize)
+    const taxiOver = Math.max(0, taxiAfter - limits.taxiSlots)
+    const activeFull = before.active.length + 1 > limits.rosterSize
+    const taxiFull = before.taxi.length + 1 > limits.taxiSlots
+    const dropChoices = placement === 'active' && activeFull ? 'active' : placement === 'taxi' && taxiFull ? 'taxi' : null
+    return { activeAfter, taxiAfter, activeOver, taxiOver, dropChoices, valid: activeOver === 0 && taxiOver === 0 }
+}

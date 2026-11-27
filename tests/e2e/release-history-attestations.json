@@ -3851,6 +3851,13 @@
       "statementCount": 7,
       "statementsSha256": "d88854d96b765189aefc34b7c06c9b17da01137a61c98c1c0ad1fcd0d4d00e3b",
       "sha256": "2703b60a3dcf38dc09b3144ac27341439dba377f4e8d558ddec96b8643293d2a"
+    },
+    {
+      "name": "rookie_draft_selection",
+      "version": "20261228000000",
+      "statementCount": 45,
+      "statementsSha256": "b11216b8a4511562d2f05b3e4e81e2bde373141d01b821fed140725b8130fa18",
+      "sha256": "4d56e61a218f699739c50d487de6583e0caae5e55c234cd91393bdcbe259a312"
     }
   ]
 }

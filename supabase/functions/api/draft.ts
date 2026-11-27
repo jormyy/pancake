@@ -8,6 +8,7 @@ import {
   optionalBooleanField,
   optionalIntegerField,
   optionalStringField,
+  optionalUuidArrayField,
   readJsonObject,
   NotFoundError,
   requireCommissioner,
@@ -27,8 +28,17 @@ const DEFAULT_TAXI_SLOTS = 2
 const DEFAULT_DRAFT_TIMER_SECONDS = 30
 const NOMINATION_ORDER_MODES = ['user_nominated', 'by_projection', 'alphabetical'] as const
 const ROOKIE_TIMER_EXPIRY_BEHAVIORS = ['auto_pick', 'skip_pick', 'pause_draft', 'commissioner_pick'] as const
+const ROOKIE_DESTINATIONS = ['active', 'taxi', 'drop'] as const
 type NominationOrderMode = (typeof NOMINATION_ORDER_MODES)[number]
 type RookieTimerExpiryBehavior = (typeof ROOKIE_TIMER_EXPIRY_BEHAVIORS)[number]
+type RookieDestination = (typeof ROOKIE_DESTINATIONS)[number]
+type RookieSelectionInput = {
+  memberId: string
+  playerId: string
+  destination: RookieDestination
+  dropRosterPlayerIds: string[]
+  expectedOverallPick: number | null
+}
 type SnakePickResult = {
   pick: {
     id: string
@@ -382,6 +392,46 @@ async function makeSnakePick(draftId: string, memberId: string, playerId: string
   return snakePickResponse(memberId, playerId, rpcData)
 }
 
+function rookieSelectionInput(body: Record<string, unknown>): RookieSelectionInput {
+  const destination = optionalStringField(body, 'destination')
+  if (!ROOKIE_DESTINATIONS.includes(destination as RookieDestination)) {
+    throw new ValidationError('destination must be active, taxi, or drop')
+  }
+  return {
+    memberId: uuidField(body, 'memberId'),
+    playerId: uuidField(body, 'playerId'),
+    destination: destination as RookieDestination,
+    dropRosterPlayerIds: optionalUuidArrayField(body, 'dropRosterPlayerIds'),
+    expectedOverallPick: optionalIntegerField(body, 'expectedOverallPick', { min: 1 }),
+  }
+}
+
+async function makeRookieSelection(draftId: string, input: RookieSelectionInput): Promise<Record<string, unknown>> {
+  const { data, error } = await supabase.rpc('make_rookie_selection_atomic', {
+    p_draft_id: draftId,
+    p_member_id: input.memberId,
+    p_player_id: input.playerId,
+    p_destination: input.destination,
+    p_drop_roster_player_ids: input.dropRosterPlayerIds,
+    p_expected_overall_pick: input.expectedOverallPick ?? undefined,
+  })
+  if (error) throwDb(error)
+  const result = parseSnakePickResult(data)
+  const root = jsonObject(data ?? undefined, 'Rookie selection result')
+  return {
+    pick: result.pick,
+    remaining: result.remaining,
+    newPlayerId: input.playerId,
+    isMock: result.is_mock,
+    destination: input.destination,
+    dropped: Array.isArray(root.dropped) ? root.dropped : [],
+    activeCount: typeof root.active_count === 'number' ? root.active_count : null,
+    taxiCount: typeof root.taxi_count === 'number' ? root.taxi_count : null,
+    rosterOverflow: false,
+    taxiSlotsAvailable: false,
+  }
+}
+
 async function commissionerSnakePick(
   draftId: string,
   memberId: string,
@@ -678,6 +728,12 @@ export async function handleDraftRoute(req: Request, path: string): Promise<Resp
     const memberId = uuidField(body, 'memberId')
     await verifyOwnMember(userId, memberId)
     return json({ ok: true, ...await makeSnakePick(draftId, memberId, uuidField(body, 'playerId'), optionalBooleanField(body, 'toTaxi') ?? false) })
+  }
+
+  if (action.action === 'rookie-selection') {
+    const input = rookieSelectionInput(body)
+    await verifyOwnMember(userId, input.memberId)
+    return json({ ok: true, ...await makeRookieSelection(draftId, input) })
   }
 
   if (action.action === 'commissioner-pick') {

@@ -291,6 +291,51 @@ export type Database = {
           },
         ]
       }
+      draft_pick_swaps: {
+        Row: {
+          counterparty_member_id: string
+          counterparty_overall_pick: number | null
+          created_at: string
+          draft_id: string | null
+          holder_member_id: string
+          holder_overall_pick: number | null
+          id: string
+          league_id: string
+          resolved_at: string | null
+          round: number
+          season_year: number
+          status: string
+        }
+        Insert: {
+          counterparty_member_id: string
+          counterparty_overall_pick?: number | null
+          created_at?: string
+          draft_id?: string | null
+          holder_member_id: string
+          holder_overall_pick?: number | null
+          id?: string
+          league_id: string
+          resolved_at?: string | null
+          round: number
+          season_year: number
+          status?: string
+        }
+        Update: {
+          counterparty_member_id?: string
+          counterparty_overall_pick?: number | null
+          created_at?: string
+          draft_id?: string | null
+          holder_member_id?: string
+          holder_overall_pick?: number | null
+          id?: string
+          league_id?: string
+          resolved_at?: string | null
+          round?: number
+          season_year?: number
+          status?: string
+        }
+        Relationships: []
+      }
       draft_picks: {
         Row: {
           created_at: string
@@ -2710,6 +2755,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      nba_draft_class_imports: {
+        Row: {
+          board_stored_at: string | null
+          draft_year: number
+          last_attempt_at: string
+          last_error: string | null
+          official_picks: Json
+          source: string | null
+        }
+        Insert: {
+          board_stored_at?: string | null
+          draft_year: number
+          last_attempt_at: string
+          last_error?: string | null
+          official_picks?: Json
+          source?: string | null
+        }
+        Update: {
+          board_stored_at?: string | null
+          draft_year?: number
+          last_attempt_at?: string
+          last_error?: string | null
+          official_picks?: Json
+          source?: string | null
+        }
+        Relationships: []
       }
       nba_games: {
         Row: {
@@ -6952,6 +7024,17 @@ export type Database = {
         Args: { "": Database["public"]["Tables"]["roster_players"]["Row"] }
         Returns: boolean
       }
+      make_rookie_selection_atomic: {
+        Args: {
+          p_destination: string
+          p_draft_id: string
+          p_drop_roster_player_ids?: string[]
+          p_expected_overall_pick?: number
+          p_member_id: string
+          p_player_id: string
+        }
+        Returns: Json
+      }
       make_snake_pick_atomic: {
         Args: {
           p_draft_id: string
@@ -7247,6 +7330,15 @@ export type Database = {
           p_stats_ids?: string[]
         }
         Returns: undefined
+      }
+      record_nba_draft_class_import: {
+        Args: {
+          p_draft_year: number
+          p_error?: string
+          p_picks: Json
+          p_source: string
+        }
+        Returns: Json
       }
       record_notification_outbox_ticket_atomic: {
         Args: {

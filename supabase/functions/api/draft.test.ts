@@ -39,13 +39,13 @@ Deno.env.set('PANCAKE_SUPABASE_SECRET_KEY', 'sb_secret_test')
 Deno.env.set('WEB_PUSH_VAPID_PUBLIC_KEY', '')
 const { handleDraftRoute } = await import('./draft.ts')
 
-async function action(name: string) {
+async function action(name: string, extra: Record<string, unknown> = {}) {
   requests.length = 0
   rpcCalls.length = 0
   const path = `/draft/${DRAFT}/${name}`
   return await handleDraftRoute(new Request(`http://localhost${path}`, {
     method: 'POST', headers: { authorization: 'Bearer fixture', 'content-type': 'application/json' },
-    body: JSON.stringify({ memberId: MEMBER, playerId: PLAYER, userId: 'forged' }),
+    body: JSON.stringify({ memberId: MEMBER, playerId: PLAYER, userId: 'forged', ...extra }),
   }), path)
 }
 
@@ -73,6 +73,33 @@ Deno.test('manual and self auto-picks return without reading notification recipi
     assert.equal(requests.some(path => path.includes('select=user_id')), false)
     assert.equal(requests.some(path => path.includes('notification_preferences')), false)
   }
+})
+
+Deno.test('a rookie selection sends placement, drops and the expected pick in one database call', async () => {
+  role = 'manager'
+  const drop = '77777777-7777-4777-8777-777777777777'
+  const response = await action('rookie-selection', { destination: 'active', dropRosterPlayerIds: [drop], expectedOverallPick: 3 })
+  assert.equal(response?.status, 200)
+  assert.deepEqual(rpcCalls, [{
+    name: 'make_rookie_selection_atomic',
+    body: {
+      p_draft_id: DRAFT, p_member_id: MEMBER, p_player_id: PLAYER, p_destination: 'active',
+      p_drop_roster_player_ids: [drop], p_expected_overall_pick: 3,
+    },
+  }])
+  const body = await response!.json()
+  assert.equal(body.destination, 'active')
+  assert.equal(body.newPlayerId, PLAYER)
+})
+
+Deno.test('a rookie selection needs a placement and the manager\'s own team', async () => {
+  role = 'manager'
+  await assert.rejects(action('rookie-selection', { destination: 'bench' }), /destination must be active, taxi, or drop/)
+  await assert.rejects(action('rookie-selection', {}), /destination must be active, taxi, or drop/)
+  role = null
+  await assert.rejects(action('rookie-selection', { destination: 'taxi' }))
+  assert.equal(rpcCalls.length, 0)
+  role = 'manager'
 })
 
 Deno.test({ name: 'draft test server closes', sanitizeOps: false, sanitizeResources: false, fn: () => server.shutdown() })

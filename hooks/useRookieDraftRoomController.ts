@@ -5,7 +5,9 @@ import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cach
 import { sessionOwner } from '@/lib/session-cache-registry'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useDraftActivity } from '@/components/league/draft-room/useDraftActivity'
-import { activateRookieDraftLeague, commissionerSnakePick, makeSnakePick, processExpiredSnakePick, subscribeToRookieDraft, unsubscribeFromRookieDraft, type RookieDraftState, type RookieProspect } from '@/lib/rookieDraft'
+import { activateRookieDraftLeague, commissionerSnakePick, makeRookieSelection, makeSnakePick, processExpiredSnakePick, subscribeToRookieDraft, unsubscribeFromRookieDraft, type RookieDestination, type RookieDraftState, type RookieProspect } from '@/lib/rookieDraft'
+import { requestId } from '@/lib/api-client'
+import { useScope } from '@/hooks/use-scope'
 import { dropPlayer, getRoster, type RosterPlayer } from '@/lib/roster'
 import { getErrorMessage } from '@/lib/shared/errors'
 import { reportRealtimeCleanup } from '@/lib/realtime'
@@ -22,6 +24,22 @@ type TrimOverflow = {
     excess: number
     dropList: RosterPlayer[]
     rosterSize: number
+}
+export type RookieSelection = {
+    player: RookieProspect
+    expectedOverallPick: number
+    destination: RookieDestination
+    dropIds: string[]
+    roster: RosterPlayer[] | null
+    rosterError: string | null
+    error: string | null
+    requestId: string
+}
+export type RookieSelectionOutcome = {
+    playerName: string
+    overallPick: number
+    destination: RookieDestination
+    droppedNames: string[]
 }
 
 export function useRookieDraftRoomController({
@@ -76,6 +94,9 @@ export function useRookieDraftRoomController({
     const [trimmingId, setTrimmingId] = useState<string | null>(null)
     const [trimAwaitingLimits, setTrimAwaitingLimits] = useState(false)
     const [completionRun, setCompletionRun] = useState(0)
+    const [selection, setSelection] = useState<RookieSelection | null>(null)
+    const [selectionOutcome, setSelectionOutcome] = useState<RookieSelectionOutcome | null>(null)
+    const submittingRef = useRef(false)
 
     const completionErrorRef = useRef(completionError)
     completionErrorRef.current = completionError
@@ -112,6 +133,7 @@ export function useRookieDraftRoomController({
     const [actionStateOwner, setActionStateOwner] = useState(ownerIdentity)
     activeDraftIdRef.current = draftId
     activeOwnerRef.current = ownerIdentity
+    const selectionScope = useScope(ownerIdentity)
 
     if (renderedOwnerRef.current !== ownerIdentity) {
         renderedOwnerRef.current = ownerIdentity
@@ -172,6 +194,8 @@ export function useRookieDraftRoomController({
         setTrimOverflow(null)
         setTrimmingId(null)
         setTrimAwaitingLimits(false)
+        setSelection(null)
+        setSelectionOutcome(null)
     }, [draftId, readOwnerKey, cacheKey])
 
     useEffect(() => {
@@ -186,9 +210,11 @@ export function useRookieDraftRoomController({
         setTrimOverflow(null)
         setTrimmingId(null)
         setTrimAwaitingLimits(false)
+        setSelection(null)
+        setSelectionOutcome(null)
     }, [ownerIdentity])
 
-    const load = useCallback(async (deferInitialPaint = false, checkVersion = true) => {
+    const load = useCallback(async (deferInitialPaint = false) => {
         if (!canRefresh() || activeReadOwnerRef.current !== readOwnerKey) return false
         const readEpoch = capture()
         const requestedDraftId = draftId
@@ -198,7 +224,7 @@ export function useRookieDraftRoomController({
         }
         const seq = ++loadSeqRef.current
         try {
-            const payload = leagueId && memberId ? await readScreenView<RookieDraftState>(screenScope('draft-room', leagueId, memberId, { draftId: requestedDraftId }), { checkVersion }) : null
+            const payload = leagueId && memberId ? await readScreenView<RookieDraftState>(screenScope('draft-room', leagueId, memberId, { draftId: requestedDraftId }), { checkVersion: true }) : null
             const data = payload?.draft ? payload : null
             if (!activityIsCurrent(readEpoch) || seq !== loadSeqRef.current || activeDraftIdRef.current !== requestedDraftId || activeReadOwnerRef.current !== readOwnerKey) return false
             const previous = roomSnapshotRef.current
@@ -260,7 +286,6 @@ export function useRookieDraftRoomController({
         let disposed = false
         let pending = false
         let poolPending = false
-        let versionKnown = false
         let inFlight: Promise<boolean> | null = null
         let inFlightEpoch = -1
         let timer: ReturnType<typeof setTimeout> | null = null
@@ -291,9 +316,7 @@ export function useRookieDraftRoomController({
                         const refreshPool = poolPending || prospectsDirtyRef.current
                         poolPending = false
                         const deferInitialPaint = roomSnapshotRef.current === null
-                        const checkVersion = !versionKnown
-                        versionKnown = false
-                        const stateLoaded = await load(deferInitialPaint, checkVersion)
+                        const stateLoaded = await load(deferInitialPaint)
                         const poolRead = refreshPool && isCurrent() && canRefresh()
                         const poolLoaded = poolRead || prospectsDirtyRef.current && isCurrent() && canRefresh()
                             ? await loadProspects(queryRef.current.trim() || undefined) : true
@@ -323,9 +346,8 @@ export function useRookieDraftRoomController({
         }
         return {
             run, trigger,
-            versionChanged: () => { versionKnown = true; trigger() },
+            versionChanged: trigger,
             suspend: () => {
-                versionKnown = false
                 pending = true
                 invalidate()
                 if (timer) clearTimeout(timer)
@@ -652,6 +674,119 @@ export function useRookieDraftRoomController({
         }
     }
 
+    async function beginSelection(player: RookieProspect) {
+        const stableMemberId = memberIdRef.current
+        const next = visibleState?.nextPick
+        if (!canAct() || !draftId || !stableMemberId || !leagueId || picking || !visibleState || visibleState.draft.isMock
+            || !next || next.memberId !== stableMemberId) return
+        const generation = mutationGenerationRef.current
+        const identity = ownerIdentity
+        const ticket = selectionScope.latest(() => mutationIsCurrent(generation, identity))
+        setPickError(null)
+        setSelectionOutcome(null)
+        setSelection({
+            player, expectedOverallPick: next.overallPick, destination: 'active', dropIds: [],
+            roster: null, rosterError: null, error: null, requestId: requestId(),
+        })
+        try {
+            const roster = await getRoster(stableMemberId, leagueId, visibleState.draft.leagueSeasonId)
+            ticket.commit(() => setSelection(current => current ? { ...current, roster } : current))
+        } catch (e) {
+            const message = getErrorMessage(e) ?? 'Could not load your roster.'
+            ticket.commit(() => setSelection(current => current ? { ...current, rosterError: message } : current))
+        }
+    }
+
+    function chooseSelectionDestination(destination: RookieDestination) {
+        if (submittingRef.current) return
+        setSelection(current => current ? { ...current, destination, dropIds: [], error: null, requestId: requestId() } : current)
+    }
+
+    function toggleSelectionDrop(rosterPlayerId: string) {
+        if (submittingRef.current) return
+        setSelection(current => current ? {
+            ...current,
+            dropIds: current.dropIds.includes(rosterPlayerId)
+                ? current.dropIds.filter(id => id !== rosterPlayerId)
+                : [...current.dropIds, rosterPlayerId],
+            error: null,
+            requestId: requestId(),
+        } : current)
+    }
+
+    function cancelSelection() {
+        if (submittingRef.current) return
+        selectionScope.supersede()
+        setSelection(null)
+    }
+
+    async function confirmSelection() {
+        const current = selection
+        const stableMemberId = memberIdRef.current
+        if (!current || !current.roster || submittingRef.current || !canAct() || !draftId || !stableMemberId) return
+        submittingRef.current = true
+        const generation = mutationGenerationRef.current
+        const identity = ownerIdentity
+        const roster = current.roster
+        const ticket = selectionScope.ticket(() => mutationIsCurrent(generation, identity))
+        const ownerTicket = selectionScope.ticket()
+        setPicking(true)
+        setSelection({ ...current, error: null })
+        try {
+            const result = await makeRookieSelection(draftId, {
+                memberId: stableMemberId,
+                playerId: current.player.id,
+                destination: current.destination,
+                dropRosterPlayerIds: current.dropIds,
+                expectedOverallPick: current.expectedOverallPick,
+                requestId: current.requestId,
+            })
+            const names = new Map(roster.map(row => [row.id, row.players?.display_name ?? 'Player']))
+            const committed = ticket.commit(() => {
+                selectionScope.supersede()
+                setSelection(null)
+                setSelectionOutcome({
+                    playerName: current.player.display_name,
+                    overallPick: result?.pick?.overall_pick ?? current.expectedOverallPick,
+                    destination: current.destination,
+                    droppedNames: current.dropIds.map(id => names.get(id) ?? 'Player'),
+                })
+                queryRef.current = ''
+                setQuery('')
+            })
+            if (committed) await reloadRoom.run(true)
+        } catch (e) {
+            const message = getErrorMessage(e) ?? 'Pick failed'
+            const committed = ticket.commit(() => setSelection(latest => latest ? { ...latest, error: message, requestId: requestId() } : latest))
+            if (committed) {
+                await reloadRoom.run(true)
+                const refreshTicket = selectionScope.latest(() => mutationIsCurrent(generation, identity))
+                const fresh = leagueId && visibleState
+                    ? await getRoster(stableMemberId, leagueId, visibleState.draft.leagueSeasonId).catch(() => null) : null
+                if (fresh) {
+                    refreshTicket.commit(() => setSelection(latest => latest
+                        ? { ...latest, roster: fresh, dropIds: latest.dropIds.filter(id => fresh.some(row => row.id === id)) } : latest))
+                }
+            }
+        } finally {
+            submittingRef.current = false
+            ownerTicket.commit(() => setPicking(false))
+        }
+    }
+
+    useEffect(() => {
+        if (!selection || submittingRef.current) return
+        const made = visibleState?.picks.find(pick => pick.overallPick === selection.expectedOverallPick)
+        if (made?.player?.id !== selection.player.id || made.memberId !== memberIdRef.current) return
+        setSelection(null)
+        setSelectionOutcome({
+            playerName: selection.player.display_name,
+            overallPick: selection.expectedOverallPick,
+            destination: selection.destination,
+            droppedNames: selection.dropIds.map(id => selection.roster?.find(row => row.id === id)?.players?.display_name ?? 'Player'),
+        })
+    }, [selection, visibleState?.picks])
+
     async function handleCommissionerPick(player: RookieProspect) {
         const targetMemberId = visibleState?.nextPick?.memberId
         if (!canAct() || !draftId || !targetMemberId || picking) return
@@ -742,5 +877,12 @@ export function useRookieDraftRoomController({
         handlePick,
         handleCommissionerPick,
         resolveByDrop,
+        selection: ownsDraft && ownsActionState ? selection : null,
+        selectionOutcome: ownsDraft && ownsActionState ? selectionOutcome : null,
+        beginSelection,
+        chooseSelectionDestination,
+        toggleSelectionDrop,
+        cancelSelection,
+        confirmSelection,
     }
 }

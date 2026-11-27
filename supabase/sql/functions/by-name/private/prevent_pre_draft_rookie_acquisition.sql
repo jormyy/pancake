@@ -3,11 +3,11 @@
 -- npm run check:db-function-sources verifies every latest migration function has exact source parity.
 
 CREATE OR REPLACE FUNCTION private.prevent_pre_draft_rookie_acquisition()
-RETURNS trigger
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = ''
-AS $$
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
 BEGIN
   IF NEW.acquired_via IN ('free_agent', 'waiver') AND EXISTS (
     SELECT 1
@@ -17,8 +17,8 @@ BEGIN
      WHERE league.id = NEW.league_id
        AND season.id = NEW.league_season_id
        AND league.status = 'offseason'
-       AND player.years_exp = 0
-       AND player.nba_draft_number IS NOT NULL
+       AND player.draft_status = 'drafted'
+       AND player.draft_year = private.draft_year_for_season(season.season_year)
        AND NOT EXISTS (
          SELECT 1 FROM public.drafts AS draft
           WHERE draft.league_id = league.id
@@ -33,4 +33,4 @@ BEGIN
   END IF;
   RETURN NEW;
 END;
-$$;
+$function$;

@@ -44,16 +44,16 @@ it('stops before league fallback when admission expires during the active lookup
     expect(await result).toEqual(new Error('Read is no longer active'))
 })
 
-it('stops before completed rookie fallback when admission expires during the league lookup', async () => {
+it('stops before completed rookie fallback when admission expires during the season lookup', async () => {
     let active = true
     const options = { includeCompletedRookie: true, canRead: () => active }
     const result = getJoinableDraft('league', options).catch(error => error)
     reads[0].resolve({ data: null, error: null })
     await flush()
     active = false
-    reads[1].resolve({ data: { status: 'drafting' }, error: null })
+    reads[1].resolve({ data: { id: 'season' }, error: null })
     await flush()
-    expect(reads.map(read => read.table)).toEqual(['drafts', 'leagues'])
+    expect(reads.map(read => read.table)).toEqual(['drafts', 'league_seasons'])
     expect(await result).toEqual(new Error('Read is no longer active'))
 })
 
@@ -64,15 +64,24 @@ it('keeps the active-only default for existing callers', async () => {
     expect(reads.map(read => read.table)).toEqual(['drafts'])
 })
 
-it('keeps the completed rookie fallback for existing callers', async () => {
+it('opens the current season completed rookie draft after the league activates', async () => {
     const result = getJoinableDraft('league', { includeCompletedRookie: true })
     reads[0].resolve({ data: null, error: null })
     await flush()
-    reads[1].resolve({ data: { status: 'drafting' }, error: null })
+    reads[1].resolve({ data: { id: 'season' }, error: null })
     await flush()
     reads[2].resolve({ data: { id: 'rookie', draft_type: 'snake', status: 'completed' }, error: null })
     expect(await result).toMatchObject({ id: 'rookie', draftType: 'snake', status: 'completed' })
-    expect(reads.map(read => read.table)).toEqual(['drafts', 'leagues', 'drafts'])
+    expect(reads.map(read => read.table)).toEqual(['drafts', 'league_seasons', 'drafts'])
+})
+
+it('finds no completed rookie draft without a current season', async () => {
+    const result = getJoinableDraft('league', { includeCompletedRookie: true })
+    reads[0].resolve({ data: null, error: null })
+    await flush()
+    reads[1].resolve({ data: null, error: null })
+    expect(await result).toBeNull()
+    expect(reads.map(read => read.table)).toEqual(['drafts', 'league_seasons'])
 })
 
 const sharedOptions = { memberId: 'member', includeCompletedRookie: true, canRead: () => true }

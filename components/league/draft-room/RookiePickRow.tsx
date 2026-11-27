@@ -1,7 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native'
 import type { SnakePick } from '@/lib/rookieDraft'
 import { PlayerRowContent } from '@/components/player/PlayerRowContent'
-import { colors, fontWeight, spacing, table, textStyles, uiColors, typeScale } from '@/constants/tokens'
+import { colors, componentTokens, fontWeight, spacing, table, textStyles, uiColors, typeScale } from '@/constants/tokens'
 
 export function RookiePickRow({
     item,
@@ -15,6 +15,8 @@ export function RookiePickRow({
     const isMe = item.memberId === myMemberId
     const isSkipped = !!item.skippedAt
     const isOnClock = !item.player && !isSkipped && nextPick?.overallPick === item.overallPick
+    const viaTeam = item.originalMemberId && item.originalMemberId !== item.memberId ? item.originalTeamName ?? 'another team' : null
+    const swap = rookiePickSwapLabel(item)
 
     return (
         <View
@@ -31,6 +33,9 @@ export function RookiePickRow({
                 <Text style={[styles.pickTeamName, isMe && styles.meText]} numberOfLines={1}>
                     {item.teamName}
                 </Text>
+                {viaTeam ? <Text style={styles.pickVia} numberOfLines={1}>via {viaTeam}</Text> : null}
+                {swap ? <Text style={[styles.pickSwap, swap.status === 'exercised' && styles.pickSwapUsed]} numberOfLines={1}
+                    accessibilityLabel={swap.description}>{swap.label}</Text> : null}
                 {item.round > 1 && item.pickInRound === 1 ? (
                     <Text style={styles.pickRoundStart} numberOfLines={1}>Round {item.round}</Text>
                 ) : null}
@@ -51,11 +56,26 @@ export function RookiePickRow({
     )
 }
 
+function rookiePickSwapLabel(item: SnakePick): { status: string; label: string; description: string } | null {
+    const swap = item.swap
+    if (!swap) return null
+    const holder = swap.holderTeamName ?? 'A team'
+    const other = swap.counterpartyTeamName ?? 'another team'
+    if (swap.status === 'exercised') {
+        return { status: swap.status, label: 'Swap used', description: `${holder} swapped picks with ${other}.` }
+    }
+    if (swap.status === 'unused') {
+        return { status: swap.status, label: 'Swap not used', description: `${holder} kept its pick; the swap with ${other} was not better.` }
+    }
+    return { status: swap.status, label: 'Swap pending', description: `${holder} can swap picks with ${other} when the draft starts.` }
+}
+
 export const rookiePickRowStyles = StyleSheet.create({
     pickRow: {
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: spacing.xl,
+        paddingVertical: componentTokens.playerRow.compact.paddingVertical,
         minHeight: table.rowHeight,
         gap: spacing.md,
     },
@@ -65,6 +85,9 @@ export const rookiePickRowStyles = StyleSheet.create({
     pickTeam: { width: '25%', maxWidth: 140, minWidth: 0, flexShrink: 0, gap: spacing.xxs },
     pickTeamName: { ...typeScale.small, fontWeight: fontWeight.semibold, color: colors.textPrimary },
     pickRoundStart: { ...textStyles.tableHeader },
+    pickVia: { ...typeScale.caption, color: colors.textMuted },
+    pickSwap: { ...typeScale.caption, fontWeight: fontWeight.semibold, color: colors.textMuted },
+    pickSwapUsed: { color: uiColors.successText },
     pickPlayer: { ...typeScale.small, flex: 1, minWidth: 0, color: colors.textPlaceholder },
     pickSkipped: { ...typeScale.small, flex: 1, minWidth: 0, color: colors.textMuted, fontWeight: fontWeight.semibold },
     pickPlayerCell: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: spacing.md },

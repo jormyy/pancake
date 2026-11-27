@@ -29,6 +29,8 @@ const expectedSlotDetail = () => Object.entries(EXPECTED_LINEUP_SLOTS)
   .join(', ')
 
 const seedPlayerFixtures = async (admin) => {
+  const { data: seasonYear, error: seasonError } = await admin.rpc('current_season_year_et')
+  if (seasonError) throw new Error(`season year lookup: ${seasonError.message}`)
   const positions = ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F']
   const teams = ['ATL', 'BOS', 'CHI', 'DAL', 'DEN', 'GSW', 'LAL', 'MIA']
   const players = Array.from({ length: 80 }, (_, index) => {
@@ -47,6 +49,10 @@ const seedPlayerFixtures = async (admin) => {
       injury_status: null,
       years_exp: index < 20 ? 0 : 3,
       nba_draft_number: index < 20 ? n : null,
+      draft_status: index < 20 ? 'drafted' : null,
+      draft_year: index < 20 ? seasonYear - 1 : null,
+      draft_round: index < 20 ? 1 : null,
+      draft_overall_pick: index < 20 ? n : null,
     }
   })
 

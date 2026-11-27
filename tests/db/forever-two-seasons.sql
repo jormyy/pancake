@@ -78,7 +78,7 @@ DECLARE
   v_drafts int := 0;
   v_native_invocations bigint;
 BEGIN
-  SELECT candidate INTO v_base_year FROM generate_series(7000, 8800) candidate
+  SELECT candidate INTO v_base_year FROM generate_series(2060, 2097) candidate
   WHERE NOT EXISTS (SELECT 1 FROM public.season_weeks WHERE season_year BETWEEN candidate AND candidate + 2)
     AND NOT EXISTS (SELECT 1 FROM public.nba_games WHERE season_year BETWEEN candidate AND candidate + 2)
     AND NOT EXISTS (SELECT 1 FROM public.league_seasons WHERE season_year BETWEEN candidate AND candidate + 2)
@@ -144,10 +144,12 @@ BEGIN
       IF v_day = v_start - 1 THEN
         v_result := public.start_rookie_draft_atomic(v_league, 1, false, 60, 'auto_pick');
         v_draft := (v_result->>'id')::uuid;
-        FOR v_pick IN SELECT member_id FROM public.snake_draft_picks WHERE draft_id = v_draft ORDER BY overall_pick LOOP
+        FOR v_pick IN SELECT member_id, overall_pick FROM public.snake_draft_picks WHERE draft_id = v_draft ORDER BY overall_pick LOOP
           v_player := gen_random_uuid();
-          INSERT INTO public.players(id, first_name, last_name, position, eligible_positions, years_exp, nba_draft_number)
-          VALUES (v_player, 'Boundary', v_player::text, 'PG', ARRAY['PG'], 0, 1);
+          INSERT INTO public.players(id, first_name, last_name, position, eligible_positions, years_exp, nba_draft_number,
+            nba_id, draft_status, draft_year, draft_round, draft_overall_pick)
+          VALUES (v_player, 'Boundary', v_player::text, 'PG', ARRAY['PG'], 0, 1,
+            'forever-' || v_player, 'drafted', v_year - 1, 1, v_pick.overall_pick);
           PERFORM public.make_snake_pick_atomic(v_draft, v_pick.member_id, v_player);
         END LOOP;
         v_drafts := v_drafts + 1;

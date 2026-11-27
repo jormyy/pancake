@@ -13,7 +13,7 @@ DO $$
 DECLARE
   users uuid[]:='{}'; members uuid[]:='{}'; league uuid; season uuid; old_season uuid; oldest_season uuid;
   created jsonb; draft jsonb; draft_id uuid; chosen uuid; asset uuid; requested_asset uuid; trade_id uuid; source_owner uuid;
-  new_season uuid; new_year int; year int:=8610; i int; r int; position int; message text; snapshot jsonb;
+  new_season uuid; new_year int; year int:=2077; i int; r int; position int; message text; snapshot jsonb;
   expected uuid[]; actual uuid[]; player uuid; completed jsonb;
 BEGIN
   FOR i IN 1..4 LOOP
@@ -68,8 +68,8 @@ BEGIN
   PERFORM pg_temp.check_post((SELECT member_id=members[2] FROM snake_draft_picks WHERE draft_pick_id=asset),'owner changes reach an unfilled draft slot');
   FOR i IN 1..12 LOOP
     player:=gen_random_uuid();
-    INSERT INTO players(id,first_name,last_name,position,eligible_positions,years_exp,nba_draft_number)
-    VALUES(player,'Synthetic','Pick lifecycle '||player,'PG',ARRAY['PG'],0,1);
+    INSERT INTO players(id,first_name,last_name,position,eligible_positions,years_exp,nba_draft_number,nba_id,draft_status,draft_year,draft_round,draft_overall_pick)
+    VALUES(player,'Synthetic','Pick lifecycle '||player,'PG',ARRAY['PG'],0,1,'picks-lifecycle-'||player,'drafted',year-1,1,i);
     SELECT member_id INTO chosen FROM snake_draft_picks WHERE snake_draft_picks.draft_id=picks_lifecycle.draft_id AND player_id IS NULL ORDER BY overall_pick LIMIT 1;
     completed:=make_snake_pick_atomic(draft_id,chosen,player);
     PERFORM pg_temp.check_post((SELECT is_used AND rookie_draft_id=draft_id FROM draft_picks WHERE id=(completed->'pick'->>'draft_pick_id')::uuid),'drafted asset is consumed '||i);

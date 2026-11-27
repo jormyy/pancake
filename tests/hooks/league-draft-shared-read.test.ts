@@ -115,7 +115,7 @@ it.each(['hidden', 'offline'] as const)('stops shared fallback while %s and join
         else { online = false; network.dispatchEvent(new Event('offline')) }
     })
     await act(async () => { for (const read of suspended) read.resolve({ data: null, error: null }) })
-    expect(reads.filter(read => read.table === 'leagues')).toHaveLength(0)
+    expect(reads.filter(read => read.table === 'league_seasons')).toHaveLength(0)
     await act(async () => {
         if (kind === 'hidden') { visible = true; page.dispatchEvent(new Event('visibilitychange')) }
         else { online = true; network.dispatchEvent(new Event('online')) }
@@ -126,13 +126,13 @@ it.each(['hidden', 'offline'] as const)('stops shared fallback while %s and join
     expect(launcher.draft?.id).toBe('resumed')
 })
 
-it('stops the completed-rookie fallback after suspension during the league phase', async () => {
+it('stops the completed-rookie fallback after suspension during the season phase', async () => {
     await mount()
     await resolveRead(0, null)
-    expect(tables()).toEqual(['drafts', 'leagues'])
+    expect(tables()).toEqual(['drafts', 'league_seasons'])
     await act(async () => { visible = false; page.dispatchEvent(new Event('visibilitychange')) })
-    await resolveRead(1, { status: 'drafting' })
-    expect(tables()).toEqual(['drafts', 'leagues'])
+    await resolveRead(1, { id: 'season' })
+    expect(tables()).toEqual(['drafts', 'league_seasons'])
     expect(boundary.save).not.toHaveBeenCalled()
 })
 
@@ -159,8 +159,8 @@ it('keeps the launcher fallback alive after only the controller unmounts', async
     await act(async () => { void launcher.openDraftRoom() })
     await act(async () => { renderer!.update(view(false)) })
     await resolveRead(0, null)
-    expect(tables()).toEqual(['drafts', 'leagues'])
-    await resolveRead(1, { status: 'drafting' })
+    expect(tables()).toEqual(['drafts', 'league_seasons'])
+    await resolveRead(1, { id: 'season' })
     await resolveRead(2, row('rookie', 'snake'))
     expect(launcher.draft?.id).toBe('rookie')
     expect(boundary.save).toHaveBeenCalledExactlyOnceWith('pancake:draft-launcher:v1:["actor","league","member"]', { draft: launcher.draft })

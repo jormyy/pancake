@@ -209,13 +209,15 @@ const setupBrowserRookieDraftFixture = async (env, season) => {
 
   const { data: rookies, error: rookiesError } = await admin
     .from('players')
-    .select('id, display_name, nba_draft_number')
-    .not('nba_draft_number', 'is', null)
-    .order('nba_draft_number', { ascending: true })
+    .select('id, display_name, draft_overall_pick')
+    .eq('draft_status', 'drafted')
+    .eq('draft_year', currentSeason.season_year - 1)
+    .not('nba_id', 'is', null)
+    .order('draft_overall_pick', { ascending: true })
     .order('id', { ascending: true })
     .limit(4)
   if (rookiesError) throw new Error(`rookie player lookup: ${rookiesError.message}`)
-  if ((rookies ?? []).length < 2) throw new Error('browser rookie draft requires at least two players with nba_draft_number')
+  if ((rookies ?? []).length < 2) throw new Error('browser rookie draft requires at least two players from the NBA draft class')
 
   const { error: leagueStatusError } = await admin
     .from('leagues')

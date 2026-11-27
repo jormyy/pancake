@@ -77,7 +77,7 @@ async function drain() {
   assert.equal(response.status, 200, await response.text())
 }
 const leagues: string[] = [], users: string[] = []
-const year = 29471
+const year = 2094
 const players = [crypto.randomUUID(), crypto.randomUUID()]
 async function removeLeague(league: string) {
   await sql(`DELETE FROM draft_orders WHERE draft_id IN (SELECT id FROM drafts WHERE league_id=${quote(league)}); DELETE FROM snake_draft_picks WHERE draft_id IN (SELECT id FROM drafts WHERE league_id=${quote(league)}); DELETE FROM draft_picks WHERE league_id=${quote(league)}; DELETE FROM drafts WHERE league_id=${quote(league)}; DELETE FROM leagues WHERE id=${quote(league)}`)
@@ -90,7 +90,7 @@ try {
         IF s IS NULL THEN PERFORM vault.create_secret(v,k); ELSE PERFORM vault.update_secret(s,v); END IF;
       END LOOP;
     END $$;`)
-  await sql(`INSERT INTO players(id,first_name,last_name,position,eligible_positions,years_exp,nba_draft_number) SELECT id,'Synthetic','Pause rookie','PG',ARRAY['PG'],0,1 FROM unnest(ARRAY[${players.map(quote)}]::uuid[]) id;`)
+  await sql(`INSERT INTO players(id,first_name,last_name,position,eligible_positions,years_exp,nba_draft_number,nba_id,draft_status,draft_year,draft_round,draft_overall_pick) SELECT id,'Synthetic','Pause rookie','PG',ARRAY['PG'],0,n,'pause-'||id,'drafted',${year - 1},1,n FROM unnest(ARRAY[${players.map(quote)}]::uuid[]) WITH ORDINALITY AS u(id,n);`)
   for (const timer of [60, 604800]) {
     for (const scenario of ['before', 'after', 'made', 'skipped', 'completed', 'disabled']) {
       const league = crypto.randomUUID(), season = crypto.randomUUID()
@@ -106,7 +106,7 @@ try {
         ${members.map((id, i) => `INSERT INTO league_members(id,league_id,user_id,role) VALUES(${quote(id)},${qLeague},${quote(owners[i])},'${i ? 'manager' : 'commissioner'}');`).join('\n')}
         INSERT INTO notification_preferences(user_id,event_settings) SELECT id,(SELECT jsonb_object_agg(event_type,event_type IN ('draft_on_clock','draft_coming_soon','draft_timer_expiring')) FROM notif_event_catalog) FROM unnest(ARRAY[${owners.map(quote)}]::uuid[]) id;
         UPDATE profiles SET push_token='fake-paused-'||id WHERE id IN (${owners.map(quote)});
-        INSERT INTO draft_picks(league_id,season_year,round,original_owner_id,current_owner_id) SELECT ${qLeague},${year},1,m,m FROM unnest(ARRAY[${members.map(quote)}]::uuid[]) m;
+        INSERT INTO draft_picks(league_id,season_year,round,original_owner_id,current_owner_id) SELECT ${qLeague},${year - 1},1,m,m FROM unnest(ARRAY[${members.map(quote)}]::uuid[]) m;
         SELECT start_rookie_draft_atomic(${qLeague},1,false,${timer})->>'id';
         COMMIT;`)
       const picks = JSON.parse(await sql(`SELECT json_agg(row_to_json(p) ORDER BY overall_pick) FROM snake_draft_picks p WHERE draft_id=${quote(draft)}`)) as { id: string; member_id: string; timer_expires_at: string }[]

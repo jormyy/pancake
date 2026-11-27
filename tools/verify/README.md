@@ -50,6 +50,8 @@ For an activated policy league it creates the league-scope dispatch and posts `l
 The token is read from `functions.env` and never printed.
 `seed-roster-floor.mjs EVIDENCE [--count=14|15|16|17] [--team=NAME]` sets the fixture league’s floor policy, reshapes the named team to the requested active count, fills the other teams to 16, and prints the involved players and counts as JSON.
 `trigger-roster-floor.mjs EVIDENCE` posts to the run’s local `process-waivers` Edge route with the generated internal token and prints the week record, team counts, and the before/after/delta award, transaction, and roster counts for the fixture league and every league.
+`seed-rookie-draft.mjs EVIDENCE` adds a two-manager offseason league with a full active roster, a full taxi, a traded third-round pick, one exercised and one unused swap, and undrafted, wrong-year, duplicate and missing-id decoys. It writes `rookie-draft-fixture.json`.
+`rookie-draft-walk.mjs EVIDENCE` drives both managers through that draft at 390 and 1440 wide, with cancel, an out-of-turn request, a double tap, drops, Drop rookie, offline and reload. It writes screenshots and `walk.json` to the sibling `rookie-draft` folder and fails unless every board agrees.
 
 ## Isolation and evidence
 
@@ -95,6 +97,7 @@ Rerunning cleanup is supported; doctor rejects an already cleaned run.
 | Auto Lineup IR | `seed-auto-ir.mjs` reshapes E2E Team 1 into one named IR case and enables its optimizer |
 | Weekly roster floor | `seed-roster-floor.mjs` sets the fixture league’s floor policy and reshapes E2E Team 1 to one count |
 | Drafts | Seeded auction and rookie draft; startup auction completes for season play |
+| Rookie selection | `seed-rookie-draft.mjs` adds a two-manager league with traded picks, swaps, full rosters and class decoys |
 | Past season | Completed season with two regular-season games, a final, standings, and expected history results |
 
 Direct fixture writes only prepare test state.

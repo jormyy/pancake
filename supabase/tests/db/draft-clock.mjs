@@ -79,8 +79,8 @@ try {
 INSERT INTO auth.users(id,aud,role,email,raw_user_meta_data) SELECT id,'authenticated','authenticated',id||'@example.test','{}' FROM unnest(ARRAY['${users[0]}'::uuid,'${users[1]}'::uuid])id;
 INSERT INTO public.leagues(id,name,slug,commissioner_id,status,roster_size) VALUES('${league}','Draft clock','${league}','${users[0]}','drafting',5);
 INSERT INTO public.league_members(id,league_id,user_id,role) VALUES('${members[0]}','${league}','${users[0]}','commissioner'),('${members[1]}','${league}','${users[1]}','manager');
-INSERT INTO public.league_seasons(id,league_id,season_year,is_current) VALUES('${season}','${league}',2189,true);
-INSERT INTO public.players(id,first_name,last_name,position,eligible_positions,years_exp,nba_draft_number) SELECT id,'Clock',id::text,'PG',ARRAY['PG'],0,1 FROM unnest(ARRAY[${players.map(id => `'${id}'::uuid`).join(',')}])id;
+INSERT INTO public.league_seasons(id,league_id,season_year,is_current) VALUES('${season}','${league}',2096,true);
+INSERT INTO public.players(id,first_name,last_name,position,eligible_positions,years_exp,nba_draft_number,nba_id,draft_status,draft_year,draft_round,draft_overall_pick) SELECT id,'Clock',id::text,'PG',ARRAY['PG'],0,n,'clock-'||id,'drafted',2095,1,n FROM unnest(ARRAY[${players.map(id => `'${id}'::uuid`).join(',')}]) WITH ORDINALITY AS u(id,n);
 INSERT INTO public.drafts(id,league_id,league_season_id,draft_type,status,budget_per_team,pick_timer_seconds,rounds,is_mock,timer_expiry_behavior)
 VALUES('${auction}','${league}','${season}','auction','in_progress',100,30,NULL,true,'auto_pick'),('${snake}','${league}','${season}','snake','in_progress',NULL,60,1,true,'skip_pick');
 INSERT INTO public.draft_orders(draft_id,member_id,position) SELECT d,m,ord::int FROM unnest(ARRAY['${auction}'::uuid,'${snake}'::uuid])d CROSS JOIN unnest(ARRAY['${members[0]}'::uuid,'${members[1]}'::uuid]) WITH ORDINALITY AS u(m,ord);

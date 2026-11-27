@@ -149,6 +149,8 @@ export async function apiPost(env, token, route, body) {
 }
 
 async function seedPlayerFixtures(admin) {
+  const { data: seasonYear, error: seasonError } = await admin.rpc('current_season_year_et')
+  if (seasonError) throw new Error(`season year lookup: ${seasonError.message}`)
   const players = Array.from({ length: 100 }, (_, index) => {
     const n = index + 1
     const position = positions[index % positions.length]
@@ -165,6 +167,10 @@ async function seedPlayerFixtures(admin) {
       injury_status: null,
       years_exp: index < 24 ? 0 : 3,
       nba_draft_number: index < 24 ? n : null,
+      draft_status: index < 24 ? 'drafted' : null,
+      draft_year: index < 24 ? seasonYear - 1 : null,
+      draft_round: index < 24 ? 1 : null,
+      draft_overall_pick: index < 24 ? n : null,
     }
   })
 

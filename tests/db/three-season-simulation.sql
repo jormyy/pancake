@@ -265,14 +265,16 @@ INSERT INTO public.waiver_priorities (league_id, league_season_id, member_id, pr
 VALUES
   (pg_temp.oid('league-A'), pg_temp.oid('season-A-2098'), pg_temp.oid('A1'), 1), (pg_temp.oid('league-A'), pg_temp.oid('season-A-2098'), pg_temp.oid('A2'), 2), (pg_temp.oid('league-A'), pg_temp.oid('season-A-2098'), pg_temp.oid('A3'), 3),
   (pg_temp.oid('league-B'), pg_temp.oid('season-B-2098'), pg_temp.oid('B1'), 1), (pg_temp.oid('league-B'), pg_temp.oid('season-B-2098'), pg_temp.oid('B2'), 2), (pg_temp.oid('league-B'), pg_temp.oid('season-B-2098'), pg_temp.oid('B3'), 3);
--- Forty veterans (13-18 are Out) and twelve rookies (draft classes of six).
+-- Forty veterans (13-18 are Out) and two NBA draft classes of twelve rookies.
 INSERT INTO public.players (id, first_name, last_name, nba_team, position, years_exp, eligible_positions, injury_status, nba_draft_number)
 SELECT pg_temp.oid('vet-' || n), 'Vet', 'Player ' || n, (ARRAY['STA', 'STB', 'STC', 'STD', 'STE', 'STF'])[1 + n % 6],
        (ARRAY['PG', 'SG', 'SF', 'PF', 'C'])[1 + n % 5]::nba_position, 2 + n % 5, ARRAY[(ARRAY['PG', 'SG', 'SF', 'PF', 'C'])[1 + n % 5]],
        CASE WHEN n BETWEEN 13 AND 18 THEN 'Out' END, NULL
   FROM generate_series(1, 40) AS n;
-INSERT INTO public.players (id, first_name, last_name, nba_team, position, years_exp, eligible_positions, injury_status, nba_draft_number)
-SELECT pg_temp.oid('rookie-' || n), 'Rookie', 'Class ' || n, 'XTX', 'SF'::nba_position, 0, ARRAY['SF'], NULL, n FROM generate_series(1, 12) AS n;
+INSERT INTO public.players (id, first_name, last_name, nba_team, position, years_exp, eligible_positions, injury_status, nba_draft_number,
+  nba_id, draft_status, draft_year, draft_round, draft_overall_pick)
+SELECT pg_temp.oid('rookie-' || n), 'Rookie', 'Class ' || n, 'XTX', 'SF'::nba_position, 0, ARRAY['SF'], NULL, (n - 1) % 12 + 1,
+  'three-season-rookie-' || n, 'drafted', CASE WHEN n <= 12 THEN 2098 ELSE 2099 END, 1, (n - 1) % 12 + 1 FROM generate_series(1, 24) AS n;
 INSERT INTO public.draft_picks (id, league_id, season_year, round, original_owner_id, current_owner_id)
 SELECT pg_temp.oid('pick-' || m.key || '-' || y || '-' || r), m.league, y-1, r, m.id, m.id
   FROM (VALUES ('A1', pg_temp.oid('A1'), pg_temp.oid('league-A')), ('A2', pg_temp.oid('A2'), pg_temp.oid('league-A')), ('A3', pg_temp.oid('A3'), pg_temp.oid('league-A')),
@@ -581,7 +583,7 @@ BEGIN
     v_to_taxi := v_member = p_taxi_member AND NOT EXISTS (SELECT 1 FROM roster_players WHERE member_id=v_member AND league_season_id=pg_temp.season(p_league) AND is_on_taxi);
     PERFORM pg_temp.act_as(pg_temp.user_of(v_member));
     IF v_overall = 1 THEN
-      PERFORM pg_temp.rejected('veteran in the rookie draft', pg_temp.try(format('SELECT public.make_snake_pick_atomic(%L, %L, %L)', v_draft, v_member, pg_temp.vet(31))), '%rookie%');
+      PERFORM pg_temp.rejected('veteran in the rookie draft', pg_temp.try(format('SELECT public.make_snake_pick_atomic(%L, %L, %L)', v_draft, v_member, pg_temp.vet(31))), '%NBA draft%');
     END IF;
     IF v_overall = 2 THEN
       -- The commissioner pauses and resumes, then the manager's clock runs out
@@ -711,8 +713,8 @@ BEGIN
   PERFORM pg_temp.rejected('rookie draft with a reserved pick', pg_temp.try(format('SELECT public.start_rookie_draft_atomic(%L, 2, false, 60, %L)', i.a, 'commissioner_pick')), '%reserved%');
   v_n := pg_temp.complete_due_trades();
   PERFORM pg_temp.assert(pg_temp.trade_status(v_t) = 'completed', 'the pick trade did not complete');
-  PERFORM pg_temp.run_rookie_draft(i.a, i.u1, 7, pg_temp.pick('A1', 2100, 2));
-  PERFORM pg_temp.run_rookie_draft(i.b, i.u2, 1, pg_temp.pick('B1', 2100, 1));
+  PERFORM pg_temp.run_rookie_draft(i.a, i.u1, 19, pg_temp.pick('A1', 2100, 2));
+  PERFORM pg_temp.run_rookie_draft(i.b, i.u2, 13, pg_temp.pick('B1', 2100, 1));
   PERFORM pg_temp.checkpoint('season 3: rookie drafts');
   -- A trade of a rookie for a veteran, completed; the veteran is then listed, slotted, and dropped.
   v_vet := pg_temp.any_player(i.a2, false);

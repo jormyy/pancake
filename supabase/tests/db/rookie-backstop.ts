@@ -25,7 +25,7 @@ for (const state of cases.filter(value => !selectedCase || value === selectedCas
   const users = [crypto.randomUUID(), crypto.randomUUID(), crypto.randomUUID(), crypto.randomUUID()]
   const members = users.map(() => crypto.randomUUID())
   const players = Array.from({ length: state.startsWith('cutoff_') ? 13 : 12 }, () => crypto.randomUUID())
-  const year = 8831 + cases.indexOf(state)
+  const year = 2071 + cases.indexOf(state)
   const nativeFetch = globalThis.fetch
   try {
     await sql(`BEGIN;
@@ -33,9 +33,9 @@ for (const state of cases.filter(value => !selectedCase || value === selectedCas
       INSERT INTO leagues(id,name,slug,commissioner_id,status,playoff_start_week) VALUES(${quote(league)},'Synthetic rookie recovery',${quote(league)},${quote(users[0])},'${state === 'auction' ? 'setup' : 'offseason'}',${state === 'mock' || state === 'auction' ? 2 : 1});
       INSERT INTO league_seasons(id,league_id,season_year,is_current) VALUES(${quote(season)},${quote(league)},${year},true);
       ${members.map((member, index) => `INSERT INTO league_members(id,league_id,user_id,role,team_name) VALUES(${quote(member)},${quote(league)},${quote(users[index])},'${index===0?'commissioner':'manager'}','Team ${index}');`).join('\n')}
-      INSERT INTO draft_picks(league_id,season_year,round,original_owner_id,current_owner_id) SELECT ${quote(league)},${year},r,m,m FROM unnest(ARRAY[${members.map(quote).join(',')}]::uuid[]) m CROSS JOIN generate_series(1,3) r;
+      INSERT INTO draft_picks(league_id,season_year,round,original_owner_id,current_owner_id) SELECT ${quote(league)},${year - 1},r,m,m FROM unnest(ARRAY[${members.map(quote).join(',')}]::uuid[]) m CROSS JOIN generate_series(1,3) r;
       INSERT INTO season_weeks(season_year,week_number,week_start,week_end) SELECT ${year},w,date '2026-10-20'+(w-1)*7,date '2026-10-26'+(w-1)*7 FROM generate_series(1,3) w;
-      ${players.map(player => `INSERT INTO players(id,first_name,last_name,position,eligible_positions,years_exp,nba_draft_number) VALUES(${quote(player)},'Synthetic',${quote(player)},'PG',ARRAY['PG'],0,1);`).join('\n')}
+      ${players.map((player, index) => `INSERT INTO players(id,first_name,last_name,position,eligible_positions,years_exp,nba_draft_number,nba_id,draft_status,draft_year,draft_round,draft_overall_pick) VALUES(${quote(player)},'Synthetic',${quote(player)},'PG',ARRAY['PG'],0,${index + 1},${quote(`backstop-${player}`)},'drafted',${year - 1},1,${index + 1});`).join('\n')}
       SELECT set_config('request.jwt.claim.sub',${quote(users[0])},true);
       ${state === 'missing' ? '' : state === 'auction' ? `SELECT start_auction_draft_atomic(${quote(league)});` : `SELECT start_rookie_draft_atomic(${quote(league)},3,false);`}
       ${['mock', 'mock_resume'].includes(state) ? `UPDATE drafts SET is_mock=true WHERE league_id=${quote(league)};` : ''}

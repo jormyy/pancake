@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { partitionRoster, rosterLimits, rosterLocation } from '@/lib/roster-capacity'
+import { partitionRoster, planRookiePlacement, rosterLimits, rosterLocation } from '@/lib/roster-capacity'
 
 type Row = { id: string; is_on_ir: boolean; is_on_taxi: boolean }
 
@@ -42,5 +42,21 @@ describe('roster capacity', () => {
         expect(rosterLocation({ is_on_ir: false, is_on_taxi: false })).toBe('active')
         expect(rosterLocation({ is_on_ir: true, is_on_taxi: false })).toBe('ir')
         expect(rosterLocation({ is_on_ir: false, is_on_taxi: true })).toBe('taxi')
+    })
+
+    it('previews a rookie placement and asks for a drop only when the destination is full', () => {
+        const limits = { rosterSize: 3, irSlots: 1, taxiSlots: 1 }
+        const roster = [row('a1', 'active'), row('a2', 'active'), row('a3', 'active'), row('t1', 'taxi'), row('i1', 'ir')]
+
+        expect(planRookiePlacement(roster, limits, 'active', [])).toEqual({
+            activeAfter: 4, taxiAfter: 1, activeOver: 1, taxiOver: 0, dropChoices: 'active', valid: false,
+        })
+        expect(planRookiePlacement(roster, limits, 'active', ['a2'])).toMatchObject({ activeAfter: 3, dropChoices: 'active', valid: true })
+        expect(planRookiePlacement(roster, limits, 'taxi', [])).toMatchObject({ taxiAfter: 2, taxiOver: 1, dropChoices: 'taxi', valid: false })
+        expect(planRookiePlacement(roster, limits, 'taxi', ['t1'])).toMatchObject({ taxiAfter: 1, valid: true })
+        expect(planRookiePlacement(roster, limits, 'drop', [])).toEqual({
+            activeAfter: 3, taxiAfter: 1, activeOver: 0, taxiOver: 0, dropChoices: null, valid: true,
+        })
+        expect(planRookiePlacement(roster.slice(1), limits, 'active', [])).toMatchObject({ activeAfter: 3, dropChoices: null, valid: true })
     })
 })
