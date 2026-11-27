@@ -145,6 +145,52 @@ BEGIN
 END;
 $$;
 
+DO $$
+DECLARE
+  board_only uuid := gen_random_uuid();
+  twin uuid := gen_random_uuid();
+  slot9 uuid;
+  outcome9 text;
+BEGIN
+  BEGIN
+    INSERT INTO players(id, first_name, last_name, position, eligible_positions, years_exp, nba_id, nba_draft_number)
+    VALUES (board_only, 'Fixture', 'Player09', 'SF', ARRAY['SF'], 0, 'board-only-' || board_only, 9);
+    SELECT player_id INTO slot9 FROM private.rookie_class_players(2098) WHERE draft_overall_pick = 9 AND draft_round = 1;
+    SELECT outcome INTO outcome9 FROM private.rookie_class_reconciliation(2098) WHERE overall_pick = 9 AND player_id = board_only;
+    IF slot9 IS DISTINCT FROM board_only OR outcome9 IS DISTINCT FROM 'eligible' THEN
+      RAISE EXCEPTION 'An official pick the feed has not dated must be eligible by board identity, got % %', slot9, outcome9;
+    END IF;
+    IF (private.rookie_class_status(2098)->>'eligibleCount')::int <> 8 THEN
+      RAISE EXCEPTION 'The board-confirmed pick must count once';
+    END IF;
+
+    UPDATE players SET nba_draft_number = 10 WHERE id = board_only;
+    IF EXISTS (SELECT 1 FROM private.rookie_class_players(2098) WHERE draft_overall_pick = 9) THEN
+      RAISE EXCEPTION 'A name match without the official draft number must stay out';
+    END IF;
+    UPDATE players SET nba_draft_number = 9, draft_status = 'undrafted' WHERE id = board_only;
+    IF EXISTS (SELECT 1 FROM private.rookie_class_players(2098) WHERE draft_overall_pick = 9) THEN
+      RAISE EXCEPTION 'A feed-undrafted player must stay out';
+    END IF;
+    UPDATE players SET draft_status = NULL, nba_id = NULL WHERE id = board_only;
+    IF EXISTS (SELECT 1 FROM private.rookie_class_players(2098) WHERE draft_overall_pick = 9) THEN
+      RAISE EXCEPTION 'A player without an NBA id must stay out';
+    END IF;
+    UPDATE players SET nba_id = 'board-only-' || board_only WHERE id = board_only;
+    INSERT INTO players(id, first_name, last_name, position, eligible_positions, years_exp, nba_id, nba_draft_number)
+    VALUES (twin, 'Fixture', 'Player 09', 'SF', ARRAY['SF'], 0, 'board-twin-' || twin, 9);
+    IF EXISTS (SELECT 1 FROM private.rookie_class_players(2098) WHERE draft_overall_pick = 9) THEN
+      RAISE EXCEPTION 'Two players matching one official pick must both stay out';
+    END IF;
+    RAISE EXCEPTION USING ERRCODE = 'P0099';
+  EXCEPTION WHEN SQLSTATE 'P0099' THEN NULL;
+  END;
+  IF EXISTS (SELECT 1 FROM players WHERE id IN (board_only, twin)) THEN
+    RAISE EXCEPTION 'Board-confirmed fixtures must roll back';
+  END IF;
+END;
+$$;
+
 SELECT pg_temp.as_service();
 SELECT public.start_rookie_draft_atomic(pg_temp.f('league'), 3, false, 3600, 'pause_draft');
 

@@ -206,26 +206,6 @@ BEGIN
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION private.rookie_class_players(p_draft_year int)
-RETURNS TABLE (player_id uuid, draft_round int, draft_overall_pick int)
-LANGUAGE sql
-STABLE
-SET search_path = ''
-AS $$
-  SELECT player.id, player.draft_round::int, player.draft_overall_pick::int
-    FROM public.players player
-   WHERE player.draft_status = 'drafted'
-     AND player.draft_year = p_draft_year
-     AND player.nba_id IS NOT NULL
-     AND NOT EXISTS (
-       SELECT 1 FROM public.players other
-        WHERE other.id <> player.id
-          AND other.draft_status = 'drafted'
-          AND other.draft_year = player.draft_year
-          AND other.draft_overall_pick = player.draft_overall_pick
-     )
-$$;
-
 CREATE OR REPLACE FUNCTION private.rookie_name_key(p_name text)
 RETURNS text
 LANGUAGE sql
@@ -235,6 +215,47 @@ AS $$
   SELECT NULLIF(regexp_replace(regexp_replace(
     lower(regexp_replace(normalize(COALESCE(p_name, ''), NFD), '[̀-ͯ]', '', 'g')),
     '\m(jr|sr|ii|iii|iv)\M', '', 'g'), '[^a-z0-9]', '', 'g'), '')
+$$;
+
+CREATE OR REPLACE FUNCTION private.rookie_class_players(p_draft_year int)
+RETURNS TABLE (player_id uuid, draft_round int, draft_overall_pick int)
+LANGUAGE sql
+STABLE
+SET search_path = ''
+AS $$
+  WITH stored AS (
+    SELECT player.id, player.nba_id, player.draft_round::int AS draft_round, player.draft_overall_pick::int AS draft_overall_pick,
+           CASE WHEN player.draft_overall_pick IS NULL THEN 1 ELSE count(*) OVER (PARTITION BY player.draft_overall_pick) END AS same_slot
+      FROM public.players player
+     WHERE player.draft_status = 'drafted' AND player.draft_year = p_draft_year
+  ),
+  official AS (
+    SELECT (pick->>'overallPick')::int AS overall_pick, (pick->>'round')::int AS draft_round,
+           pick->>'personId' AS person_id, private.rookie_name_key(pick->>'playerName') AS name_key
+      FROM public.nba_draft_class_imports import, jsonb_array_elements(import.official_picks) pick
+     WHERE import.draft_year = p_draft_year AND import.board_stored_at IS NOT NULL
+  ),
+  confirmed AS (
+    SELECT official.overall_pick, official.draft_round, min(candidate.id::text)::uuid AS id
+      FROM official
+      JOIN public.players candidate
+        ON candidate.nba_id IS NOT NULL
+       AND candidate.draft_status IS NULL
+       AND candidate.draft_year IS NULL
+       AND candidate.draft_overall_pick IS NULL
+       AND candidate.nba_draft_number = official.overall_pick
+       AND CASE WHEN official.person_id IS NOT NULL THEN candidate.nba_id = official.person_id
+                ELSE private.rookie_name_key(candidate.display_name) = official.name_key END
+     WHERE NOT EXISTS (SELECT 1 FROM stored WHERE stored.draft_overall_pick = official.overall_pick)
+     GROUP BY official.overall_pick, official.draft_round
+    HAVING count(*) = 1
+  )
+  SELECT stored.id, stored.draft_round, stored.draft_overall_pick
+    FROM stored
+   WHERE stored.nba_id IS NOT NULL AND stored.same_slot = 1
+  UNION ALL
+  SELECT confirmed.id, confirmed.draft_round, confirmed.overall_pick
+    FROM confirmed
 $$;
 
 CREATE OR REPLACE FUNCTION private.rookie_class_reconciliation(p_draft_year int)
@@ -266,20 +287,29 @@ AS $$
          LIMIT 1
       ) player
      WHERE NOT EXISTS (SELECT 1 FROM stored WHERE stored.draft_overall_pick = official.overall_pick)
+  ),
+  confirmed AS (
+    SELECT class.player_id, class.draft_overall_pick, player.nba_id, player.display_name
+      FROM private.rookie_class_players(p_draft_year) class
+      JOIN public.players player ON player.id = class.player_id
+     WHERE player.draft_status IS NULL
   )
   SELECT official.overall_pick, official.official_name, official.person_id,
-         COALESCE(stored.id, by_person.id), COALESCE(stored.nba_id, by_person.nba_id), COALESCE(stored.display_name, by_person.display_name),
+         COALESCE(stored.id, confirmed.player_id, by_person.id), COALESCE(stored.nba_id, confirmed.nba_id, by_person.nba_id),
+         COALESCE(stored.display_name, confirmed.display_name, by_person.display_name),
          CASE
            WHEN stored.id IS NOT NULL AND stored.same_slot > 1 THEN 'duplicate'
            WHEN stored.id IS NOT NULL AND CASE WHEN official.person_id IS NOT NULL THEN stored.nba_id IS DISTINCT FROM official.person_id
                 ELSE private.rookie_name_key(stored.display_name) IS DISTINCT FROM private.rookie_name_key(official.official_name) END THEN 'identity_mismatch'
            WHEN stored.id IS NOT NULL THEN 'eligible'
+           WHEN confirmed.player_id IS NOT NULL THEN 'eligible'
            WHEN by_person.id IS NOT NULL AND by_person.draft_year IS DISTINCT FROM p_draft_year THEN 'wrong_year'
            WHEN by_person.id IS NOT NULL THEN 'wrong_pick'
            ELSE 'missing'
          END
     FROM official
     LEFT JOIN stored ON stored.draft_overall_pick = official.overall_pick
+    LEFT JOIN confirmed ON confirmed.draft_overall_pick = official.overall_pick AND stored.id IS NULL
     LEFT JOIN by_person ON by_person.overall_pick = official.overall_pick AND stored.id IS NULL
   UNION ALL
   SELECT stored.draft_overall_pick, NULL, NULL, stored.id, stored.nba_id, stored.display_name, 'not_on_official_board'

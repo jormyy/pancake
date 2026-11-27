@@ -31,20 +31,29 @@ AS $$
          LIMIT 1
       ) player
      WHERE NOT EXISTS (SELECT 1 FROM stored WHERE stored.draft_overall_pick = official.overall_pick)
+  ),
+  confirmed AS (
+    SELECT class.player_id, class.draft_overall_pick, player.nba_id, player.display_name
+      FROM private.rookie_class_players(p_draft_year) class
+      JOIN public.players player ON player.id = class.player_id
+     WHERE player.draft_status IS NULL
   )
   SELECT official.overall_pick, official.official_name, official.person_id,
-         COALESCE(stored.id, by_person.id), COALESCE(stored.nba_id, by_person.nba_id), COALESCE(stored.display_name, by_person.display_name),
+         COALESCE(stored.id, confirmed.player_id, by_person.id), COALESCE(stored.nba_id, confirmed.nba_id, by_person.nba_id),
+         COALESCE(stored.display_name, confirmed.display_name, by_person.display_name),
          CASE
            WHEN stored.id IS NOT NULL AND stored.same_slot > 1 THEN 'duplicate'
            WHEN stored.id IS NOT NULL AND CASE WHEN official.person_id IS NOT NULL THEN stored.nba_id IS DISTINCT FROM official.person_id
                 ELSE private.rookie_name_key(stored.display_name) IS DISTINCT FROM private.rookie_name_key(official.official_name) END THEN 'identity_mismatch'
            WHEN stored.id IS NOT NULL THEN 'eligible'
+           WHEN confirmed.player_id IS NOT NULL THEN 'eligible'
            WHEN by_person.id IS NOT NULL AND by_person.draft_year IS DISTINCT FROM p_draft_year THEN 'wrong_year'
            WHEN by_person.id IS NOT NULL THEN 'wrong_pick'
            ELSE 'missing'
          END
     FROM official
     LEFT JOIN stored ON stored.draft_overall_pick = official.overall_pick
+    LEFT JOIN confirmed ON confirmed.draft_overall_pick = official.overall_pick AND stored.id IS NULL
     LEFT JOIN by_person ON by_person.overall_pick = official.overall_pick AND stored.id IS NULL
   UNION ALL
   SELECT stored.draft_overall_pick, NULL, NULL, stored.id, stored.nba_id, stored.display_name, 'not_on_official_board'
