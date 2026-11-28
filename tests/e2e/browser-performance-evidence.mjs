@@ -11,14 +11,14 @@ const readyPredicates = {
   'lineup-day-change': `body.includes('Lineup') && document.querySelector('[aria-label="Starters"]') && !body.includes('Loading lineup') && !body.includes('Refreshing lineup')`,
   'player-search-filter': `document.querySelector('input[placeholder="Search players..."]') && /\\d+(?: filtered)? players?/.test(body)`,
   'player-detail-open': `location.pathname.startsWith('/player/') && !body.includes('Player not found') && /averages|game log/i.test(body)`,
-  'roster-review-manage': `document.querySelector('[aria-label="Set lineup automatically"]') && !body.includes('Loading roster')`,
+  'roster-review-manage': `document.querySelector('[aria-label="Edit lineup and pins"]') && !body.includes('Loading roster')`,
   'waiver-add-claim': `body.includes('Waiver Claim') && document.querySelector('[aria-label="Submit waiver claim"]') && !body.includes('Loading')`,
   'trade-review-act': `label === 'propose-trade'
     ? document.querySelector('[aria-label="Review trade proposal"]') && !body.includes('Loading trade assets')
     : document.querySelector('[role="tablist"][aria-label="Trade sections"]') && document.querySelector('[role="tab"][aria-selected="true"]') && !body.includes('Loading trades')`,
   'auction-draft-room': `body.includes('Auction Draft') && (document.querySelector('[aria-label="Increase bid"]') || document.querySelector('[aria-label="Search and nominate a player"]') || document.querySelector('[aria-label="Pause draft"]') || (label === 'draft-room-initial' && document.querySelector('[aria-label="Resume draft"]')))`,
   'rookie-draft-room': `document.querySelector('[aria-label="Show prospects"]') && document.querySelector('[aria-label="Show pick board"]') && !body.includes('Loading prospects')`,
-  'dynasty-hub': `document.querySelector('[role="heading"][aria-level="1"]')?.textContent?.trim() === 'Players' && document.querySelector('#players-section-rankings[aria-selected="true"]') && document.querySelector('[aria-label="Search dynasty rankings"]') && /Updated |Not synced yet/.test(body)`,
+  'dynasty-hub': `document.querySelector('[role="heading"][aria-level="1"]')?.textContent?.trim() === 'Players' && document.querySelector('#players-section-rankings[aria-selected="true"]') && document.querySelector('[aria-label="Search dynasty rankings"]') && /Dynasty rankings/i.test(body)`,
 }
 export const WORKFLOW_READY_IDS = Object.freeze(Object.keys(readyPredicates))
 export const WORKFLOW_FEEDBACK_IDS = Object.freeze([
@@ -364,6 +364,8 @@ export const measureWorkflowFeedback = async (browser, session, { workflowId, la
   }
 
   if (workflowId === 'player-search-filter') {
+    await browser(session, ['click', '[aria-label="Show filters"]'])
+    await browser(session, ['wait', '[aria-label^="Availability:"]'])
     const current = await browserJson(browser, session, `(() => JSON.stringify({ label: document.querySelector('[aria-label^="Availability:"]')?.getAttribute('aria-label') || '' }))()`)
     const option = current.label === 'Availability: Free agents' ? 'Rostered' : 'Free agents'
     await browser(session, ['click', '[aria-label^="Availability:"]'])
@@ -378,25 +380,23 @@ export const measureWorkflowFeedback = async (browser, session, { workflowId, la
   }
 
   if (workflowId === 'roster-review-manage') {
-    // Set Lineup now opens the in-place auto-set chooser instead of
-    // navigating to the lineup screen.
     const result = await clickMeasuredTarget(browser, session, {
-      selector: '[aria-label="Set lineup automatically"]',
-      expected: `document.body.innerText.includes('Auto-set lineup')`,
-      interaction: 'roster-open-lineup', target: 'Set lineup',
+      selector: '[aria-label="Edit lineup and pins"]',
+      expected: `location.pathname.endsWith('/lineup')`,
+      interaction: 'roster-open-lineup', target: 'Edit lineup',
     })
-    await clickUnmeasured(browser, session, '[role="dialog"] [aria-label="Close"]')
+    await browser(session, ['back'])
     await waitForWorkflowReady(browser, session, workflowId, label)
     return result
   }
 
   if (workflowId === 'trade-review-act' && label === 'propose-trade') {
     const result = await clickMeasuredTarget(browser, session, {
-      selector: '[aria-label="Use multi-team trade mode"]',
-      expected: `document.body.innerText.includes('Choose two or more teams.') && document.querySelectorAll('[aria-label^="Trade with "]').length > 1`,
-      interaction: 'trade-mode-change', target: 'Multi-Team',
+      selector: '[aria-label="Add another team to this trade"]',
+      expected: `document.querySelectorAll('[role="dialog"] [aria-label^="Trade with "]').length > 0`,
+      interaction: 'trade-mode-change', target: 'Add team',
     })
-    await clickUnmeasured(browser, session, '[aria-label="Use 2-team trade mode"]')
+    await clickUnmeasured(browser, session, '[role="dialog"] [aria-label="Close"]')
     return result
   }
 
@@ -420,6 +420,7 @@ export const measureWorkflowFeedback = async (browser, session, { workflowId, la
 
   if (workflowId === 'waiver-add-claim') {
     const selector = '[aria-label="FAAB bid amount"]'
+    await browser(session, ['wait', selector])
     const current = await browserJson(browser, session, `(() => JSON.stringify({ value: document.querySelector(${JSON.stringify(selector)})?.value ?? '' }))()`)
     const value = current.value === '1' ? '2' : '1'
     const result = await typeMeasuredTarget(browser, session, {

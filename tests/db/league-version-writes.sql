@@ -14,20 +14,20 @@ SET lock_timeout='5s';
 SET app.supabase_url='http://127.0.0.1:1';
 SET app.edge_internal_token='local-version-probe';
 BEGIN;
-DELETE FROM public.draft_orders WHERE draft_id IN (SELECT draft.id FROM public.drafts draft JOIN public.league_seasons season ON season.league_id=draft.league_id WHERE season.season_year=9562);
-DELETE FROM public.draft_budgets WHERE draft_id IN (SELECT draft.id FROM public.drafts draft JOIN public.league_seasons season ON season.league_id=draft.league_id WHERE season.season_year=9562);
-DELETE FROM public.snake_draft_picks WHERE draft_id IN (SELECT draft.id FROM public.drafts draft JOIN public.league_seasons season ON season.league_id=draft.league_id WHERE season.season_year=9562);
-DELETE FROM public.bids WHERE league_id IN (SELECT league_id FROM public.league_seasons WHERE season_year=9562);
-DELETE FROM public.nominations WHERE draft_id IN (SELECT draft.id FROM public.drafts draft JOIN public.league_seasons season ON season.league_id=draft.league_id WHERE season.season_year=9562);
-DELETE FROM public.drafts WHERE league_id IN (SELECT league_id FROM public.league_seasons WHERE season_year=9562);
-DELETE FROM public.leagues WHERE id IN (SELECT league_id FROM public.league_seasons WHERE season_year=9562);
-DELETE FROM public.player_game_stats WHERE season_year=9562;
-DELETE FROM public.player_projections WHERE season_year=9562;
+DELETE FROM public.draft_orders WHERE draft_id IN (SELECT draft.id FROM public.drafts draft JOIN public.league_seasons season ON season.league_id=draft.league_id WHERE season.season_year=2044);
+DELETE FROM public.draft_budgets WHERE draft_id IN (SELECT draft.id FROM public.drafts draft JOIN public.league_seasons season ON season.league_id=draft.league_id WHERE season.season_year=2044);
+DELETE FROM public.snake_draft_picks WHERE draft_id IN (SELECT draft.id FROM public.drafts draft JOIN public.league_seasons season ON season.league_id=draft.league_id WHERE season.season_year=2044);
+DELETE FROM public.bids WHERE league_id IN (SELECT league_id FROM public.league_seasons WHERE season_year=2044);
+DELETE FROM public.nominations WHERE draft_id IN (SELECT draft.id FROM public.drafts draft JOIN public.league_seasons season ON season.league_id=draft.league_id WHERE season.season_year=2044);
+DELETE FROM public.drafts WHERE league_id IN (SELECT league_id FROM public.league_seasons WHERE season_year=2044);
+DELETE FROM public.leagues WHERE id IN (SELECT league_id FROM public.league_seasons WHERE season_year=2044);
+DELETE FROM public.player_game_stats WHERE season_year=2044;
+DELETE FROM public.player_projections WHERE season_year=2044;
 DELETE FROM public.players WHERE first_name='Version';
-DELETE FROM public.nba_games WHERE season_year=9562;
-DELETE FROM public.season_weeks WHERE season_year=9562;
+DELETE FROM public.nba_games WHERE season_year=2044;
+DELETE FROM public.season_weeks WHERE season_year=2044;
 \ir rules-support.sql
-CREATE TEMP TABLE version_fixture AS SELECT * FROM pg_temp.rules_fixture(3,9562);
+CREATE TEMP TABLE version_fixture AS SELECT * FROM pg_temp.rules_fixture(3,2044);
 ALTER TABLE version_fixture ADD COLUMN players uuid[];
 ALTER TABLE version_fixture ADD COLUMN matchup_id uuid DEFAULT gen_random_uuid();
 ALTER TABLE version_fixture ADD COLUMN game_id uuid DEFAULT gen_random_uuid();
@@ -37,15 +37,15 @@ ALTER TABLE version_fixture ADD COLUMN claim_id uuid;
 DO $$
 DECLARE f record; ids uuid[];
 BEGIN
-  INSERT INTO public.players(first_name,last_name,position,eligible_positions,status,nba_team,injury_status,years_exp,nba_draft_number)
-    SELECT 'Version',gen_random_uuid()::text,'PG',ARRAY['PG'],'Active','BOS','Out',0,n FROM generate_series(1,12)n;
+  INSERT INTO public.players(first_name,last_name,position,eligible_positions,status,nba_team,injury_status,years_exp,nba_draft_number,nba_id,draft_status,draft_year,draft_round,draft_overall_pick)
+    SELECT 'Version',gen_random_uuid()::text,'PG',ARRAY['PG'],'Active','BOS','Out',0,n,CASE WHEN n<11 THEN 'version-'||gen_random_uuid() END,CASE WHEN n<11 THEN 'drafted' END,CASE WHEN n<11 THEN 2043 END,CASE WHEN n<11 THEN 1 END,CASE WHEN n<11 THEN n END FROM generate_series(1,12)n;
   SELECT array_agg(id ORDER BY nba_draft_number) INTO ids FROM public.players WHERE first_name='Version';
   UPDATE version_fixture SET players=ids;
   SELECT * INTO f FROM version_fixture;
   PERFORM set_config('request.jwt.claim.sub',f.user_ids[1]::text,false);
-  INSERT INTO public.season_weeks(season_year,week_number,week_start,week_end) VALUES(9562,1,current_date,current_date+6);
+  INSERT INTO public.season_weeks(season_year,week_number,week_start,week_end) VALUES(2044,1,current_date,current_date+6);
   INSERT INTO public.nba_games(id,season_year,nba_game_id,game_date,week_number,home_team,away_team,status,game_time)
-    VALUES(f.game_id,9562,'0029562001',current_date,1,'BOS','NYK','Scheduled',now()+interval '8 hours');
+    VALUES(f.game_id,2044,'0029562001',current_date,1,'BOS','NYK','Scheduled',now()+interval '8 hours');
   INSERT INTO public.matchups(id,league_id,league_season_id,week_number,home_member_id,away_member_id)
     VALUES(f.matchup_id,f.league_id,f.season_id,1,f.member_ids[1],f.member_ids[2]);
   INSERT INTO public.lineup_slot_templates(league_id,slot_type,slot_count) VALUES(f.league_id,'PG',4) ON CONFLICT(league_id,slot_type) DO UPDATE SET slot_count=4;
@@ -122,9 +122,9 @@ CALL pg_temp.version_write('players worker',$cmd$UPDATE public.players SET injur
 CALL pg_temp.version_write('optimizer worker',$cmd$UPDATE public.lineup_optimizer_settings SET last_optimized_at=clock_timestamp() WHERE league_id=(SELECT league_id FROM version_fixture)$cmd$);
 CALL pg_temp.version_write('score worker',$cmd$UPDATE public.matchups SET home_points=5,away_points=3 WHERE id=(SELECT matchup_id FROM version_fixture)$cmd$);
 CALL pg_temp.version_write('forecast worker',$cmd$INSERT INTO public.matchup_forecasts(matchup_id,league_id,input_revision,forecast,calculated_at,valid_until) SELECT matchup_id,league_id,1,'{}',now(),now()+interval '1 hour' FROM version_fixture$cmd$);
-CALL pg_temp.version_write('stats worker',$cmd$INSERT INTO public.player_game_stats(game_id,player_id,season_year,game_date,week_number,points) SELECT game_id,players[1],9562,current_date,1,5 FROM version_fixture$cmd$);
+CALL pg_temp.version_write('stats worker',$cmd$INSERT INTO public.player_game_stats(game_id,player_id,season_year,game_date,week_number,points) SELECT game_id,players[1],2044,current_date,1,5 FROM version_fixture$cmd$);
 \ir league-version-score-writes.sql
-CALL pg_temp.version_write('projections worker',$cmd$INSERT INTO public.player_projections(player_id,season_year,week_number,projected_points) SELECT players[1],9562,1,21 FROM version_fixture$cmd$);
+CALL pg_temp.version_write('projections worker',$cmd$INSERT INTO public.player_projections(player_id,season_year,week_number,projected_points) SELECT players[1],2044,1,21 FROM version_fixture$cmd$);
 CALL pg_temp.version_write('same values',$cmd$UPDATE public.players SET injury_status=injury_status WHERE id=(SELECT players[3] FROM version_fixture)$cmd$,0);
 CALL pg_temp.version_write('multiple writes one commit',$cmd$DO $body$BEGIN UPDATE public.leagues SET name=name||' updated' WHERE id=(SELECT league_id FROM version_fixture); UPDATE public.league_members SET team_name=team_name||' updated' WHERE league_id=(SELECT league_id FROM version_fixture); END$body$;$cmd$);
 CALL pg_temp.version_write('rejected after writes',$cmd$DO $body$BEGIN UPDATE public.leagues SET name='must roll back' WHERE id=(SELECT league_id FROM version_fixture); RAISE EXCEPTION 'synthetic rollback'; END$body$;$cmd$,0,'synthetic rollback');
@@ -160,17 +160,17 @@ $$;
 SELECT * FROM version_proofs ORDER BY before_version,label;
 SELECT count(*) AS committed_write_proofs FROM version_proofs;
 BEGIN;
-DELETE FROM public.draft_orders WHERE draft_id IN (SELECT draft.id FROM public.drafts draft JOIN public.league_seasons season ON season.league_id=draft.league_id WHERE season.season_year=9562);
-DELETE FROM public.draft_budgets WHERE draft_id IN (SELECT draft.id FROM public.drafts draft JOIN public.league_seasons season ON season.league_id=draft.league_id WHERE season.season_year=9562);
-DELETE FROM public.snake_draft_picks WHERE draft_id IN (SELECT draft.id FROM public.drafts draft JOIN public.league_seasons season ON season.league_id=draft.league_id WHERE season.season_year=9562);
-DELETE FROM public.bids WHERE league_id IN (SELECT league_id FROM public.league_seasons WHERE season_year=9562);
-DELETE FROM public.nominations WHERE draft_id IN (SELECT draft.id FROM public.drafts draft JOIN public.league_seasons season ON season.league_id=draft.league_id WHERE season.season_year=9562);
-DELETE FROM public.drafts WHERE league_id IN (SELECT league_id FROM public.league_seasons WHERE season_year=9562);
+DELETE FROM public.draft_orders WHERE draft_id IN (SELECT draft.id FROM public.drafts draft JOIN public.league_seasons season ON season.league_id=draft.league_id WHERE season.season_year=2044);
+DELETE FROM public.draft_budgets WHERE draft_id IN (SELECT draft.id FROM public.drafts draft JOIN public.league_seasons season ON season.league_id=draft.league_id WHERE season.season_year=2044);
+DELETE FROM public.snake_draft_picks WHERE draft_id IN (SELECT draft.id FROM public.drafts draft JOIN public.league_seasons season ON season.league_id=draft.league_id WHERE season.season_year=2044);
+DELETE FROM public.bids WHERE league_id IN (SELECT league_id FROM public.league_seasons WHERE season_year=2044);
+DELETE FROM public.nominations WHERE draft_id IN (SELECT draft.id FROM public.drafts draft JOIN public.league_seasons season ON season.league_id=draft.league_id WHERE season.season_year=2044);
+DELETE FROM public.drafts WHERE league_id IN (SELECT league_id FROM public.league_seasons WHERE season_year=2044);
 DELETE FROM public.leagues WHERE id=(SELECT league_id FROM version_fixture);
-DELETE FROM public.player_game_stats WHERE season_year=9562;
-DELETE FROM public.player_projections WHERE season_year=9562;
+DELETE FROM public.player_game_stats WHERE season_year=2044;
+DELETE FROM public.player_projections WHERE season_year=2044;
 DELETE FROM public.players WHERE first_name='Version';
 DELETE FROM auth.users WHERE id=ANY((SELECT user_ids FROM version_fixture)::uuid[]);
-DELETE FROM public.nba_games WHERE season_year=9562;
-DELETE FROM public.season_weeks WHERE season_year=9562;
+DELETE FROM public.nba_games WHERE season_year=2044;
+DELETE FROM public.season_weeks WHERE season_year=2044;
 COMMIT;

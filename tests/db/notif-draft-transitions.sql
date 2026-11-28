@@ -36,8 +36,8 @@ UNION ALL SELECT other_member,league,opponent,'manager','Opponent' FROM notif_fi
 UNION ALL SELECT foreign_member,other_league,outsider,'commissioner','Outside' FROM notif_fixture
 UNION ALL SELECT same_user_foreign_member,other_league,owner,'manager','Same user, other league' FROM notif_fixture;
 INSERT INTO league_seasons(id,league_id,season_year,is_current)
-SELECT prior_season,league,20025,false FROM notif_fixture
-UNION ALL SELECT season,league,20026,true FROM notif_fixture;
+SELECT prior_season,league,2066,false FROM notif_fixture
+UNION ALL SELECT season,league,2067,true FROM notif_fixture;
 INSERT INTO notification_preferences(user_id,event_settings)
 SELECT owner,(SELECT jsonb_object_agg(event_type,true) FROM notif_event_catalog) FROM notif_fixture
 UNION ALL SELECT opponent,(SELECT jsonb_object_agg(event_type,true) FROM notif_event_catalog) FROM notif_fixture;
@@ -46,15 +46,15 @@ DECLARE f record; d uuid; p uuid; saved int; until_at timestamptz; result record
 BEGIN
   SELECT * INTO f FROM notif_fixture;
   INSERT INTO nba_games(nba_game_id,season_year,week_number,game_date,home_team,away_team,status)
-  VALUES('0029999070',20026,1,date '2026-10-20','BOS','NYK','Scheduled');
+  VALUES('0029999070',2067,1,date '2026-10-20','BOS','NYK','Scheduled');
   INSERT INTO draft_picks(league_id,season_year,round,original_owner_id,current_owner_id)
-  SELECT f.league,20025,r,m,m FROM unnest(ARRAY[f.member,f.other_member]) m CROSS JOIN generate_series(1,2) r;
+  SELECT f.league,2066,r,m,m FROM unnest(ARRAY[f.member,f.other_member]) m CROSS JOIN generate_series(1,2) r;
   FOR i IN 1..4 LOOP
-    INSERT INTO players(first_name,last_name,position,eligible_positions,years_exp,nba_draft_number)
-    VALUES('Synthetic','Backstop ' || i,'PG',ARRAY['PG'],0,i);
+    INSERT INTO players(first_name,last_name,position,eligible_positions,years_exp,nba_draft_number,nba_id,draft_status,draft_year,draft_round,draft_overall_pick)
+    VALUES('Synthetic','Backstop ' || i,'PG',ARRAY['PG'],0,i,'notif-backstop-'||gen_random_uuid(),'drafted',2066,1,i);
   END LOOP;
   INSERT INTO season_weeks(season_year,week_number,week_start,week_end)
-    SELECT 20026,w,date '2026-10-20'+(w-1)*7,date '2026-10-26'+(w-1)*7 FROM generate_series(1,24) w;
+    SELECT 2067,w,date '2026-10-20'+(w-1)*7,date '2026-10-26'+(w-1)*7 FROM generate_series(1,24) w;
   UPDATE leagues SET playoff_entrants=2,playoff_round_lengths=ARRAY[1] WHERE id=f.league;
   PERFORM set_config('request.jwt.claim.sub',(SELECT commissioner_id::text FROM public.leagues WHERE id=f.league),true);
   PERFORM start_rookie_draft_atomic(f.league,2,false,60);

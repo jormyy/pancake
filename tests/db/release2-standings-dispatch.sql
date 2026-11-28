@@ -6,6 +6,7 @@ DELETE FROM private.work_items;
 DELETE FROM private.screen_refresh_queue;
 DELETE FROM cron.job_run_details;
 UPDATE private.worker_controls SET paused=false,scheduler_level='normal',scheduler_last_dispatch_at=NULL WHERE id;
+UPDATE private.work_kinds SET cadence=NULL,due_offset=NULL,cadence_zone=NULL WHERE cadence IS NOT NULL;
 DO $$
 DECLARE f record; matchup uuid:=gen_random_uuid(); game uuid:=gen_random_uuid(); last_day date:=(now() AT TIME ZONE 'America/New_York')::date-1;
   payload jsonb; standings_payload jsonb; initial_version bigint; finalized_version bigint;

@@ -3,7 +3,7 @@ import path from 'node:path'
 import { writeFile } from 'node:fs/promises'
 import { setupTradeGameplayFixture } from './trade-fixture.mjs'
 import { runWithScenarioResourceOwner } from './scenario-resource-owner.mjs'
-import { openWebTarget, pressWebControl, pinWebTargetLeague, navigateWebTarget, reloadWebTarget, waitForWebTargetReady, waitForWebAuthForm, waitForWebTargetReads, waitForWebTargetGeometry } from './web-targets-browser.mjs'
+import { openWebTarget, pressWebControl, waitForWebLineupReady, pinWebTargetLeague, navigateWebTarget, reloadWebTarget, waitForWebTargetReady, waitForWebAuthForm, waitForWebTargetReads, waitForWebTargetGeometry } from './web-targets-browser.mjs'
 import { ensureSyntheticSeasonWeeks } from './soak-fixtures.mjs'
 import { summarizeWebTargetGeometry } from './web-targets-geometry.mjs'
 
@@ -42,10 +42,7 @@ export const checkWebEmptySlots = (target, captures, env) => runWithScenarioReso
     if (new URL(page.url()).pathname === '/roster') await page.getByText('Your roster is empty', { exact: true }).waitFor()
     if (new URL(page.url()).pathname === '/team-roster') await page.getByText('No players yet', { exact: true }).waitFor()
     if (new URL(page.url()).pathname === '/lineup') {
-      await page.waitForFunction(() => {
-        const toggle = document.querySelector('input[aria-label="Auto-set daily"]')
-        return toggle instanceof HTMLInputElement && !toggle.disabled
-      })
+      await waitForWebLineupReady(page)
     }
   }
   // The roster splits active capacity into lineup slots; the team view lists it as one block.
@@ -101,28 +98,27 @@ export const checkWebEmptySlots = (target, captures, env) => runWithScenarioReso
     assert.ok(maximum - minimum <= 2, `First Home content moves ${maximum - minimum}px during data load`)
     checked.push({ route: '/', label: 'first-content-after-data', samples: first.length, minY: minimum, maxY: maximum, recorder: summarizeWebTargetGeometry(frames) })
     await page.screenshot({ path: path.join(captures, 'slots-home.png'), fullPage: true })
-    const homeCacheKey = `pancake:home-matchup:v1:${fixture.league.id}:${fixture.proposer.id}`
-    await page.waitForFunction((key) => Boolean(localStorage.getItem(key)), homeCacheKey)
-    await page.evaluate((key) => {
-      const saved = JSON.parse(localStorage.getItem(key))
-      if (saved.value.myLineup.benchSlots !== 3) throw new Error('Legacy cache fixture must begin with three known bench places')
-      delete saved.value.myLineup.benchSlots
-      delete saved.value.oppLineup.benchSlots
-      localStorage.setItem(key, JSON.stringify(saved))
-    }, homeCacheKey)
+    const findHomeCacheKey = (leagueId) => Object.keys(localStorage).find((key) => {
+      if (!key.startsWith('pancake:screen-view:v1:')) return false
+      try {
+        const entry = JSON.parse(localStorage.getItem(key))
+        return entry?.scope?.screen === 'home' && entry.scope.leagueId === leagueId && entry.value?.myLineup?.benchSlots === 3
+      } catch { return false }
+    }) ?? null
+    await page.waitForFunction(findHomeCacheKey, fixture.league.id)
     await page.waitForFunction(() => Boolean(navigator.serviceWorker.controller))
     try {
       await waitForWebTargetReads(page)
       await context.setOffline(true)
       await reloadWebTarget(page)
-      await page.getByText("Couldn't load your matchup", { exact: true }).waitFor()
-      assert.equal(await page.locator('[aria-label^="Empty BE slot "]').count(), 0)
-      await page.screenshot({ path: path.join(captures, 'slots-home-legacy-offline.png'), fullPage: true })
+      await page.locator('[aria-label="Empty BE slot 1"]').waitFor()
+      assert.equal(await page.locator('[aria-label^="Empty BE slot "]').count(), 3)
+      assert.equal(await page.getByText("Couldn't load your matchup", { exact: true }).count(), 0)
+      await page.screenshot({ path: path.join(captures, 'slots-home-offline.png'), fullPage: true })
     } finally { await context.setOffline(false) }
     await page.locator('[aria-label="Empty BE slot 1"]').waitFor()
     assert.equal(await page.locator('[aria-label^="Empty BE slot "]').count(), 3)
-    await page.waitForFunction((key) => JSON.parse(localStorage.getItem(key)).value.myLineup.benchSlots === 3, homeCacheKey)
-    checked.push({ route: '/', label: 'legacy-cache-capacity-recovery', offline: 'unknown capacity is not displayed as zero', restored: 3 })
+    checked.push({ route: '/', label: 'offline-saved-capacity', offline: 'saved Home keeps its three bench places', restored: 3 })
     for (const [name, route] of [['roster', '/roster'], ['team', `/team-roster?memberId=${fixture.recipient.id}`]]) {
       await visit(route)
       await page.getByText('Empty IR slot', { exact: true }).first().waitFor()
@@ -179,10 +175,9 @@ export const checkWebEmptySlots = (target, captures, env) => runWithScenarioReso
     await writeFile(path.join(captures, 'slots-failure.txt'), await page.locator('body').innerText())
     await writeFile(path.join(captures, 'slots-error.json'), JSON.stringify({
       error: error instanceof Error ? error.stack : String(error),
-      state: await page.evaluate((key) => ({
-        cache: JSON.parse(localStorage.getItem(key) ?? 'null')?.value?.myLineup?.benchSlots,
+      state: await page.evaluate(() => ({
         worker: Boolean(navigator.serviceWorker.controller), visibility: document.visibilityState,
-      }), `pancake:home-matchup:v1:${fixture.league.id}:${fixture.proposer.id}`).catch(() => null),
+      })).catch(() => null),
     }, null, 2))
     throw error
   } finally {

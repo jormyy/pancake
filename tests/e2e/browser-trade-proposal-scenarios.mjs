@@ -3,6 +3,7 @@ import {
   POST_DEADLINE_REPORT_PATH,
   REPORT_PATH,
   ROOT,
+  addTradeAssets,
   assertPageText,
   browser,
   clickTestId,
@@ -17,6 +18,7 @@ import {
   readBrowserAlerts,
   readButtonState,
   resolvedTradeEnv,
+  reviewAndSendTrade,
   setupTradeGameplayFixture,
   setupTradePostDeadlineGameplayFixture,
   signInBrowser,
@@ -62,24 +64,21 @@ export async function runBrowserTradeScenario({
       [
         'Propose Trade',
         'Review',
-        `To ${fixture.recipient.team_name}`,
-        fixture.proposerPlayer.display_name,
+        fixture.recipient.team_name,
+        'YOU SEND',
+        `${fixture.recipient.team_name.toUpperCase()} SENDS`,
       ],
       'trade proposal before submit',
     )
     await browser(session, ['screenshot', path.join(artifactDir, 'trade-before-submit.png')], { timeout: 60_000 })
 
-    const recipientTabClick = await clickTestId(session, `trade-sender-${fixture.recipient.id}`, 'recipient sender tab')
-    await assertPageText(session, [fixture.recipientPlayer.display_name], 'recipient trade assets')
-    const requestClick = await clickTestId(session, `trade-${fixture.recipient.id}-player-${fixture.recipientPlayer.id}`, 'recipient player selection')
-    const proposerTabClick = await clickTestId(session, `trade-sender-${fixture.proposer.id}`, 'proposer sender tab')
-    const offerClick = await clickTestId(session, `trade-${fixture.proposer.id}-player-${fixture.proposerPlayer.id}`, 'proposer player selection')
-    await browser(session, ['wait', '500'])
+    const requestClick = await addTradeAssets(session, fixture.recipient.id, [`trade-${fixture.recipient.id}-player-${fixture.recipientPlayer.id}`], 'recipient player selection')
+    const offerClick = await addTradeAssets(session, fixture.proposer.id, [`trade-${fixture.proposer.id}-player-${fixture.proposerPlayer.id}`], 'proposer player selection')
+    await assertPageText(session, [fixture.proposerPlayer.display_name, fixture.recipientPlayer.display_name], 'trade proposal selected assets')
     await browser(session, ['screenshot', path.join(artifactDir, 'trade-selected.png')], { timeout: 60_000 })
-    const submitClick = await clickTestId(session, 'trade-submit', 'trade proposal submit')
-    const confirmClick = await clickTestId(session, 'trade-confirm-submit', 'trade proposal confirm')
+    const { reviewClick: submitClick, confirmClick } = await reviewAndSendTrade(session, 'trade proposal')
     const tradeProposal = await waitForTradeProposal(fixture)
-    debug = { ...debug, recipientTabClick, proposerTabClick, requestClick, offerClick, submitClick, confirmClick, tradeProposal }
+    debug = { ...debug, requestClick, offerClick, submitClick, confirmClick, tradeProposal }
     if (tradeProposal.failures.length > 0) {
       throw new Error(`trade proposal did not persist: ${tradeProposal.failures.join('; ')}`)
     }
@@ -91,15 +90,11 @@ export async function runBrowserTradeScenario({
     await browser(session, ['wait', '3500'])
     await assertPageText(session, [
       'Edit Trade',
-      process.env.E2E_WEB_TARGET_ID?.startsWith('desktop-') ? 'You get' : '2 teams · 2 assets',
       fixture.proposerPlayer.display_name,
+      fixture.recipientPlayer.display_name,
     ], 'two-team edit composer prefilled')
-    await clickTestId(session, `trade-sender-${fixture.recipient.id}`, 'two-team edit recipient sender tab')
-    await assertPageText(session, [fixture.recipientPlayer.display_name], 'two-team edit recipient asset prefilled')
-    await clickTestId(session, `trade-sender-${fixture.proposer.id}`, 'two-team edit proposer sender tab')
-    const editAssetClick = await clickTestId(session, `trade-${fixture.proposer.id}-pick-${fixture.proposerFuturePick.id}`, 'two-team edit add proposer future pick')
-    const editSubmitClick = await clickTestId(session, 'trade-submit', 'two-team edit submit')
-    const editConfirmClick = await clickTestId(session, 'trade-confirm-submit', 'two-team edit confirm')
+    const editAssetClick = await addTradeAssets(session, fixture.proposer.id, [`trade-${fixture.proposer.id}-pick-${fixture.proposerFuturePick.id}`], 'two-team edit add proposer future pick')
+    const { reviewClick: editSubmitClick, confirmClick: editConfirmClick } = await reviewAndSendTrade(session, 'two-team edit')
     const editReplacement = await waitForTradeReplacement(fixture, tradeProposal.trade.id, {
       initialTradeId: tradeProposal.trade.id,
       sourceStatus: 'edited',
@@ -121,13 +116,10 @@ export async function runBrowserTradeScenario({
     await assertPageText(counterSession, [
       'Counter Trade',
       fixture.recipientPlayer.display_name,
+      fixture.proposerPlayer.display_name,
     ], 'two-team counter composer prefilled')
-    await clickTestId(counterSession, `trade-sender-${fixture.proposer.id}`, 'two-team counter proposer sender tab')
-    await assertPageText(counterSession, [fixture.proposerPlayer.display_name], 'two-team counter proposer asset prefilled')
-    await clickTestId(counterSession, `trade-sender-${fixture.recipient.id}`, 'two-team counter recipient sender tab')
-    const counterAssetClick = await clickTestId(counterSession, `trade-${fixture.recipient.id}-pick-${fixture.recipientFuturePick.id}`, 'two-team counter add recipient future pick')
-    const counterSubmitClick = await clickTestId(counterSession, 'trade-submit', 'two-team counter submit')
-    const counterConfirmClick = await clickTestId(counterSession, 'trade-confirm-submit', 'two-team counter confirm')
+    const counterAssetClick = await addTradeAssets(counterSession, fixture.recipient.id, [`trade-${fixture.recipient.id}-pick-${fixture.recipientFuturePick.id}`], 'two-team counter add recipient future pick')
+    const { reviewClick: counterSubmitClick, confirmClick: counterConfirmClick } = await reviewAndSendTrade(counterSession, 'two-team counter')
     const counterReplacement = await waitForTradeReplacement(fixture, editReplacement.replacement.id, {
       initialTradeId: tradeProposal.trade.id,
       sourceStatus: 'countered',
@@ -255,25 +247,23 @@ export async function runBrowserTradePostDeadlineScenario({
       [
         'Propose Trade',
         'Review',
-        `To ${fixture.recipient.team_name}`,
-        fixture.proposerPlayer.display_name,
+        fixture.recipient.team_name,
+        `${fixture.recipient.team_name.toUpperCase()} SENDS`,
         'Trades are locked only from the trade deadline until the champion is finalized.',
       ],
       'post-deadline trade proposal before submit',
     )
     await browser(session, ['screenshot', path.join(artifactDir, 'post-deadline-before-submit.png')], { timeout: 60_000 })
 
-    const recipientTabClick = await clickTestId(session, `trade-sender-${fixture.recipient.id}`, 'post-deadline recipient sender tab')
-    const requestClick = await clickTestId(session, `trade-${fixture.recipient.id}-player-${fixture.recipientPlayer.id}`, 'post-deadline recipient player selection')
-    const proposerTabClick = await clickTestId(session, `trade-sender-${fixture.proposer.id}`, 'post-deadline proposer sender tab')
-    const offerClick = await clickTestId(session, `trade-${fixture.proposer.id}-player-${fixture.proposerPlayer.id}`, 'post-deadline proposer player selection')
-    await browser(session, ['wait', '500'])
+    const requestClick = await addTradeAssets(session, fixture.recipient.id, [`trade-${fixture.recipient.id}-player-${fixture.recipientPlayer.id}`], 'post-deadline recipient player selection')
+    const offerClick = await addTradeAssets(session, fixture.proposer.id, [`trade-${fixture.proposer.id}-player-${fixture.proposerPlayer.id}`], 'post-deadline proposer player selection')
+    await assertPageText(session, [fixture.proposerPlayer.display_name, fixture.recipientPlayer.display_name], 'post-deadline selected assets')
     await browser(session, ['screenshot', path.join(artifactDir, 'post-deadline-selected.png')], { timeout: 60_000 })
     const submitState = await readButtonState(session, 'Review trade proposal', 'post-deadline trade proposal submit')
 
     const alerts = await readBrowserAlerts(session)
     const rejected = await verifyPostDeadlineTradeRejected(fixture)
-    debug = { ...debug, recipientTabClick, proposerTabClick, requestClick, offerClick, submitState, alerts, rejected }
+    debug = { ...debug, requestClick, offerClick, submitState, alerts, rejected }
     const failures = [...rejected.failures]
     if (submitState.disabled !== true && submitState.ariaDisabled !== 'true') {
       failures.push(`send button was not disabled after deadline; state=${JSON.stringify(submitState)}`)

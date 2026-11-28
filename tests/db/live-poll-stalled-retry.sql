@@ -2,6 +2,8 @@ BEGIN;
 SET LOCAL statement_timeout='60s';
 SELECT set_config('app.supabase_url','http://127.0.0.1:1',true);
 SELECT set_config('app.edge_internal_token','local-database-ci-token',true);
+DELETE FROM cron.job_run_details;
+UPDATE private.worker_controls SET paused=false,scheduler_level='normal',scheduler_last_dispatch_at=NULL WHERE id;
 CREATE TEMP TABLE stalled_checks(label text PRIMARY KEY);
 CREATE FUNCTION pg_temp.check_stalled(ok boolean,label text) RETURNS void LANGUAGE plpgsql AS $$
 BEGIN

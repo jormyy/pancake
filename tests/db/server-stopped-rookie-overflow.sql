@@ -5,15 +5,15 @@ DECLARE f record; draft uuid; player uuid; active uuid; chosen uuid; game uuid; 
 BEGIN
   FOREACH mode IN ARRAY ARRAY['trim','deadline'] LOOP
     PERFORM set_config('request.jwt.claim.sub','',true);
-    SELECT * INTO f FROM pg_temp.rules_fixture(2,9556,'offseason');
+    SELECT * INTO f FROM pg_temp.rules_fixture(2,2062,'offseason');
     player:=gen_random_uuid(); active:=gen_random_uuid(); game:=gen_random_uuid();
     UPDATE leagues SET roster_size=1,taxi_slots=0 WHERE id=f.league_id;
     INSERT INTO nba_games(id,nba_game_id,season_year,week_number,game_date,home_team,away_team,status)
-      VALUES(game,'0029556001',9556,1,(now() AT TIME ZONE 'America/New_York')::date+1,'STX','STY','Scheduled');
-    INSERT INTO players(id,first_name,last_name,position,eligible_positions,years_exp,nba_draft_number)
-      VALUES(player,'Stopped','Rookie','PG',ARRAY['PG'],0,1),(active,'Existing','Veteran','PG',ARRAY['PG'],3,NULL);
+      VALUES(game,'0029556001',2062,1,(now() AT TIME ZONE 'America/New_York')::date+1,'STX','STY','Scheduled');
+    INSERT INTO players(id,first_name,last_name,position,eligible_positions,years_exp,nba_draft_number,nba_id,draft_status,draft_year,draft_round,draft_overall_pick)
+      VALUES(player,'Stopped','Rookie','PG',ARRAY['PG'],0,1,'stopped-rookie-'||player,'drafted',2061,1,array_position(ARRAY['trim','deadline'],mode)),(active,'Existing','Veteran','PG',ARRAY['PG'],3,NULL,NULL,NULL,NULL,NULL,NULL);
     INSERT INTO draft_picks(league_id,season_year,round,original_owner_id,current_owner_id)
-      SELECT f.league_id,9555,1,m,m FROM unnest(f.member_ids) m;
+      SELECT f.league_id,2061,1,m,m FROM unnest(f.member_ids) m;
     PERFORM set_config('request.jwt.claim.sub',(SELECT commissioner_id::text FROM public.leagues WHERE id=f.league_id),true);
     draft:=(public.start_rookie_draft_atomic(f.league_id,1,false)->>'id')::uuid;
     SELECT member_id INTO chosen FROM snake_draft_picks WHERE draft_id=draft ORDER BY overall_pick LIMIT 1;

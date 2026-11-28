@@ -494,13 +494,6 @@ const dispatchDomClick = async (session, name, label) => {
   return parsed
 }
 
-const waitForAutoSetOptions = (session) => browser(session, ['wait', '--fn', `(() => {
-  return ['Edit lineup manually', 'Close'].every((label) => {
-    const node = document.querySelector('[role="dialog"] [aria-label="' + label + '"]');
-    return Boolean(node?.getClientRects().length) && node.getAttribute('aria-disabled') !== 'true';
-  });
-})()`])
-
 const clickButton = async (session, name, label, { preferDom = false } = {}) => {
   if (preferDom) return dispatchDomClick(session, name, label)
   try {
@@ -511,18 +504,16 @@ const clickButton = async (session, name, label, { preferDom = false } = {}) => 
   }
 }
 
-export const openAutoSetOptions = async (session, label) => {
+const openLineupEditor = async (session, label) => {
   await browser(session, ['wait', '--load', 'networkidle'])
   await browser(session, ['wait', '--fn', `(() => {
-    const node = document.querySelector('[aria-label="Open auto-set lineup options"]');
+    const node = document.querySelector('[aria-label="Edit lineup and pins"]');
     if (!node?.getClientRects().length || node.getAttribute('aria-disabled') === 'true') return false;
     const rect = node.getBoundingClientRect();
     const target = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
     return target === node || node.contains(target);
   })()`])
-  const click = await clickButton(session, 'Open auto-set lineup options', label)
-  await waitForAutoSetOptions(session)
-  return click
+  return clickButton(session, 'Edit lineup and pins', label)
 }
 
 const verifyLineup = async (fixture, { expectedAutoSet = false } = {}) => {
@@ -609,7 +600,7 @@ const verifyForgedLockedLineupRpc = async (env, fixture) => {
       failures,
     }
   } finally {
-    await client.auth.signOut().catch(() => {})
+    await client.auth.signOut({ scope: 'local' }).catch(() => {})
   }
 }
 
@@ -682,7 +673,7 @@ const verifyForgedLineupLegalityRpc = async (env, fixture) => {
       failures,
     }
   } finally {
-    await client.auth.signOut().catch(() => {})
+    await client.auth.signOut({ scope: 'local' }).catch(() => {})
   }
 }
 
@@ -710,7 +701,7 @@ const verifyForgedLockedAutoSetRpc = async (env, fixture) => {
       failures,
     }
   } finally {
-    await client.auth.signOut().catch(() => {})
+    await client.auth.signOut({ scope: 'local' }).catch(() => {})
   }
 }
 
@@ -742,7 +733,7 @@ const verifyForgedLockedMovesRpc = async (env, fixture) => {
       failures,
     }
   } finally {
-    await client.auth.signOut().catch(() => {})
+    await client.auth.signOut({ scope: 'local' }).catch(() => {})
   }
 }
 
@@ -945,17 +936,16 @@ export async function runBrowserLineupAutoSetScenario({
     await signInBrowser(session, env, fixture.user, fixture.password)
     await browser(session, ['set', 'viewport', '390', '844'])
     await browser(session, ['open', joinUrl(env.frontendUrl, '/roster')])
-    await waitForAccessibleButton(session, 'Open auto-set lineup options', 'roster auto-set')
+    await waitForAccessibleButton(session, 'Edit lineup and pins', 'roster lineup editor')
     record({ rosterScreenshot: await captureBrowserScreenshot(browser, session, artifactDir, 'roster.png') })
-    const openClick = await openAutoSetOptions(session, 'auto-set options')
-    const choices = parseEvalJson(await browser(session, ['eval', `JSON.stringify(
-      [...document.querySelectorAll('[role="dialog"] [role="button"], [role="dialog"] button')]
-        .map(node => node.getAttribute('aria-label') || node.textContent)
+    const autoSetControls = parseEvalJson(await browser(session, ['eval', `JSON.stringify(
+      [...document.querySelectorAll('[aria-label="Open auto-set lineup options"], [aria-label="Auto-set lineup"], [aria-label="Set lineup automatically"]')]
+        .map(node => node.getAttribute('aria-label'))
     )`]))
-    assert.deepEqual(choices.filter(label => label !== 'Close'), ['Edit lineup manually'])
-    record({ openClick, choices, sheetScreenshot: await captureBrowserScreenshot(browser, session, artifactDir, 'manual-options.png') })
-    await clickButton(session, 'Edit lineup manually', 'manual editor')
-    await assertPageText(session, ['STARTERS', 'BENCH', fixture.player.display_name, 'Keep updated automatically'], 'manual lineup editor')
+    assert.deepEqual(autoSetControls, [])
+    const openClick = await openLineupEditor(session, 'manual editor')
+    await assertPageText(session, ['STARTERS', 'BENCH', fixture.player.display_name], 'manual lineup editor')
+    record({ openClick, autoSetControls })
     const oldActions = parseEvalJson(await browser(session, ['eval', `JSON.stringify(
       [...document.querySelectorAll('[role="button"], button')]
         .map(node => node.getAttribute('aria-label') || node.textContent.trim())
@@ -963,7 +953,7 @@ export async function runBrowserLineupAutoSetScenario({
     )`]))
     assert.deepEqual(oldActions, [])
     record({ editorScreenshot: await captureBrowserScreenshot(browser, session, artifactDir, 'manual-editor.png') })
-    return { fields: { mode: 'manual-editor', choices }, failures: [] }
+    return { fields: { mode: 'manual-editor', autoSetControls }, failures: [] }
     },
     verifyFailure: async () => ({ rosterPlayerId: fixture.rosterRow.id }),
   })

@@ -232,7 +232,7 @@ describe('browser performance evidence', () => {
 
   it('changes the default FAAB value before measuring input feedback', async () => {
     const browser = vi.fn(async (_session: string, args: string[]) => {
-      if (args[0] === 'type' || args[0] === 'fill') return ''
+      if (args[0] === 'type' || args[0] === 'fill' || args[0] === 'wait') return ''
       const source = args[1]
       if (source.includes("value: document.querySelector")) return JSON.stringify({ value: '1' })
       if (source.includes('expectedBeforeAction')) return JSON.stringify({ ok: true, expectedBeforeAction: false })
@@ -242,6 +242,7 @@ describe('browser performance evidence', () => {
 
     await expect(measureWorkflowFeedback(browser, 'session', { workflowId: 'waiver-add-claim' }))
       .resolves.toMatchObject({ feedbackMs: 7.1, observed: true, interaction: 'waiver-faab-input' })
+    expect(browser).toHaveBeenNthCalledWith(1, 'session', ['wait', '[aria-label="FAAB bid amount"]'])
     expect(browser).toHaveBeenCalledWith('session', ['fill', '[aria-label="FAAB bid amount"]', ''])
     expect(browser).toHaveBeenCalledWith('session', ['type', '[aria-label="FAAB bid amount"]', '2'])
     expect(browser).toHaveBeenCalledWith('session', ['fill', '[aria-label="FAAB bid amount"]', '0'])

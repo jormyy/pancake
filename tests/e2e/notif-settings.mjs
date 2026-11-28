@@ -14,6 +14,7 @@ export async function runNotificationSettingsScenario({ season = 0 } = {}) {
     const publicKey = process.env.E2E_SUPABASE_PUBLISHABLE_KEY ?? process.env.NOTIF_PUBLIC_KEY
     const evidence = process.env.NOTIF_EVIDENCE ?? browserArtifactPath('artifacts', `notification-settings-season-${season}`)
     const origin = process.env.E2E_FRONTEND_URL ?? 'http://127.0.0.1:8082'
+    const apiBase = (process.env.E2E_API_BASE_URL ?? `${api}/functions/v1/api`).replace(/\/+$/, '')
     assert.ok(api && secret && publicKey, 'Local Supabase URL and keys are required')
     const apiPort = Number(process.env.PANCAKE_TEST_DB_PORT ?? '54322') - 1
     assert.ok(['127.0.0.1', 'localhost'].includes(new URL(api).hostname) && Number(new URL(api).port) === apiPort)
@@ -26,6 +27,7 @@ export async function runNotificationSettingsScenario({ season = 0 } = {}) {
     const session = `notif-settings-${process.pid}-${season}`
     let userId
     let emulationClient
+    let emulationSession
     const parse = (value) => {
         const result = JSON.parse(value.split('\n').filter(Boolean).at(-1))
         return typeof result === 'string' ? JSON.parse(result) : result
@@ -36,6 +38,25 @@ export async function runNotificationSettingsScenario({ season = 0 } = {}) {
     async function click(label, role = 'button') {
         await browser(session, ['snapshot','-i'])
         await browser(session, ['find','role',role,'click','--name',label,'--exact'])
+    }
+    async function storedPreferences(accept) {
+        const deadline = Date.now() + 5000
+        for (;;) {
+            const result = await admin.from('notification_preferences').select('event_settings,category_settings,trade_enabled').eq('user_id',userId).maybeSingle()
+            if (result.error || (result.data && accept(result.data)) || Date.now() > deadline) return result
+            await new Promise(resolve => setTimeout(resolve, 100))
+        }
+    }
+    async function openSettings() {
+        for (let attempt = 1; ; attempt++) {
+            await click('Notification settings')
+            try {
+                await browser(session,['wait','--fn',`location.pathname.endsWith('/notification-settings')`],{ timeout: 5000 })
+                return
+            } catch (error) {
+                if (attempt >= 3) throw error
+            }
+        }
     }
     async function emulation(width, height, mobile) {
         const endpoint = (await browser(session, ['get','cdp-url'])).match(/ws:\/\/\S+/)?.[0]
@@ -48,6 +69,7 @@ export async function runNotificationSettingsScenario({ season = 0 } = {}) {
             const target = targetInfos.find(item => item.type === 'page' && item.url.startsWith(origin)) ?? selectCdpPageTarget(targetInfos)
             assert.ok(target)
             const attached = await cdp.send('Target.attachToTarget',{ targetId: target.targetId, flatten: true })
+            emulationSession = attached.sessionId
             await cdp.send('Emulation.setDeviceMetricsOverride',{ width,height,deviceScaleFactor: mobile ? 3 : 1,mobile },attached.sessionId)
             await cdp.send('Emulation.setSafeAreaInsetsOverride',{ insets: { top: mobile ? 59 : 0,bottom: mobile ? 34 : 0,left: 0,right: 0 } },attached.sessionId)
             await cdp.send('Runtime.evaluate',{ expression: 'window.dispatchEvent(new Event("resize"))' },attached.sessionId)
@@ -65,7 +87,7 @@ export async function runNotificationSettingsScenario({ season = 0 } = {}) {
         assert.equal(signedIn.error,null)
         const issuer = JSON.parse(Buffer.from(signedIn.data.session.access_token.split('.')[1], 'base64url').toString()).iss
         assert.equal(issuer,`${api}/auth/v1`)
-        await installRuntimeOverrides(browser, session, { frontendUrl: `${origin}/sign-in`, apiBaseUrl: process.env.E2E_API_BASE_URL ?? `${api}/functions/v1/api`, supabaseUrl: api, anonKey: publicKey })
+        await installRuntimeOverrides(browser, session, { frontendUrl: `${origin}/sign-in`, apiBaseUrl: apiBase, supabaseUrl: api, anonKey: publicKey })
         await browser(session,['eval',`localStorage.setItem('sb-${new URL(api).hostname.split('.')[0]}-auth-token',${JSON.stringify(JSON.stringify(signedIn.data.session))}); true`])
         console.log('Synthetic session installed')
         const report = []
@@ -76,55 +98,51 @@ export async function runNotificationSettingsScenario({ season = 0 } = {}) {
             await browser(session,['open',`${origin}/profile`])
             await waitFor('[aria-label="Notification settings"]')
             let taps = 0
-            await click('Notification settings'); taps++
+            await openSettings(); taps++
             await waitFor('[aria-label="Trades: New offer"]:not([aria-disabled="true"])')
             await click('Trades: New offer','switch'); taps++
-            await browser(session,['wait','350'])
-            const eventChoice = await admin.from('notification_preferences').select('event_settings').eq('user_id',userId).single()
+            const eventChoice = await storedPreferences(data => data?.event_settings?.trade_offered === false)
             assert.equal(eventChoice.error,null)
             assert.equal(eventChoice.data.event_settings.trade_offered,false)
             report.push({ viewport: name,task: 'Turn one trade notification off from main settings',taps })
             await click('Trades: New offer','switch')
-            await browser(session,['wait','350'])
+            await storedPreferences(data => data?.event_settings?.trade_offered === true)
             await browser(session,['open',`${origin}/profile`])
             await waitFor('[aria-label="Notification settings"]')
             taps = 0
-            await click('Notification settings'); taps++
+            await openSettings(); taps++
             await waitFor('[aria-label="All trades notifications"]:not([aria-disabled="true"])')
             await click('All trades notifications','switch'); taps++
-            await browser(session,['wait','350'])
-            const categoryChoice = await admin.from('notification_preferences').select('category_settings,trade_enabled').eq('user_id',userId).single()
+            const categoryChoice = await storedPreferences(data => data?.trade_enabled === false)
             assert.equal(categoryChoice.error,null)
             assert.equal(categoryChoice.data.trade_enabled,false)
             assert.equal(categoryChoice.data.category_settings.trade,false)
             report.push({ viewport: name,task: 'Turn the trades category off from main settings',taps })
             await click('All trades notifications','switch')
-            await browser(session,['wait','350'])
-            await browser(session,['open',`${origin}/profile`])
-            await waitFor('[aria-label="Notification settings"]')
-            await browser(session,['eval',`(() => {
+            await storedPreferences(data => data?.trade_enabled === true)
+            await emulationClient.send('Page.enable',{},emulationSession)
+            const faultScript = await emulationClient.send('Page.addScriptToEvaluateOnNewDocument',{ source: `(() => {
+                for (const key of Object.keys(localStorage)) if (key.startsWith('pancake:screen-view:') && key.includes('"profile"')) localStorage.removeItem(key);
                 const original = window.fetch.bind(window);
                 window.__notifFault = 'read';
-                window.__pancakeAlerts = [];
                 window.fetch = (input, init) => {
                     const url = typeof input === 'string' ? input : input.url ?? String(input);
                     const method = init?.method ?? input.method ?? 'GET';
-                    if (url.startsWith(${JSON.stringify(api + '/rest/v1/notification_preferences')}) &&
-                        ((window.__notifFault === 'read' && method === 'GET') ||
-                        (window.__notifFault === 'save' && method === 'POST'))) {
-                        return Promise.resolve(new Response(JSON.stringify({ message: 'Synthetic preference ' + window.__notifFault + ' failure' }), { status: 503, headers: { 'Content-Type': 'application/json' } }));
+                    if ((window.__notifFault === 'read' && method === 'GET' && url.startsWith(${JSON.stringify(apiBase + '/views/profile')})) ||
+                        (window.__notifFault === 'save' && method === 'POST' && url.startsWith(${JSON.stringify(api + '/rest/v1/rpc/save_client_settings_atomic')}))) {
+                        const message = 'Synthetic preference ' + window.__notifFault + ' failure';
+                        return Promise.resolve(new Response(JSON.stringify({ ok: false, error: message, message }), { status: 503, headers: { 'Content-Type': 'application/json' } }));
                     }
                     return original(input, init);
                 };
-                return true;
-            })()`])
-            await click('Notification settings')
-            await waitFor('[aria-label="Could not load notification preferences."]')
+            })()` },emulationSession)
+            await browser(session,['open',`${origin}/notification-settings`])
+            await waitFor('[aria-label="Synthetic preference read failure"]')
             const hidden = parse(await browser(session,['eval',`JSON.stringify({ switches: document.querySelectorAll('[aria-label="All notifications"]').length })`]))
             assert.equal(hidden.switches,0,'Failed preference reads must hide account controls')
             await browser(session,['screenshot',path.join(evidence,'screenshots',`${name}-read-failure.png`)],{ timeout: 60000 })
-            await browser(session,['eval',`window.__notifFault = null; true`])
-            await click('Could not load notification preferences.')
+            await browser(session,['eval',`window.__notifFault = null; window.__pancakeAlerts = []; true`])
+            await click('Synthetic preference read failure')
             await waitFor('[aria-label="All notifications"]')
             await browser(session,['eval',`window.__notifFault = 'save'; true`])
             await click('Trades: New offer','switch')
@@ -140,13 +158,13 @@ export async function runNotificationSettingsScenario({ season = 0 } = {}) {
             await waitFor('[aria-label="Trades: New offer"][aria-checked="true"]')
             await browser(session,['eval',`window.__notifFault = null; true`])
             await click('Trades: New offer','switch')
-            await browser(session,['wait','350'])
-            const recoveredSave = await admin.from('notification_preferences').select('event_settings').eq('user_id',userId).single()
+            const recoveredSave = await storedPreferences(data => data?.event_settings?.trade_offered === false)
             assert.equal(recoveredSave.error,null)
             assert.equal(recoveredSave.data.event_settings.trade_offered,false)
             await click('Trades: New offer','switch')
-            await browser(session,['wait','350'])
+            await storedPreferences(data => data?.event_settings?.trade_offered === true)
             report.push({ viewport: name, failure: 'Read hides choices; failed save leaves stored choice unchanged', recovery: 'Read retry restores choices; next save persists' })
+            await emulationClient.send('Page.removeScriptToEvaluateOnNewDocument',{ identifier: faultScript.identifier },emulationSession)
             console.log('Tap tasks passed for '+name)
             await browser(session,['screenshot',path.join(evidence,'screenshots',`${name}-expanded.png`)],{ timeout: 60000 })
             await click('Collapse all')
@@ -165,12 +183,11 @@ export async function runNotificationSettingsScenario({ season = 0 } = {}) {
             report.push({ viewport: name,lastCategory: lastRow })
             await browser(session,['focus','[aria-label="All league notifications"]'])
             await browser(session,['press','Enter'])
-            await browser(session,['wait','350'])
-            const keyboardChoice = await admin.from('notification_preferences').select('category_settings').eq('user_id',userId).single()
+            const keyboardChoice = await storedPreferences(data => data?.category_settings?.league === false)
             assert.equal(keyboardChoice.error,null)
             assert.equal(keyboardChoice.data.category_settings.league,false)
             await browser(session,['press','Enter'])
-            await browser(session,['wait','350'])
+            await storedPreferences(data => data?.category_settings?.league !== false)
             report.push({ viewport: name,lastCategoryKeyboard: 'Enter toggles the focused category' })
 
         }

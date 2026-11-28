@@ -309,13 +309,11 @@ const seedLatencyFixtures = async (admin, leagueId, members) => {
       member_id: member.id,
     }))
   }).flat()
-  const [{ error: orderError }, { error: budgetError }, { error: pickError }] = await Promise.all([
-    admin.from('draft_orders').insert(orderRows),
-    admin.from('draft_budgets').insert(budgetRows),
-    admin.from('snake_draft_picks').insert(pickRows),
-  ])
+  const { error: orderError } = await admin.from('draft_orders').insert(orderRows)
   if (orderError) throw new Error(`latency fixture draft orders: ${orderError.message}`)
+  const { error: budgetError } = await admin.from('draft_budgets').insert(budgetRows)
   if (budgetError) throw new Error(`latency fixture draft budgets: ${budgetError.message}`)
+  const { error: pickError } = await admin.from('snake_draft_picks').insert(pickRows)
   if (pickError) throw new Error(`latency fixture rookie picks: ${pickError.message}`)
 
   return { matchups: matchupCount, drafts: drafts.length, draftOrders: orderRows.length, rookiePicks: pickRows.length, seasonYear: season.season_year }

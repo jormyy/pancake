@@ -8,6 +8,8 @@ import { installRuntimeOverrides, normalizeBrowserErrors } from './browser-runti
 import { captureBrowserScreenshot, clickButtonByName, createBrowser, fillSignInCredentials, listBrowserSessions } from './browser-agent.mjs'
 import { createFixtureResourceOwner } from './trade-fixture.mjs'
 
+const { createMutationFetch } = await import(new URL('../../lib/api-client.ts', import.meta.url).href)
+
 const ROOT = process.cwd()
 const ARTIFACT_ROOT = browserArtifactPath('artifacts')
 const REPORT_PATH = browserArtifactPath('e2e-browser-gameplay-report.md')
@@ -40,7 +42,7 @@ const createConfirmedUser = async (admin, user) => {
 }
 
 const signInClient = async (env, email, password) => {
-  const client = createClient(env.supabaseUrl, env.anonKey, { auth: { persistSession: false } })
+  const client = createClient(env.supabaseUrl, env.anonKey, { auth: { persistSession: false }, global: { fetch: createMutationFetch(globalThis.fetch) } })
   const { error } = await client.auth.signInWithPassword({ email, password })
   if (error) throw new Error(`signIn ${email}: ${error.message}`)
   return client

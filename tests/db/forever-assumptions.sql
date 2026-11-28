@@ -7,6 +7,7 @@ BEGIN
 END;
 $$;
 
+DELETE FROM public.season_weeks WHERE season_year>3942 AND week_end<DATE '3942-07-01';
 INSERT INTO public.season_weeks(season_year,week_number,week_start,week_end) VALUES
   (3941,1,DATE '3940-10-12',DATE '3941-04-12'),
   (3942,1,DATE '3941-10-12',DATE '3942-06-12');

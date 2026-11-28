@@ -8,6 +8,8 @@ import { installRuntimeOverrides, normalizeBrowserErrors } from './browser-runti
 import { clickButtonByName, createBrowser, fillSignInCredentials, listBrowserSessions } from './browser-agent.mjs'
 import { createFixtureResourceOwner } from './trade-fixture.mjs'
 
+const { createMutationFetch } = await import(new URL('../../lib/api-client.ts', import.meta.url).href)
+
 const ROOT = process.cwd()
 const ARTIFACT_ROOT = browserArtifactPath('artifacts')
 const REPORT_PATH = browserArtifactPath('e2e-browser-rookie-draft-report.md')
@@ -35,6 +37,7 @@ const backendJson = async (env, pathname, body = {}) => {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
+      'x-request-id': globalThis.crypto.randomUUID(),
       'x-e2e-secret': env.e2eAdminSecret,
     },
     body: JSON.stringify(body),
@@ -62,7 +65,7 @@ const createConfirmedUser = async (admin, user) => {
 }
 
 const signInClient = async (env, email, password) => {
-  const client = createClient(env.supabaseUrl, env.anonKey, { auth: { persistSession: false } })
+  const client = createClient(env.supabaseUrl, env.anonKey, { auth: { persistSession: false }, global: { fetch: createMutationFetch(globalThis.fetch) } })
   const { error } = await client.auth.signInWithPassword({ email, password })
   if (error) throw new Error(`signIn ${email}: ${error.message}`)
   return client
@@ -92,6 +95,18 @@ const assertPageText = async (session, required, label) => {
   const parsed = parseEvalJson(output)
   if (!parsed.ok) throw new Error(`${label} missing page text: ${parsed.missing.join(', ')}. Sample: ${parsed.sample}`)
   return parsed
+}
+
+const waitForPageText = async (session, required, label, timeoutMs = 20_000) => {
+  const startedAt = Date.now()
+  for (;;) {
+    try {
+      return await assertPageText(session, required, label)
+    } catch (error) {
+      if (Date.now() - startedAt >= timeoutMs) throw error
+      await new Promise((resolve) => setTimeout(resolve, 500))
+    }
+  }
 }
 
 const setupBrowserRookieDraftFixture = async (env, season) => {
@@ -326,27 +341,25 @@ export async function runBrowserRookieDraftAutoPickScenario({
   try {
     await signInBrowser(session, env, fixture.activeUser, fixture.password)
     await browser(session, ['set', 'viewport', '390', '844'])
+    await browser(session, ['open', joinUrl(env.frontendUrl, `/rookie-draft-room?draftId=${fixture.draft.id}`)])
+    await waitForPageText(
+      session,
+      ['Round 1', 'Pick 1', fixture.members[3].team_name, '(you)', 'Prospects'],
+      'rookie draft before auto-pick',
+    )
+    await browser(session, ['screenshot', path.join(artifactDir, 'rookie-draft-before-auto-pick.png')], { timeout: 60_000 })
     const fastTimerExpiresAt = new Date(Date.now() + 3_000).toISOString()
     const { error: draftClockError } = await fixture.admin
       .from('snake_draft_picks')
       .update({ timer_expires_at: fastTimerExpiresAt })
       .eq('id', fixture.firstSlot.id)
     if (draftClockError) throw new Error(`draft clock update: ${draftClockError.message}`)
-    await browser(session, ['open', joinUrl(env.frontendUrl, `/rookie-draft-room?draftId=${fixture.draft.id}`)])
-    await browser(session, ['wait', '1000'])
-    await assertPageText(
-      session,
-      ['Round 1', 'Pick 1', fixture.members[3].team_name, '(you)', 'Prospects'],
-      'rookie draft before auto-pick',
-    )
-    await browser(session, ['screenshot', path.join(artifactDir, 'rookie-draft-before-auto-pick.png')], { timeout: 60_000 })
     const autoPickCheck = await waitForAutoPick(fixture)
     debug = { ...debug, autoPickCheck }
     if (autoPickCheck.failures.length > 0) {
       throw new Error(`browser rookie draft auto-pick did not persist: ${autoPickCheck.failures.join('; ')}`)
     }
-    await browser(session, ['wait', '1500'])
-    await assertPageText(session, ['Pick 2', fixture.members[2].team_name], 'rookie draft after auto-pick')
+    await waitForPageText(session, ['Pick 2', fixture.members[2].team_name], 'rookie draft after auto-pick')
     await browser(session, ['screenshot', path.join(artifactDir, 'rookie-draft-after-auto-pick.png')], { timeout: 60_000 })
 
     const consoleOutput = await browser(session, ['console']).catch((error) => `console unavailable: ${error.message}`)

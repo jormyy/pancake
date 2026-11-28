@@ -334,7 +334,50 @@ export type Database = {
           season_year?: number
           status?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "draft_pick_swaps_counterparty_member_id_fkey"
+            columns: ["counterparty_member_id"]
+            isOneToOne: false
+            referencedRelation: "league_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "draft_pick_swaps_draft_id_fkey"
+            columns: ["draft_id"]
+            isOneToOne: false
+            referencedRelation: "drafts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "draft_pick_swaps_holder_member_id_fkey"
+            columns: ["holder_member_id"]
+            isOneToOne: false
+            referencedRelation: "league_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "draft_pick_swaps_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "leagues"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "draft_pick_swaps_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "v_fantasy_points"
+            referencedColumns: ["league_id"]
+          },
+          {
+            foreignKeyName: "draft_pick_swaps_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_avg_fantasy_points"
+            referencedColumns: ["league_id"]
+          },
+        ]
       }
       draft_picks: {
         Row: {
@@ -7021,7 +7064,9 @@ export type Database = {
         Returns: Json
       }
       locked_until_slate_end: {
-        Args: { "": Database["public"]["Tables"]["roster_players"]["Row"] }
+        Args: {
+          p_roster: Database["public"]["Tables"]["roster_players"]["Row"]
+        }
         Returns: boolean
       }
       make_rookie_selection_atomic: {

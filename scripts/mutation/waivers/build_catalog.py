@@ -105,7 +105,7 @@ add('waiver-order', 'public.expire_waiver_wire_logs', 'wwl.clears_at < now()', '
 add('waiver-limits', 'private.current_add_week', 'weeks.week_start <= v_today', 'weeks.week_start >= v_today', 'ROR', 'Select the next week while inside the merged All-Star range', 0)
 add('waiver-limits', 'private.current_add_week', 'SELECT weeks.week_number, weeks.week_end', 'SELECT weeks.week_number, LEAST(weeks.week_end, weeks.week_start + 6)', 'CONST', 'Cap the selected C2 range at seven days, resetting halfway through All-Star', 0)
 add('waiver-limits', 'private.current_add_week', '(v_week_end + 1)::timestamp', '(v_week_end + 7)::timestamp', 'CONST', 'Reset six days after the actual merged-week boundary')
-add('waiver-limits', 'private.current_add_week', 'v_elapsed_weeks := (v_today - v_last_end - 1) / 7;', 'v_elapsed_weeks := (v_today - v_last_end - 1) / 14;', 'CONST', 'Advance post-schedule buckets every fourteen days after the shortened season', 0)
+add('waiver-limits', 'private.current_add_week', 'v_block := (v_today - v_previous_end - 1) / 7;', 'v_block := (v_today - v_previous_end - 1) / 14;', 'CONST', 'Advance post-schedule buckets every fourteen days after the shortened season', 0)
 
 add('trade-deadline', 'private.create_trade_offer', "v_league.trade_deadline < (now() AT TIME ZONE 'America/New_York')::date", "v_league.trade_deadline <= (now() AT TIME ZONE 'America/New_York')::date", 'ROR', 'Lock proposals on the deadline date instead of the next New York date')
 add('trade-deadline', 'public.prevent_trade_acceptance_after_deadline', "v_trade_deadline < (now() AT TIME ZONE 'America/New_York')::date", "v_trade_deadline <= (now() AT TIME ZONE 'America/New_York')::date", 'ROR', 'Lock acceptance on the deadline date instead of the next New York date')

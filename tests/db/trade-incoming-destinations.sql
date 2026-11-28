@@ -25,7 +25,7 @@ BEGIN
       SELECT f.league_id,f.season_id,f.member_ids[CASE WHEN n IN(2,6) THEN 2 ELSE 1 END],id,'draft',n=2
       FROM unnest(p[1:6]) WITH ORDINALITY ids(id,n);
     INSERT INTO draft_picks(id,league_id,season_year,round,original_owner_id,current_owner_id)
-      VALUES(pick,f.league_id,9605,1,f.member_ids[1],f.member_ids[1]);
+      VALUES(pick,f.league_id,(SELECT season_year+1 FROM league_seasons WHERE id=f.season_id),1,f.member_ids[1],f.member_ids[1]);
     starting_balance:=private.available_faab_balance(f.league_id,f.season_id,f.member_ids[1]);
     payload:=jsonb_build_object('leagueId',f.league_id,'leagueSeasonId',f.season_id,'recipientMemberId',f.member_ids[2],
       'offerPlayerIds',ARRAY[p[1]],'requestPlayerIds',ARRAY[p[2]],'offerPickIds',ARRAY[pick],'offerFaabAmount',5,

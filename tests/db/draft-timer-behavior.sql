@@ -27,7 +27,7 @@ BEGIN
   INSERT INTO league_seasons(id,league_id,season_year,is_current,skipped_weeks) VALUES(v_season,v_league,2091,true,ARRAY[1]);
   INSERT INTO league_members(id,league_id,user_id,role) VALUES(v_members[1],v_league,v_users[1],'commissioner'),(v_members[2],v_league,v_users[2],'manager');
   INSERT INTO draft_picks(league_id,season_year,round,original_owner_id,current_owner_id)
-    SELECT v_league,2091,r,m,m FROM unnest(v_members)m CROSS JOIN generate_series(1,3)r;
+    SELECT v_league,2090,r,m,m FROM unnest(v_members)m CROSS JOIN generate_series(1,3)r;
   INSERT INTO players(first_name,last_name,position,eligible_positions,years_exp,nba_draft_number,nba_id,draft_status,draft_year,draft_round,draft_overall_pick)
     SELECT 'Synthetic timer',gen_random_uuid()::text,'PG',ARRAY['PG'],0,n,'draft-timer-'||n,'drafted',2090,1,n FROM generate_series(1,12)n;
   PERFORM pg_sleep(1.1);

@@ -10,15 +10,27 @@ export async function confirmTradeAcceptance(options) {
         await press(dialog.getByRole('button', { name: 'Accept', exact: true }))
         return true
       }
+      const review = page.getByTestId('trade-confirm-accept')
+      if (await review.isVisible?.() && await review.isEnabled?.()) {
+        await press(review)
+        return true
+      }
     } else {
       const output = await browserCall(session, ['eval', `(() => {
         const dialog = [...document.querySelectorAll('[role="dialog"]')].find((node) =>
           document.getElementById(node.getAttribute('aria-labelledby'))?.textContent === 'Accept trade?');
-        return Boolean(dialog && dialog.getBoundingClientRect().width > 0);
+        if (dialog && dialog.getBoundingClientRect().width > 0) return true;
+        const review = document.querySelector('[data-testid="trade-confirm-accept"]');
+        return review && review.getBoundingClientRect().width > 0 && review.getAttribute('aria-disabled') !== 'true' ? 'review' : false;
       })()`])
-      if (output.trim() === 'true') {
+      const state = output.trim().replace(/^"|"$/g, '')
+      if (state === 'true') {
         await browserCall(session, ['scrollintoview', '[role="dialog"] [aria-label="Accept"]'])
         await browserCall(session, ['click', '[role="dialog"] [aria-label="Accept"]'])
+        return true
+      }
+      if (state === 'review') {
+        await browserCall(session, ['click', '[data-testid="trade-confirm-accept"]'])
         return true
       }
     }

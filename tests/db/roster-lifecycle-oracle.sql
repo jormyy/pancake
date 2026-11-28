@@ -17,6 +17,9 @@ BEGIN;
 CREATE FUNCTION pg_temp.oid(p text) RETURNS uuid LANGUAGE sql IMMUTABLE AS $$
   SELECT md5('roster-oracle:' || p)::uuid
 $$;
+CREATE FUNCTION pg_temp.oracle_league(p_league uuid) RETURNS boolean LANGUAGE sql IMMUTABLE AS $$
+  SELECT p_league IN (pg_temp.oid('league-1'), pg_temp.oid('league-2'))
+$$;
 
 DO $$
 DECLARE v_seed bigint := COALESCE(NULLIF(current_setting('oracle.seed', true), ''), '1')::bigint;
@@ -121,6 +124,9 @@ SELECT pg_temp.oid('pick-' || member.key || '-' || round.n), member.league, 2100
   CROSS JOIN generate_series(1, 2) AS round(n);
 
 -- Oracle state ---------------------------------------------------------------
+UPDATE public.waiver_claims SET process_date = CURRENT_DATE + 3650 WHERE status = 'pending' AND NOT pg_temp.oracle_league(league_id);
+UPDATE public.trades SET veto_window_expires_at = now() + interval '10 years' WHERE status = 'accepted' AND NOT pg_temp.oracle_league(league_id);
+
 CREATE TEMP TABLE oracle_log (
   step int,
   op text,
@@ -171,6 +177,20 @@ $$;
 CREATE FUNCTION pg_temp.reserved_row(p_roster uuid) RETURNS boolean LANGUAGE sql STABLE AS $$
   SELECT COALESCE((SELECT pg_temp.reserved_player(r.league_id, r.league_season_id, r.member_id, r.player_id)
                      FROM public.roster_players r WHERE r.id = p_roster), false)
+$$;
+CREATE FUNCTION pg_temp.held_row(p_roster uuid) RETURNS boolean LANGUAGE sql STABLE AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.roster_players r JOIN public.trades t
+      ON t.league_id = r.league_id AND t.league_season_id = r.league_season_id AND t.status IN ('pending', 'accepted')
+     WHERE r.id = p_roster AND (
+       EXISTS (SELECT 1 FROM public.trade_items ti WHERE ti.trade_id = t.id AND ti.from_member_id = r.member_id AND ti.player_id = r.player_id)
+       OR EXISTS (SELECT 1 FROM public.trade_participants tp WHERE tp.trade_id = t.id AND tp.member_id = r.member_id
+         AND (r.player_id = ANY(tp.drop_player_ids)
+           OR EXISTS (SELECT 1 FROM jsonb_array_elements(tp.roster_moves) move WHERE (move->>'playerId')::uuid = r.player_id)))))
+  OR EXISTS (
+    SELECT 1 FROM public.roster_players r JOIN public.waiver_claims c
+      ON c.league_id = r.league_id AND c.league_season_id = r.league_season_id AND c.member_id = r.member_id AND c.status = 'pending'
+     WHERE r.id = p_roster AND r.player_id IN (c.player_id, c.drop_player_id))
 $$;
 CREATE FUNCTION pg_temp.reserved_pick(p_pick uuid) RETURNS boolean LANGUAGE sql STABLE AS $$
   SELECT EXISTS (SELECT 1 FROM public.draft_picks pick JOIN public.trade_items ti ON ti.pick_id = pick.id AND ti.from_member_id = pick.current_owner_id
@@ -395,7 +415,7 @@ BEGIN
     ELSIF v_roll < 0.18 THEN
       v_op := 'remove_listing';
       IF random() < 0.3 THEN
-        SELECT id INTO v_item FROM public.trade_block_items WHERE member_id <> v_member ORDER BY random() LIMIT 1;
+        SELECT id INTO v_item FROM public.trade_block_items WHERE member_id <> v_member AND pg_temp.oracle_league(league_id) ORDER BY random() LIMIT 1;
         v_expect_failure := v_item IS NOT NULL;
         v_detail := 'someone else''s listing';
       ELSE
@@ -418,7 +438,7 @@ BEGIN
       -- Authorization is per user: the row must belong to a team this user owns.
       v_expect_failure := NOT EXISTS (
         SELECT 1 FROM public.roster_players AS roster JOIN public.league_members AS member ON member.id = roster.member_id
-         WHERE roster.id = v_roster AND member.user_id = v_user) OR pg_temp.reserved_row(v_roster);
+         WHERE roster.id = v_roster AND member.user_id = v_user) OR pg_temp.held_row(v_roster);
       v_sql := format('SELECT public.drop_player_atomic(%L)', v_roster);
       v_detail := 'retry of dropped row';
     ELSIF v_roll < 0.33 THEN
@@ -497,7 +517,7 @@ BEGIN
         v_detail := 'stale accept of a terminal trade';
       ELSE
         SELECT t.id, t.recipient_member_id INTO v_trade, v_member FROM public.trades t
-         WHERE t.status = 'pending'
+         WHERE t.status = 'pending' AND pg_temp.oracle_league(t.league_id)
            AND (t.expires_at IS NULL OR t.expires_at > now())
            AND NOT EXISTS (
              SELECT 1 FROM public.trade_items ti
@@ -508,7 +528,7 @@ BEGIN
                      AND rp.league_season_id = t.league_season_id AND rp.is_on_ir = false AND rp.is_on_taxi = false))
          ORDER BY random() LIMIT 1;
         IF v_trade IS NULL THEN
-          SELECT id, recipient_member_id INTO v_trade, v_member FROM public.trades WHERE status = 'pending' ORDER BY random() LIMIT 1;
+          SELECT id, recipient_member_id INTO v_trade, v_member FROM public.trades WHERE status = 'pending' AND pg_temp.oracle_league(league_id) ORDER BY random() LIMIT 1;
         END IF;
         IF v_trade IS NULL THEN CONTINUE; END IF;
         v_detail := 'trade ' || left(v_trade::text, 8);
@@ -556,14 +576,14 @@ BEGIN
       v_op := 'process_waivers';
       PERFORM pg_temp.act_as(NULL);
       v_actor := 'service';
-      UPDATE public.waiver_wire_log SET clears_at = now() - interval '3 days' WHERE cleared_at IS NULL;
-      UPDATE public.waiver_claims SET process_date = (now() AT TIME ZONE 'America/New_York')::date - 1 WHERE status = 'pending';
+      UPDATE public.waiver_wire_log SET clears_at = now() - interval '3 days' WHERE cleared_at IS NULL AND pg_temp.oracle_league(league_id);
+      UPDATE public.waiver_claims SET process_date = (now() AT TIME ZONE 'America/New_York')::date - 1 WHERE status = 'pending' AND pg_temp.oracle_league(league_id);
       v_sql := 'SELECT count(*) FROM public.process_due_waiver_claims_atomic(CURRENT_DATE + 3, 20)';
       v_detail := 'clock advanced past every waiver window';
     ELSIF v_roll < 0.88 THEN
       v_op := 'cancel_claim';
       IF random() < 0.3 THEN
-        SELECT id INTO v_claim FROM public.waiver_claims WHERE status = 'pending' AND member_id <> v_member ORDER BY random() LIMIT 1;
+        SELECT id INTO v_claim FROM public.waiver_claims WHERE status = 'pending' AND member_id <> v_member AND pg_temp.oracle_league(league_id) ORDER BY random() LIMIT 1;
         v_expect_failure := v_claim IS NOT NULL;
         v_detail := 'someone else''s claim';
       ELSE
@@ -584,7 +604,7 @@ BEGIN
       v_op := 'service_delete_roster';
       PERFORM pg_temp.act_as(NULL);
       v_actor := 'service';
-      SELECT id INTO v_roster FROM public.roster_players ORDER BY random() LIMIT 1;
+      SELECT id INTO v_roster FROM public.roster_players WHERE pg_temp.oracle_league(league_id) ORDER BY random() LIMIT 1;
       v_sql := format('DELETE FROM public.roster_players WHERE id = %L', v_roster);
       v_detail := 'roster ' || left(v_roster::text, 8);
       INSERT INTO oracle_dropped VALUES (v_roster);
@@ -618,7 +638,7 @@ BEGIN
     ELSIF v_roll < 0.97 THEN
       v_op := 'cross_league_listing';
       -- A member of the other league tries to list into this league.
-      SELECT id INTO v_other FROM public.league_members WHERE league_id <> v_league ORDER BY random() LIMIT 1;
+      SELECT id INTO v_other FROM public.league_members WHERE league_id <> v_league AND pg_temp.oracle_league(league_id) ORDER BY random() LIMIT 1;
       SELECT player_id INTO v_player FROM public.roster_players WHERE league_season_id = v_season ORDER BY random() LIMIT 1;
       IF v_other IS NULL OR v_player IS NULL THEN CONTINUE; END IF;
       v_user := pg_temp.member_user(v_other);

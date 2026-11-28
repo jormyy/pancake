@@ -5,6 +5,15 @@ const webRequests = new WeakMap()
 
 export const pressWebControl = (target, locator) => target.mobile ? locator.tap() : locator.click()
 
+export async function waitForWebLineupReady(page) {
+  await page.waitForFunction(() => {
+    if (!document.querySelector('[aria-current="date"]')) return false
+    const slots = [...document.querySelectorAll('[role="button"][aria-label]')]
+      .filter((node) => /^(?:Empty .+ slot|Bench .+|(?:PG|SG|SF|PF|C|G|F|UTIL) .+)$/.test(node.getAttribute('aria-label') ?? ''))
+    return slots.length === 0 || slots.some((node) => node.getAttribute('aria-disabled') !== 'true')
+  })
+}
+
 export async function waitForWebTargetReads(page) {
   const state = webRequests.get(page)
   if (!state) throw new Error('Web read settling requires an open target page')

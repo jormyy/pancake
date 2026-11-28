@@ -6,7 +6,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
 import { createClient } from '@supabase/supabase-js'
-import { WEB_TARGETS, openWebTarget, readWebLayout, pressWebControl, pinWebTargetLeague, navigateWebTarget, reloadWebTarget, waitForWebTargetReady, waitForWebAuthForm, waitForWebTargetReads, waitForWebTargetGeometry } from './web-targets-browser.mjs'
+import { WEB_TARGETS, openWebTarget, readWebLayout, pressWebControl, pinWebTargetLeague, navigateWebTarget, reloadWebTarget, waitForWebTargetReady, waitForWebAuthForm, waitForWebTargetReads, waitForWebTargetGeometry, waitForWebLineupReady } from './web-targets-browser.mjs'
 import { summarizeWebTargetGeometry } from './web-targets-geometry.mjs'
 import { runWebTargetUpdates } from './web-targets-update.mjs'
 import { checkWebEmptySlots } from './web-targets-slots.mjs'
@@ -95,7 +95,7 @@ async function launch(page, mobile, captures) {
   await page.waitForFunction(() => {
     const main = document.querySelector('[role="main"]')
     return main?.querySelector('[role="heading"][aria-label$=" matchup"]') ||
-      /No matchup this week yet|Your draft is live/.test(main?.textContent ?? '')
+      /No matchup this week|Skipped week|Bye week|Your draft is live/.test(main?.textContent ?? '')
   }, null, { polling: 50 })
   const populatedSelector = '[role="heading"][aria-label$=" matchup"]'
   const populated = await page.locator(populatedSelector).count() > 0
@@ -142,17 +142,15 @@ async function offline(page, context) {
   try {
     await reloadWebTarget(page)
     await ready(page)
-    await page.getByText('Saved lineup · Offline · Read only', { exact: true }).waitFor()
+    await page.getByText('Offline · showing saved data', { exact: true }).waitFor()
+    await waitForWebLineupReady(page)
     assert.equal(await slots.count(), before, 'Offline reload loses saved lineup places')
     assert.equal(await page.locator('[aria-current="date"]').getAttribute('aria-label'), selected)
-    assert.ok(await page.getByText(/Offline · League access/).isVisible())
-    for (const slot of await slots.all()) assert.equal(await slot.getAttribute('aria-disabled'), 'true')
-    const auto = page.getByRole('button', { name: 'Open auto-set lineup options', exact: true })
-    if (await auto.count()) assert.equal(await auto.isDisabled(), true)
-    return { savedRows: before, disabledRows: await slots.count(), offlineLaunch: true }
+    assert.equal(await page.getByText(/· Read only$/).count(), 0, 'Offline owners keep queued lineup edits instead of a read-only lineup')
+    return { savedRows: before, offlineRows: await slots.count(), offlineLaunch: true, writes: 'queued while offline' }
   } finally {
     await context.setOffline(false)
-    await page.waitForFunction(() => !document.body.textContent.includes('Saved lineup · Offline · Read only'))
+    await page.waitForFunction(() => !document.body.textContent.includes('Offline · showing saved data'))
   }
 }
 
@@ -346,7 +344,7 @@ export const runWebTargets = ({ season = 0 } = {}) => runWithScenarioResourceOwn
         await panel.waitFor()
         const padding = await panel.evaluate((node) => parseFloat(getComputedStyle(node).paddingBottom))
         assert.ok(padding >= target.insets.bottom, 'The sheet must retain its home-indicator padding')
-        await pressWebControl(target, page.getByRole('button', { name: 'Close', exact: true }))
+        await page.getByLabel('Close', { exact: true }).first().tap({ position: { x: 8, y: 8 } })
         await panel.waitFor({ state: 'hidden' })
         return { bottomPadding: padding }
       })
@@ -402,10 +400,7 @@ export const runWebTargets = ({ season = 0 } = {}) => runWithScenarioResourceOwn
         const templates = await admin.from('lineup_slot_templates').select('slot_type,slot_count').eq('league_id', state.leagueId)
         if (templates.error) throw templates.error
         const bench = templates.data.find((slot) => slot.slot_type === 'BE')?.slot_count ?? 0
-        await page.waitForFunction(() => {
-          const toggle = document.querySelector('input[aria-label="Auto-set daily"]')
-          return toggle instanceof HTMLInputElement && !toggle.disabled
-        })
+        await waitForWebLineupReady(page)
         const occupied = await page.locator('[role="button"][aria-label^="Bench "]').count()
         const empty = await page.getByRole('button', { name: 'Empty bench slot', exact: true }).count()
         assert.equal(empty, Math.max(0, bench - occupied), 'Each unfilled bench place needs its own row')

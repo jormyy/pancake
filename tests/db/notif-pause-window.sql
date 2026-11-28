@@ -52,7 +52,7 @@ BEGIN
   FOREACH timer IN ARRAY ARRAY[60,604800] LOOP
     UPDATE leagues SET status='offseason' WHERE id=f.league;
     INSERT INTO draft_picks(league_id,season_year,round,original_owner_id,current_owner_id)
-      SELECT f.league,20026,1,m,m FROM unnest(ARRAY[f.member,f.other_member]) m
+      SELECT f.league,20025,1,m,m FROM unnest(ARRAY[f.member,f.other_member]) m
       ON CONFLICT DO NOTHING;
     PERFORM set_config('request.jwt.claim.sub',(SELECT commissioner_id::text FROM public.leagues WHERE id=f.league),true);
     SELECT (start_rookie_draft_atomic(f.league,1,false,timer)->>'id')::uuid INTO d;
@@ -115,7 +115,7 @@ BEGIN
     UPDATE drafts SET status='completed' WHERE id=d;
     DELETE FROM snake_draft_picks WHERE draft_id=d;
     DELETE FROM draft_orders WHERE draft_id=d;
-    DELETE FROM draft_picks WHERE league_id=f.league AND season_year=20026;
+    DELETE FROM draft_picks WHERE league_id=f.league AND season_year=20025;
     DELETE FROM drafts WHERE id=d;
   END LOOP;
   RAISE NOTICE '60-second and seven-day pause-after-claim, current expiry windows, same-row resume, preference timing, and delivered dedupe pass';

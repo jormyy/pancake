@@ -5,6 +5,7 @@ import {
   FUTURE_PICK_REPORT_PATH,
   OVERFLOW_ACCEPT_REPORT_PATH,
   ROOT,
+  addTradeAssets,
   assertPageText,
   browser,
   clickTestId,
@@ -18,6 +19,7 @@ import {
   openOffersTab,
   path,
   resolvedTradeEnv,
+  reviewAndSendTrade,
   setupTradeAcceptGameplayFixture,
   setupTradeFuturePickAcceptGameplayFixture,
   setupTradeGameplayFixture,
@@ -37,12 +39,14 @@ import {
 import { createClient } from '@supabase/supabase-js'
 import { confirmTradeAcceptance } from './confirm-trade-acceptance.mjs'
 
+const { createMutationFetch } = await import(new URL('../../lib/api-client.ts', import.meta.url).href)
+
 const exercisePlannedDropReservations = async (fixture, env) => {
-  const client = createClient(env.supabaseUrl, env.anonKey, { auth: { persistSession: false } })
+  const client = createClient(env.supabaseUrl, env.anonKey, { auth: { persistSession: false }, global: { fetch: createMutationFetch(globalThis.fetch) } })
   const { error: signInError } = await client.auth.signInWithPassword({ email: fixture.users[1].email, password: fixture.password })
   if (signInError) throw new Error(`plan recipient sign in: ${signInError.message}`)
   const { error: dropError } = await client.rpc('drop_player_atomic', { p_roster_player_id: fixture.dropCandidateRosterId })
-  if (!dropError || !/reserved/i.test(dropError.message)) throw new Error(`planned drop was not reserved: ${dropError?.message ?? 'succeeded'}`)
+  if (!dropError || !(/reserved/i.test(dropError.message) || dropError.message.startsWith(`Locked by trade ${fixture.trade.id.slice(0, 8)}.`))) throw new Error(`planned drop was not reserved: ${dropError?.message ?? 'succeeded'}`)
   const { error: addError } = await client.rpc('add_free_agent_atomic', {
     p_member_id: fixture.recipient.id, p_league_id: fixture.league.id, p_player_id: fixture.freeAgentPlayer.id,
   })
@@ -209,24 +213,28 @@ export async function runBrowserTradeFuturePickScenario({
       [
         'Propose Trade',
         'Review',
-        'DRAFT PICKS',
-        String(fixture.targetFuturePickYear - 1),
-        fixture.proposerFuturePick.originalTeamName,
+        'YOU SEND',
+        `${fixture.recipient.team_name.toUpperCase()} SENDS`,
       ],
       'future-pick trade before submit',
     )
     await browser(session, ['screenshot', path.join(artifactDir, 'future-pick-before-submit.png')], { timeout: 60_000 })
 
-    const recipientTabClick = await clickTestId(session, `trade-sender-${fixture.recipient.id}`, 'future-pick recipient sender tab')
-    const requestPickClick = await clickTestId(session, `trade-${fixture.recipient.id}-pick-${fixture.recipientFuturePick.id}`, 'recipient future pick selection')
-    const proposerTabClick = await clickTestId(session, `trade-sender-${fixture.proposer.id}`, 'future-pick proposer sender tab')
-    const offerPickClick = await clickTestId(session, `trade-${fixture.proposer.id}-pick-${fixture.proposerFuturePick.id}`, 'proposer future pick selection')
-    await browser(session, ['wait', '500'])
+    const requestPickClick = await addTradeAssets(session, fixture.recipient.id, [`trade-${fixture.recipient.id}-pick-${fixture.recipientFuturePick.id}`], 'recipient future pick selection')
+    const offerPickClick = await addTradeAssets(session, fixture.proposer.id, [`trade-${fixture.proposer.id}-pick-${fixture.proposerFuturePick.id}`], 'proposer future pick selection')
+    await assertPageText(
+      session,
+      [
+        `${fixture.proposerFuturePick.seasonYear} Round ${fixture.proposerFuturePick.round}`,
+        `via ${fixture.proposerFuturePick.originalTeamName}`,
+        `via ${fixture.recipientFuturePick.originalTeamName}`,
+      ],
+      'future-pick trade selected picks',
+    )
     await browser(session, ['screenshot', path.join(artifactDir, 'future-pick-selected.png')], { timeout: 60_000 })
-    const submitClick = await clickTestId(session, 'trade-submit', 'future-pick trade proposal submit')
-    const confirmClick = await clickTestId(session, 'trade-confirm-submit', 'future-pick trade proposal confirm')
+    const { reviewClick: submitClick, confirmClick } = await reviewAndSendTrade(session, 'future-pick trade proposal')
     const tradeProposal = await waitForFuturePickTradeProposal(futureFixture)
-    debug = { ...debug, recipientTabClick, proposerTabClick, requestPickClick, offerPickClick, submitClick, confirmClick, tradeProposal }
+    debug = { ...debug, requestPickClick, offerPickClick, submitClick, confirmClick, tradeProposal }
     if (tradeProposal.failures.length > 0) {
       throw new Error(`future-pick trade proposal did not persist: ${tradeProposal.failures.join('; ')}`)
     }
@@ -329,9 +337,8 @@ export async function runBrowserTradeFuturePickAcceptScenario({
         'Trades',
         'INCOMING',
         fixture.proposer.team_name,
-        String(fixture.targetFuturePickYear - 1),
-        `via ${fixture.proposerFuturePick.originalTeamName}`,
-        `via ${fixture.recipientFuturePick.originalTeamName}`,
+        `${fixture.proposerFuturePick.seasonYear} Round ${fixture.proposerFuturePick.round} (orig. ${fixture.proposerFuturePick.originalTeamName})`,
+        `${fixture.recipientFuturePick.seasonYear} Round ${fixture.recipientFuturePick.round} (orig. ${fixture.recipientFuturePick.originalTeamName})`,
         'Accept',
       ],
       'future-pick trade accept before submit',
@@ -460,34 +467,30 @@ export async function runBrowserTradeOverflowAcceptScenario({
     await browser(session, ['screenshot', path.join(artifactDir, 'overflow-accept-before.png')], { timeout: 60_000 })
 
     await pressControl(`[data-testid="trade-accept-${fixture.trade.id}"]`)
-    await assertPageText(session, ['Complete the roster plan'], 'incomplete plan rejection')
+    await assertPageText(session, ['Invalid roster', fixture.recipientPlayer.display_name], 'incomplete plan rejection')
+    const blockedAccept = (await browser(session, ['eval', `document.querySelector('[data-testid="trade-confirm-accept"]')?.getAttribute('aria-disabled') ?? 'missing'`])).trim().replace(/^"|"$/g, '')
+    if (blockedAccept !== 'true') throw new Error(`Accept was not disabled with an incomplete roster plan: ${blockedAccept}`)
     const { data: pending, error: pendingError } = await fixture.admin.from('trades').select('status').eq('id', fixture.trade.id).single()
     if (pendingError || pending.status !== 'pending') throw new Error('Incomplete plan changed the trade status')
-    await pressControl(`[data-testid="trade-details-${fixture.trade.id}"]`)
-    await assertPageText(session, ['RESULTING ROSTERS', 'Choose drops'], 'resulting roster preview')
-    await pressControl('[aria-label="Choose drops at trade completion"]')
     await pressControl(`[aria-label=${JSON.stringify(`Drop ${fixture.recipientPlayer.display_name} at completion`)}]`)
-    const planDeadline = Date.now() + 10000
-    let saved = false
-    while (Date.now() < planDeadline && !saved) {
-      const { data, error } = await fixture.admin.from('trade_participants').select('drop_player_ids').eq('trade_id', fixture.trade.id).eq('member_id', fixture.recipient.id).single()
-      if (error) throw error
-      saved = data.drop_player_ids.includes(fixture.recipientPlayer.id)
-      if (!saved) await new Promise(resolve => setTimeout(resolve, 100))
-    }
-    if (!saved) throw new Error('The selected roster plan did not save')
+    await assertPageText(session, ['Valid roster', 'PLANNED DROPS', fixture.recipientPlayer.display_name], 'explicit planned-drop confirmation')
     await browser(session, ['screenshot', path.join(artifactDir, 'planned-drop-before-accept.png')], { timeout: 60_000 })
-    await pressControl(`[aria-label=${JSON.stringify(`Accept trade with ${fixture.proposer.team_name}`)}]`)
-    await assertPageText(session, ['Confirm these drops at settlement', fixture.recipientPlayer.display_name], 'explicit planned-drop confirmation')
     await confirmTradeAcceptance({ session })
     const acceptedDeadline = Date.now() + 10000
     let underReview = false
-    while (Date.now() < acceptedDeadline && !underReview) {
-      const { data, error } = await fixture.admin.from('trades').select('status').eq('id', fixture.trade.id).single()
-      if (error) throw error
-      underReview = data.status === 'accepted'
-      if (!underReview) await new Promise(resolve => setTimeout(resolve, 100))
+    let saved = false
+    while (Date.now() < acceptedDeadline && !(underReview && saved)) {
+      const [tradeResult, planResult] = await Promise.all([
+        fixture.admin.from('trades').select('status').eq('id', fixture.trade.id).single(),
+        fixture.admin.from('trade_participants').select('drop_player_ids').eq('trade_id', fixture.trade.id).eq('member_id', fixture.recipient.id).single(),
+      ])
+      if (tradeResult.error) throw tradeResult.error
+      if (planResult.error) throw planResult.error
+      underReview = tradeResult.data.status === 'accepted'
+      saved = planResult.data.drop_player_ids.includes(fixture.recipientPlayer.id)
+      if (!(underReview && saved)) await new Promise(resolve => setTimeout(resolve, 100))
     }
+    if (!saved) throw new Error('The selected roster plan did not save')
     if (!underReview) throw new Error('Planned trade did not enter review')
     const reservations = await exercisePlannedDropReservations(fixture, env)
     await expireAndCompleteAcceptedTrade(fixture)

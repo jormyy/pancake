@@ -3,9 +3,9 @@ BEGIN;
 DO $$
 DECLARE f record; draft uuid; dead uuid; requested uuid; player uuid; chosen uuid; i int; new_year int; offer uuid; stop_offer uuid; old_pick uuid;
 BEGIN
-  SELECT * INTO f FROM pg_temp.rules_fixture(2,9545,'offseason');
+  SELECT * INTO f FROM pg_temp.rules_fixture(2,2055,'offseason');
   INSERT INTO draft_picks(league_id,season_year,round,original_owner_id,current_owner_id)
-    SELECT f.league_id,9544,r,m,m FROM unnest(f.member_ids) m CROSS JOIN generate_series(1,3) r;
+    SELECT f.league_id,2054,r,m,m FROM unnest(f.member_ids) m CROSS JOIN generate_series(1,3) r;
   SELECT id INTO dead FROM draft_picks WHERE league_id=f.league_id AND round=3 AND original_owner_id=f.member_ids[1];
   SELECT id INTO requested FROM draft_picks WHERE league_id=f.league_id AND round=3 AND original_owner_id=f.member_ids[2];
   offer:=public.propose_trade_atomic(f.league_id,f.season_id,f.member_ids[1],f.member_ids[2],'{}','{}',ARRAY[dead],ARRAY[requested]);
@@ -22,17 +22,17 @@ BEGIN
   PERFORM pg_temp.check_rules((SELECT status='withdrawn' FROM trades WHERE id=offer),'withdrawing the locked offer permits pick retirement');
   FOR i IN 1..4 LOOP
     player:=gen_random_uuid();
-    INSERT INTO players(id,first_name,last_name,position,eligible_positions,years_exp,nba_draft_number)
-      VALUES(player,'Retired',i::text,'PG',ARRAY['PG'],0,i);
+    INSERT INTO players(id,first_name,last_name,position,eligible_positions,years_exp,nba_draft_number,nba_id,draft_status,draft_year,draft_round,draft_overall_pick)
+      VALUES(player,'Retired',i::text,'PG',ARRAY['PG'],0,i,'server-retired-'||player,'drafted',2054,1,i);
     SELECT member_id INTO chosen FROM snake_draft_picks WHERE draft_id=draft AND player_id IS NULL ORDER BY overall_pick LIMIT 1;
     PERFORM public.make_snake_pick_atomic(draft,chosen,player);
   END LOOP;
   PERFORM pg_temp.check_rules((SELECT status='completed' FROM drafts WHERE id=draft),'two-round draft completes');
   PERFORM pg_temp.reject_rules(format('SELECT public.propose_trade_atomic(%L,%L,%L,%L,''{}'',''{}'',ARRAY[%L]::uuid[],ARRAY[%L]::uuid[])',f.league_id,f.season_id,f.member_ids[1],f.member_ids[2],dead,requested),'Your offer includes a draft pick that is no longer owned by the expected team.','completed draft cannot sell an unused third round');
-  PERFORM pg_temp.check_rules((SELECT bool_and(is_used) FROM draft_picks WHERE league_id=f.league_id AND season_year=9544),'all completed class picks retire');
+  PERFORM pg_temp.check_rules((SELECT bool_and(is_used) FROM draft_picks WHERE league_id=f.league_id AND season_year=2054),'all completed class picks retire');
   UPDATE leagues SET status='playoffs' WHERE id=f.league_id;
   INSERT INTO draft_picks(league_id,season_year,round,original_owner_id,current_owner_id)
-    VALUES(f.league_id,9543,1,f.member_ids[1],f.member_ids[1]);
+    VALUES(f.league_id,2053,1,f.member_ids[1],f.member_ids[1]);
   SELECT a.new_year INTO new_year FROM public.advance_season_atomic(f.league_id) a;
   PERFORM pg_temp.check_rules(NOT EXISTS(SELECT 1 FROM draft_picks WHERE league_id=f.league_id AND season_year<new_year-1 AND NOT is_used),'rollover retires every past unused pick');
   SELECT id INTO dead FROM draft_picks WHERE league_id=f.league_id AND season_year=new_year-1 AND round=1 AND original_owner_id=f.member_ids[1];

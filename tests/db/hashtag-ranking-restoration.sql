@@ -13,6 +13,8 @@ UNION ALL
 SELECT trade_only_id, 'hashtag-restoration-trade-only', 'Trade', 'Only', 'DAL', 'PG'::public.nba_position, 2, 'onenumberhoops.com', now()
   FROM hashtag_players;
 ALTER TABLE public.players ENABLE TRIGGER players_dynasty_rank_owner;
+DELETE FROM public.dynasty_rankings WHERE source_rank BETWEEN 9001 AND 9005
+  AND source IN ('hashtagbasketball.com','hashtagbasketball.com/points-3','hashtagbasketball.com/rookie','onenumberhoops.com');
 INSERT INTO public.dynasty_rankings(source, source_rank, source_player_name, player_id, points, age, fetched_at)
 SELECT 'hashtagbasketball.com', 9001, 'Hashtag Ranked', ranked_id, 31.7, 22, '2026-10-27 23:00 UTC'::timestamptz FROM hashtag_players
 UNION ALL
