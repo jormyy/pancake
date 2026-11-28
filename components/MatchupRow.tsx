@@ -507,8 +507,8 @@ const styles = StyleSheet.create({
     rowSideLeft: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', paddingLeft: spacing.sm },
     rowSideRight: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', paddingRight: spacing.sm },
     sideActive: { alignSelf: 'stretch', backgroundColor: colors.primaryLight },
-    sideActiveLeft: { borderLeftWidth: borderWidth.accent, borderLeftColor: colors.primary, paddingLeft: spacing.md - borderWidth.accent, paddingRight: spacing.sm, marginRight: -spacing.sm },
-    sideActiveRight: { borderRightWidth: borderWidth.accent, borderRightColor: colors.primary, paddingRight: spacing.md - borderWidth.accent, paddingLeft: spacing.sm, marginLeft: -spacing.sm },
+    sideActiveLeft: { borderLeftWidth: borderWidth.accent, borderLeftColor: colors.primary, paddingLeft: spacing.md - borderWidth.accent, paddingRight: spacing.md, marginRight: -spacing.md },
+    sideActiveRight: { borderRightWidth: borderWidth.accent, borderRightColor: colors.primary, paddingRight: spacing.md - borderWidth.accent, paddingLeft: spacing.md, marginLeft: -spacing.md },
     rowSideLeftCompact: { paddingLeft: spacing.md, paddingRight: spacing.none },
     rowSideRightCompact: { paddingLeft: spacing.none, paddingRight: spacing.md },
     // Sized to the score itself (three digits) so names get the spare width.
