@@ -47,7 +47,7 @@ export function LeagueHistory({ seasons, onRefresh, refreshing = false, trades, 
             <View style={styles.column}>
                 <SegmentedControl variant="tabs" equalWidth options={VIEW_OPTIONS} value={view} onChange={setView}
                     accessibilityLabel="History views" idBase="history-view" controlledPanelId="history-view-panel" />
-                <View nativeID="history-view-panel" role="group" accessibilityLabel={view === 'winners' ? 'Winners history section' : 'Trade History history section'} style={styles.panel}>
+                <View nativeID="history-view-panel" role="group" accessibilityLabel={view === 'winners' ? 'Winners' : 'Trade History'} style={styles.panel}>
                     {view === 'trades' ? (
                         <LeagueTradeHistory trades={trades} tradeCounts={tradeCounts} />
                     ) : !ordered.length ? (

@@ -61,6 +61,7 @@ DECLARE
   two_team uuid := gen_random_uuid(); three_team uuid := gen_random_uuid(); other_trade uuid := gen_random_uuid();
   player_one uuid := gen_random_uuid(); player_two uuid := gen_random_uuid(); player_three uuid := gen_random_uuid();
   player_four uuid := gen_random_uuid(); player_five uuid := gen_random_uuid(); player_six uuid := gen_random_uuid();
+  player_seven uuid := gen_random_uuid(); player_eight uuid := gen_random_uuid();
   traded_pick uuid := gen_random_uuid(); hidden uuid; state text;
 BEGIN
   SELECT * INTO f FROM history_fixture;
@@ -71,7 +72,9 @@ BEGIN
     (player_three, 'history-' || player_three, 'Trade', 'Player Three'),
     (player_four, 'history-' || player_four, 'Trade', 'Player Four'),
     (player_five, 'history-' || player_five, 'Trade', 'Player Five'),
-    (player_six, 'history-' || player_six, 'Other', 'League Player');
+    (player_six, 'history-' || player_six, 'Other', 'League Player'),
+    (player_seven, 'history-' || player_seven, 'Same', 'Name'),
+    (player_eight, 'history-' || player_eight, 'Same', 'Name');
   INSERT INTO public.draft_picks(id, league_id, season_year, round, original_owner_id, current_owner_id)
   VALUES(traded_pick, f.league_id, 9401, 1, f.member_ids[2], f.member_ids[2]);
   INSERT INTO public.trades(id, league_id, league_season_id, proposer_member_id, recipient_member_id, status, accepted_at, completed_at)
@@ -84,6 +87,9 @@ BEGIN
     (two_team, f.league_id, 'proposer', player_one, NULL, f.member_ids[1], f.member_ids[2]),
     (two_team, f.league_id, 'proposer', player_one, NULL, f.member_ids[1], f.member_ids[2]),
     (two_team, f.league_id, 'proposer', NULL, traded_pick, f.member_ids[1], f.member_ids[2]),
+    (two_team, f.league_id, 'proposer', player_seven, NULL, f.member_ids[1], f.member_ids[2]),
+    (two_team, f.league_id, 'proposer', player_seven, NULL, f.member_ids[1], f.member_ids[2]),
+    (two_team, f.league_id, 'proposer', player_eight, NULL, f.member_ids[1], f.member_ids[2]),
     (two_team, f.league_id, 'recipient', player_two, NULL, f.member_ids[2], f.member_ids[1]);
   INSERT INTO public.trades(id, league_id, league_season_id, proposer_member_id, recipient_member_id, status, accepted_at, completed_at)
   VALUES(three_team, f.league_id, f.season_id, f.member_ids[1], f.member_ids[2], 'completed',
@@ -143,8 +149,8 @@ BEGIN
     AND jsonb_array_length(result->'trades'->1->'participants') = 2, 'participant rows list each team once');
   PERFORM pg_temp.check_rules((SELECT array_agg(asset->>'label' ORDER BY asset->>'label')
     FROM jsonb_array_elements(result->'trades'->1->'participants') team, jsonb_array_elements(team->'received') asset
-    WHERE team->>'memberId' = f.member_ids[2]::text) = ARRAY['9401 Round 1 (orig. Rules team 2)', 'Trade Player One']::text[],
-    'asset rows list each received player and pick once');
+    WHERE team->>'memberId' = f.member_ids[2]::text) = ARRAY['9401 Round 1 (orig. Rules team 2)', 'Same Name', 'Same Name', 'Trade Player One']::text[],
+    'distinct same-name players both appear once and duplicate item rows collapse');
   PERFORM pg_temp.check_rules((SELECT jsonb_object_agg(team->>'memberId', (team->>'count')::int)
     FROM jsonb_array_elements(result->'tradeCounts') team) = jsonb_build_object(
       f.member_ids[1]::text, 2, f.member_ids[2]::text, 2, f.member_ids[3]::text, 1,

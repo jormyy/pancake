@@ -86,21 +86,24 @@ BEGIN
     JOIN public.league_members member ON member.id = participant.member_id AND member.league_id = p_league_id
     GROUP BY participant.trade_id, participant.member_id
   ), assets AS (
-    SELECT item.trade_id, item.to_member_id, 'player'::text AS kind, COALESCE(player.display_name, 'Player') AS label
+    SELECT item.trade_id, item.to_member_id, 'player'::text AS kind, COALESCE(min(player.display_name), 'Player') AS label
     FROM public.trade_items item
     JOIN public.players player ON player.id = item.player_id
     WHERE item.league_id = p_league_id AND item.player_id IS NOT NULL
-    UNION
+    GROUP BY item.trade_id, item.to_member_id, item.player_id
+    UNION ALL
     SELECT item.trade_id, item.to_member_id, 'pick',
-      pick.season_year || ' Round ' || pick.round || ' (orig. ' || COALESCE(owner.team_name, 'Team') || ')'
+      min(pick.season_year || ' Round ' || pick.round || ' (orig. ' || COALESCE(owner.team_name, 'Team') || ')')
     FROM public.trade_items item
     JOIN public.draft_picks pick ON pick.id = item.pick_id AND pick.league_id = p_league_id
     LEFT JOIN public.league_members owner ON owner.id = pick.original_owner_id AND owner.league_id = p_league_id
     WHERE item.league_id = p_league_id AND item.pick_id IS NOT NULL
-    UNION
+    GROUP BY item.trade_id, item.to_member_id, item.pick_id
+    UNION ALL
     SELECT item.trade_id, item.to_member_id, 'faab', '$' || item.faab_amount || ' FAAB'
     FROM public.trade_items item
     WHERE item.league_id = p_league_id AND item.faab_amount > 0
+    GROUP BY item.trade_id, item.to_member_id, item.faab_amount
   )
   SELECT COALESCE(jsonb_agg(jsonb_build_object(
     'id', trade.id, 'completedAt', trade.completed_at,

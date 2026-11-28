@@ -149,6 +149,7 @@ describe('League History', () => {
         const view = screen!.root.findByType(host('SegmentedControl'))
         expect(view.props.options).toEqual([{ label: 'Winners', value: 'winners' }, { label: 'Trade History', value: 'trades' }])
         expect(view.props.value).toBe('winners')
+        expect(screen!.root.findByProps({ nativeID: 'history-view-panel' }).props.accessibilityLabel).toBe('Winners')
         expect(text()).toContain('Completed Pancake seasons')
         expect(screen!.root.findAllByType(host('Card')).map(card => card.props.accessibilityLabel)).toEqual([
             'Open 2025–26 season, champion Champion 2026',
@@ -161,6 +162,7 @@ describe('League History', () => {
         await act(async () => { screen = create(React.createElement(LeagueHistory, { seasons, onRefresh: mocks.refresh, trades, tradeCounts })) })
         await act(async () => screen!.root.findByType(host('SegmentedControl')).props.onChange('trades'))
         expect(text()).toContain('Trades by manager')
+        expect(screen!.root.findByProps({ nativeID: 'history-view-panel' }).props.accessibilityLabel).toBe('Trade History')
         const managerRows = screen!.root.findAll(node => node.props.role === 'listitem' && typeof node.props.accessibilityLabel === 'string' && node.props.accessibilityLabel.includes('trade'))
         expect(managerRows.map(row => row.props.accessibilityLabel)).toEqual([
             'Champion team, 2 trades',
