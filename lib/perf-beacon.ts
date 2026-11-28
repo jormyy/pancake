@@ -125,10 +125,11 @@ function usefulContent(root: ParentNode, screen: string, visible: (element: Elem
         + (screen === 'draft' || screen === 'draft-room' ? ',[aria-label="Increase bid"],[aria-label="Search and nominate a player"],[aria-label="Pause draft"],[aria-label="Resume draft"]' : '')
         + (screen === 'rookie-draft-room' ? ',[aria-label="Show prospects"],[aria-label="Show pick board"]' : '')
     return Array.from(main.querySelectorAll(selectors))
-        .find((element) => !element.closest(excluded) && visible(element)
+        .find((element) => !element.closest(excluded)
             && (element.matches('input,textarea,[role="switch"],[aria-label="Increase bid"],[aria-label="Search and nominate a player"],[aria-label="Pause draft"],[aria-label="Resume draft"],[aria-label="Show prospects"],[aria-label="Show pick board"]') || (!element.children.length && !!element.textContent?.trim()
                 && /[\p{L}\p{N}]/u.test(element.textContent)
-                && !/^(loading|checking|calculating)(\b|…)/i.test(element.textContent.trim())))) ?? null
+                && !/^(loading|checking|calculating)(\b|…)/i.test(element.textContent.trim())))
+            && visible(element)) ?? null
 }
 
 export function observeUsefulContent(screen: string, start: number, painted: () => void, cancelled: () => void) {
