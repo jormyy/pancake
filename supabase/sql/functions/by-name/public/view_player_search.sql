@@ -118,53 +118,33 @@ WITH args AS (
     GREATEST(COALESCE(p_offset, 0), 0) AS page_offset
 ),
 current_averages AS MATERIALIZED (
-  SELECT * FROM public.player_window_averages(p_league_id, p_stats_days, p_include_player_ids)
+  SELECT player_id, season_year, avg_fantasy_points, jsonb_build_object(
+    'avg_points', avg_points, 'avg_rebounds', avg_rebounds, 'avg_assists', avg_assists,
+    'avg_steals', avg_steals, 'avg_blocks', avg_blocks, 'avg_turnovers', avg_turnovers,
+    'avg_three_pointers_made', avg_three_pointers_made, 'avg_minutes_played', avg_minutes_played,
+    'games_played', games_played) AS averages
+  FROM public.player_window_averages(p_league_id, p_stats_days, p_include_player_ids)
   WHERE p_stats_days IS NOT NULL
   UNION ALL
-  SELECT cached.player_id, cached.season_year, cached.avg_fantasy_points,
-    (cached.averages->>'avg_points')::numeric AS avg_points,
-    (cached.averages->>'avg_rebounds')::numeric AS avg_rebounds,
-    (cached.averages->>'avg_assists')::numeric AS avg_assists,
-    (cached.averages->>'avg_steals')::numeric AS avg_steals,
-    (cached.averages->>'avg_blocks')::numeric AS avg_blocks,
-    (cached.averages->>'avg_turnovers')::numeric AS avg_turnovers,
-    (cached.averages->>'avg_three_pointers_made')::numeric AS avg_three_pointers_made,
-    (cached.averages->>'avg_minutes_played')::numeric AS avg_minutes_played,
-    (cached.averages->>'games_played')::integer AS games_played
+  SELECT cached.player_id, cached.season_year, cached.avg_fantasy_points, cached.averages
   FROM public.player_season_averages cached
   WHERE p_stats_days IS NULL AND cached.league_id = p_league_id AND cached.season_year = v_stats_season
     AND v_stats_season = v_current_season AND cached.averages IS NOT NULL
     AND (p_include_player_ids IS NULL OR cached.player_id = ANY(p_include_player_ids))
 ),
 season_averages AS (
-  SELECT
-    player_id,
-    season_year,
-    avg_points,
-    avg_rebounds,
-    avg_assists,
-    avg_steals,
-    avg_blocks,
-    avg_turnovers,
-    avg_three_pointers_made,
-    avg_minutes_played,
-    games_played
-  FROM current_averages
+  SELECT player_id, season_year, averages FROM current_averages
   UNION ALL
-  SELECT
-    player_id,
-    season_year,
-    avg_points,
-    avg_rebounds,
-    avg_assists,
-    avg_steals,
-    avg_blocks,
-    avg_turnovers,
-    avg_three_pointers_made,
-    avg_minutes_played,
-    games_played
+  SELECT player_id, season_year, jsonb_build_object(
+    'avg_points', avg_points, 'avg_rebounds', avg_rebounds, 'avg_assists', avg_assists,
+    'avg_steals', avg_steals, 'avg_blocks', avg_blocks, 'avg_turnovers', avg_turnovers,
+    'avg_three_pointers_made', avg_three_pointers_made, 'avg_minutes_played', avg_minutes_played,
+    'games_played', games_played) AS averages
   FROM public.mv_player_season_averages
   WHERE p_stats_days IS NULL AND season_year = v_stats_season AND v_stats_season <> v_current_season
+),
+season_averages_filtered AS MATERIALIZED (
+  SELECT * FROM season_averages WHERE p_stats_days IS NOT NULL OR season_year = v_stats_season
 ),
 league_scores AS MATERIALIZED (
   SELECT fp.player_id, fp.avg_fantasy_points
@@ -206,20 +186,12 @@ filtered_base AS (
     p.injury_reason,
     p.injury_expected_return,
     fp.avg_fantasy_points,
-    avg.avg_points,
-    avg.avg_rebounds,
-    avg.avg_assists,
-    avg.avg_steals,
-    avg.avg_blocks,
-    avg.avg_turnovers,
-    avg.avg_three_pointers_made,
-    avg.avg_minutes_played,
-    CASE WHEN p_stats_days IS NOT NULL THEN COALESCE(avg.games_played, 0) ELSE avg.games_played END::int AS games_played
+    avg.averages,
+    CASE WHEN p_stats_days IS NOT NULL THEN COALESCE((avg.averages->>'games_played')::int, 0) ELSE (avg.averages->>'games_played')::int END AS games_played
   FROM args
   JOIN public.players AS p ON true
-  LEFT JOIN season_averages AS avg
+  LEFT JOIN season_averages_filtered AS avg
     ON avg.player_id = p.id
-   AND (p_stats_days IS NOT NULL OR avg.season_year = v_stats_season)
   LEFT JOIN score_source AS fp
     ON fp.player_id = p.id
   WHERE
@@ -253,22 +225,22 @@ paged_base AS (
           CASE WHEN p_sort_by = 'dynasty' AND filtered_base.dynasty_rank IS NULL THEN filtered_base.avg_fantasy_points END DESC NULLS LAST,
           CASE WHEN p_sort_by = 'fpts' AND p_sort_dir = 'asc' THEN filtered_base.avg_fantasy_points END ASC NULLS LAST,
           CASE WHEN p_sort_by = 'fpts' AND p_sort_dir <> 'asc' THEN filtered_base.avg_fantasy_points END DESC NULLS LAST,
-          CASE WHEN p_sort_by = 'min' AND p_sort_dir = 'asc' THEN COALESCE(filtered_base.avg_minutes_played, 0) END ASC,
-          CASE WHEN p_sort_by = 'min' AND p_sort_dir <> 'asc' THEN COALESCE(filtered_base.avg_minutes_played, 0) END DESC,
-          CASE WHEN p_sort_by = 'pts' AND p_sort_dir = 'asc' THEN COALESCE(filtered_base.avg_points, 0) END ASC,
-          CASE WHEN p_sort_by = 'pts' AND p_sort_dir <> 'asc' THEN COALESCE(filtered_base.avg_points, 0) END DESC,
-          CASE WHEN p_sort_by = 'reb' AND p_sort_dir = 'asc' THEN COALESCE(filtered_base.avg_rebounds, 0) END ASC,
-          CASE WHEN p_sort_by = 'reb' AND p_sort_dir <> 'asc' THEN COALESCE(filtered_base.avg_rebounds, 0) END DESC,
-          CASE WHEN p_sort_by = 'ast' AND p_sort_dir = 'asc' THEN COALESCE(filtered_base.avg_assists, 0) END ASC,
-          CASE WHEN p_sort_by = 'ast' AND p_sort_dir <> 'asc' THEN COALESCE(filtered_base.avg_assists, 0) END DESC,
-          CASE WHEN p_sort_by = 'stl' AND p_sort_dir = 'asc' THEN COALESCE(filtered_base.avg_steals, 0) END ASC,
-          CASE WHEN p_sort_by = 'stl' AND p_sort_dir <> 'asc' THEN COALESCE(filtered_base.avg_steals, 0) END DESC,
-          CASE WHEN p_sort_by = 'blk' AND p_sort_dir = 'asc' THEN COALESCE(filtered_base.avg_blocks, 0) END ASC,
-          CASE WHEN p_sort_by = 'blk' AND p_sort_dir <> 'asc' THEN COALESCE(filtered_base.avg_blocks, 0) END DESC,
-          CASE WHEN p_sort_by = 'tpm' AND p_sort_dir = 'asc' THEN COALESCE(filtered_base.avg_three_pointers_made, 0) END ASC,
-          CASE WHEN p_sort_by = 'tpm' AND p_sort_dir <> 'asc' THEN COALESCE(filtered_base.avg_three_pointers_made, 0) END DESC,
-          CASE WHEN p_sort_by = 'to' AND p_sort_dir = 'asc' THEN COALESCE(filtered_base.avg_turnovers, 0) END ASC,
-          CASE WHEN p_sort_by = 'to' AND p_sort_dir <> 'asc' THEN COALESCE(filtered_base.avg_turnovers, 0) END DESC,
+          CASE WHEN p_sort_by = 'min' AND p_sort_dir = 'asc' THEN COALESCE((filtered_base.averages->>'avg_minutes_played')::numeric, 0) END ASC,
+          CASE WHEN p_sort_by = 'min' AND p_sort_dir <> 'asc' THEN COALESCE((filtered_base.averages->>'avg_minutes_played')::numeric, 0) END DESC,
+          CASE WHEN p_sort_by = 'pts' AND p_sort_dir = 'asc' THEN COALESCE((filtered_base.averages->>'avg_points')::numeric, 0) END ASC,
+          CASE WHEN p_sort_by = 'pts' AND p_sort_dir <> 'asc' THEN COALESCE((filtered_base.averages->>'avg_points')::numeric, 0) END DESC,
+          CASE WHEN p_sort_by = 'reb' AND p_sort_dir = 'asc' THEN COALESCE((filtered_base.averages->>'avg_rebounds')::numeric, 0) END ASC,
+          CASE WHEN p_sort_by = 'reb' AND p_sort_dir <> 'asc' THEN COALESCE((filtered_base.averages->>'avg_rebounds')::numeric, 0) END DESC,
+          CASE WHEN p_sort_by = 'ast' AND p_sort_dir = 'asc' THEN COALESCE((filtered_base.averages->>'avg_assists')::numeric, 0) END ASC,
+          CASE WHEN p_sort_by = 'ast' AND p_sort_dir <> 'asc' THEN COALESCE((filtered_base.averages->>'avg_assists')::numeric, 0) END DESC,
+          CASE WHEN p_sort_by = 'stl' AND p_sort_dir = 'asc' THEN COALESCE((filtered_base.averages->>'avg_steals')::numeric, 0) END ASC,
+          CASE WHEN p_sort_by = 'stl' AND p_sort_dir <> 'asc' THEN COALESCE((filtered_base.averages->>'avg_steals')::numeric, 0) END DESC,
+          CASE WHEN p_sort_by = 'blk' AND p_sort_dir = 'asc' THEN COALESCE((filtered_base.averages->>'avg_blocks')::numeric, 0) END ASC,
+          CASE WHEN p_sort_by = 'blk' AND p_sort_dir <> 'asc' THEN COALESCE((filtered_base.averages->>'avg_blocks')::numeric, 0) END DESC,
+          CASE WHEN p_sort_by = 'tpm' AND p_sort_dir = 'asc' THEN COALESCE((filtered_base.averages->>'avg_three_pointers_made')::numeric, 0) END ASC,
+          CASE WHEN p_sort_by = 'tpm' AND p_sort_dir <> 'asc' THEN COALESCE((filtered_base.averages->>'avg_three_pointers_made')::numeric, 0) END DESC,
+          CASE WHEN p_sort_by = 'to' AND p_sort_dir = 'asc' THEN COALESCE((filtered_base.averages->>'avg_turnovers')::numeric, 0) END ASC,
+          CASE WHEN p_sort_by = 'to' AND p_sort_dir <> 'asc' THEN COALESCE((filtered_base.averages->>'avg_turnovers')::numeric, 0) END DESC,
           CASE WHEN p_sort_by = 'gp' AND p_sort_dir = 'asc' THEN COALESCE(filtered_base.games_played, 0) END ASC,
           CASE WHEN p_sort_by = 'gp' AND p_sort_dir <> 'asc' THEN COALESCE(filtered_base.games_played, 0) END DESC,
           filtered_base.display_name ASC,
@@ -305,14 +277,14 @@ SELECT
   pb.nba_id,
   pb.years_exp,
   pb.avg_fantasy_points,
-  pb.avg_points,
-  pb.avg_rebounds,
-  pb.avg_assists,
-  pb.avg_steals,
-  pb.avg_blocks,
-  pb.avg_turnovers,
-  pb.avg_three_pointers_made,
-  pb.avg_minutes_played,
+  (pb.averages->>'avg_points')::numeric,
+  (pb.averages->>'avg_rebounds')::numeric,
+  (pb.averages->>'avg_assists')::numeric,
+  (pb.averages->>'avg_steals')::numeric,
+  (pb.averages->>'avg_blocks')::numeric,
+  (pb.averages->>'avg_turnovers')::numeric,
+  (pb.averages->>'avg_three_pointers_made')::numeric,
+  (pb.averages->>'avg_minutes_played')::numeric,
   pb.games_played,
   proj.projection_fantasy_points,
   proj.projection_source,
