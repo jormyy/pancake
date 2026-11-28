@@ -393,6 +393,7 @@ function MatchupRowImpl({
     const oppStats = oppPlayer ? liveStats.get(oppPlayer.playerId) : undefined
     // IR and taxi players don't score, so their rows skip the LIVE tag (and keep room for the team).
     const reserveSlot = slotType === 'IR' || slotType === 'TX'
+    const starterSlot = !reserveSlot && slotType !== 'BE'
     const myIsLive = !reserveSlot && myPlayer?.nbaTeam ? liveTeams.has(myPlayer.nbaTeam) : false
     const oppIsLive = !reserveSlot && oppPlayer?.nbaTeam ? liveTeams.has(oppPlayer.nbaTeam) : false
     const myIsFinal = !reserveSlot && myPlayer?.nbaTeam ? teamMatchups.get(myPlayer.nbaTeam)?.status === 'Final' : false
@@ -414,7 +415,7 @@ function MatchupRowImpl({
                     dense && styles.matchupRowDense,
                 ]}
             >
-            <View style={[styles.rowSideLeft, compact && styles.rowSideLeftCompact, myActive && styles.sideActive, myActive && styles.sideActiveLeft]}>
+            <View style={[styles.rowSideLeft, compact && styles.rowSideLeftCompact, myActive && styles.sideActive, myActive && styles.sideActiveLeft, myActive && starterSlot && styles.starterActiveLeft]}>
                 <PlayerSide
                     side="left"
                     player={myPlayer}
@@ -451,7 +452,7 @@ function MatchupRowImpl({
                 </Text>
             </View>
 
-            <View style={[styles.rowSideRight, compact && styles.rowSideRightCompact, oppActive && styles.sideActive, oppActive && styles.sideActiveRight]}>
+            <View style={[styles.rowSideRight, compact && styles.rowSideRightCompact, oppActive && styles.sideActive, oppActive && styles.sideActiveRight, oppActive && starterSlot && styles.starterActiveRight]}>
                 <PlayerSide
                     side="right"
                     player={oppPlayer}
@@ -508,7 +509,9 @@ const styles = StyleSheet.create({
     rowSideRight: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', paddingRight: spacing.sm },
     sideActive: { alignSelf: 'stretch', backgroundColor: colors.primaryLight },
     sideActiveLeft: { borderLeftWidth: borderWidth.accent, borderLeftColor: colors.primary, paddingLeft: spacing.md - borderWidth.accent, paddingRight: spacing.sm, marginRight: -spacing.sm },
+    starterActiveLeft: { paddingRight: spacing.md, marginRight: -spacing.md },
     sideActiveRight: { borderRightWidth: borderWidth.accent, borderRightColor: colors.primary, paddingRight: spacing.md - borderWidth.accent, paddingLeft: spacing.sm, marginLeft: -spacing.sm },
+    starterActiveRight: { paddingLeft: spacing.md, marginLeft: -spacing.md },
     rowSideLeftCompact: { paddingLeft: spacing.md, paddingRight: spacing.none },
     rowSideRightCompact: { paddingLeft: spacing.none, paddingRight: spacing.md },
     // Sized to the score itself (three digits) so names get the spare width.
