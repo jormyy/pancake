@@ -20,9 +20,7 @@ export function LeagueTradeHistory({ trades, tradeCounts }: {
                 <Text role="heading" accessibilityRole="header" style={textStyles.pageTitle}>Trade history</Text>
                 <Text style={textStyles.meta}>Completed trades across every season</Text>
             </View>
-            <View style={styles.copy}>
-                <Text role="heading" accessibilityRole="header" style={textStyles.rowTitle}>Trades by manager</Text>
-            </View>
+            <Text role="heading" accessibilityRole="header" style={textStyles.rowTitle}>Trades by manager</Text>
             <Card padding="none" elevated="none" style={styles.table}>
                 <ListHeader style={styles.row}>
                     <Text style={[textStyles.tableHeader, styles.team]}>Manager</Text>

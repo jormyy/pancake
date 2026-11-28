@@ -21,7 +21,9 @@ const me = members.find(row => row.user_id === state.users[0].id)
 const other = members.find(row => row.user_id === state.users[1].id)
 const third = members.find(row => row.user_id === state.users[2].id)
 const fourth = members.find(row => row.user_id === state.users[3].id)
-assert.ok(third && fourth, 'Trade history fixture requires at least four seeded managers')
+const fifth = members.find(row => row.user_id === state.users[4].id)
+assert.ok(third && fourth && fifth, 'Trade history fixture requires at least five seeded managers')
+assert.ok(state.users[5], 'Trade history fixture requires six seeded users')
 const season = await checked(admin.from('league_seasons').select('*').eq('league_id', state.leagueId).eq('is_current', true).single())
 const draft = await checked(admin.from('drafts').select('id').eq('league_id', state.leagueId).eq('draft_type', 'auction').single())
 await ensureSyntheticSeasonWeeks(admin, season.season_year, 26, 'verification')
@@ -90,7 +92,7 @@ execFileSync('psql', [env.SUPABASE_DB_URL, '-X', '-v', 'ON_ERROR_STOP=1', '-f', 
       ('${threeTeamTradeId}', '${state.leagueId}', 'recipient', '${players[22].id}', '${other.id}', '${third.id}'),
       ('${threeTeamTradeId}', '${state.leagueId}', 'recipient', '${players[32].id}', '${third.id}', '${me.id}');
     INSERT INTO public.trades(league_id, league_season_id, proposer_member_id, recipient_member_id, status)
-    SELECT '${state.leagueId}', '${season.id}', '${fourth.id}', '${members.find(row => row.user_id === state.users[4].id).id}', state::public.trade_status
+    SELECT '${state.leagueId}', '${season.id}', '${fourth.id}', '${fifth.id}', state::public.trade_status
     FROM unnest(ARRAY['pending', 'rejected', 'withdrawn', 'vetoed', 'expired']) AS state;
     INSERT INTO public.leagues(id, name, slug, commissioner_id, status)
     VALUES('${otherLeagueId}', 'History Other League', 'history-other-${Date.now()}', '${state.users[4].id}', 'active');

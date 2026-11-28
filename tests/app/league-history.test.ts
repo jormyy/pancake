@@ -47,7 +47,6 @@ vi.mock('@/components/league/LeaguePicksBank', () => ({ PicksBankList: 'PicksBan
 vi.mock('@/components/league/LeagueMoreCard', () => ({ LeagueMoreCard: 'LeagueMoreCard' }))
 vi.mock('@/components/NoLeagueState', () => ({ NoLeagueState: 'NoLeagueState' }))
 vi.mock('@/components/league/prefetchLeagueViews', () => ({ prefetchLeagueViews: mocks.prefetch }))
-vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => ({ current: { id: 'member' }, currentLeague: { id: 'league' } }) }))
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 

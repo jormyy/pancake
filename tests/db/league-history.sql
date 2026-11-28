@@ -106,9 +106,9 @@ BEGIN
     hidden := gen_random_uuid();
     INSERT INTO public.trades(id, league_id, league_season_id, proposer_member_id, recipient_member_id, status)
     VALUES(hidden, f.league_id, f.season_id, f.member_ids[4], f.member_ids[1], state::public.trade_status);
-    INSERT INTO public.trades(id, league_id, league_season_id, proposer_member_id, recipient_member_id, status, completed_at)
-    VALUES(gen_random_uuid(), f.league_id, f.season_id, f.member_ids[4], f.member_ids[5], 'completed', NULL);
   END LOOP;
+  INSERT INTO public.trades(id, league_id, league_season_id, proposer_member_id, recipient_member_id, status, completed_at)
+  VALUES(gen_random_uuid(), f.league_id, f.season_id, f.member_ids[4], f.member_ids[5], 'completed', NULL);
   INSERT INTO public.trades(id, league_id, league_season_id, proposer_member_id, recipient_member_id, status, accepted_at, completed_at)
   VALUES(other_trade, other_f.league_id, other_f.season_id, other_f.member_ids[1], other_f.member_ids[2], 'completed',
       timestamptz '9400-02-01 12:00+00', timestamptz '9400-02-01 13:00+00');

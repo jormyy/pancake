@@ -41,9 +41,3 @@ export type ManagerTradeCount = {
     teamName: string
     count: number
 }
-
-export type LeagueHistoryView = {
-    seasons?: SeasonHistory[]
-    trades?: CompletedTradeHistory[]
-    tradeCounts?: ManagerTradeCount[]
-}
