@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261228000000",
+  "candidateVersion": "20261231000100",
   "common": {
     "functions": [
       {
@@ -2855,6 +2855,22 @@
     {
       "filename": "20261228000000_rookie_draft_selection.sql",
       "sha256": "4d56e61a218f699739c50d487de6583e0caae5e55c234cd91393bdcbe259a312"
+    },
+    {
+      "filename": "20261229000000_league_history_trades.sql",
+      "sha256": "ff22ec6b668190df7e7c9bd6c9272e8b7a48f6d94da81c4a0fab9b7838201747"
+    },
+    {
+      "filename": "20261230000000_league_history_asset_identity.sql",
+      "sha256": "76f996e7bc628184bfa3aad15453f35a6a39b81933873257472d589be38ad42c"
+    },
+    {
+      "filename": "20261231000000_live_score_basis_batch_points.sql",
+      "sha256": "41ad4973c78503603ad86fa2b22e378682b0c74042e2ada57c76976eedfd3124"
+    },
+    {
+      "filename": "20261231000100_player_search_averages.sql",
+      "sha256": "521f5ac6a407a5615ae4896636710197db9bc7519064962c5a6f58c13a2ba712"
     }
   ],
   "preMigration": {

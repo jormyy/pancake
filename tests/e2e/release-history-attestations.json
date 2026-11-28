@@ -3858,6 +3858,34 @@
       "statementCount": 45,
       "statementsSha256": "b11216b8a4511562d2f05b3e4e81e2bde373141d01b821fed140725b8130fa18",
       "sha256": "4d56e61a218f699739c50d487de6583e0caae5e55c234cd91393bdcbe259a312"
+    },
+    {
+      "name": "league_history_trades",
+      "version": "20261229000000",
+      "statementCount": 3,
+      "statementsSha256": "c9cef33713baabe9b9f8996b3aceff7c93d1bdf36a9c5a05515c1b496627e307",
+      "sha256": "ff22ec6b668190df7e7c9bd6c9272e8b7a48f6d94da81c4a0fab9b7838201747"
+    },
+    {
+      "name": "league_history_asset_identity",
+      "version": "20261230000000",
+      "statementCount": 3,
+      "statementsSha256": "07b7cc9a3e2a856bf370d99ee6b0b70584e5f162fb1eba6a53dc1d1e62d4a12c",
+      "sha256": "76f996e7bc628184bfa3aad15453f35a6a39b81933873257472d589be38ad42c"
+    },
+    {
+      "name": "live_score_basis_batch_points",
+      "version": "20261231000000",
+      "statementCount": 6,
+      "statementsSha256": "80489074b091c106f3d080920f675a1f8d5df9a4259252b98137a3166079c587",
+      "sha256": "41ad4973c78503603ad86fa2b22e378682b0c74042e2ada57c76976eedfd3124"
+    },
+    {
+      "name": "player_search_averages",
+      "version": "20261231000100",
+      "statementCount": 4,
+      "statementsSha256": "50ca9d55e7e41878e9baa359e4d784ffaf1ed0ce2e23fc12d53ba5081ecf1008",
+      "sha256": "521f5ac6a407a5615ae4896636710197db9bc7519064962c5a6f58c13a2ba712"
     }
   ]
 }
