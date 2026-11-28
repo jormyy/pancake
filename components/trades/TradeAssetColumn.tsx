@@ -51,7 +51,7 @@ function PlayerRow({
 
     return (
         <View style={[styles.playerRow, selected && styles.playerRowSelected]}>
-            <TradePlayerLink compact playerId={p.id} name={p.display_name} nbaId={p.nba_id} team={p.nba_team} positions={positions}
+            <TradePlayerLink compact showTags playerId={p.id} name={p.display_name} nbaId={p.nba_id} team={p.nba_team} positions={positions}
                 birthdate={p.birthdate} yearsExp={p.years_exp} careerGames={p.career_regular_season_games} injuryStatus={p.injury_status}
                 stats={<Text style={styles.playerContext} numberOfLines={1}>{blocked && !selected ? 'Already routed' : statText}</Text>} />
             <LockedAssetNotice locks={locks} />
