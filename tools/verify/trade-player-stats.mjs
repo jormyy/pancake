@@ -35,6 +35,7 @@ const wait = async check => {
   }
   throw new Error('Visible expected state did not arrive')
 }
+const hasDialog = text => /- dialog(?: "[^"]*")?:/.test(text)
 const buttons = text => [...text.matchAll(/- button "([^"]+)"/g)].map(match => match[1])
 const matchingButton = async pattern => {
   const text = await wait(text => buttons(text).some(name => pattern.test(name)))
@@ -61,14 +62,13 @@ const probe = async (label, name, target = { name: `View ${name} stats` }, empty
   assert.equal(before.inputMode, width < 960 ? 'touch' : 'mouse', 'Use touch input at phone sizes and desktop input at desktop size')
   if (key) await command('key', key)
   else await click(target)
-  await wait(text => text.includes(`heading "${name}" [level=1]`) && !text.includes('- dialog:'))
+  await wait(text => text.includes(`heading "${name}" [level=1]`) && !hasDialog(text))
   const stats = await command('observe')
   assert.ok(fixture.playerIdsByName[name], 'Player identity fixture must exist')
   assert.equal(new URL(stats.url).pathname, `/player/${fixture.playerIdsByName[name]}`)
   if (empty) {
     assert.equal(new URL(stats.url).pathname, `/player/${fixture.noStatsPlayerId}`)
-    await click('Game log')
-    await wait(text => text.includes('No games available.'))
+    await wait(text => text.includes('No games yet'))
   }
   await capture(label + '-stats')
   await click('Back')
@@ -115,39 +115,43 @@ const cardTarget = (tradeId, name) => ({ selector: `div:has(> [data-testid="trad
 const add = name => click(`Add ${name} to trade`)
 const builderTarget = (memberId, name) => ({ selector: `div:has(> [aria-label="View ${name} stats"]):has(> [data-testid="trade-remove-${memberId}-player-${fixture.playerIdsByName[name]}"]) > [aria-label="View ${name} stats"]` })
 const openAssets = async memberId => {
+  await pause(400)
   await click({ selector: `[data-testid="trade-add-assets-${memberId}"]` })
-  await wait(text => text.includes('- dialog:') && /button "(Add|Remove) [^"]+ (to|from) trade"/.test(text))
+  await wait(text => hasDialog(text) && /button "(Add|Remove) [^"]+ (to|from) trade"/.test(text))
 }
 const closeSheet = async () => {
   await command('key', 'Escape')
-  await wait(text => !text.includes('- dialog:'))
+  await wait(text => !hasDialog(text))
 }
 const choosePartner = async teamName => {
-  const text = await snapshot()
+  const text = await wait(text => text.includes('Choose a team to trade with') || text.includes('Add another team to this trade'))
   await click(text.includes('Choose a team to trade with') ? 'Choose a team to trade with' : 'Add another team to this trade')
   await click(`Trade with ${teamName}`)
-  await wait(text => !text.includes('- dialog:'))
+  await wait(text => !hasDialog(text))
 }
 const exerciseColumnSelection = async label => {
-  await openAssets(fixture.memberId)
   const name = 'E2E Player003'
   const id = `trade-${fixture.memberId}-player-${fixture.playerIdsByName[name]}`
   const target = { selector: `[data-testid="${id}"]` }
   const sendersBefore = await readSenderControls(label + '-column-before')
+  const proposalBefore = await command('observe')
+  await openAssets(fixture.memberId)
   await command('scroll', JSON.stringify(target))
   await capture(label + '-column-selection-before')
   const before = await command('observe')
   assert.equal(before.targets.find(target => target.testID === id)?.selected, 'false')
   await click(target)
-  await wait(text => text.includes(`Remove ${name} from trade`))
+  await wait(text => !hasDialog(text) && text.includes(`Remove ${name} from trade`))
   const added = await command('observe')
   assert.equal(added.url, before.url, label + ' Add does not navigate')
-  assert.equal(added.targets.find(target => target.testID === id)?.selected, 'true')
+  assert.ok(added.targets.some(target => target.testID === `trade-remove-${fixture.memberId}-player-${fixture.playerIdsByName[name]}`), label + ' Add closes the picker onto the proposal')
   const unrelated = state => controlState(state.controls.filter(control => !control.label?.includes(name)))
-  assert.deepEqual(unrelated(added), unrelated(before), label + ' Add preserves other draft state')
+  assert.deepEqual(unrelated(added), unrelated(proposalBefore), label + ' Add preserves other draft state')
   const sendersAdded = await readSenderControls(label + '-column-added')
   assertTradeSenderStates(sendersBefore, sendersAdded, name)
   await capture(label + '-column-selection-added')
+  await openAssets(fixture.memberId)
+  await command('scroll', JSON.stringify(target))
   await click(target)
   await wait(text => text.includes(`Add ${name} to trade`))
   const restored = await command('observe')
@@ -187,10 +191,13 @@ const selection = async () => {
   const touch = state.targets.find(target => target.label === state.focus)
   assert.ok(touch.width >= 44 && touch.height >= 44)
   await command('key', 'Space')
-  await wait(text => text.includes('Remove E2E Player003 from trade'))
+  await wait(text => !hasDialog(text) && text.includes('Remove E2E Player003 from trade'))
+  assert.equal((await command('observe')).url, before.url)
+  await openAssets(fixture.memberId)
+  const toggleId = `trade-${fixture.memberId}-player-${fixture.playerIdsByName['E2E Player003']}`
+  await command('focus', JSON.stringify({ selector: `[data-testid="${toggleId}"]` }))
   state = await command('observe')
-  assert.equal(state.url, before.url)
-  assert.equal(state.targets.find(target => target.label === 'Remove E2E Player003 from trade').selected, 'true')
+  assert.equal(state.targets.find(target => target.testID === toggleId).selected, 'true')
   const prefix = `trade-${fixture.memberId}-player-`
   const controls = state.targets.filter(target => target.testID?.startsWith(prefix))
   assert.ok(controls.some(target => target.label.startsWith('Add ')) && controls.some(target => target.label.startsWith('Remove ')))
@@ -212,10 +219,12 @@ const proposal = async () => {
   await openAssets(fixture.memberId)
   await selection()
   await add('E2E Player003')
+  await wait(text => !hasDialog(text))
+  await openAssets(fixture.memberId)
   const pick = await matchingButton(/^Select .* pick via E2E Team 1 for trade$/)
   await click(pick)
-  await closeSheet()
   await fill('[aria-label="FAAB sent by E2E Team 1 to E2E Team 2"]', '7')
+  await closeSheet()
   await fill('[placeholder="Add a message to your trade offer..."]', `Keep these choices ${width}`)
   await probe('propose-name', 'E2E Player003', { selector: builderTarget(fixture.memberId, 'E2E Player003').selector + ' [data-testid="player-name-line"]' }, true)
   await probe('propose-photo', 'E2E Player003', { selector: builderTarget(fixture.memberId, 'E2E Player003').selector + ' [data-testid="player-row-avatar"]' })
@@ -244,7 +253,7 @@ const existingOffers = async () => {
   await probe('received-details', 'E2E Player022', { name: 'View E2E Player022 stats', index: width >= 960 ? 1 : 0 })
   if (width < 960) await click('Back to trades')
   await click({ name: 'Accept trade with E2E Team 2', index: 0 })
-  await wait(text => text.includes('- dialog:') && text.includes('Valid roster'))
+  await wait(text => hasDialog(text) && text.includes('Valid roster'))
   await click({ role: 'radio', name: 'Drop E2E Player004 at completion' })
   await probe('accept-review', 'E2E Player022', { selector: '[role="dialog"] [aria-label="View E2E Player022 stats"]' })
   await probe('accept-roster-plan', 'E2E Player004', { selector: '[role="dialog"] [aria-label="Open E2E Player004"]' })
@@ -294,7 +303,7 @@ const multi = async () => {
   await closeSheet()
   await click(await matchingButton(/^Choose who receives E2E Player003\./))
   await click(`Route E2E Player003 to ${fixture.thirdTeamName}`)
-  await wait(text => !text.includes('- dialog:'))
+  await wait(text => !hasDialog(text))
   await fill('[aria-label="FAAB sent by E2E Team 1 to E2E Team 2"]', '9')
   await fill('[placeholder="Add a message to your trade offer..."]', 'Keep multi-team routes')
   await probe('selected-routes', 'E2E Player003', builderTarget(fixture.memberId, 'E2E Player003'))
@@ -306,7 +315,7 @@ const multi = async () => {
   assert.ok(thirdAssets, 'The third team has its own card')
   const openThird = async () => {
     await click({ selector: `[data-testid="${thirdAssets.testID}"]` })
-    await wait(text => text.includes('- dialog:'))
+    await wait(text => hasDialog(text))
   }
   await openThird()
   await add('E2E Player041')

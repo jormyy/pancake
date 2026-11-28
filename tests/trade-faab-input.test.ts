@@ -6,7 +6,9 @@ import { MAX_TRADE_FAAB_DIGITS } from '@/lib/multi-team-trade-state'
 import { MAX_TRADE_FAAB_AMOUNT } from '@pancake/core'
 import type { TradeParticipantView } from '@/lib/trade-ui-model'
 
+const navigation = vi.hoisted(() => ({ focused: true }))
 vi.mock('expo-router', () => ({ useRouter: () => ({ push: vi.fn() }) }))
+vi.mock('@react-navigation/native', () => ({ useIsFocused: () => navigation.focused }))
 vi.mock('react-native', () => ({
     Platform: { OS: 'ios' },
     Pressable: 'Pressable',
@@ -21,38 +23,38 @@ vi.mock('@expo/vector-icons/MaterialIcons', () => ({ default: 'MaterialIcons' })
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
-const renderPanel = async (value: string, onFaabChange = vi.fn()) => {
+const renderPanel = async (value: string, onFaabChange = vi.fn(), selectedPlayerIds = new Set<string>(), onTogglePlayer = vi.fn(), onTogglePick = vi.fn()) => {
     const participant: TradeParticipantView = {
         memberId: 'me',
         destinationIds: ['them'],
         defaultDestinationId: 'them',
         roster: [],
         picks: [],
-        selectedPlayerIds: new Set(),
+        selectedPlayerIds,
         selectedPickIds: new Set(),
         playerDestinationIds: {},
         pickDestinationIds: {},
         faabInputs: { them: value },
     }
     let renderer!: ReactTestRenderer
-    await act(async () => {
-        renderer = create(React.createElement(ParticipantTradePanel, {
-            participant,
-            myMemberId: 'me',
-            faabEnabled: true,
-            avgMap: new Map(),
-            avgStatsMap: new Map(),
-            participantName: (memberId: string) => memberId,
-            onTogglePlayer: vi.fn(),
-            onTogglePick: vi.fn(),
-            blockedPlayerIds: new Set<string>(),
-            blockedPickIds: new Set<string>(),
-            onPlayerDestinationChange: vi.fn(),
-            onPickDestinationChange: vi.fn(),
-            onFaabChange,
-        }))
+    const element = () => React.createElement(ParticipantTradePanel, {
+        participant,
+        myMemberId: 'me',
+        faabEnabled: true,
+        avgMap: new Map(),
+        avgStatsMap: new Map(),
+        participantName: (memberId: string) => memberId,
+        onTogglePlayer,
+        onTogglePick,
+        blockedPlayerIds: new Set<string>(),
+        blockedPickIds: new Set<string>(),
+        onPlayerDestinationChange: vi.fn(),
+        onPickDestinationChange: vi.fn(),
+        onFaabChange,
     })
-    return { renderer, onFaabChange }
+    await act(async () => { renderer = create(element()) })
+    const rerender = () => act(async () => { renderer.update(element()) })
+    return { renderer, onFaabChange, rerender }
 }
 
 const openAddSheet = async (renderer: ReactTestRenderer) => {
@@ -143,6 +145,43 @@ describe('trade FAAB input', () => {
 
         expect(input.props.maxLength).toBe(MAX_TRADE_FAAB_DIGITS)
         expect(fabricReplacement(input.props.maxLength, '', 0, '99999999')).toBe('9999999')
+        await act(async () => { renderer.unmount() })
+    })
+})
+
+describe('trade asset picker', () => {
+    const sheet = (renderer: ReactTestRenderer) => renderer.root.findAll((node) => (node.type as unknown) === 'Sheet')[0]
+    const column = (renderer: ReactTestRenderer) => renderer.root.findByType('TradeAssetColumn' as React.ElementType)
+
+    it('adds a player once and closes, while removing a player or choosing a pick keeps the picker open', async () => {
+        const onTogglePlayer = vi.fn()
+        const onTogglePick = vi.fn()
+        const { renderer } = await renderPanel('', vi.fn(), new Set(['kept']), onTogglePlayer, onTogglePick)
+        await openAddSheet(renderer)
+        await act(async () => { column(renderer).props.onTogglePlayer('kept') })
+        await act(async () => { column(renderer).props.onTogglePick('pick-1') })
+        expect(sheet(renderer).props.visible).toBe(true)
+        await act(async () => {
+            column(renderer).props.onTogglePlayer('new')
+            column(renderer).props.onTogglePlayer('new')
+        })
+        expect(sheet(renderer).props.visible).toBe(false)
+        expect(onTogglePlayer.mock.calls).toEqual([['me', 'kept'], ['me', 'new']])
+        expect(onTogglePick.mock.calls).toEqual([['me', 'pick-1']])
+        await openAddSheet(renderer)
+        expect(sheet(renderer).props.visible).toBe(true)
+        await act(async () => { renderer.unmount() })
+    })
+
+    it('suspends the open picker while a player profile covers the trade and resumes it on return', async () => {
+        const { renderer, rerender } = await renderPanel('')
+        await openAddSheet(renderer)
+        navigation.focused = false
+        await rerender()
+        expect(sheet(renderer).props).toMatchObject({ visible: true, suspended: true })
+        navigation.focused = true
+        await rerender()
+        expect(sheet(renderer).props).toMatchObject({ visible: true, suspended: false })
         await act(async () => { renderer.unmount() })
     })
 })

@@ -1,6 +1,7 @@
-import { useState } from 'react'
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
+import { useRef, useState } from 'react'
+import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
+import { useIsFocused } from '@react-navigation/native'
 import { orderTradeAssets, tradeRosterAssetOrder } from '@/lib/trade-assets'
 import { TradePlayerLink } from '@/components/trades/TradePlayerLink'
 import { TradeAssetColumn } from '@/components/trades/TradeAssetColumn'
@@ -16,6 +17,15 @@ import { canUpdateTradeFaabInput, MAX_TRADE_FAAB_DIGITS, validateTradeFaabInput 
 import type { TradeParticipantView } from '@/lib/trade-ui-model'
 
 const SEARCH_THRESHOLD = 8
+const TAP_THROUGH_MS = 350
+const TAP_EVENTS = ['pointerdown', 'pointerup', 'touchstart', 'touchend', 'mousedown', 'mouseup', 'click'] as const
+
+function blockTapThrough() {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return
+    const stop = (event: Event) => { event.stopImmediatePropagation(); if (event.cancelable) event.preventDefault() }
+    for (const type of TAP_EVENTS) window.addEventListener(type, stop, { capture: true, passive: false })
+    window.setTimeout(() => { for (const type of TAP_EVENTS) window.removeEventListener(type, stop, { capture: true }) }, TAP_THROUGH_MS)
+}
 
 type RouteTarget = { asset: 'player' | 'pick'; id: string; label: string }
 
@@ -57,6 +67,8 @@ export function ParticipantTradePanel({
     const [adding, setAdding] = useState(false)
     const [query, setQuery] = useState('')
     const [routing, setRouting] = useState<RouteTarget | null>(null)
+    const focused = useIsFocused()
+    const playerChosen = useRef(false)
     const memberId = participant.memberId
     const mine = memberId === myMemberId
     const teamName = participantName(memberId)
@@ -74,7 +86,17 @@ export function ParticipantTradePanel({
     const roster = search
         ? participant.roster.filter((row) => row.players.display_name.toLowerCase().includes(search))
         : participant.roster
+    const openAdding = () => { playerChosen.current = false; setAdding(true) }
     const closeAdding = () => { setAdding(false); setQuery('') }
+    const choosePlayer = (playerId: string) => {
+        if (playerChosen.current) return
+        const added = !participant.selectedPlayerIds.has(playerId)
+        onTogglePlayer(memberId, playerId)
+        if (!added) return
+        playerChosen.current = true
+        blockTapThrough()
+        closeAdding()
+    }
 
     const routeChip = (target: RouteTarget, destinationId: string | undefined) => showRoutes ? (
         <Pressable
@@ -191,7 +213,7 @@ export function ParticipantTradePanel({
                         <View style={styles.assetLine}>
                             <Pressable
                                 style={styles.faabSummary}
-                                onPress={() => setAdding(true)}
+                                onPress={openAdding}
                                 accessibilityRole="button"
                                 accessibilityLabel={`Edit ${amountLabel} sent by ${teamName} to ${toName}`}
                                 testID={`trade-faab-edit-${memberId}-${destinationId}`}
@@ -218,7 +240,7 @@ export function ParticipantTradePanel({
             }) : null}
             <Pressable
                 style={styles.addRow}
-                onPress={() => setAdding(true)}
+                onPress={openAdding}
                 accessibilityRole="button"
                 accessibilityLabel={`${addLabel} from ${mine ? 'your team' : teamName}`}
                 testID={`trade-add-assets-${memberId}`}
@@ -228,7 +250,7 @@ export function ParticipantTradePanel({
                 <Text style={styles.addText} numberOfLines={1}>{addLabel}</Text>
             </Pressable>
 
-            <Sheet visible={adding} title={`${mine ? 'Your' : teamName} ${faabEnabled ? 'players, picks and FAAB' : 'players and picks'}`} onClose={closeAdding}>
+            <Sheet visible={adding} suspended={!focused} title={`${mine ? 'Your' : teamName} ${faabEnabled ? 'players, picks and FAAB' : 'players and picks'}`} onClose={closeAdding}>
                 {adding ? (
                     <View style={styles.sheetBody}>
                         {participant.roster.length > SEARCH_THRESHOLD ? (
@@ -245,7 +267,7 @@ export function ParticipantTradePanel({
                             selectedPickIds={participant.selectedPickIds}
                             blockedPlayerIds={blockedPlayerIds}
                             blockedPickIds={blockedPickIds}
-                            onTogglePlayer={(playerId) => onTogglePlayer(memberId, playerId)}
+                            onTogglePlayer={choosePlayer}
                             onTogglePick={(pickId) => onTogglePick(memberId, pickId)}
                             emptyText={search ? 'No matching players.' : 'No tradeable active players.'}
                             testIdPrefix={`trade-${memberId}`}

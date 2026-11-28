@@ -13,6 +13,7 @@ Managers build offers, review assets, analyze trades, and manage received or sen
 - `trade-player-stats` opens existing profiles and keeps selection separate.
 - `trade-roster-holds` warns about, undoes, and releases the roster room an accepted trade needs.
 - `trade-grouping` shows Propose Trade and Review grouped by receiving team and keeps the builder steady while editing.
+- `trade-picker` shows age and experience in the Add players, picks and FAAB picker, closes it on a player Add, and keeps it through a profile preview.
 
 ## How to get to it (user POV)
 
@@ -82,6 +83,14 @@ Capture names must be unique within a viewport; column-selection evidence uses a
 `tradePlayerOrder` records the three imported values and expected identities; the visible builder observation proves their order.
 
 
+**Trade picker.** Open either side's Add players, picks and FAAB control at 390×844 and 375×812.
+Player rows use the Roster tags: `R` for a rookie, the age, and `Yr N` from `years_exp + 1`; an unknown age or experience shows no tag, never `R` or `Yr 1`.
+The seed gives no birthdates and only rookies or `years_exp=3`, so set a rookie, an unknown and a veteran on both teams in the disposable database first.
+Search, scroll the picker list, open a fully visible player's profile, then return with the profile's Back and with browser Back.
+Require the same side's picker with the same search text, list scroll offset, draft assets, FAAB and notes, and nothing added.
+Tap Add and require the picker gone at once, the player once on that side of the proposal, and every earlier asset intact; reopen and require the picker again.
+A rapid double tap on Add still adds once. Choosing a pick or editing FAAB keeps the picker open.
+
 **Trade grouping.** Run `node tools/verify/trade-grouping.mjs "$EVIDENCE" --label=<name> --teams=2|3 --width=<w> --height=<h> [--details=1]`.
 It opens its own headless WebKit touch context, signs in through the form, builds a draft through visible controls, and never sends it.
 Propose Trade shows `You get` and `<team> gets` sections above Trade value; every row says `From <team>`. Review shows the same sections inside the Draft card, with Trade value directly under it and no Details toggle.
@@ -98,3 +107,5 @@ Each run writes `trade-grouping-<label>-<teams>team-<width>[-details]-receipt.js
 - Review ownership and destination for every asset; two columns that merely render are insufficient proof.
 - Capture builder and review at both widths. The team columns must remain readable.
 - The routing sheet names your own team by team name, while the grouped sections call it `You`.
+- After a player Add closes the picker, the web page ignores taps for 350 ms so a double tap cannot reach the proposal; wait before the next tap.
+- Tap only a fully visible picker row; the browser scrolls a half-hidden row into view first, which changes the offset you compare.

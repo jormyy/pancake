@@ -1,5 +1,5 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
-import { ReactNode, useEffect, useId } from 'react'
+import { ReactNode, useEffect, useId, useRef } from 'react'
 import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { breakpoints, colors, controlSize, componentTokens, elevation, radii, scrim, spacing } from '@/constants/tokens'
@@ -14,12 +14,14 @@ type WebKeyDownProps = { onKeyDown?: (event: DialogKeyboardEvent) => void }
  */
 export function Sheet({
     visible,
+    suspended = false,
     title,
     accessibilityLabel,
     onClose,
     children,
 }: {
     visible: boolean
+    suspended?: boolean
     title?: string
     accessibilityLabel?: string
     onClose: () => void
@@ -31,14 +33,25 @@ export function Sheet({
     const id = useId().replace(/[^a-zA-Z0-9_-]/g, '')
     const dialogId = `sheet-${id}`
     const titleId = `sheet-title-${id}`
+    const shown = visible && !suspended
+    const scrollRef = useRef<ScrollView>(null)
+    const scrollY = useRef(0)
+    const restoreY = useRef<number | null>(null)
 
     useEffect(() => {
-        if (!visible || Platform.OS !== 'web' || typeof document === 'undefined') return
+        if (!visible) {
+            scrollY.current = 0
+            restoreY.current = null
+        } else if (suspended) restoreY.current = scrollY.current
+    }, [visible, suspended])
+
+    useEffect(() => {
+        if (!shown || Platform.OS !== 'web' || typeof document === 'undefined') return
         return scheduleWebFocusRecovery(() => {
             const dialog = document.getElementById(dialogId)
             if (dialog instanceof HTMLElement && !dialog.contains(document.activeElement)) dialog.focus()
         })
-    }, [visible, dialogId])
+    }, [shown, dialogId])
 
     useEffect(() => {
         if (!visible || Platform.OS !== 'web' || typeof document === 'undefined') return
@@ -56,7 +69,7 @@ export function Sheet({
         : { accessibilityLabel: accessibilityLabel ?? title }
 
     return (
-        <Modal visible={visible} transparent animationType={Platform.OS === 'web' ? 'none' : bottomSheet ? 'slide' : 'fade'} onRequestClose={onClose} {...modalLabel}>
+        <Modal visible={shown} transparent animationType={Platform.OS === 'web' ? 'none' : bottomSheet ? 'slide' : 'fade'} onRequestClose={onClose} {...modalLabel}>
             <View style={[styles.scrim, bottomSheet ? styles.scrimBottom : styles.scrimCenter]}>
                 <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="Close" />
                 <View
@@ -83,7 +96,19 @@ export function Sheet({
                             <MaterialIcons name="close" size={controlSize.icon.md} color={colors.textSecondary} />
                         </Pressable>
                     </View> : null}
-                    <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
+                    <ScrollView
+                        ref={scrollRef}
+                        style={styles.body}
+                        contentContainerStyle={styles.bodyContent}
+                        scrollEventThrottle={16}
+                        onScroll={(event) => { if (restoreY.current == null) scrollY.current = event.nativeEvent.contentOffset.y }}
+                        onContentSizeChange={() => {
+                            const y = restoreY.current
+                            if (y == null) return
+                            restoreY.current = null
+                            scrollRef.current?.scrollTo({ y, animated: false })
+                        }}
+                    >
                         {children}
                     </ScrollView>
                 </View>
