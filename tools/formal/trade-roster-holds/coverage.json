@@ -62,7 +62,7 @@
   ],
   "migrations": {
     "dir": "supabase/migrations",
-    "through": "20261228000000_rookie_draft_selection.sql",
-    "sha256": "2d533f219a06304968f01b4d15adb1e609d450e5b21675f01d5937805c77eacd"
+    "through": "20261231000100_player_search_averages.sql",
+    "sha256": "5f03d5b46d94b163b695d489ed46e7078471dcf9c0a87ac63775a05ab6362c16"
   }
 }

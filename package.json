@@ -4,6 +4,7 @@
   "version": "2.15.0",
   "scripts": {
     "seed:db:league-history": "node tests/db/seed-league-history.mjs",
+    "test:db:live-score-basis-parity": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" -X -v ON_ERROR_STOP=1 -f tests/db/live-score-basis-parity.sql",
     "test:db:league-history": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" -X -v ON_ERROR_STOP=1 -f tests/db/league-history.sql",
     "test:db:league-version-hint-budget": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/league-version-hint-budget.sql",
     "test:db:league-schedule-links": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" -X -v ON_ERROR_STOP=1 -f tests/db/league-schedule-links.sql",

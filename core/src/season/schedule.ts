@@ -61,13 +61,15 @@ export function normalizedScheduleTimestamp(value: string | null): string | null
     return date.toISOString()
 }
 
+const etDateKeyFormatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+})
+
 export function etDateKey(now = new Date()): string {
-    const parts = new Intl.DateTimeFormat('en-US', {
-        timeZone: 'America/New_York',
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-    }).formatToParts(now)
+    const parts = etDateKeyFormatter.formatToParts(now)
     const values = Object.fromEntries(parts.map((part) => [part.type, part.value]))
     return `${values.year}-${values.month}-${values.day}`
 }

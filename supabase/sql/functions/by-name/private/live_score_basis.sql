@@ -5,8 +5,8 @@ RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
       AND NOT m.is_voided AND m.week_number<=p_week AND COALESCE(m.end_week_number,m.week_number)>=p_week
   ), members AS MATERIALIZED (
     SELECT id, home_member_id AS member_id FROM matches UNION ALL SELECT id, away_member_id FROM matches
-  ), totals AS MATERIALIZED (
-    SELECT m.id, member.member_id, COALESCE(sum(public.compute_fantasy_points(stat.id,p_league_id)),0) AS points
+  ), totals_raw AS MATERIALIZED (
+    SELECT m.id, member.member_id, array_agg(stat.id) AS stat_ids
     FROM matches m JOIN members member ON member.id=m.id
     LEFT JOIN public.weekly_lineups lineup ON lineup.league_id=p_league_id AND lineup.league_season_id=p_season_id
       AND lineup.member_id=member.member_id AND lineup.week_number BETWEEN m.week_number AND COALESCE(m.end_week_number,m.week_number)
@@ -16,6 +16,9 @@ RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
     LEFT JOIN public.player_game_stats stat ON stat.player_id=lineup.player_id AND stat.game_date=lineup.game_date
       AND stat.season_year=season.season_year AND stat.game_date BETWEEN week.week_start AND week.week_end
     GROUP BY m.id,member.member_id
+  ), totals AS MATERIALIZED (
+    SELECT raw.id, raw.member_id, COALESCE((SELECT sum(points) FROM private.fantasy_points_rows(p_league_id, raw.stat_ids)),0) AS points
+    FROM totals_raw raw
   ), players AS MATERIALIZED (
     SELECT member.id,member.member_id,lineup.player_id,lineup.game_date,true AS starter FROM members member JOIN matches ON matches.id=member.id
       JOIN public.weekly_lineups lineup ON lineup.member_id=member.member_id AND lineup.league_id=p_league_id

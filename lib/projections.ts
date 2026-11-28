@@ -1,3 +1,4 @@
+import { dateFormatter } from '@/lib/date-format'
 export type LeagueProjectionRow = {
     player_id: string
     display_name: string
@@ -41,10 +42,12 @@ export function formatProjectionGame(row: Pick<LeagueProjectionRow, 'projection_
     return ''
 }
 
+const shortDateFormatter = dateFormatter(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' })
+
 function shortDate(date: string): string {
     const parsed = new Date(`${date}T12:00:00Z`)
     if (!Number.isFinite(parsed.getTime())) return date
-    return parsed.toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' })
+    return shortDateFormatter.format(parsed)
 }
 
 export type SleeperProjectionRow = {

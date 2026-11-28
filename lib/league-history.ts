@@ -19,12 +19,12 @@ export type SeasonHistory = {
     stats: { teams: number; games: number; pointsFor: number }
 }
 
-export type HistoryTradeAsset = {
+type HistoryTradeAsset = {
     kind: 'player' | 'pick' | 'faab'
     label: string
 }
 
-export type HistoryTradeParticipant = {
+type HistoryTradeParticipant = {
     memberId: string
     teamName: string
     received: HistoryTradeAsset[]

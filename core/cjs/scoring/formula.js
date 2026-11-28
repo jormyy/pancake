@@ -25,15 +25,26 @@ function calculateFantasyPoints(stats, settings) {
         const [right, rightScale] = decimalValue(weight);
         products.push([left * right, leftScale + rightScale]);
     }
-    const scale = Math.max(2, ...products.map(([, digits]) => digits));
+    let scale = 2;
+    for (const [, digits] of products)
+        if (digits > scale)
+            scale = digits;
     const total = products.reduce((sum, [value, digits]) => sum + value * 10n ** BigInt(scale - digits), 0n);
     const divisor = 10n ** BigInt(scale - 2);
     const sign = total < 0n ? -1n : 1n;
     return Number(sign * ((total * sign + divisor / 2n) / divisor)) / 100;
 }
+const decimalCache = new Map();
 function decimalValue(value) {
+    const cached = decimalCache.get(value);
+    if (cached)
+        return cached;
     const [coefficient, exponent = '0'] = value.toString().split('e');
-    return [BigInt(coefficient.replace('.', '')), (coefficient.split('.')[1]?.length ?? 0) - Number(exponent)];
+    const parsed = [BigInt(coefficient.replace('.', '')), (coefficient.split('.')[1]?.length ?? 0) - Number(exponent)];
+    if (decimalCache.size >= 4096)
+        decimalCache.clear();
+    decimalCache.set(value, parsed);
+    return parsed;
 }
 function roundFantasyPoints(value) {
     const sign = Math.sign(value) || 1;

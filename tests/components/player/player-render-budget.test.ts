@@ -16,7 +16,7 @@ let screen: ReactTestRenderer
 afterEach(async () => { await act(async () => screen?.unmount()); vi.restoreAllMocks() })
 
 it('keeps unchanged game lines out of unrelated renders and still accepts new stats', async () => {
-    const formatDate = vi.spyOn(Date.prototype, 'toLocaleDateString')
+    const formatDate = vi.spyOn(Intl.DateTimeFormat.prototype as unknown as { format: unknown }, 'format', 'get')
     const game: GameLogEntry = {
         gameId: 'game', gameDate: '2026-10-24', opponent: 'vs LAL', isHome: true, didNotPlay: false,
         minutes: 30, points: 20, rebounds: 6, assists: 5, steals: 1, blocks: 1, turnovers: 2,

@@ -114,6 +114,7 @@
     "private.ensure_log_partition(regclass,date)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.expire_pending_trades_for_lost_asset(uuid,uuid,uuid,uuid,boolean)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.fail_waiver_claim(uuid,uuid,uuid,uuid,uuid,waiver_claim_status,text,text,text,jsonb)": {"acl":["PUBLIC|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},
+    "private.fantasy_points_rows(uuid,uuid[])": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.flush_deferred_league_versions(integer)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.flush_league_inventory_hints(integer)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.flush_live_hint_broadcasts()": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},

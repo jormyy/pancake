@@ -1,16 +1,20 @@
+const etDateFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' })
+
 export function toETDate(date: Date): string {
-    return date.toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
+    return etDateFormatter.format(date)
 }
 
 export function todayET(): string {
     return toETDate(new Date())
 }
 
+const nyOffsetFormatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    timeZoneName: 'longOffset',
+})
+
 function newYorkOffsetMinutes(utcDate: Date): number {
-    const offsetPart = new Intl.DateTimeFormat('en-US', {
-        timeZone: 'America/New_York',
-        timeZoneName: 'longOffset',
-    }).formatToParts(utcDate).find((part) => part.type === 'timeZoneName')?.value
+    const offsetPart = nyOffsetFormatter.formatToParts(utcDate).find((part) => part.type === 'timeZoneName')?.value
     const match = offsetPart?.match(/^GMT([+-])(\d{2}):?(\d{2})?$/)
     if (!match) return -300
     const sign = match[1] === '-' ? -1 : 1

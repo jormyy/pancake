@@ -3,7 +3,7 @@ import { PendingMutationBadge } from '@/components/PendingMutationBadge'
 import { Badge } from '@/components/ui/Badge'
 import { StatCell } from '@/components/ui/StatCell'
 import { PlayerRowContent } from '@/components/player/PlayerRowContent'
-import { View, Text, StyleSheet, Pressable } from 'react-native'
+import { View, Text, StyleSheet, Pressable, type StyleProp, type TextStyle, type ViewStyle } from 'react-native'
 import { memo } from 'react'
 import { claimProcessWeekdayLabel } from '@/lib/waivers'
 import { PlayerRow, getEligiblePositions } from '@/lib/players'
@@ -75,7 +75,7 @@ function PlayerSearchItemImpl({
         <Badge size="ownership" variant="solid"
             color={showStats ? colors.transparent : isMe ? colors.successLight : isWaiver ? colors.infoLight : colors.bgMuted}
             textColor={isMe ? colors.successDark : isWaiver ? uiColors.waiverText : colors.textMuted}
-            style={[styles.statusBadge, !showStats && styles.statusBadgeNarrow]}
+            style={variantStyle(badgeStyles, showStats ? 'wide' : 'narrow', () => showStats ? styles.statusBadge : [styles.statusBadge, styles.statusBadgeNarrow])}
             label={isMe ? 'Mine' : isOther ? owned!.teamName : isWaiver ? `W · ${claimProcessWeekdayLabel(waiverClearsAt, new Date(), timezone)}` : 'FA'}
         />
     ) : null
@@ -98,7 +98,7 @@ function PlayerSearchItemImpl({
     const content = (
         <>
             <Pressable
-                style={[styles.playerCard, !showStats && styles.playerCardNarrow, denseProjectionRow && styles.playerCardDense]}
+                style={variantStyle(cardStyles, `${showStats ? 1 : 0}${denseProjectionRow ? 1 : 0}`, () => [styles.playerCard, !showStats && styles.playerCardNarrow, denseProjectionRow && styles.playerCardDense])}
                 onPress={() => onPress(item)}
                 onTouchStart={onPrepare ? () => onPrepare(item) : undefined}
                 accessibilityRole="button"
@@ -119,10 +119,10 @@ function PlayerSearchItemImpl({
                         accessibilityLabel={`${claimPending ? 'View claim for' : 'Claim'} ${item.display_name}`}
                         {...blockedActionProps(blockedReason, isAdding || addDisabled)}
                     >
-                        <View style={[styles.addBtn, isWaiver && styles.addBtnWaiver, blockedReason ? styles.addBtnBlocked : null]}>
+                        <View style={variantStyle(addButtonStyles, `${isWaiver ? 1 : 0}${blockedReason ? 1 : 0}`, () => [styles.addBtn, isWaiver && styles.addBtnWaiver, blockedReason ? styles.addBtnBlocked : null])}>
                             <Text
                                 numberOfLines={1}
-                                style={[styles.addBtnText, isWaiver && styles.addBtnTextWaiver, blockedReason ? styles.addBtnTextBlocked : null]}
+                                style={variantStyle(addLabelStyles, `${isWaiver ? 1 : 0}${blockedReason ? 1 : 0}`, () => [styles.addBtnText, isWaiver && styles.addBtnTextWaiver, blockedReason ? styles.addBtnTextBlocked : null])}
                             >
                                 {claimPending ? 'View' : isWaiver ? 'Claim' : 'Add'}
                             </Text>
@@ -183,6 +183,20 @@ function playerStats(item: PlayerRow, statMode: 'season' | 'projection' | 'windo
 }
 
 const ADD_COL_W = componentTokens.playerRow.actionWidth
+
+const cardStyles = new Map<string, StyleProp<ViewStyle>>()
+const addButtonStyles = new Map<string, StyleProp<ViewStyle>>()
+const addLabelStyles = new Map<string, StyleProp<TextStyle>>()
+const badgeStyles = new Map<string, StyleProp<ViewStyle>>()
+
+function variantStyle<T>(cache: Map<string, StyleProp<T>>, key: string, build: () => StyleProp<T>): StyleProp<T> {
+    let style = cache.get(key)
+    if (!style) {
+        style = build()
+        cache.set(key, style)
+    }
+    return style
+}
 
 const styles = StyleSheet.create({
     playerRow: {

@@ -5,6 +5,7 @@ import { memo, useEffect, useRef } from 'react'
 import { colors, controlSize, fontWeight, radii, spacing, table, textStyles, typeScale } from '@/constants/tokens'
 import type { GameLogEntry } from '@/lib/players'
 import { useEdgeFade } from '@/components/ui/useEdgeFade'
+import { dateFormatter } from '@/lib/date-format'
 
 type Props = {
     games: GameLogEntry[]
@@ -23,11 +24,13 @@ type Props = {
     embedded?: boolean
 }
 
+const shortMonthDay = dateFormatter('en-US', { month: 'short', day: 'numeric' })
+
 function fmtDate(dateStr: string): string {
     if (!dateStr) return '—'
     const [, month, day] = dateStr.split('-').map(Number)
     const d = new Date(2000, month - 1, day)
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    return shortMonthDay.format(d)
 }
 
 function fmtStat(val: number, dnp: boolean): string {

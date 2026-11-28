@@ -3,6 +3,7 @@ import { assertMutationOnline } from '@/lib/shared/pwa-mutation'
 import { apiPost, apiReadPost } from '@/lib/shared/api'
 import { sessionGeneration } from '@/lib/session-cache-registry'
 import { notifyMemberClaimsChanged } from '@/lib/claim-updates'
+import { dateFormatter } from '@/lib/date-format'
 
 export type WaiverClaim = {
     id: string
@@ -155,7 +156,7 @@ export function claimProcessDateLabel(clearsAt: string | null, now: Date = new D
 }
 
 export function claimProcessWeekdayLabel(clearsAt: string | null, now: Date = new Date(), timezone?: string | null): string {
-    return claimRunAt(clearsAt, now, timezone).toLocaleDateString('en-US', { weekday: 'short', timeZone: resolveLeagueTimezone(timezone) })
+    return dateFormatter('en-US', { weekday: 'short', timeZone: resolveLeagueTimezone(timezone) }).format(claimRunAt(clearsAt, now, timezone))
 }
 
 export function claimProcessTimeLabel(clearsAt: string | null, now: Date = new Date(), timezone?: string | null): string {
@@ -164,7 +165,7 @@ export function claimProcessTimeLabel(clearsAt: string | null, now: Date = new D
 
 export function scheduledClaimLabel(processDate: string, timezone?: string | null): string {
     const date = scheduledClaimRunAt(processDate, timezone)
-    return `${date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: resolveLeagueTimezone(timezone) })} · ${formatLeagueTime(date, resolveLeagueTimezone(timezone))}`
+    return `${dateFormatter('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: resolveLeagueTimezone(timezone) }).format(date)} · ${formatLeagueTime(date, resolveLeagueTimezone(timezone))}`
 }
 
 export function scheduledClaimRunAt(processDate: string, timezone?: string | null): Date {
