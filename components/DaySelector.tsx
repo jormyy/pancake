@@ -3,6 +3,7 @@ import { WeekDay } from '@/lib/lineup'
 import { useLeagueDay } from '@/hooks/use-league-day'
 import { colors, componentTokens, controlSize, fontWeight, radii, spacing, tints, uiColors, typeScale } from '@/constants/tokens'
 import { MotionPressable } from '@/components/Motion'
+import { dateFormatter } from '@/lib/date-format'
 
 // react-native-web forwards aria-* props to the DOM, but React Native's prop
 // types don't model aria-current — spread this constant on the selected day so
@@ -10,12 +11,10 @@ import { MotionPressable } from '@/components/Motion'
 // mapped to aria for role=button on web).
 const ARIA_CURRENT_DATE = Platform.OS === 'web' ? ({ 'aria-current': 'date' } as const) : undefined
 
+const fullWeekday = dateFormatter('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
+
 function accessibleDayLabel(day: WeekDay) {
-    const fullDate = new Date(`${day.date}T12:00:00`).toLocaleDateString('en-US', {
-        weekday: 'long',
-        month: 'long',
-        day: 'numeric',
-    })
+    const fullDate = fullWeekday.format(new Date(`${day.date}T12:00:00`))
     return day.hasGames ? fullDate : `${fullDate}, no games`
 }
 

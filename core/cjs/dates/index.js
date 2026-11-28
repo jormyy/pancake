@@ -3,17 +3,19 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.toETDate = toETDate;
 exports.todayET = todayET;
 exports.endOfETDayUTC = endOfETDayUTC;
+const etDateFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' });
 function toETDate(date) {
-    return date.toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+    return etDateFormatter.format(date);
 }
 function todayET() {
     return toETDate(new Date());
 }
+const nyOffsetFormatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    timeZoneName: 'longOffset',
+});
 function newYorkOffsetMinutes(utcDate) {
-    const offsetPart = new Intl.DateTimeFormat('en-US', {
-        timeZone: 'America/New_York',
-        timeZoneName: 'longOffset',
-    }).formatToParts(utcDate).find((part) => part.type === 'timeZoneName')?.value;
+    const offsetPart = nyOffsetFormatter.formatToParts(utcDate).find((part) => part.type === 'timeZoneName')?.value;
     const match = offsetPart?.match(/^GMT([+-])(\d{2}):?(\d{2})?$/);
     if (!match)
         return -300;

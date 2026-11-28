@@ -1,12 +1,15 @@
-function zonedParts(date: Date, timeZone: string): { year: number; month: number } {
-    const parts = new Intl.DateTimeFormat('en-US', {
-        timeZone,
-        year: 'numeric',
-        month: 'numeric',
-    }).formatToParts(date)
+const zonedFormatters = new Map<string, Intl.DateTimeFormat>()
 
-    const year = Number(parts.find((part) => part.type === 'year')?.value)
-    const month = Number(parts.find((part) => part.type === 'month')?.value)
+function zonedParts(date: Date, timeZone: string): { year: number; month: number } {
+    let formatter = zonedFormatters.get(timeZone)
+    if (!formatter) {
+        formatter = new Intl.DateTimeFormat('en-US', { timeZone, year: 'numeric', month: 'numeric' })
+        zonedFormatters.set(timeZone, formatter)
+    }
+    const [monthText, yearText] = formatter.format(date).split('/')
+
+    const year = Number(yearText)
+    const month = Number(monthText)
     if (!Number.isInteger(year) || !Number.isInteger(month)) {
         throw new Error(`Could not resolve season year in ${timeZone}`)
     }

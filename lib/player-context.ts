@@ -18,13 +18,19 @@ export function playerSeasonContextText(player: PlayerContextInput): string {
     return `${formatAvgPoints(player.avgFantasyPoints)} FP · ${formatStat(player.avgMinutesPlayed)} mins`
 }
 
+const laDateFormatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit',
+})
+
+function losAngelesDate(now: Date): [number, number, number] {
+    return laDateFormatter.format(now).split('-').map(Number) as [number, number, number]
+}
+
 export function playerAge(birthdate?: string | null, now = new Date()): number | null {
     if (!birthdate) return null
     const birth = new Date(`${birthdate.slice(0, 10)}T00:00:00Z`)
     if (!Number.isFinite(birth.getTime())) return null
-    const [year, month, day] = new Intl.DateTimeFormat('en-CA', {
-        timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit',
-    }).format(now).split('-').map(Number)
+    const [year, month, day] = losAngelesDate(now)
     const beforeBirthday = month - 1 < birth.getUTCMonth() ||
         (month - 1 === birth.getUTCMonth() && day < birth.getUTCDate())
     const age = year - birth.getUTCFullYear() - Number(beforeBirthday)
@@ -36,9 +42,7 @@ export function playerAgeDecimal(birthdate?: string | null, now = new Date()): n
     const whole = playerAge(birthdate, now)
     if (whole == null || !birthdate) return null
     const birth = new Date(`${birthdate.slice(0, 10)}T00:00:00Z`)
-    const [year, month, day] = new Intl.DateTimeFormat('en-CA', {
-        timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit',
-    }).format(now).split('-').map(Number)
+    const [year, month, day] = losAngelesDate(now)
     const lastBirthday = Date.UTC(birth.getUTCFullYear() + whole, birth.getUTCMonth(), birth.getUTCDate())
     const nextBirthday = Date.UTC(birth.getUTCFullYear() + whole + 1, birth.getUTCMonth(), birth.getUTCDate())
     const fraction = (Date.UTC(year, month - 1, day) - lastBirthday) / (nextBirthday - lastBirthday)

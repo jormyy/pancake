@@ -1,14 +1,16 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.currentSeasonYear = currentSeasonYear;
+const zonedFormatters = new Map();
 function zonedParts(date, timeZone) {
-    const parts = new Intl.DateTimeFormat('en-US', {
-        timeZone,
-        year: 'numeric',
-        month: 'numeric',
-    }).formatToParts(date);
-    const year = Number(parts.find((part) => part.type === 'year')?.value);
-    const month = Number(parts.find((part) => part.type === 'month')?.value);
+    let formatter = zonedFormatters.get(timeZone);
+    if (!formatter) {
+        formatter = new Intl.DateTimeFormat('en-US', { timeZone, year: 'numeric', month: 'numeric' });
+        zonedFormatters.set(timeZone, formatter);
+    }
+    const [monthText, yearText] = formatter.format(date).split('/');
+    const year = Number(yearText);
+    const month = Number(monthText);
     if (!Number.isInteger(year) || !Number.isInteger(month)) {
         throw new Error(`Could not resolve season year in ${timeZone}`);
     }
