@@ -110,6 +110,8 @@ export function useLeagueScreenState() {
         shareInviteCode,
         schedule: tabResources.schedule,
         seasons: tabResources.seasons,
+        trades: tabResources.trades,
+        tradeCounts: tabResources.tradeCounts,
         standings: tabResources.standings,
         tab,
         tabErr: tabResources.tabError,

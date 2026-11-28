@@ -19,6 +19,11 @@ const checked = async operation => { const { data, error } = await operation; if
 const members = await checked(admin.from('league_members').select('id,user_id,team_name').eq('league_id', state.leagueId))
 const me = members.find(row => row.user_id === state.users[0].id)
 const other = members.find(row => row.user_id === state.users[1].id)
+const third = members.find(row => row.user_id === state.users[2].id)
+const fourth = members.find(row => row.user_id === state.users[3].id)
+const fifth = members.find(row => row.user_id === state.users[4].id)
+assert.ok(third && fourth && fifth, 'Trade history fixture requires at least five seeded managers')
+assert.ok(state.users[5], 'Trade history fixture requires six seeded users')
 const season = await checked(admin.from('league_seasons').select('*').eq('league_id', state.leagueId).eq('is_current', true).single())
 const draft = await checked(admin.from('drafts').select('id').eq('league_id', state.leagueId).eq('draft_type', 'auction').single())
 await ensureSyntheticSeasonWeeks(admin, season.season_year, 26, 'verification')
@@ -63,6 +68,48 @@ await checked(admin.rpc('accept_trade_atomic', { p_trade_id: completedTradeId, p
 await checked(admin.rpc('process_due_accepted_trades_atomic', { p_limit: 200 }))
 const completedTrade = await checked(admin.from('trades').select('id,status').eq('id', completedTradeId).single())
 assert.equal(completedTrade.status, 'completed', 'History fixture must complete through the trade rules')
+const threeTeamTradeId = randomUUID()
+const otherLeagueId = randomUUID()
+const otherSeasonId = randomUUID()
+const otherFirstId = randomUUID()
+const otherSecondId = randomUUID()
+const otherTradeId = randomUUID()
+execFileSync('psql', [env.SUPABASE_DB_URL, '-X', '-v', 'ON_ERROR_STOP=1', '-f', '-'], {
+  input: `BEGIN;
+    SET LOCAL session_replication_role = replica;
+    INSERT INTO public.trade_items(trade_id, league_id, side, player_id, from_member_id, to_member_id) VALUES
+      ('${completedTradeId}', '${state.leagueId}', 'proposer', '${players[11].id}', '${me.id}', '${other.id}'),
+      ('${completedTradeId}', '${state.leagueId}', 'recipient', '${players[31].id}', '${other.id}', '${me.id}');
+    UPDATE public.trades SET completed_at = now() - interval '1 day' WHERE id = '${completedTradeId}';
+    INSERT INTO public.trades(id, league_id, league_season_id, proposer_member_id, recipient_member_id, status, accepted_at, completed_at)
+    VALUES('${threeTeamTradeId}', '${state.leagueId}', '${season.id}', '${me.id}', '${other.id}', 'completed', now(), now());
+    INSERT INTO public.trade_participants(trade_id, league_id, member_id, sort_order, is_initiator, accepted_at, proposed_at) VALUES
+      ('${threeTeamTradeId}', '${state.leagueId}', '${me.id}', 0, true, now(), now()),
+      ('${threeTeamTradeId}', '${state.leagueId}', '${other.id}', 1, false, now(), now()),
+      ('${threeTeamTradeId}', '${state.leagueId}', '${third.id}', 2, false, now(), now());
+    INSERT INTO public.trade_items(trade_id, league_id, side, player_id, from_member_id, to_member_id) VALUES
+      ('${threeTeamTradeId}', '${state.leagueId}', 'proposer', '${players[12].id}', '${me.id}', '${other.id}'),
+      ('${threeTeamTradeId}', '${state.leagueId}', 'recipient', '${players[22].id}', '${other.id}', '${third.id}'),
+      ('${threeTeamTradeId}', '${state.leagueId}', 'recipient', '${players[32].id}', '${third.id}', '${me.id}');
+    INSERT INTO public.trades(league_id, league_season_id, proposer_member_id, recipient_member_id, status)
+    SELECT '${state.leagueId}', '${season.id}', '${fourth.id}', '${fifth.id}', state::public.trade_status
+    FROM unnest(ARRAY['pending', 'rejected', 'withdrawn', 'vetoed', 'expired']) AS state;
+    INSERT INTO public.leagues(id, name, slug, commissioner_id, status)
+    VALUES('${otherLeagueId}', 'History Other League', 'history-other-${Date.now()}', '${state.users[4].id}', 'active');
+    INSERT INTO public.league_seasons(id, league_id, season_year, is_current)
+    VALUES('${otherSeasonId}', '${otherLeagueId}', ${season.season_year}, true);
+    INSERT INTO public.league_members(id, league_id, user_id, role, team_name) VALUES
+      ('${otherFirstId}', '${otherLeagueId}', '${state.users[4].id}', 'commissioner', 'Other Team 1'),
+      ('${otherSecondId}', '${otherLeagueId}', '${state.users[5].id}', 'manager', 'Other Team 2');
+    INSERT INTO public.trades(id, league_id, league_season_id, proposer_member_id, recipient_member_id, status, accepted_at, completed_at)
+    VALUES('${otherTradeId}', '${otherLeagueId}', '${otherSeasonId}', '${otherFirstId}', '${otherSecondId}', 'completed', now(), now());
+    INSERT INTO public.trades(league_id, league_season_id, proposer_member_id, recipient_member_id, status, accepted_at, veto_window_expires_at)
+    VALUES('${otherLeagueId}', '${otherSeasonId}', '${otherFirstId}', '${otherSecondId}', 'accepted', now(), now() + interval '1 day');
+    INSERT INTO public.trade_items(trade_id, league_id, side, player_id, from_member_id, to_member_id)
+    VALUES('${otherTradeId}', '${otherLeagueId}', 'proposer', '${players[33].id}', '${otherFirstId}', '${otherSecondId}');
+    COMMIT;`,
+  stdio: ['pipe', 'ignore', 'pipe'],
+})
 const receivedTradeId = await checked(admin.rpc('propose_trade_atomic', { p_league_id: state.leagueId, p_league_season_id: season.id, p_proposer_member_id: other.id, p_recipient_member_id: me.id, p_offer_player_ids: [players[21].id], p_request_player_ids: [players[1].id], p_offer_pick_ids: [], p_request_pick_ids: [] }))
 const noStats = players[2]
 const noStatsCount = await checked(admin.from('player_game_stats').select('id').eq('player_id', noStats.id))
@@ -83,6 +130,14 @@ assert.equal(history.seasons.length, 1)
 assert.equal(history.seasons[0].id, pastSeasonId)
 assert.equal(history.seasons[0].champion.memberId, other.id)
 assert.deepEqual(history.seasons[0].stats, { teams: members.length, games: 2, pointsFor: 420 })
-const fixture = { sentTradeId: sentTrade.id, receivedTradeId, completedTradeId, noStatsPlayerId: noStats.id, noStatsPlayerName: noStats.display_name, proposerTeamName: me.team_name, recipientTeamName: other.team_name, leagueId: state.leagueId, seasonId: season.id, memberId: me.id, otherMemberId: other.id, currentWeek: week.week_number, today, benchPlayerId: players[7].id, benchPlayerName: players[7].display_name, freePlayerId: players[51].id, completedPastSeason: true, pastSeasonId, pastSeasonYear, history: history.seasons[0], counts: { members: members.length, activePerTeam: 14, irPerTeam: 1, taxiPerTeam: 1, pendingTrades: 2, pendingWaivers: 1 } }
+assert.equal(history.trades.length, 2, 'Trade history must list exactly the two seeded completed trades before enrichment')
+assert.equal(history.trades[0].id, threeTeamTradeId, 'Trade history must lead with the newest completed trade')
+const tradeCounts = Object.fromEntries(history.tradeCounts.map(row => [row.memberId, row.count]))
+assert.equal(history.tradeCounts.length, members.length, 'Trade counter must list every manager')
+assert.equal(tradeCounts[me.id], 2)
+assert.equal(tradeCounts[other.id], 2)
+assert.equal(tradeCounts[third.id], 1)
+assert.ok(history.tradeCounts.every(row => row.count === 0 || [me.id, other.id, third.id].includes(row.memberId)), 'Only trade participants may have a count')
+const fixture = { sentTradeId: sentTrade.id, receivedTradeId, completedTradeId, threeTeamTradeId, otherTradeId, noStatsPlayerId: noStats.id, noStatsPlayerName: noStats.display_name, proposerTeamName: me.team_name, recipientTeamName: other.team_name, leagueId: state.leagueId, seasonId: season.id, memberId: me.id, otherMemberId: other.id, currentWeek: week.week_number, today, benchPlayerId: players[7].id, benchPlayerName: players[7].display_name, freePlayerId: players[51].id, completedPastSeason: true, pastSeasonId, pastSeasonYear, history: history.seasons[0], tradeHistory: { seededCompletedTrades: 2, completedTrades: 4, members: members.length, counts: { [me.team_name]: 4, [other.team_name]: 4, [third.team_name]: 2 }, zeroCount: members.length - 3, note: 'enrich.mjs adds one completed two-team pick trade and one completed three-team trade after launch' }, counts: { members: members.length, activePerTeam: 14, irPerTeam: 1, taxiPerTeam: 1, pendingTrades: 2, pendingWaivers: 1 } }
 await writeFile(path.join(dir, 'fixture.json'), JSON.stringify(fixture, null, 2) + '\n')
-console.log('Seeded active league, current matchup, starters, bench, IR, taxi, waivers, pending trade, and completed season history.')
+console.log('Seeded active league, current matchup, starters, bench, IR, taxi, waivers, pending trade, completed seasons, and trade history.')

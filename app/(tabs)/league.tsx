@@ -80,7 +80,7 @@ function LeagueScreen() {
         if (screen.tab === 'bracket') return <LeaguePlayoffs key={screen.currentLeague?.id} standings={screen.standings} playoffEntrants={screen.currentLeague?.playoff_entrants} />
 
         if (screen.tab === 'seasons') {
-            return <LeagueHistory key={screen.currentLeague?.id} seasons={screen.seasons} onRefresh={screen.retryCurrentTab} refreshing={screen.isTabRefreshing} />
+            return <LeagueHistory key={screen.currentLeague?.id} seasons={screen.seasons} trades={screen.trades} tradeCounts={screen.tradeCounts} onRefresh={screen.retryCurrentTab} refreshing={screen.isTabRefreshing} />
         }
 
         if (screen.tab === 'draft') {
