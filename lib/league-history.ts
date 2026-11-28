@@ -18,3 +18,32 @@ export type SeasonHistory = {
     standings: HistoryStanding[]
     stats: { teams: number; games: number; pointsFor: number }
 }
+
+export type HistoryTradeAsset = {
+    kind: 'player' | 'pick' | 'faab'
+    label: string
+}
+
+export type HistoryTradeParticipant = {
+    memberId: string
+    teamName: string
+    received: HistoryTradeAsset[]
+}
+
+export type CompletedTradeHistory = {
+    id: string
+    completedAt: string
+    participants: HistoryTradeParticipant[]
+}
+
+export type ManagerTradeCount = {
+    memberId: string
+    teamName: string
+    count: number
+}
+
+export type LeagueHistoryView = {
+    seasons?: SeasonHistory[]
+    trades?: CompletedTradeHistory[]
+    tradeCounts?: ManagerTradeCount[]
+}

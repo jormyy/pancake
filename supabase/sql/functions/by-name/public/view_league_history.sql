@@ -1,6 +1,6 @@
 CREATE OR REPLACE FUNCTION public.view_league_history(p_league_id uuid, p_member_id uuid, p_params jsonb DEFAULT '{}')
 RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' AS $$
-DECLARE context jsonb; seasons jsonb;
+DECLARE context jsonb; seasons jsonb; trades jsonb; trade_counts jsonb;
 BEGIN
   context := public.view_context(p_league_id, p_member_id, p_params);
   WITH completed AS (
@@ -71,6 +71,71 @@ BEGIN
       'pointsFor', (SELECT COALESCE(sum(team.points_for), 0) FROM ranked team WHERE team.season_id = season.id))
   ) ORDER BY season.season_year DESC, season.id), '[]'::jsonb)
   INTO seasons FROM completed season LEFT JOIN public.league_members champion ON champion.id = season.champion_id;
-  RETURN jsonb_build_object('context', context, 'seasons', seasons);
+
+  WITH completed AS (
+    SELECT trade.id, trade.completed_at
+    FROM public.trades trade
+    WHERE trade.league_id = p_league_id AND trade.status = 'completed' AND trade.completed_at IS NOT NULL
+  ), participant_ids AS (
+    SELECT participant.trade_id, participant.member_id, COALESCE(participant.sort_order, 100) AS sort_order
+    FROM completed trade
+    JOIN public.trade_participants participant ON participant.trade_id = trade.id AND participant.league_id = p_league_id
+  ), participants AS (
+    SELECT participant.trade_id, participant.member_id, min(participant.sort_order) AS sort_order
+    FROM participant_ids participant
+    JOIN public.league_members member ON member.id = participant.member_id AND member.league_id = p_league_id
+    GROUP BY participant.trade_id, participant.member_id
+  ), assets AS (
+    SELECT item.trade_id, item.to_member_id, 'player'::text AS kind, COALESCE(player.display_name, 'Player') AS label
+    FROM public.trade_items item
+    JOIN public.players player ON player.id = item.player_id
+    WHERE item.league_id = p_league_id AND item.player_id IS NOT NULL
+    UNION
+    SELECT item.trade_id, item.to_member_id, 'pick',
+      pick.season_year || ' Round ' || pick.round || ' (orig. ' || COALESCE(owner.team_name, 'Team') || ')'
+    FROM public.trade_items item
+    JOIN public.draft_picks pick ON pick.id = item.pick_id AND pick.league_id = p_league_id
+    LEFT JOIN public.league_members owner ON owner.id = pick.original_owner_id AND owner.league_id = p_league_id
+    WHERE item.league_id = p_league_id AND item.pick_id IS NOT NULL
+    UNION
+    SELECT item.trade_id, item.to_member_id, 'faab', '$' || item.faab_amount || ' FAAB'
+    FROM public.trade_items item
+    WHERE item.league_id = p_league_id AND item.faab_amount > 0
+  )
+  SELECT COALESCE(jsonb_agg(jsonb_build_object(
+    'id', trade.id, 'completedAt', trade.completed_at,
+    'participants', (SELECT jsonb_agg(jsonb_build_object(
+      'memberId', roster.member_id, 'teamName', COALESCE(member.team_name, 'Team'),
+      'received', COALESCE((SELECT jsonb_agg(jsonb_build_object('kind', asset.kind, 'label', asset.label) ORDER BY asset.label)
+        FROM assets asset WHERE asset.trade_id = trade.id AND asset.to_member_id = roster.member_id), '[]'::jsonb))
+      ORDER BY roster.sort_order, COALESCE(member.team_name, 'Team') COLLATE "en-US-x-icu", roster.member_id)
+      FROM participants roster
+      JOIN public.league_members member ON member.id = roster.member_id
+      WHERE roster.trade_id = trade.id)
+  ) ORDER BY trade.completed_at DESC, trade.id DESC), '[]'::jsonb)
+  INTO trades FROM completed trade;
+
+  WITH completed AS (
+    SELECT trade.id
+    FROM public.trades trade
+    WHERE trade.league_id = p_league_id AND trade.status = 'completed' AND trade.completed_at IS NOT NULL
+  ), participant_ids AS (
+    SELECT participant.trade_id, participant.member_id
+    FROM completed trade
+    JOIN public.trade_participants participant ON participant.trade_id = trade.id AND participant.league_id = p_league_id
+  ), counted AS (
+    SELECT participant.member_id, count(*) AS trade_count
+    FROM participant_ids participant
+    JOIN public.league_members member ON member.id = participant.member_id AND member.league_id = p_league_id
+    GROUP BY participant.member_id
+  )
+  SELECT COALESCE(jsonb_agg(jsonb_build_object('memberId', member.id, 'teamName', COALESCE(member.team_name, 'Team'), 'count', COALESCE(counted.trade_count, 0))
+    ORDER BY COALESCE(counted.trade_count, 0) DESC, COALESCE(member.team_name, 'Team') COLLATE "en-US-x-icu", member.id), '[]'::jsonb)
+  INTO trade_counts
+  FROM public.league_members member
+  LEFT JOIN counted ON counted.member_id = member.id
+  WHERE member.league_id = p_league_id;
+
+  RETURN jsonb_build_object('context', context, 'seasons', seasons, 'trades', trades, 'tradeCounts', trade_counts);
 END;
 $$;

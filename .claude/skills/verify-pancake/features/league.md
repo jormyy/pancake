@@ -13,13 +13,14 @@ League provides standings, schedule, activity, draft tools, picks, settings, and
 - `dynasty-pick-calendar-years` repairs the approved legacy pick years and preserves traded ownership and frozen references.
 - `league-bracket` shows playoff matchups.
 - `league-history` shows completed Pancake seasons, final standings, and season statistics.
+- `league-trade-history` shows every distinct completed trade and a per-manager trade counter.
 
 ## How to get to it (user POV)
 
 - Select League from main navigation, then its section tabs.
 - Select a team in Standings or a matchup in Schedule.
 - Settings → bracket or commissioner settings.
-- History → the completed season named in `fixture.json`.
+- History → the completed season named in `fixture.json`, then Trade History.
 - For `dynasty-pick-calendar-years`, switch to Draft year verification, then select League → Picks → All and Traded.
 
 ## Driving it with agent-browser
@@ -34,7 +35,9 @@ Preconditions:
 - **Activity.** Select Activity. Read the visible events and exercise Load more when present. Compare their order and contents with stored transactions.
 - **Settings.** Select Settings. Require rules, invite code, and waiver order. Open commissioner controls as the owner, change one reversible setting, save, reopen, and compare stored league settings.
 - **Picks and bracket.** Select Picks and confirm future ownership against stored picks. Open Bracket from Settings and follow a matchup.
-- **History.** Select History and require the `pastSeasonYear` from `fixture.json`. Open it and compare final positions and statistics with `fixture.json.history`. Require Team 2 as champion, Team 1 as runner-up, two games, and 420 total points.
+- **History.** Select History and require the `pastSeasonYear` from `fixture.json`. Open it and compare final positions and statistics with `fixture.json.history`. Require Team 2 as champion, Team 1 as runner-up, two games, and 420 total points. Return with All seasons.
+- **Trade History.** At the top of History, select Trade History and require `fixture.json.tradeHistory.completedTrades` completed trades (`4`: the seeded two-team trade with four assets, the seeded three-team trade, and the two completed trades `enrich.mjs` adds). Require the newest first, the teams and received players/picks on each row, and the manager counter from `fixture.json.tradeHistory`: E2E Team 1 and E2E Team 2 at 4, E2E Team 3 at 2, and every other manager at 0. Pending, rejected, withdrawn, vetoed, and expired trades and the other league's completed trade must not appear. Switch back to Winners and require the season list unchanged. At 375×812 confirm the two-option switch and trade cards have no horizontal overflow.
+- **Fixture.** `tools/verify/fixture.mjs` seeds the completed two-team trade with four assets, the completed three-team trade, the excluded trade statuses, and a completed trade in another league; `enrich.mjs` then adds one completed two-team pick trade and one completed three-team trade. The launch fails unless the two seeded completed trades and counts (2/2/1) are present before enrichment; `fixture.json.tradeHistory` states the final counts after it.
 - **Widths.** At 375×812 scroll the section row and confirm every section remains reachable.
 
 ### Dynasty pick calendar years
